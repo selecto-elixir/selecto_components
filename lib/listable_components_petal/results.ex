@@ -1,8 +1,13 @@
 defmodule ListableComponentsPetal.Results do
-  use Phoenix.Component
+  use Phoenix.LiveComponent
+
+  #use Phoenix.Component
   use PetalComponents
 
-  def results_panel(assigns) do
+  #attr :listable, Listable, required: true
+  #attr :view_control, %{}
+
+  def render(assigns) do
     results = Listable.execute(assigns.listable)
     assigns = assign(assigns, results: results)
 

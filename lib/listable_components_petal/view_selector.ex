@@ -1,9 +1,10 @@
 defmodule ListableComponentsPetal.ViewSelector do
-  use Phoenix.Component
+  use Phoenix.LiveComponent
+
+  #use Phoenix.Component
   use PetalComponents
 
-
-  def view_panel(assigns) do
+  def render(assigns) do
     ~H"""
       <.accordion>
         <:item heading="View Options">
