@@ -8,7 +8,7 @@ defmodule ListableComponentsPetal.Results do
   #attr :view_control, %{}
 
   def render(assigns) do
-    results = Listable.execute(assigns.listable)
+    {results, aliases} = Listable.execute(assigns.listable)
     assigns = assign(assigns, results: results)
 
     ~H"""
