@@ -14,22 +14,18 @@ defmodule ListableComponentsPetal.Results do
     ~H"""
     <div>
       <.container max-width="full">
-      <.table>
-        <.tr>
-          <.th :for={r <- @aliases}>
-            <%= r %>
-          </.th>
-        </.tr>
-
-
+        <.table>
+          <.tr>
+            <.th :for={r <- @aliases}>
+              <%= r %>
+            </.th>
+          </.tr>
           <.tr :for={r <- @results}>
             <.td :for={c <- @aliases}>
-
               <%= r[c] %>
             </.td>
           </.tr>
-
-      </.table>
+        </.table>
       </.container>
     </div>
     """
