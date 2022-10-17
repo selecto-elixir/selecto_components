@@ -40,8 +40,6 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
 
   def handle_event("view_set", params, socket) do
     send self(), {:view_set, params["value"]}
-    IO.inspect(params)
-    IO.inspect(socket)
     {:noreply, socket}
   end
 

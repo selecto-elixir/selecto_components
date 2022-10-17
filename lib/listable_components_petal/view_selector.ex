@@ -43,4 +43,17 @@ defmodule ListableComponentsPetal.ViewSelector do
   end
 
 
+  defmacro __using__(opts \\ []) do
+    quote do
+      ### These run in the 'use'ing liveview's context
+      def handle_info({:view_set, view }, socket) do
+        {:noreply, assign(socket, view_sel: view)}
+      end
+
+    end
+
+  end
+
+
+
 end
