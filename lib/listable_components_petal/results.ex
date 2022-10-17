@@ -9,15 +9,29 @@ defmodule ListableComponentsPetal.Results do
 
   def render(assigns) do
     {results, aliases} = Listable.execute(assigns.listable)
-    assigns = assign(assigns, results: results)
+    assigns = assign(assigns, results: results, aliases: aliases)
 
     ~H"""
-      <div>
-        Results TODO MAKE FANCY TABLE
-          <div :for={r <- @results}>
-            <%= inspect(r) %>
-          </div>
-      </div>
+    <div>
+      <.container max-width="full">
+      <.table>
+        <.tr>
+          <.th :for={r <- @aliases}>
+            <%= r %>
+          </.th>
+        </.tr>
+
+
+          <.tr :for={r <- @results}>
+            <.td :for={c <- @aliases}>
+
+              <%= r[c] %>
+            </.td>
+          </.tr>
+
+      </.table>
+      </.container>
+    </div>
     """
   end
 
