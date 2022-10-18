@@ -79,6 +79,9 @@ defmodule ListableComponentsPetal.ViewSelector do
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
         socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [item]))
+        # fun but should require submit to redraw view
+        #listable = socket.assigns.listable |> Listable.select([item])
+        #socket = assign(socket, listable: listable)
         {:noreply, socket}
       end
     end
