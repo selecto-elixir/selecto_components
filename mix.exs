@@ -21,7 +21,6 @@ defmodule ListableComponentsPetal.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-
       {:phoenix, "~> 1.6"},
       {:phoenix_live_view, "~> 0.18"},
       {:petal_components, "~> 0.18.5"},

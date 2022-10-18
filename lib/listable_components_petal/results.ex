@@ -1,11 +1,11 @@
 defmodule ListableComponentsPetal.Results do
   use Phoenix.LiveComponent
 
-  #use Phoenix.Component
+  # use Phoenix.Component
   use PetalComponents
 
-  #attr :listable, Listable, required: true
-  #attr :view_control, %{}
+  # attr :listable, Listable, required: true
+  # attr :view_control, %{}
 
   def render(assigns) do
     {results, aliases} = Listable.execute(assigns.listable)
@@ -30,5 +30,4 @@ defmodule ListableComponentsPetal.Results do
     </div>
     """
   end
-
 end

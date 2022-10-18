@@ -3,5 +3,4 @@ defmodule ListableComponentsPetal.Components.DetailTable do
     Display results of a detail view
 
   """
-
 end

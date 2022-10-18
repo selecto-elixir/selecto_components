@@ -8,11 +8,11 @@ defmodule ListableComponentsPetal.Components.ListPicker do
 
   use Phoenix.LiveComponent
 
-  attr :avail, :list, required: true
-  attr :selected_items, :list, required: true
-  attr :fieldname, :string, required: true
+  attr(:avail, :list, required: true)
+  attr(:selected_items, :list, required: true)
+  attr(:fieldname, :string, required: true)
 
-  slot :item_form
+  slot(:item_form)
 
   def render(assigns) do
     ~H"""
@@ -31,10 +31,8 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     """
   end
 
-
   def handle_event("add", params, socket) do
-    send self(), {:list_picker_add, params["list-id"], params["item"]}
+    send(self(), {:list_picker_add, params["list-id"], params["item"]})
     {:noreply, socket}
   end
-
 end

@@ -5,9 +5,8 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
   """
   use Phoenix.LiveComponent
 
-  attr :fieldname, :string, required: false
-  attr :view_sel, :string, required: false
-
+  attr(:fieldname, :string, required: false)
+  attr(:view_sel, :string, required: false)
 
   # slot :section, required: true do
   #   attr :id, :string
@@ -15,7 +14,6 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
   # end
 
   def render(assigns) do
-
     ~H"""
       <div>
         <div :for={s <- @section}>
@@ -35,14 +33,10 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
         </div>
       </div>
     """
-
   end
 
   def handle_event("view_set", params, socket) do
-    send self(), {:view_set, params["value"]}
+    send(self(), {:view_set, params["value"]})
     {:noreply, socket}
   end
-
-
-
 end

@@ -1,16 +1,17 @@
 defmodule ListableComponentsPetal.ViewSelector do
   use Phoenix.LiveComponent
 
-  #use Phoenix.Component
-  #use PetalComponents
+  # use Phoenix.Component
+  # use PetalComponents
   import ListableComponentsPetal.Components.RadioTabs
   import ListableComponentsPetal.Components.ListPicker
 
-
   def render(assigns) do
-    assigns = assign(assigns,
-      columns: Map.values(assigns.listable.config.columns),
-    )
+    assigns =
+      assign(assigns,
+        columns: Map.values(assigns.listable.config.columns)
+      )
+
     ~H"""
       <div>
         <.live_component
@@ -56,24 +57,17 @@ defmodule ListableComponentsPetal.ViewSelector do
     """
   end
 
-
   defmacro __using__(opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
-      def handle_info({:view_set, view }, socket) do
+      def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_sel: view)}
       end
 
-      def handle_info({:list_picker_add, list, item },socket) do
-        socket = assign(socket, group_by: Enum.uniq(socket.assigns.group_by ++ [item]) )
+      def handle_info({:list_picker_add, list, item}, socket) do
+        socket = assign(socket, group_by: Enum.uniq(socket.assigns.group_by ++ [item]))
         {:noreply, socket}
       end
-
-
     end
-
   end
-
-
-
 end
