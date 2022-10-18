@@ -3,8 +3,6 @@ defmodule ListableComponentsPetal.ViewSelector do
 
   # use Phoenix.Component
   # use PetalComponents
-  import ListableComponentsPetal.Components.RadioTabs
-  import ListableComponentsPetal.Components.ListPicker
 
   def render(assigns) do
     assigns =
