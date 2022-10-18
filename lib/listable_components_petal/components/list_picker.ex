@@ -17,7 +17,10 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     ~H"""
       <div class="grid grid-cols-2 gap-1">
         <div>Avialable</div>
+
         <div>Selected</div>
+
+        <!-- Change to accept {id, name} here -->
         <div class="border-solid border border-grey dark:border-white max-h-60 overflow-auto p-2">
           <div :for={o <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={o.colid}>
             <%= o.colid %>
