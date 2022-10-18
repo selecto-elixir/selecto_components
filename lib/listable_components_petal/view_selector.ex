@@ -20,10 +20,8 @@ defmodule ListableComponentsPetal.ViewSelector do
           view_sel={@view_sel}
         >
           <:section id="aggregate" label="Aggregate View">
-          Group By:
-                Display a list of columns which can be group-by,
-                each time a new seletion is made allow them to add another.
-                Allow them to reorder            <.live_component
+
+            <.live_component
               module={ListableComponentsPetal.Components.ListPicker}
               id="group_by"
               fieldname="group_by"
