@@ -18,13 +18,13 @@ defmodule ListableComponentsPetal.Components.ListPicker do
       <div class="grid grid-cols-2 gap-1">
         <div>Avialable</div>
         <div>Selected</div>
-        <div class="border-solid border-2 border-black dark:border-white max-h-60 overflow-auto p-2">
+        <div class="border-solid border border-grey dark:border-white max-h-60 overflow-auto p-2">
           <div :for={o <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={o.colid}>
             <%= o.colid %>
           </div>
         </div>
 
-        <div class="border-solid border-2 border-black dark:border-white max-h-60 overflow-auto p-2">
+        <div class="border-solid border border-grey dark:border-white max-h-60 overflow-auto p-2">
           <div :for={item <- @selected_items}>
             <%= render_slot(@item_form, item) %>
           </div>
