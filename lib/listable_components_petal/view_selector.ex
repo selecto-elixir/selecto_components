@@ -43,7 +43,7 @@ defmodule ListableComponentsPetal.ViewSelector do
           </:section>
 
           <:section id="detail" label="Detail View">
-
+            Columns
             <.live_component
                 module={ListableComponentsPetal.Components.ListPicker}
                 id="selected"
@@ -52,6 +52,17 @@ defmodule ListableComponentsPetal.ViewSelector do
                 selected_items={@selected}>
               <:item_form :let={item}>
                 Selected: <%= item %> (config)
+              </:item_form>
+            </.live_component>
+            Order by
+            <.live_component
+                module={ListableComponentsPetal.Components.ListPicker}
+                id="order_by"
+                fieldname="order_by"
+                available={@columns}
+                selected_items={@order_by}>
+              <:item_form :let={item}>
+                Order By: <%= inspect( item ) %> (config)
               </:item_form>
             </.live_component>
 
