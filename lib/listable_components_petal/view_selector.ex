@@ -9,7 +9,8 @@ defmodule ListableComponentsPetal.ViewSelector do
   def render(assigns) do
     assigns =
       assign(assigns,
-        columns: Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end)
+        columns:
+          Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end)
       )
 
     ~H"""
@@ -75,7 +76,6 @@ defmodule ListableComponentsPetal.ViewSelector do
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_sel: view)}
       end
-
 
       def handle_info({:list_picker_remove, list, item}, socket) do
         list = String.to_atom(list)
