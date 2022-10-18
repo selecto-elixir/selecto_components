@@ -9,7 +9,7 @@ defmodule ListableComponentsPetal.ViewSelector do
   def render(assigns) do
     assigns =
       assign(assigns,
-        columns: Map.values(assigns.listable.config.columns)
+        columns: Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end)
       )
 
     ~H"""

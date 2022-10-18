@@ -21,13 +21,13 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         <div>Selected</div>
 
         <!-- Change to accept {id, name} here -->
-        <div class="border-solid border border-grey dark:border-white max-h-60 overflow-auto p-2">
-          <div :for={o <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={o.colid}>
-            <%= o.colid %>
+        <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
+          <div :for={{id, name} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>
+            <%= name %>
           </div>
         </div>
 
-        <div class="border-solid border border-grey dark:border-white max-h-60 overflow-auto p-2">
+        <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
           <div :for={item <- @selected_items}>
             <%= render_slot(@item_form, item) %>
           </div>
