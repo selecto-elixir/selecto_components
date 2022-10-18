@@ -4,6 +4,11 @@ defmodule ListableComponentsPetal.Components.ListPicker do
 
     To be used by view builder
 
+    TODO
+      add a little x button to remove
+      up, down arrows on hover in selected section
+      ability to add tooltips or descriptions to available {id, name, descr}?
+
   """
   use Phoenix.LiveComponent
 
