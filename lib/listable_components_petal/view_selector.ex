@@ -20,8 +20,10 @@ defmodule ListableComponentsPetal.ViewSelector do
           view_sel={@view_sel}
         >
           <:section id="aggregate" label="Aggregate View">
-            Show a list_picker for group by, and a list_picker for aggs
-            <.live_component
+          Group By:
+                Display a list of columns which can be group-by,
+                each time a new seletion is made allow them to add another.
+                Allow them to reorder            <.live_component
               module={ListableComponentsPetal.Components.ListPicker}
               id="group_by"
               fieldname="group_by"
@@ -32,26 +34,25 @@ defmodule ListableComponentsPetal.ViewSelector do
                 Selected: <%= item %>
               </:item_form>
             </.live_component>
-          </:section>
 
-          <:section id="detail" label="Detail View">
-            DET
-          </:section>
-        </.live_component>
-
-              Group By:
-                Display a list of columns which can be group-by,
-                each time a new seletion is made allow them to add another.
-                Allow them to reorder
-              Aggregates:
+            Aggregates:
                 Display a list of available and selected columns, and when selected
                 allow user to pick an aggregate. Allow them to reorder
 
-              Columns:
-                Display a list of available and selected columns, and when selected
-                allow user to pick formatting info. Allow them to reorder
-              Ordering:
-                Similar to group-by
+
+          </:section>
+
+          <:section id="detail" label="Detail View">
+            Columns:
+              Display a list of available and selected columns, and when selected
+              allow user to pick formatting info. Allow them to reorder
+            Ordering:
+              Similar to group-by
+
+          </:section>
+        </.live_component>
+
+
 
       </div>
     """
