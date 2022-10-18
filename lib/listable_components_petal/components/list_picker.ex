@@ -5,7 +5,6 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     To be used by view builder
 
   """
-  use PetalComponents
   use Phoenix.LiveComponent
 
   attr(:avail, :list, required: true)
