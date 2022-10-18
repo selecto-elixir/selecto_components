@@ -28,12 +28,17 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         </div>
 
         <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
-          <div :for={item <- @selected_items}>
+          <div :for={item <- @selected_items} phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={item}>
             <%= render_slot(@item_form, item) %>
           </div>
         </div>
       </div>
     """
+  end
+
+  def handle_event("remove", params, socket) do
+    send(self(), {:list_picker_remove, params["list-id"], params["item"]})
+    {:noreply, socket}
   end
 
   def handle_event("add", params, socket) do
