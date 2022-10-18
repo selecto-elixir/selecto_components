@@ -5,7 +5,7 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     To be used by view builder
 
   """
-
+  use PetalComponents
   use Phoenix.LiveComponent
 
   attr(:avail, :list, required: true)
@@ -16,13 +16,16 @@ defmodule ListableComponentsPetal.Components.ListPicker do
 
   def render(assigns) do
     ~H"""
-      <div>
-        <div>AVAIL</div>
-          <button :for={o <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={o.colid}>
+      <div class="grid grid-cols-2 gap-1">
+        <div>Avialable</div>
+        <div>Selected</div>
+        <div class="border-solid border-2 border-black dark:border-white max-h-60 overflow-auto p-2">
+          <div :for={o <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={o.colid}>
             <%= o.colid %>
-          </button>
+          </div>
+        </div>
 
-        <div>Selected
+        <div class="border-solid border-2 border-black dark:border-white max-h-60 overflow-auto p-2">
           <div :for={item <- @selected_items}>
             <%= render_slot(@item_form, item) %>
           </div>

@@ -30,7 +30,7 @@ defmodule ListableComponentsPetal.ViewSelector do
               selected_items={@group_by}
             >
               <:item_form :let={item}>
-                Selected: <%= item %>
+                Selected: <%= item %> (config)
               </:item_form>
             </.live_component>
 

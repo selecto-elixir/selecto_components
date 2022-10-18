@@ -27,7 +27,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
               phx-target={@myself}/>
               <%= s.label %>
           </label>
-          <div :if={@view_sel == s.id}>
+          <div :if={@view_sel == s.id} class="ml-5">
             <%= render_slot(s) %>
           </div>
         </div>
