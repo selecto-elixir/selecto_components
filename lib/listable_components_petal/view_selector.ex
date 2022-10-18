@@ -66,7 +66,7 @@ defmodule ListableComponentsPetal.ViewSelector do
       end
 
       def handle_info({:list_picker_add, list, item },socket) do
-        socket = assign(socket, group_by: socket.assigns.group_by ++ [item] )
+        socket = assign(socket, group_by: Enum.uniq(socket.assigns.group_by ++ [item]) )
         {:noreply, socket}
       end
 
