@@ -25,7 +25,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
               name="@fieldname"
               value={s.id}
               checked={@view_sel == s.id}
-              phx-click={:view_set}
+              phx-click="view_set"
               phx-target={@myself}/>
               <%= s.label %>
           </label>
@@ -42,6 +42,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
     send self(), {:view_set, params["value"]}
     {:noreply, socket}
   end
+
 
 
 end
