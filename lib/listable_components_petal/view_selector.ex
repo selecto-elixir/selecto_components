@@ -73,15 +73,28 @@ defmodule ListableComponentsPetal.ViewSelector do
           </:section>
         </.live_component>
 
-
+        <button phx-click="apply_config" phx-target={@myself}>Submit</button>
 
       </div>
     """
   end
 
+
+  def handle_event("apply_config", params, socket) do
+    send(self(), {:apply_config})
+    {:noreply, socket}
+  end
+
   defmacro __using__(opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
+      def handle_info({:apply_config}, socket) do
+        listable = socket.assigns.listable
+        listable = put_in( listable.set.selected, socket.assigns.selected)
+
+        {:noreply, assign(socket, listable: listable)}
+      end
+
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_sel: view)}
       end
