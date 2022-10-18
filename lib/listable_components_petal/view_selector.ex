@@ -42,6 +42,18 @@ defmodule ListableComponentsPetal.ViewSelector do
           </:section>
 
           <:section id="detail" label="Detail View">
+
+            <.live_component
+                module={ListableComponentsPetal.Components.ListPicker}
+                id="selected"
+                fieldname="selected"
+                available={@columns}
+                selected_items={@selected}>
+              <:item_form :let={item}>
+                Selected: <%= item %> (config)
+              </:item_form>
+            </.live_component>
+
             Columns:
               Display a list of available and selected columns, and when selected
               allow user to pick formatting info. Allow them to reorder
@@ -65,7 +77,8 @@ defmodule ListableComponentsPetal.ViewSelector do
       end
 
       def handle_info({:list_picker_add, list, item}, socket) do
-        socket = assign(socket, group_by: Enum.uniq(socket.assigns.group_by ++ [item]))
+        list = String.to_atom(list)
+        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [item]))
         {:noreply, socket}
       end
     end
