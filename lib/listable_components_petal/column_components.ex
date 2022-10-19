@@ -1,14 +1,12 @@
 defmodule ListableComponentsPetal.ColumnComponents do
-
   use Phoenix.LiveComponent
 
-  #slot :type, :atom
-  #slot :uuid, :string
-  #slot :field, :string
-  #slog :config, :map
+  # slot :type, :atom
+  # slot :uuid, :string
+  # slot :field, :string
+  # slog :config, :map
 
   def render(assigns) do
-
     ~H"""
       <div>
         <%= case @col.type do%>
@@ -31,7 +29,4 @@ defmodule ListableComponentsPetal.ColumnComponents do
 
     """
   end
-
-
-
 end

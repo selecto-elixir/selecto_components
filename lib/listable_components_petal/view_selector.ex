@@ -114,13 +114,10 @@ defmodule ListableComponentsPetal.ViewSelector do
     """
   end
 
-
   def handle_event("apply_config", _params, socket) do
     send(self(), {:apply_config})
     {:noreply, socket}
   end
-
-
 
   def handle_event("set_active_tab", params, socket) do
     IO.inspect(params)
@@ -128,19 +125,21 @@ defmodule ListableComponentsPetal.ViewSelector do
     {:noreply, socket}
   end
 
-
   defmacro __using__(_opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
       def handle_info({:apply_config}, socket) do
         listable = socket.assigns.listable
         IO.inspect(socket.assigns.selected)
-        listable = Map.put(listable, :set, %{
-          selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
-          order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
-          filtered: [],
-          group_by: [],
-        })
+
+        listable =
+          Map.put(listable, :set, %{
+            selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
+            order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
+            filtered: [],
+            group_by: []
+          })
+
         {:noreply, assign(socket, listable: listable)}
       end
 
@@ -154,7 +153,10 @@ defmodule ListableComponentsPetal.ViewSelector do
 
       def handle_info({:list_picker_remove, list, item}, socket) do
         list = String.to_atom(list)
-        socket = assign(socket, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end))
+
+        socket =
+          assign(socket, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end))
+
         {:noreply, socket}
       end
 
@@ -164,14 +166,20 @@ defmodule ListableComponentsPetal.ViewSelector do
         item_list = socket.assigns[list]
         item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
         {item, item_list} = List.pop_at(item_list, item_index)
-        item_list = List.insert_at(item_list, case direction do
-          "up" -> item_index - 1
-          "down" -> item_index + 1
-        end, item)
+
+        item_list =
+          List.insert_at(
+            item_list,
+            case direction do
+              "up" -> item_index - 1
+              "down" -> item_index + 1
+            end,
+            item
+          )
+
         socket = assign(socket, list, item_list)
         {:noreply, socket}
       end
-
 
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
@@ -181,7 +189,6 @@ defmodule ListableComponentsPetal.ViewSelector do
       end
 
       # :list_picker_config_item, list, uuid, newconf
-
     end
   end
 end

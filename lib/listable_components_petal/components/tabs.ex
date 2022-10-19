@@ -1,8 +1,7 @@
 defmodule ListableComponentsPetal.Components.Tabs do
-
-
   ## TODO make tabs for view select sections
   use Phoenix.LiveComponent
+
   def render(assigns) do
     ~H"""
       <div>
@@ -10,7 +9,4 @@ defmodule ListableComponentsPetal.Components.Tabs do
       </div>
     """
   end
-
-
-
 end

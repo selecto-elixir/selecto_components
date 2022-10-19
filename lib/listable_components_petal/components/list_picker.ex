@@ -17,7 +17,7 @@ defmodule ListableComponentsPetal.Components.ListPicker do
   attr(:fieldname, :string, required: true)
 
   slot(:item_form)
-#TODO fix the selected items spacing ...
+  # TODO fix the selected items spacing ...
   def render(assigns) do
     ~H"""
       <div class="grid grid-cols-2 gap-1">
@@ -61,5 +61,4 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     send(self(), {:list_picker_move, params["list-id"], params["item"], params["direction"]})
     {:noreply, socket}
   end
-
 end
