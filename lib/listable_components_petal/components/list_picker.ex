@@ -35,6 +35,8 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
           <div :for={{id, item, conf} <- @selected_items} phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>
             <%= render_slot(@item_form, {id, item, conf}) %>
+            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up">^</button>
+            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down">v</button>
           </div>
         </div>
       </div>
@@ -51,5 +53,9 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     {:noreply, socket}
   end
 
+  def handle_event("move", params, socket) do
+    send(self(), {:list_picker_move, params["list-id"], params["item"], params["direction"]})
+    {:noreply, socket}
+  end
 
 end

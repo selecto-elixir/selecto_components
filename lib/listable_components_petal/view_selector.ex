@@ -57,8 +57,6 @@ defmodule ListableComponentsPetal.ViewSelector do
                   item={item}
                   config={config}/>
 
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="up">^</button>
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="down">v</button>
 
 
               </:item_form>
@@ -75,8 +73,6 @@ defmodule ListableComponentsPetal.ViewSelector do
                   <%= id %> /
                   <%= item %>
                   (config)
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="up">^</button>
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="down">v</button>
 
               </:item_form>
             </.live_component>
@@ -102,10 +98,7 @@ defmodule ListableComponentsPetal.ViewSelector do
     {:noreply, socket}
   end
 
-  def handle_event("move", params, socket) do
-    send(self(), {:list_picker_move, params["list-id"], params["item"], params["direction"]})
-    {:noreply, socket}
-  end
+
 
   defmacro __using__(_opts \\ []) do
     quote do
