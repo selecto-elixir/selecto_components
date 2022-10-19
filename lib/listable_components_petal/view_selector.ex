@@ -108,7 +108,7 @@ defmodule ListableComponentsPetal.ViewSelector do
         IO.inspect(socket.assigns.selected)
         listable = Map.put(listable, :set, %{
           selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
-          order_by: [], #Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
+          order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
           filtered: [],
           group_by: [],
         })
