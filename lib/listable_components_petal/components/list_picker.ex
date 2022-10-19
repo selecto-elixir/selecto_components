@@ -17,7 +17,7 @@ defmodule ListableComponentsPetal.Components.ListPicker do
   attr(:fieldname, :string, required: true)
 
   slot(:item_form)
-
+#TODO fix the selected items spacing ...
   def render(assigns) do
     ~H"""
       <div class="grid grid-cols-2 gap-1">
@@ -26,19 +26,21 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         <div>Selected</div>
 
         <!-- Change to accept {id, name} here -->
-        <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
+        <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-2">
           <div :for={{id, name} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>
             <%= name %>
           </div>
         </div>
 
-        <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
-          <div :for={{id, item, conf} <- @selected_items}>
+        <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-2">
+          <div :for={{id, item, conf} <- @selected_items} class="max-w-100 border-solid border rounded-md border-grey dark:border-black relative h-16">
             <%= render_slot(@item_form, {id, item, conf}) %>
+
+            <div class="absolute top-2 right-2">
             <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up">[^]</button>
             <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down">[v]</button>
             <button phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>[X]</button>
-
+            </div>
           </div>
         </div>
       </div>
