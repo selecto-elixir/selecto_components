@@ -8,7 +8,7 @@ defmodule ListableComponentsPetal.ViewSelector do
     assigns =
       assign(assigns,
         columns:
-          Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end),
+          Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end)
       )
 
     ~H"""
@@ -28,7 +28,7 @@ defmodule ListableComponentsPetal.ViewSelector do
               available={@columns}
               selected_items={@group_by}
             >
-              <:item_form :let={{id, item, config} }>
+              <:item_form :let={{id, item, _config} }>
                 Group By: <%= id %> <%= item %> (config)
               </:item_form>
             </.live_component>
@@ -49,24 +49,18 @@ defmodule ListableComponentsPetal.ViewSelector do
                 available={@columns}
                 selected_items={@selected}>
               <:item_form :let={{id, item, config} }>
-                <% IO.inspect(@listable.config.columns[item]) %>
-                <%= case @listable.config.columns[item].type do%>
-                  <% :string -> %>
-                    String: <%= id %> / <%= item %> (config)
-                  <% x when x in [:int, :id] -> %>
-                    Int/ID: <%= id %> / <%= item %> (config)
-                  <% :float -> %>
-                    Float: <%= id %> / <%= item %> (config)
-                  <% :number -> %>
-                    Decimal: <%= id %> / <%= item %> (config)
-                  <% :boolean -> %>
-                    Bool: <%= id %> / <%= item %> (config)
-                  <% :naive_datetime -> %>
-                    Datetime: <%= id %> / <%= item %> (config)
+                <.live_component
+                  module={ListableComponentsPetal.ColumnComponents}
+                  id={id}
+                  col={@listable.config.columns[item]}
+                  uuid={id}
+                  item={item}
+                  config={config}/>
 
-                  <% _ -> %>
-                    Other: <%= id %> / <%= item %> (config)
-                  <% end %>
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="up">^</button>
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="up">v</button>
+
+
               </:item_form>
             </.live_component>
             Order by
@@ -76,11 +70,14 @@ defmodule ListableComponentsPetal.ViewSelector do
                 fieldname="order_by"
                 available={@columns}
                 selected_items={@order_by}>
-              <:item_form :let={{id, item, config} }>
+              <:item_form :let={{id, item, _config} }>
                 Order By:
                   <%= id %> /
                   <%= item %>
                   (config)
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="up">^</button>
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="up">v</button>
+
               </:item_form>
             </.live_component>
 
@@ -100,12 +97,17 @@ defmodule ListableComponentsPetal.ViewSelector do
   end
 
 
-  def handle_event("apply_config", params, socket) do
+  def handle_event("apply_config", _params, socket) do
     send(self(), {:apply_config})
     {:noreply, socket}
   end
 
-  defmacro __using__(opts \\ []) do
+  def handle_event("move", params, socket) do
+    send(self(), {:list_picker_move, params["list-id"], params["item"], params["direction"]})
+    {:noreply, socket}
+  end
+
+  defmacro __using__(_opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
       def handle_info({:apply_config}, socket) do
@@ -129,6 +131,20 @@ defmodule ListableComponentsPetal.ViewSelector do
         socket = assign(socket, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end))
         {:noreply, socket}
       end
+
+      def handle_info({:list_picker_move, list, uuid, direction}, socket) do
+        list = String.to_atom(list)
+        item_list = socket.assigns[list]
+        item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
+        {item, item_list} = List.pop_at(item_list, item_index)
+        item_list = List.insert_at(item_list, case direction do
+          "up" -> item_index - 1
+          "down" -> item_index + 1
+        end, item)
+        socket = assign(socket, list, item_list)
+        {:noreply, socket}
+      end
+
 
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
