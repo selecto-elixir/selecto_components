@@ -9,11 +9,11 @@ defmodule ListableComponentsPetal.Components.AggregateConfig do
   def render(assigns) do
     ~H"""
       <div>
-        <%= case @col.type do%>
+      <%= case @col.type do%>
           <% :string -> %>
-            String: <%= @col.name %>
+            <%= @col.name %>
           <% x when x in [:int, :id] -> %>
-            Int/ID: <%= @col.name %>
+            <%= @col.name %>
           <% :float -> %>
             Float: <%= @col.name %> (precision)
           <% :decimal -> %>

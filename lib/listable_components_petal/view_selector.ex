@@ -16,6 +16,7 @@ defmodule ListableComponentsPetal.ViewSelector do
 
     ~H"""
       <div>
+        <.form for={:view} phx-change="view-update">
         <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
         <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
         <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
@@ -59,6 +60,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                     col={@listable.config.columns[item]}
                     uuid={id}
                     item={item}
+                    fieldname="aggregate"
                     config={config}/>
                 </:item_form>
               </.live_component>
@@ -82,6 +84,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                     col={@listable.config.columns[item]}
                     uuid={id}
                     item={item}
+                    fieldname="selected"
                     config={config}/>
                 </:item_form>
               </.live_component>
@@ -129,15 +132,12 @@ defmodule ListableComponentsPetal.ViewSelector do
           collate and send to an email address in a column
         </div>
         <button phx-click="apply_config" phx-target={@myself}>Submit</button>
+        </.form>
       </div>
 
     """
   end
 
-  def handle_event("apply_config", _params, socket) do
-    send(self(), {:apply_config})
-    {:noreply, socket}
-  end
 
   def handle_event("set_active_tab", params, socket) do
     IO.inspect(params)
@@ -147,6 +147,13 @@ defmodule ListableComponentsPetal.ViewSelector do
 
   defmacro __using__(_opts \\ []) do
     quote do
+
+      def handle_event("view-update", par, socket) do
+        IO.inspect(par)
+        {:noreply, socket}
+      end
+
+
       ### These run in the 'use'ing liveview's context
       def handle_info({:apply_config}, socket) do
         listable = socket.assigns.listable

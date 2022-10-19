@@ -10,23 +10,32 @@ defmodule ListableComponentsPetal.Components.ColumnConfig do
     ~H"""
       <div>
         <%= case @col.type do%>
-          <% :string -> %>
-            String: <%= @col.name %>
-          <% x when x in [:int, :id] -> %>
-            Int/ID: <%= @col.name %>
-          <% :float -> %>
-            Float: <%= @col.name %> (precision)
-          <% :decimal -> %>
-            Decimal: <%= @col.name %>
+          <% x when x in [:int, :id, :decimal] -> %>
+            <%= @col.name %>
+            <div>
+              <label><input type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
+            </div>
+          <% x when x in [:float] -> %>
+            <%= @col.name %>
+              <div>
+                <label>Precision <select><option :for={i <- Enum.to_list(0 .. 5)} value={i}
+                  selected={Map.get(@config, "precision") == i}><%= i %></option></select></label>
+                <label><input type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
+              </div>
+          <% x when x in [:string] -> %>
+            <%= @col.name %>
           <% :boolean -> %>
-            Bool: <%= @col.name %> (config)
-          <% :naive_datetime -> %>
-            Datetime: <%= @col.name %> (Pick format!)
+            <%= @col.name %> :Y_N :1_0 :yes_no :check_blank
+          <% x when x in [:naive_datetime, :utc_datetime] -> %>
+            Datetime: <%= @col.name %>
+            Pick Format: MM-DD-YYYY HH:MM YYYY-MM-DD HH:MM :ago :daysago
           <% _ -> %>
-            Other: <%= @col.name %> (config)
+            <%= @col.name %>
           <% end %>
       </div>
 
+
     """
   end
+
 end
