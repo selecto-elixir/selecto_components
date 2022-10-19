@@ -8,7 +8,7 @@ defmodule ListableComponentsPetal.ViewSelector do
     assigns =
       assign(assigns,
         columns:
-          Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end)
+          Map.values(assigns.listable.config.columns) |> Enum.map(fn c -> {c.colid, c.name} end),
       )
 
     ~H"""
@@ -49,7 +49,24 @@ defmodule ListableComponentsPetal.ViewSelector do
                 available={@columns}
                 selected_items={@selected}>
               <:item_form :let={{id, item, config} }>
-                Selected: <%= id %> / <%= item %> (config)
+                <% IO.inspect(@listable.config.columns[item]) %>
+                <%= case @listable.config.columns[item].type do%>
+                  <% :string -> %>
+                    String: <%= id %> / <%= item %> (config)
+                  <% x when x in [:int, :id] -> %>
+                    Int/ID: <%= id %> / <%= item %> (config)
+                  <% :float -> %>
+                    Float: <%= id %> / <%= item %> (config)
+                  <% :number -> %>
+                    Decimal: <%= id %> / <%= item %> (config)
+                  <% :boolean -> %>
+                    Bool: <%= id %> / <%= item %> (config)
+                  <% :naive_datetime -> %>
+                    Datetime: <%= id %> / <%= item %> (config)
+
+                  <% _ -> %>
+                    Other: <%= id %> / <%= item %> (config)
+                  <% end %>
               </:item_form>
             </.live_component>
             Order by
@@ -99,10 +116,7 @@ defmodule ListableComponentsPetal.ViewSelector do
           order_by: [], #Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
           filtered: [],
           group_by: [],
-
-
         })
-
         {:noreply, assign(socket, listable: listable)}
       end
 
@@ -122,6 +136,9 @@ defmodule ListableComponentsPetal.ViewSelector do
         socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, %{}}]))
         {:noreply, socket}
       end
+
+      # :list_picker_config_item, list, uuid, newconf
+
     end
   end
 end
