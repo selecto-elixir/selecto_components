@@ -58,7 +58,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   config={config}/>
 
                   <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="up">^</button>
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="up">v</button>
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="selected" phx-value-item={id} phx-value-direction="down">v</button>
 
 
               </:item_form>
@@ -76,7 +76,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   <%= item %>
                   (config)
                   <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="up">^</button>
-                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="up">v</button>
+                  <button phx-click="move" phx-target={@myself} phx-value-list-id="order_by" phx-value-item={id} phx-value-direction="down">v</button>
 
               </:item_form>
             </.live_component>
@@ -132,6 +132,7 @@ defmodule ListableComponentsPetal.ViewSelector do
         {:noreply, socket}
       end
 
+      ### TODO fix this up
       def handle_info({:list_picker_move, list, uuid, direction}, socket) do
         list = String.to_atom(list)
         item_list = socket.assigns[list]
