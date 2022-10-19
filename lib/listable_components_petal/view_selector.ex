@@ -28,8 +28,8 @@ defmodule ListableComponentsPetal.ViewSelector do
               available={@columns}
               selected_items={@group_by}
             >
-              <:item_form :let={item}>
-                Selected: <%= item %> (config)
+              <:item_form :let={{id, item, config} }>
+                Group By: <%= id %> <%= item %> (config)
               </:item_form>
             </.live_component>
 
@@ -48,8 +48,8 @@ defmodule ListableComponentsPetal.ViewSelector do
                 fieldname="selected"
                 available={@columns}
                 selected_items={@selected}>
-              <:item_form :let={item}>
-                Selected: <%= item %> (config)
+              <:item_form :let={{id, item, config} }>
+                Selected: <%= id %> / <%= item %> (config)
               </:item_form>
             </.live_component>
             Order by
@@ -59,8 +59,11 @@ defmodule ListableComponentsPetal.ViewSelector do
                 fieldname="order_by"
                 available={@columns}
                 selected_items={@order_by}>
-              <:item_form :let={item}>
-                Order By: <%= inspect( item ) %> (config)
+              <:item_form :let={{id, item, config} }>
+                Order By:
+                  <%= id %> /
+                  <%= item %>
+                  (config)
               </:item_form>
             </.live_component>
 
@@ -90,9 +93,10 @@ defmodule ListableComponentsPetal.ViewSelector do
       ### These run in the 'use'ing liveview's context
       def handle_info({:apply_config}, socket) do
         listable = socket.assigns.listable
+        IO.inspect(socket.assigns.selected)
         listable = Map.put(listable, :set, %{
-          selected: socket.assigns.selected,
-          order_by: socket.assigns.order_by,
+          selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
+          order_by: [], #Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
           filtered: [],
           group_by: [],
 
@@ -108,13 +112,14 @@ defmodule ListableComponentsPetal.ViewSelector do
 
       def handle_info({:list_picker_remove, list, item}, socket) do
         list = String.to_atom(list)
-        socket = assign(socket, list, Enum.uniq(socket.assigns[list] -- [item]))
+        socket = assign(socket, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end))
         {:noreply, socket}
       end
 
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
-        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [item]))
+        id = UUID.uuid4()
+        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, %{}}]))
         {:noreply, socket}
       end
     end

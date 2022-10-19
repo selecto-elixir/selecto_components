@@ -21,7 +21,7 @@ defmodule ListableComponentsPetal.Components.ListPicker do
   def render(assigns) do
     ~H"""
       <div class="grid grid-cols-2 gap-1">
-        <div>Avialable</div>
+        <div>Avialable (search)</div>
 
         <div>Selected</div>
 
@@ -33,8 +33,8 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         </div>
 
         <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
-          <div :for={item <- @selected_items} phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={item}>
-            <%= render_slot(@item_form, item) %>
+          <div :for={{id, item, conf} <- @selected_items} phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>
+            <%= render_slot(@item_form, {id, item, conf}) %>
           </div>
         </div>
       </div>
@@ -50,4 +50,6 @@ defmodule ListableComponentsPetal.Components.ListPicker do
     send(self(), {:list_picker_add, params["list-id"], params["item"]})
     {:noreply, socket}
   end
+
+
 end

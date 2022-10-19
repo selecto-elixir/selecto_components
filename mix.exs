@@ -14,7 +14,7 @@ defmodule ListableComponentsPetal.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -24,7 +24,8 @@ defmodule ListableComponentsPetal.MixProject do
       {:phoenix, "~> 1.6"},
       {:phoenix_live_view, "~> 0.18"},
       {:petal_components, "~> 0.18.5"},
-      {:listable, path: "../listable"}
+      {:listable, path: "../listable"},
+      {:uuid, "~> 1.1"}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
