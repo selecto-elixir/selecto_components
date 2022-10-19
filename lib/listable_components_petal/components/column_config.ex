@@ -27,8 +27,9 @@ defmodule ListableComponentsPetal.Components.ColumnConfig do
           <% :boolean -> %>
             <%= @col.name %> :Y_N :1_0 :yes_no :check_blank
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
-            Datetime: <%= @col.name %>
-            Pick Format: MM-DD-YYYY HH:MM YYYY-MM-DD HH:MM :ago :daysago
+            <%= @col.name %>
+            <label>Format <select name={"#{@uuid}[format]"}><option :for={i <-["MM-DD-YYYY HH:MM", "YYYY-MM-DD HH:MM", "ago", "days ago"]} value={i}
+                  selected={Map.get(@config, "format") == i}><%= i %></option></select></label>
           <% _ -> %>
             <%= @col.name %>
           <% end %>
