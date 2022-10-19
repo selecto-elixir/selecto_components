@@ -78,6 +78,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   selected_items={@selected}>
 
                 <:item_form :let={{id, item, config} }>
+                  <input name={"selected[#{id}]"} type="hidden" value={item}/>
                   <.live_component
                     module={ListableComponentsPetal.Components.ColumnConfig}
                     id={id}
