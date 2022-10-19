@@ -90,7 +90,14 @@ defmodule ListableComponentsPetal.ViewSelector do
       ### These run in the 'use'ing liveview's context
       def handle_info({:apply_config}, socket) do
         listable = socket.assigns.listable
-        listable = put_in( listable.set.selected, socket.assigns.selected)
+        listable = Map.put(listable, :set, %{
+          selected: socket.assigns.selected,
+          order_by: socket.assigns.order_by,
+          filtered: [],
+          group_by: [],
+
+
+        })
 
         {:noreply, assign(socket, listable: listable)}
       end
