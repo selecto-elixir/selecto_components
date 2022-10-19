@@ -6,7 +6,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
   use Phoenix.LiveComponent
 
   attr(:fieldname, :string, required: false)
-  attr(:view_sel, :string, required: false)
+  attr(:view_mode, :string, required: false)
 
   # slot :section, required: true do
   #   attr :id, :string
@@ -22,12 +22,12 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
               type="radio"
               name="@fieldname"
               value={s.id}
-              checked={@view_sel == s.id}
+              checked={@view_mode == s.id}
               phx-click="view_set"
               phx-target={@myself}/>
             <%= s.label %>
           </label>
-          <div :if={@view_sel == s.id} class="ml-5">
+          <div :if={@view_mode == s.id} class="ml-5">
             <%= render_slot(s) %>
           </div>
         </div>

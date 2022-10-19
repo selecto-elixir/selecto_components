@@ -23,9 +23,9 @@ defmodule ListableComponentsPetal.ViewSelector do
         <div :if={@active_tab == "view" or @active_tab == nil} class="border">
           <.live_component
             module={ListableComponentsPetal.Components.RadioTabs}
-            id="view_sel"
+            id="view_mode"
             fieldname="viewsel"
-            view_sel={@view_sel}
+            view_mode={@view_mode}
           >
             <:section id="aggregate" label="Aggregate View">
 
@@ -45,6 +45,23 @@ defmodule ListableComponentsPetal.ViewSelector do
                   Display a list of available and selected columns, and when selected
                   allow user to pick an aggregate. Allow them to reorder
 
+                <.live_component
+                  module={ListableComponentsPetal.Components.ListPicker}
+                  id="aggregate"
+                  fieldname="aggregate"
+                  available={@columns}
+                  selected_items={@aggregate}>
+
+                <:item_form :let={{id, item, config}}>
+                  <.live_component
+                    module={ListableComponentsPetal.Components.AggregateConfig}
+                    id={id}
+                    col={@listable.config.columns[item]}
+                    uuid={id}
+                    item={item}
+                    config={config}/>
+                </:item_form>
+              </.live_component>
 
             </:section>
 
@@ -60,7 +77,7 @@ defmodule ListableComponentsPetal.ViewSelector do
 
                 <:item_form :let={{id, item, config} }>
                   <.live_component
-                    module={ListableComponentsPetal.ColumnComponents}
+                    module={ListableComponentsPetal.Components.ColumnConfig}
                     id={id}
                     col={@listable.config.columns[item]}
                     uuid={id}
@@ -136,12 +153,26 @@ defmodule ListableComponentsPetal.ViewSelector do
         IO.inspect(socket.assigns.selected)
 
         listable =
-          Map.put(listable, :set, %{
-            selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
-            order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
-            filtered: [],
-            group_by: []
-          })
+          Map.put(listable, :set,
+          case socket.assigns.view_mode do
+            "detail" ->
+              %{  ### TODO add config
+                selected: Enum.map(socket.assigns.aggregate, fn {_, item, _} -> item end),
+                order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
+                filtered: [],
+                group_by: []
+              }
+            "aggregate" ->
+              %{  ### todo add config
+                selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> {:count, item} end ),
+                filtered: [],
+                group_by: Enum.map(socket.assigns.group_by, fn {_, item, _} -> item end),
+                order_by: [],
+
+              }
+
+          end )
+
 
         {:noreply, assign(socket, listable: listable)}
       end
@@ -151,7 +182,7 @@ defmodule ListableComponentsPetal.ViewSelector do
       end
 
       def handle_info({:view_set, view}, socket) do
-        {:noreply, assign(socket, view_sel: view)}
+        {:noreply, assign(socket, view_mode: view)}
       end
 
       def handle_info({:list_picker_remove, list, item}, socket) do

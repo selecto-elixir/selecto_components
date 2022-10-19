@@ -1,4 +1,4 @@
-defmodule ListableComponentsPetal.ColumnComponents do
+defmodule ListableComponentsPetal.Components.AggregateConfig do
   use Phoenix.LiveComponent
 
   # slot :type, :atom
