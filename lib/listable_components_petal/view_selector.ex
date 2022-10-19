@@ -157,14 +157,14 @@ defmodule ListableComponentsPetal.ViewSelector do
           case socket.assigns.view_mode do
             "detail" ->
               %{  ### TODO add config
-                selected: Enum.map(socket.assigns.aggregate, fn {_, item, _} -> item end),
+                selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
                 order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
                 filtered: [],
                 group_by: []
               }
             "aggregate" ->
               %{  ### todo add config
-                selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> {:count, item} end ),
+                selected: Enum.map(socket.assigns.aggregate, fn {_, item, _} -> {:count, item} end ),
                 filtered: [],
                 group_by: Enum.map(socket.assigns.group_by, fn {_, item, _} -> item end),
                 order_by: [],
