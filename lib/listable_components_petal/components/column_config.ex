@@ -13,14 +13,14 @@ defmodule ListableComponentsPetal.Components.ColumnConfig do
           <% x when x in [:int, :id, :decimal] -> %>
             <%= @col.name %>
             <div>
-              <label><input type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
+              <label><input name={"#{@uuid}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
             </div>
           <% x when x in [:float] -> %>
             <%= @col.name %>
               <div>
-                <label>Precision <select><option :for={i <- Enum.to_list(0 .. 5)} value={i}
+                <label>Precision <select name={"#{@uuid}[precision]"}><option :for={i <- Enum.to_list(0 .. 5)} value={i}
                   selected={Map.get(@config, "precision") == i}><%= i %></option></select></label>
-                <label><input type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
+                <label><input name={"#{@uuid}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>
               </div>
           <% x when x in [:string] -> %>
             <%= @col.name %>
