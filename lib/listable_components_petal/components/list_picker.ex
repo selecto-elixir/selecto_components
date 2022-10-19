@@ -33,10 +33,12 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         </div>
 
         <div class="border-solid border rounded-md border-grey dark:border-white max-h-60 overflow-auto p-2">
-          <div :for={{id, item, conf} <- @selected_items} phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>
+          <div :for={{id, item, conf} <- @selected_items}>
             <%= render_slot(@item_form, {id, item, conf}) %>
-            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up">^</button>
-            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down">v</button>
+            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up">[^]</button>
+            <button phx-click="move" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down">[v]</button>
+            <button phx-click="remove" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}>[X]</button>
+
           </div>
         </div>
       </div>
