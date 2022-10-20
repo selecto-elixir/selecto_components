@@ -143,13 +143,11 @@ defmodule ListableComponentsPetal.ViewSelector do
         {:noreply, socket}
       end
 
-      @date_formats = %{
-        "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
-        "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
-
-        };
-
       def handle_event("view-apply", params, socket) do #on submit
+        date_formats = %{ #move this somewhere shared
+          "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
+          "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
+        };
         listable = socket.assigns.listable
         columns = listable.config.columns
         listable =
