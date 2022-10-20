@@ -17,128 +17,128 @@ defmodule ListableComponentsPetal.ViewSelector do
     ~H"""
       <div>
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
-        <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
-        <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
-        <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
+          <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
+          <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
+          <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
 
-        <div :if={@active_tab == "view" or @active_tab == nil} class="border">
-          <.live_component
-            module={ListableComponentsPetal.Components.RadioTabs}
-            id="view_mode"
-            fieldname="viewsel"
-            view_mode={@view_mode}
-          >
-            <:section id="aggregate" label="Aggregate View">
-
-              <.live_component
-                module={ListableComponentsPetal.Components.ListPicker}
-                id="group_by"
-                fieldname="group_by"
-                available={@columns}
-                selected_items={@group_by}
-              >
-                <:item_form :let={{id, item, _config, index} }>
-                  <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
-                  <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
-                  Group By: <%= id %> <%= item %> (config)
-                </:item_form>
-              </.live_component>
-
-              Aggregates:
-                  Display a list of available and selected columns, and when selected
-                  allow user to pick an aggregate. Allow them to reorder
+          <div :if={@active_tab == "view" or @active_tab == nil} class="border">
+            <.live_component
+              module={ListableComponentsPetal.Components.RadioTabs}
+              id="view_mode"
+              fieldname="viewsel"
+              view_mode={@view_mode}
+            >
+              <:section id="aggregate" label="Aggregate View">
 
                 <.live_component
                   module={ListableComponentsPetal.Components.ListPicker}
-                  id="aggregate"
-                  fieldname="aggregate"
+                  id="group_by"
+                  fieldname="group_by"
                   available={@columns}
-                  selected_items={@aggregate}>
+                  selected_items={@group_by}
+                >
+                  <:item_form :let={{id, item, _config, index} }>
+                    <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
+                    <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
+                    Group By: <%= id %> <%= item %> (config)
+                  </:item_form>
+                </.live_component>
 
-                <:item_form :let={{id, item, config, index}}>
-                  <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
-                  <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
+                Aggregates:
+                    Display a list of available and selected columns, and when selected
+                    allow user to pick an aggregate. Allow them to reorder
+
                   <.live_component
-                    module={ListableComponentsPetal.Components.AggregateConfig}
-                    id={id}
-                    col={@listable.config.columns[item]}
-                    uuid={id}
-                    item={item}
+                    module={ListableComponentsPetal.Components.ListPicker}
+                    id="aggregate"
                     fieldname="aggregate"
-                    config={config}/>
-                </:item_form>
-              </.live_component>
+                    available={@columns}
+                    selected_items={@aggregate}>
 
-            </:section>
+                  <:item_form :let={{id, item, config, index}}>
+                    <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
+                    <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
+                    <.live_component
+                      module={ListableComponentsPetal.Components.AggregateConfig}
+                      id={id}
+                      col={@listable.config.columns[item]}
+                      uuid={id}
+                      item={item}
+                      fieldname="aggregate"
+                      config={config}/>
+                  </:item_form>
+                </.live_component>
 
-            <:section id="detail" label="Detail View">
-              Columns
+              </:section>
 
-              <.live_component
-                  module={ListableComponentsPetal.Components.ListPicker}
-                  id="selected"
-                  fieldname="selected"
-                  available={@columns}
-                  selected_items={@selected}>
+              <:section id="detail" label="Detail View">
+                Columns
 
-                <:item_form :let={{id, item, config, index} }>
-                  <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
-                  <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
-                  <.live_component
-                    module={ListableComponentsPetal.Components.ColumnConfig}
-                    id={id}
-                    col={@listable.config.columns[item]}
-                    uuid={id}
-                    item={item}
+                <.live_component
+                    module={ListableComponentsPetal.Components.ListPicker}
+                    id="selected"
                     fieldname="selected"
-                    config={config}/>
-                </:item_form>
-              </.live_component>
+                    available={@columns}
+                    selected_items={@selected}>
 
-              Order by
-              <.live_component
-                  module={ListableComponentsPetal.Components.ListPicker}
-                  id="order_by"
-                  fieldname="order_by"
-                  available={@columns}
-                  selected_items={@order_by}>
-                <:item_form :let={{id, item, _config, index} }>
-                  <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
-                  <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-                  Order By:
-                    <%= id %> /
-                    <%= item %>
-                    (config)
-                </:item_form>
-              </.live_component>
+                  <:item_form :let={{id, item, config, index} }>
+                    <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
+                    <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
+                    <.live_component
+                      module={ListableComponentsPetal.Components.ColumnConfig}
+                      id={id}
+                      col={@listable.config.columns[item]}
+                      uuid={id}
+                      item={item}
+                      fieldname="selected"
+                      config={config}/>
+                  </:item_form>
+                </.live_component>
 
-              Columns:
-                Display a list of available and selected columns, and when selected
-                allow user to pick formatting info. Allow them to reorder
-              Ordering:
-                Similar to group-by
+                Order by
+                <.live_component
+                    module={ListableComponentsPetal.Components.ListPicker}
+                    id="order_by"
+                    fieldname="order_by"
+                    available={@columns}
+                    selected_items={@order_by}>
+                  <:item_form :let={{id, item, _config, index} }>
+                    <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
+                    <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
+                    Order By:
+                      <%= id %> /
+                      <%= item %>
+                      (config)
+                  </:item_form>
+                </.live_component>
 
-            </:section>
-          </.live_component>
+                Columns:
+                  Display a list of available and selected columns, and when selected
+                  allow user to pick formatting info. Allow them to reorder
+                Ordering:
+                  Similar to group-by
+
+              </:section>
+            </.live_component>
 
 
-        </div>
-        <div :if={@active_tab == "filter"} class="border">
-          FILTER SECTION
+          </div>
+          <div :if={@active_tab == "filter"} class="border">
+            FILTER SECTION
 
-          Select a filterable column or filter and add filter criteria
+            Select a filterable column or filter and add filter criteria
 
-        </div>
+          </div>
 
-        <div :if={@active_tab == "export"} class="border">
-          EXPORT SECTION
-          export format: spreadsheet, text, csv, PDF?, JSON, XML
+          <div :if={@active_tab == "export"} class="border">
+            EXPORT SECTION
+            export format: spreadsheet, text, csv, PDF?, JSON, XML
 
-          download / send via email (add note)
+            download / send via email (add note)
 
-          collate and send to an email address in a column
-        </div>
-        <button>Submit</button>
+            collate and send to an email address in a column
+          </div>
+          <button>Submit</button>
         </.form>
       </div>
 
@@ -163,12 +163,6 @@ defmodule ListableComponentsPetal.ViewSelector do
 
       def handle_event("view-apply", params, socket) do #on submit
         IO.inspect(params)
-        send(self(), {:apply_config, params})
-        {:noreply, socket}
-      end
-
-      ### These run in the 'use'ing liveview's context
-      def handle_info({:apply_config, params}, socket) do
         listable = socket.assigns.listable
         IO.inspect(socket.assigns.selected)
 
@@ -192,9 +186,12 @@ defmodule ListableComponentsPetal.ViewSelector do
               }
 
           end )
-
-
         {:noreply, assign(socket, listable: listable)}
+      end
+
+      ### These run in the 'use'ing liveview's context
+      def handle_info({:apply_config, params}, socket) do
+
       end
 
       def handle_info({:set_active_tab, tab}, socket) do
