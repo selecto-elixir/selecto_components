@@ -89,10 +89,12 @@ defmodule ListableComponentsPetal.ViewSelector do
                     fieldname="order_by"
                     available={@columns}
                     selected_items={@order_by}>
-                  <:item_form :let={{id, item, _config, index} }>
+                  <:item_form :let={{id, item, config, index} }>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-                      <%= item %>
+                    <%= item %>
+                    <label><input name={"order_by[#{id}][dir]"} type="radio" value="asc" checked={Map.get(config, "dir")=="asc"}/>Ascending</label>
+                    <label><input name={"order_by[#{id}][dir]"} type="radio" value="desc" checked={Map.get(config, "dir")=="desc"}/>Descending</label>
                   </:item_form>
                 </.live_component>
               </:section>
@@ -150,8 +152,13 @@ defmodule ListableComponentsPetal.ViewSelector do
                 |> Enum.map( fn e -> e["field"] end) ### TODO apply config
 
               order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
-                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
-
+                |> Enum.map(
+                  fn e ->
+                    case e["dir"] do
+                      "desc" -> {:desc, e["field"]}
+                      _ -> e["field"]
+                    end
+                  end)
 
                 %{  ### TODO add config
                 selected: selected,
