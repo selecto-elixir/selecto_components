@@ -38,6 +38,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                 selected_items={@group_by}
               >
                 <:item_form :let={{id, item, _config} }>
+                <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
                   Group By: <%= id %> <%= item %> (config)
                 </:item_form>
               </.live_component>
@@ -54,6 +55,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   selected_items={@aggregate}>
 
                 <:item_form :let={{id, item, config}}>
+                <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
                   <.live_component
                     module={ListableComponentsPetal.Components.AggregateConfig}
                     id={id}
@@ -78,7 +80,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   selected_items={@selected}>
 
                 <:item_form :let={{id, item, config} }>
-                  <input name={"selected[#{id}]"} type="hidden" value={item}/>
+                  <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                   <.live_component
                     module={ListableComponentsPetal.Components.ColumnConfig}
                     id={id}
@@ -98,6 +100,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   available={@columns}
                   selected_items={@order_by}>
                 <:item_form :let={{id, item, _config} }>
+                <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                   Order By:
                     <%= id %> /
                     <%= item %>
@@ -132,13 +135,18 @@ defmodule ListableComponentsPetal.ViewSelector do
 
           collate and send to an email address in a column
         </div>
-        <button phx-click="apply_config" phx-target={@myself}>Submit</button>
+        <button type="button" phx-click="apply_config" phx-target={@myself}>Submit</button>
         </.form>
       </div>
 
     """
   end
 
+  def handle_event("apply_config", params, socket) do
+    IO.inspect(params)
+    send(self(), {:apply_config})
+    {:noreply, socket}
+  end
 
   def handle_event("set_active_tab", params, socket) do
     IO.inspect(params)
