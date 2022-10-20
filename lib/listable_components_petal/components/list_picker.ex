@@ -28,13 +28,14 @@ defmodule ListableComponentsPetal.Components.ListPicker do
         <!-- Change to accept {id, name} here -->
         <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
           <div :for={{id, name} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900 dark:border-black relative p-1">
+            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200">
             <%= name %>
           </div>
         </div>
 
         <div class="grid grid-cols-1 gap-1 border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
-          <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)} class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 max-h-12">
+          <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
+            class="max-w-100 bg-slate-100	border-solid border rounded-md border-grey-900 dark:border-black relative p-1 max-h-12 hover:bg-slate-200">
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
             <div class="absolute top-1 right-1">
