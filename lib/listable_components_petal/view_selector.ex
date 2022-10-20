@@ -15,6 +15,7 @@ defmodule ListableComponentsPetal.ViewSelector do
 
     ~H"""
       <div>
+
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
           <!--TODO use LiveView.JS? -->
           <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
