@@ -92,10 +92,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                   <:item_form :let={{id, item, _config, index} }>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-                    Order By:
-                      <%= id %> /
                       <%= item %>
-                      (config)
                   </:item_form>
                 </.live_component>
               </:section>
@@ -150,19 +147,29 @@ defmodule ListableComponentsPetal.ViewSelector do
           case socket.assigns.view_mode do
             "detail" ->
               selected = params["selected"] |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
-                |> Enum.map( fn e -> e["field"] end)
-                |> IO.inspect
-              %{  ### TODO add config
+                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+
+              order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
+                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+
+
+                %{  ### TODO add config
                 selected: selected,
-                order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
+                order_by: order_by,
                 filtered: [],
                 group_by: []
               }
             "aggregate" ->
+              aggregate = params["aggregate"] |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
+                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+
+              group_by = Map.get(params, "group_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
+                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+
               %{  ### todo add config
-                selected: Enum.map(socket.assigns.aggregate, fn {_, item, _} -> {:count, item} end ),
+                selected: aggregate,
                 filtered: [],
-                group_by: Enum.map(socket.assigns.group_by, fn {_, item, _} -> item end),
+                group_by: group_by,
                 order_by: [],
 
               }
