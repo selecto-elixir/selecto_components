@@ -152,7 +152,7 @@ defmodule ListableComponentsPetal.ViewSelector do
           Map.put(listable, :set,
           case socket.assigns.view_mode do
             "detail" ->
-              selected = params["selected"] |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
+              selected = params["selected"] |> Map.values() |> Enum.sort(fn a,b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
                 |> Enum.map( fn e -> e["field"] end) ### TODO apply config
 
               order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
