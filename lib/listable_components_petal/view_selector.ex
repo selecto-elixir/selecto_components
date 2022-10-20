@@ -26,35 +26,27 @@ defmodule ListableComponentsPetal.ViewSelector do
               module={ListableComponentsPetal.Components.RadioTabs}
               id="view_mode"
               fieldname="viewsel"
-              view_mode={@view_mode}
-            >
+              view_mode={@view_mode}>
               <:section id="aggregate" label="Aggregate View">
-
                 <.live_component
                   module={ListableComponentsPetal.Components.ListPicker}
                   id="group_by"
                   fieldname="group_by"
                   available={@columns}
-                  selected_items={@group_by}
-                >
+                  selected_items={@group_by}>
                   <:item_form :let={{id, item, _config, index} }>
                     <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
                     Group By: <%= id %> <%= item %> (config)
                   </:item_form>
                 </.live_component>
-
-                Aggregates:
-                    Display a list of available and selected columns, and when selected
-                    allow user to pick an aggregate. Allow them to reorder
-
+                  Aggregates:
                   <.live_component
                     module={ListableComponentsPetal.Components.ListPicker}
                     id="aggregate"
                     fieldname="aggregate"
                     available={@columns}
                     selected_items={@aggregate}>
-
                   <:item_form :let={{id, item, config, index}}>
                     <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
@@ -68,19 +60,15 @@ defmodule ListableComponentsPetal.ViewSelector do
                       config={config}/>
                   </:item_form>
                 </.live_component>
-
               </:section>
-
               <:section id="detail" label="Detail View">
                 Columns
-
                 <.live_component
                     module={ListableComponentsPetal.Components.ListPicker}
                     id="selected"
                     fieldname="selected"
                     available={@columns}
                     selected_items={@selected}>
-
                   <:item_form :let={{id, item, config, index} }>
                     <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
@@ -94,7 +82,6 @@ defmodule ListableComponentsPetal.ViewSelector do
                       config={config}/>
                   </:item_form>
                 </.live_component>
-
                 Order by
                 <.live_component
                     module={ListableComponentsPetal.Components.ListPicker}
@@ -111,13 +98,6 @@ defmodule ListableComponentsPetal.ViewSelector do
                       (config)
                   </:item_form>
                 </.live_component>
-
-                Columns:
-                  Display a list of available and selected columns, and when selected
-                  allow user to pick formatting info. Allow them to reorder
-                Ordering:
-                  Similar to group-by
-
               </:section>
             </.live_component>
 
@@ -164,14 +144,16 @@ defmodule ListableComponentsPetal.ViewSelector do
       def handle_event("view-apply", params, socket) do #on submit
         IO.inspect(params)
         listable = socket.assigns.listable
-        IO.inspect(socket.assigns.selected)
 
         listable =
           Map.put(listable, :set,
           case socket.assigns.view_mode do
             "detail" ->
+              selected = params["selected"] |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
+                |> Enum.map( fn e -> e["field"] end)
+                |> IO.inspect
               %{  ### TODO add config
-                selected: Enum.map(socket.assigns.selected, fn {_, item, _} -> item end),
+                selected: selected,
                 order_by: Enum.map(socket.assigns.order_by, fn {_, item, _} -> item end),
                 filtered: [],
                 group_by: []
