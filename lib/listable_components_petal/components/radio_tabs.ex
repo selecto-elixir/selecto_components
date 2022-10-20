@@ -27,7 +27,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
               phx-target={@myself}/>
             <%= s.label %>
           </label>
-          <div class={if @view_mode == s.id do "" else "hidden" end} class="ml-5">
+          <div class={if @view_mode == s.id do "" else "hidden" end}>
             <%= render_slot(s) %>
           </div>
         </div>

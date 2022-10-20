@@ -10,8 +10,7 @@ defmodule ListableComponentsPetal.ViewSelector do
         columns:
           Map.values(assigns.listable.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
-            |> Enum.map(fn c -> {c.colid, c.name} end)
-
+          |> Enum.map(fn c -> {c.colid, c.name} end)
       )
 
     ~H"""
@@ -21,7 +20,7 @@ defmodule ListableComponentsPetal.ViewSelector do
           <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
           <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
 
-          <div :if={@active_tab == "view" or @active_tab == nil} class="border">
+          <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end} class="border">
             <.live_component
               module={ListableComponentsPetal.Components.RadioTabs}
               id="view_mode"
@@ -102,14 +101,14 @@ defmodule ListableComponentsPetal.ViewSelector do
 
 
           </div>
-          <div :if={@active_tab == "filter"} class="border">
+          <div class={if @active_tab == "filter" do "" else "hidden" end} class="border">
             FILTER SECTION
 
             Select a filterable column or filter and add filter criteria
 
           </div>
 
-          <div :if={@active_tab == "export"} class="border">
+          <div class={if @active_tab == "export" do "" else "hidden" end} class="border">
             EXPORT SECTION
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
