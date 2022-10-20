@@ -103,7 +103,12 @@ defmodule ListableComponentsPetal.ViewSelector do
           </div>
           <div class={if @active_tab == "filter" do "" else "hidden" end} class="border">
             FILTER SECTION
-
+            <.live_component
+                    module={ListableComponentsPetal.Components.TreeBuilder}
+                    id="filter_tree"
+                    available={@columns}
+                    selected_items={@filters}>
+            </.live_component>
             Select a filterable column or filter and add filter criteria
 
           </div>
