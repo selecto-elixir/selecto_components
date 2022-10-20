@@ -16,7 +16,7 @@ defmodule ListableComponentsPetal.ViewSelector do
 
     ~H"""
       <div>
-        <.form for={:view} phx-change="view-update">
+        <.form for={:view} phx-change="view-update" phx-submit="view-apply">
         <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
         <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
         <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
@@ -37,8 +37,9 @@ defmodule ListableComponentsPetal.ViewSelector do
                 available={@columns}
                 selected_items={@group_by}
               >
-                <:item_form :let={{id, item, _config} }>
-                <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
+                <:item_form :let={{id, item, _config, index} }>
+                  <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
+                  <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
                   Group By: <%= id %> <%= item %> (config)
                 </:item_form>
               </.live_component>
@@ -54,8 +55,9 @@ defmodule ListableComponentsPetal.ViewSelector do
                   available={@columns}
                   selected_items={@aggregate}>
 
-                <:item_form :let={{id, item, config}}>
-                <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
+                <:item_form :let={{id, item, config, index}}>
+                  <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
+                  <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
                   <.live_component
                     module={ListableComponentsPetal.Components.AggregateConfig}
                     id={id}
@@ -79,8 +81,9 @@ defmodule ListableComponentsPetal.ViewSelector do
                   available={@columns}
                   selected_items={@selected}>
 
-                <:item_form :let={{id, item, config} }>
+                <:item_form :let={{id, item, config, index} }>
                   <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
+                  <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
                   <.live_component
                     module={ListableComponentsPetal.Components.ColumnConfig}
                     id={id}
@@ -99,13 +102,13 @@ defmodule ListableComponentsPetal.ViewSelector do
                   fieldname="order_by"
                   available={@columns}
                   selected_items={@order_by}>
-                <:item_form :let={{id, item, _config} }>
-                <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
+                <:item_form :let={{id, item, _config, index} }>
+                  <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
+                  <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
                   Order By:
                     <%= id %> /
                     <%= item %>
                     (config)
-
                 </:item_form>
               </.live_component>
 
@@ -135,18 +138,14 @@ defmodule ListableComponentsPetal.ViewSelector do
 
           collate and send to an email address in a column
         </div>
-        <button type="button" phx-click="apply_config" phx-target={@myself}>Submit</button>
+        <button>Submit</button>
         </.form>
       </div>
 
     """
   end
 
-  def handle_event("apply_config", params, socket) do
-    IO.inspect(params)
-    send(self(), {:apply_config})
-    {:noreply, socket}
-  end
+
 
   def handle_event("set_active_tab", params, socket) do
     IO.inspect(params)
@@ -157,14 +156,19 @@ defmodule ListableComponentsPetal.ViewSelector do
   defmacro __using__(_opts \\ []) do
     quote do
 
-      def handle_event("view-update", par, socket) do
+      def handle_event("view-update", par, socket) do ##On Change
         IO.inspect(par)
         {:noreply, socket}
       end
 
+      def handle_event("view-apply", params, socket) do #on submit
+        IO.inspect(params)
+        send(self(), {:apply_config, params})
+        {:noreply, socket}
+      end
 
       ### These run in the 'use'ing liveview's context
-      def handle_info({:apply_config}, socket) do
+      def handle_info({:apply_config, params}, socket) do
         listable = socket.assigns.listable
         IO.inspect(socket.assigns.selected)
 
