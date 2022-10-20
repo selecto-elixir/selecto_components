@@ -16,7 +16,7 @@ defmodule ListableComponentsPetal.ViewSelector do
     ~H"""
       <div>
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
-          <!--TODO use LiveView.JS -->
+          <!--TODO use LiveView.JS? -->
           <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
           <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
           <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
@@ -143,16 +143,32 @@ defmodule ListableComponentsPetal.ViewSelector do
         {:noreply, socket}
       end
 
+      @date_formats = %{
+        "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
+        "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
+
+        };
+
       def handle_event("view-apply", params, socket) do #on submit
         listable = socket.assigns.listable
-
+        columns = listable.config.columns
         listable =
           Map.put(listable, :set,
           case socket.assigns.view_mode do
             "detail" ->
               selected = params["selected"] |> Map.values()
                 |> Enum.sort(fn a,b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
-                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+                |> Enum.map( fn e ->
+                  col = columns[ e["field"] ]
+                  case col.type do
+                    x when x in [:naive_datetime, :utc_datetime] ->
+                      {:to_char, {col.colid, date_formats[e["format"]]}, col.colid }
+
+
+                    _ -> col.colid
+                  end
+
+                end) |> IO.inspect
 
               order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
                 |> Enum.map(
