@@ -3,8 +3,13 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
   def render(assigns) do
     ~H"""
-      <div> Fitler tree builder</div>
+      <div>
+        <div> Fitler tree builder</div>
+        <div> List Of Filters </div>
 
+        <div> Build Area </div>
+
+      </div>
     """
   end
 

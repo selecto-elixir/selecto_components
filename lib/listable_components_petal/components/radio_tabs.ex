@@ -18,7 +18,7 @@ defmodule ListableComponentsPetal.Components.RadioTabs do
       <div>
         <div :for={s <- @section}>
           <label>
-            <!--TODO use LiveView.JS -->
+            <!--TODO use LiveView.JS? -->
             <input
               type="radio"
               name="@fieldname"

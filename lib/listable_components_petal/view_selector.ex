@@ -132,7 +132,6 @@ defmodule ListableComponentsPetal.ViewSelector do
 
 
   def handle_event("set_active_tab", params, socket) do
-    IO.inspect(params)
     send(self(), {:set_active_tab, params["tab"]})
     {:noreply, socket}
   end
@@ -141,12 +140,10 @@ defmodule ListableComponentsPetal.ViewSelector do
     quote do
 
       def handle_event("view-update", par, socket) do ##On Change
-        IO.inspect(par)
         {:noreply, socket}
       end
 
       def handle_event("view-apply", params, socket) do #on submit
-        IO.inspect(params)
         listable = socket.assigns.listable
 
         listable =
