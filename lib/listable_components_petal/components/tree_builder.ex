@@ -21,8 +21,7 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-120 overflow-auto p-1">
-            <%= inspect(@filters, label: "IN SITU") %>
-            <%= render_area(%{ available: @available, filters: @filters, section: "main", conjunction: 'AND' }) %>
+            <%= render_area(%{ available: @available, filters: @filters, section: "filters[main]", conjunction: 'AND' }) %>
 
           </div>
         </div>
@@ -38,9 +37,11 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
   defp render_area(assigns) do
     ~H"""
-      <div x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});" id={@section}>
+      <div class="border-solid border rounded-md border-grey dark:border-black  p-1"
+      x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});"
+      id={@section}>
         <%= @section %>
-        <div class="border-solid border rounded-md border-grey dark:border-black  p-1"
+        <div class="pl-4"
 
           :for={ s <- @filters } %>
           <%= case s do %>
