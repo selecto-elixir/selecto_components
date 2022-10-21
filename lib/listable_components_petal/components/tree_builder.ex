@@ -32,6 +32,7 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
 
   ### TODO figure ou tohw to do this recursive data structure easily...
+  ### <%= render_area(%{ available: @available, filters: filters, conjunction: conj, section: section }) %>
   defp render_area(assigns) do
     ~H"""
       <div x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});" id={@section}>
@@ -40,8 +41,8 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
           :for={ s <- @filters ++ if Enum.count(@filters) > 0 do [{"#{@section}[#{Enum.count(@filters) +1}]", "AND", []}] else [] end}>
           <%= case s do %>
-            <%= {section, conj, filters} when is_list(filters) -> %>
-              <%= render_area(%{ available: @available, filters: filters, section: section }) %>
+            <%= {:subsection, section, conj, filters} when is_list(filters) -> %>
+              SUB...
             <%= {filter, value} -> %>
               <div>
                 <%= filter %>
