@@ -215,7 +215,7 @@ defmodule ListableComponentsPetal.ViewSelector do
         new_filter = par["element"]
         target = par["target"]
 
-        socket.assigns.filters
+        socket = assign( socket, filters: socket.assigns.filters ++ [{new_filter, nil}] )
 
 
         IO.inspect(socket.assigns.filters)
