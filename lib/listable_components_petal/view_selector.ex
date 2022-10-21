@@ -156,6 +156,7 @@ defmodule ListableComponentsPetal.ViewSelector do
           "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
         };
         listable = socket.assigns.listable
+        filtered = listable.set.filtered
         columns = listable.config.columns
         listable =
           Map.put(listable, :set,
@@ -187,7 +188,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                 %{  ### TODO add config
                 selected: selected,
                 order_by: order_by,
-                filtered: [],
+                filtered: filtered,
                 group_by: []
               }
             "aggregate" ->
@@ -199,7 +200,7 @@ defmodule ListableComponentsPetal.ViewSelector do
 
               %{  ### todo add config
                 selected: aggregate,
-                filtered: [],
+                filtered: filtered,
                 group_by: group_by,
                 order_by: [],
 
