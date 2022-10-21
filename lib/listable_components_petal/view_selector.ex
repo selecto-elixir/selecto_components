@@ -209,8 +209,12 @@ defmodule ListableComponentsPetal.ViewSelector do
 
       def handle_event("treedrop", par, socket) do
         IO.inspect(par)
+        new_filter = par["element"]
+        target = par["target"]
 
-        socket = assign(socket, filters: socket.assigns.filters ++ [{par["element"], nil}])
+        socket.assigns.filters
+
+
         IO.inspect(socket.assigns.filters)
         {:noreply, socket}
       end
