@@ -140,6 +140,8 @@ defmodule ListableComponentsPetal.ViewSelector do
   defmacro __using__(_opts \\ []) do
     quote do
 
+      ### These run in the 'use'ing liveview's context
+
       def handle_event("view-update", par, socket) do ##On Change
         {:noreply, socket}
       end
@@ -203,9 +205,10 @@ defmodule ListableComponentsPetal.ViewSelector do
         {:noreply, assign(socket, listable: listable)}
       end
 
-      ### These run in the 'use'ing liveview's context
-      def handle_info({:apply_config, params}, socket) do
 
+      def handle_event("treedrop", par, socket) do
+        IO.inspect(par)
+        {:noreply, socket}
       end
 
       def handle_info({:set_active_tab, tab}, socket) do
