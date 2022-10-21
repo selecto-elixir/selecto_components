@@ -109,6 +109,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                     module={ListableComponentsPetal.Components.TreeBuilder}
                     id="filter_tree"
                     available={@columns}
+                    filters={@filters}
                     selected_items={@filters}>
             </.live_component>
             Select a filterable column or filter and add filter criteria
@@ -208,6 +209,9 @@ defmodule ListableComponentsPetal.ViewSelector do
 
       def handle_event("treedrop", par, socket) do
         IO.inspect(par)
+
+        socket = assign(socket, filters: socket.assigns.filters ++ [{par["element"], nil}])
+        IO.inspect(socket.assigns.filters)
         {:noreply, socket}
       end
 
