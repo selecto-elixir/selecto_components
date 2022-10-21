@@ -10,7 +10,10 @@ defmodule ListableComponentsPetal.ViewSelector do
         columns:
           Map.values(assigns.listable.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name} end)
+          |> Enum.map(fn c -> {c.colid, c.name} end),
+#        filter_map:
+#          Enum.reduce(assigns.filters, %{}, fn i, acc ->#
+#          end)
       )
 
     ~H"""
