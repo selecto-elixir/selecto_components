@@ -113,7 +113,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     available={@columns}
                     filters={@filters}
                     selected_items={@filters}>
-              <:filter_form :let={{uuid, filter, _value}}>
+              <:filter_form :let={{uuid, _section, filter, _value}}>
                 <.live_component
                     module={ListableComponentsTailwind.Components.FilterForms}
                     id={uuid}
@@ -224,7 +224,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
         new_filter = par["element"]
         target = par["target"]
 
-        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), new_filter, nil}] )
+        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, new_filter, nil}] )
 
 
         IO.inspect(socket.assigns.filters)
