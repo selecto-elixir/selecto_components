@@ -1,8 +1,5 @@
-defmodule ListableComponentsPetal.Results do
+defmodule ListableComponentsTailwind.Results do
   use Phoenix.LiveComponent
-
-  # use Phoenix.Component
-  use PetalComponents
 
   # attr :listable, Listable, required: true
   # attr :view_control, %{}

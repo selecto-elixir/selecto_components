@@ -1,4 +1,4 @@
-defmodule ListableComponentsPetal.Components.ColumnConfig do
+defmodule ListableComponentsTailwind.Components.ColumnConfig do
   use Phoenix.LiveComponent
 
   # slot :type, :atom

@@ -1,4 +1,4 @@
-defmodule ListableComponentsPetal.Components.TreeBuilder do
+defmodule ListableComponentsTailwind.Components.TreeBuilder do
   use Phoenix.LiveComponent
 
   #available,

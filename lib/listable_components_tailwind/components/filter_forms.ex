@@ -1,4 +1,4 @@
-defmodule ListableComponentsPetal.Components.FilterForms do
+defmodule ListableComponentsTailwind.Components.FilterForms do
   use Phoenix.LiveComponent
 
   def render(assigns) do

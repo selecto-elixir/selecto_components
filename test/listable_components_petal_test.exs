@@ -1,8 +1,8 @@
-defmodule ListableComponentsPetalTest do
+defmodule ListableComponentsTailwindTest do
   use ExUnit.Case
-  doctest ListableComponentsPetal
+  doctest ListableComponentsTailwind
 
   test "greets the world" do
-    assert ListableComponentsPetal.hello() == :world
+    assert ListableComponentsTailwind.hello() == :world
   end
 end

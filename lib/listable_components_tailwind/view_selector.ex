@@ -1,8 +1,7 @@
-defmodule ListableComponentsPetal.ViewSelector do
+defmodule ListableComponentsTailwind.ViewSelector do
   use Phoenix.LiveComponent
 
   # use Phoenix.Component
-  # use PetalComponents
 
   def render(assigns) do
     assigns =
@@ -27,13 +26,13 @@ defmodule ListableComponentsPetal.ViewSelector do
 
           <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end} class="border">
             <.live_component
-              module={ListableComponentsPetal.Components.RadioTabs}
+              module={ListableComponentsTailwind.Components.RadioTabs}
               id="view_mode"
               fieldname="viewsel"
               view_mode={@view_mode}>
               <:section id="aggregate" label="Aggregate View">
                 <.live_component
-                  module={ListableComponentsPetal.Components.ListPicker}
+                  module={ListableComponentsTailwind.Components.ListPicker}
                   id="group_by"
                   fieldname="group_by"
                   available={@columns}
@@ -46,7 +45,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                 </.live_component>
                   Aggregates:
                   <.live_component
-                    module={ListableComponentsPetal.Components.ListPicker}
+                    module={ListableComponentsTailwind.Components.ListPicker}
                     id="aggregate"
                     fieldname="aggregate"
                     available={@columns}
@@ -55,7 +54,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                     <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
                     <.live_component
-                      module={ListableComponentsPetal.Components.AggregateConfig}
+                      module={ListableComponentsTailwind.Components.AggregateConfig}
                       id={id}
                       col={@listable.config.columns[item]}
                       uuid={id}
@@ -68,7 +67,7 @@ defmodule ListableComponentsPetal.ViewSelector do
               <:section id="detail" label="Detail View">
                 Columns
                 <.live_component
-                    module={ListableComponentsPetal.Components.ListPicker}
+                    module={ListableComponentsTailwind.Components.ListPicker}
                     id="selected"
                     fieldname="selected"
                     available={@columns}
@@ -77,7 +76,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                     <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
                     <.live_component
-                      module={ListableComponentsPetal.Components.ColumnConfig}
+                      module={ListableComponentsTailwind.Components.ColumnConfig}
                       id={id}
                       col={@listable.config.columns[item]}
                       uuid={id}
@@ -88,7 +87,7 @@ defmodule ListableComponentsPetal.ViewSelector do
                 </.live_component>
                 Order by
                 <.live_component
-                    module={ListableComponentsPetal.Components.ListPicker}
+                    module={ListableComponentsTailwind.Components.ListPicker}
                     id="order_by"
                     fieldname="order_by"
                     available={@columns}
@@ -109,14 +108,14 @@ defmodule ListableComponentsPetal.ViewSelector do
           <div class={if @active_tab == "filter" do "" else "hidden" end} class="border">
             FILTER SECTION
             <.live_component
-                    module={ListableComponentsPetal.Components.TreeBuilder}
+                    module={ListableComponentsTailwind.Components.TreeBuilder}
                     id="filter_tree"
                     available={@columns}
                     filters={@filters}
                     selected_items={@filters}>
               <:filter_form :let={{uuid, filter, _value}}>
                 <.live_component
-                    module={ListableComponentsPetal.Components.FilterForms}
+                    module={ListableComponentsTailwind.Components.FilterForms}
                     id={uuid}
                     filter={filter}
                     available={@columns}>

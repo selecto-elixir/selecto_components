@@ -1,4 +1,4 @@
-defmodule ListableComponentsPetal.Components.AggregateConfig do
+defmodule ListableComponentsTailwind.Components.AggregateConfig do
   use Phoenix.LiveComponent
 
   # slot :type, :atom

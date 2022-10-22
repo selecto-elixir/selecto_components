@@ -1,9 +1,9 @@
-defmodule ListableComponentsPetal.MixProject do
+defmodule ListableComponentsTailwind.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :listable_components_petal,
+      app: :listable_components_tailwind,
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
