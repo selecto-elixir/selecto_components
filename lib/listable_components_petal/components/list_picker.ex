@@ -25,7 +25,6 @@ defmodule ListableComponentsPetal.Components.ListPicker do
 
         <div>Selected</div>
 
-        <!-- Change to accept {id, name} here -->
         <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
           <div :for={{id, name} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}
             class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600">

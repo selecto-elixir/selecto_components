@@ -16,12 +16,12 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-120 overflow-auto p-1">
 
             <div :for={{id, name} <- @available}>
-              <div draggable="true" x-on:drag="dragging = event.srcElement.id" id={id}><%= name %></div>
+              <div draggable="true" x-on:drag=" dragging = event.srcElement.id; " id={id}><%= name %></div>
             </div>
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-120 overflow-auto p-1">
-            <%= render_area(%{ available: @available, filters: @filters, section: "filters[main]", conjunction: 'AND' }) %>
+            <%= render_area(%{ available: @available, filters: @filters, section: "filters[main]", conjunction: 'AND', filter_form: @filter_form }) %>
 
           </div>
         </div>
@@ -45,9 +45,9 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
           :for={ s <- @filters } %>
           <%= case s do %>
-            <%= {filter, _value} -> %>
+            <% {uuid, filter, value} -> %>
               <div>
-                <%= filter %>
+                <%= render_slot(@filter_form, {uuid, filter, value}) %>
               </div>
           <% end %>
         </div>

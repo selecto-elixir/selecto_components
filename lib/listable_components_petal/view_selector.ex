@@ -20,7 +20,7 @@ defmodule ListableComponentsPetal.ViewSelector do
       <div>
 
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
-          <!--TODO use LiveView.JS? -->
+          <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
           <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
           <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
@@ -114,6 +114,15 @@ defmodule ListableComponentsPetal.ViewSelector do
                     available={@columns}
                     filters={@filters}
                     selected_items={@filters}>
+              <:filter_form :let={{uuid, filter, _value}}>
+                <.live_component
+                    module={ListableComponentsPetal.Components.FilterForms}
+                    id={uuid}
+                    filter={filter}
+                    available={@columns}>
+                </.live_component>
+
+              </:filter_form>
             </.live_component>
             Select a filterable column or filter and add filter criteria
 
@@ -216,7 +225,7 @@ defmodule ListableComponentsPetal.ViewSelector do
         new_filter = par["element"]
         target = par["target"]
 
-        socket = assign( socket, filters: socket.assigns.filters ++ [{new_filter, nil}] )
+        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), new_filter, nil}] )
 
 
         IO.inspect(socket.assigns.filters)
