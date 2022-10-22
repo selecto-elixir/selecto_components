@@ -9,10 +9,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
         columns:
           Map.values(assigns.listable.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name} end),
-#        filter_map:
-#          Enum.reduce(assigns.filters, %{}, fn i, acc ->#
-#          end)
+          |> Enum.map(fn c -> {c.colid, c.name} end)
       )
 
     ~H"""
@@ -113,12 +110,17 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     available={@columns}
                     filters={@filters}
                     selected_items={@filters}>
-              <:filter_form :let={{uuid, _section, filter, _value}}>
+              <:filter_form :let={{uuid, section, filter, value}}>
                 <.live_component
                     module={ListableComponentsTailwind.Components.FilterForms}
                     id={uuid}
+                    uuid={uuid}
+                    section={section}
                     filter={filter}
-                    available={@columns}>
+                    value={value}
+                    columns={@listable.config.columns}
+                    filters_available={@listable.config.filters}
+                    >
                 </.live_component>
 
               </:filter_form>
@@ -159,6 +161,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
       end
 
       def handle_event("view-apply", params, socket) do #on submit
+
+        IO.inspect(params)
+
         date_formats = %{ #move this somewhere shared
           "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
           "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
@@ -182,8 +187,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     _ -> col.colid
                   end
 
-                end) |> IO.inspect
-
+                end)
               order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
                 |> Enum.map(
                   fn e ->
@@ -220,14 +224,12 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
 
       def handle_event("treedrop", par, socket) do
-        IO.inspect(par)
         new_filter = par["element"]
         target = par["target"]
 
         socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, new_filter, nil}] )
 
 
-        IO.inspect(socket.assigns.filters)
         {:noreply, socket}
       end
 
