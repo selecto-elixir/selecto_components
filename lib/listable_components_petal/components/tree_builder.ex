@@ -45,9 +45,9 @@ defmodule ListableComponentsPetal.Components.TreeBuilder do
 
           :for={ s <- @filters } %>
           <%= case s do %>
-            <% {uuid, filter, value} -> %>
+            <% {uuid, section, filter, value} -> %>
               <div>
-                <%= render_slot(@filter_form, {uuid, filter, value}) %>
+                <%= render_slot(@filter_form, {uuid, section, filter, value}) %>
               </div>
           <% end %>
         </div>
