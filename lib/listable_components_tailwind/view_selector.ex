@@ -204,8 +204,17 @@ defmodule ListableComponentsTailwind.ViewSelector do
         end)
       end
 
+      ##TODO validate form entry, display errors to user, keep order stable
+      def handle_event("view-update", params, socket) do ##On Change
+        filters_by_section = Map.values(Map.get(params, "filters", %{}))
+        |> Enum.reduce(%{},
+          fn f, acc ->
+            ## Custom Form Processor?
 
-      def handle_event("view-update", par, socket) do ##On Change
+            Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
+          end )
+        socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
+
         {:noreply, socket}
       end
 
@@ -228,7 +237,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
               Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
             end )
-        |> IO.inspect()
+
 
         ## Build filters walking the filters_by_section
 
@@ -245,7 +254,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                 |> Enum.sort(fn a,b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
                 |> Enum.map( fn e ->
                   col = columns[ e["field"] ]
-                  case col.type do
+                  case col.type do   #move to a validation lib
                     x when x in [:naive_datetime, :utc_datetime] ->
                       {:to_char, {col.colid, date_formats[e["format"]]}, col.colid }
 
