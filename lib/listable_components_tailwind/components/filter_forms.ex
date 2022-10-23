@@ -14,9 +14,13 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
       <div>
         <input name={"filters[#{@uuid}][filter]"} type="hidden" value={@filter}/>
         <input name={"filters[#{@uuid}][section]"} type="hidden" value={@section}/>
+        <input name={"filters[#{@uuid}][index]"} type="hidden" value={@index}/>
+
 
         <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def, value: @value} ) %>
         TODO: SHOW ERRORS
+        TODO: button to remove item
+
       </div>
     """
   end

@@ -121,12 +121,13 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     filters={@filters}
                     >
 
-              <:filter_form :let={{uuid, section, filter, value}}>
+              <:filter_form :let={{uuid, index, section, filter, value}}>
                 <.live_component
                     module={ListableComponentsTailwind.Components.FilterForms}
                     id={uuid}
                     uuid={uuid}
                     section={section}
+                    index={index}
                     filter={filter}
                     value={value}
                     columns={@listable.config.columns}
@@ -174,6 +175,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
     quote do
 
       ### These run in the 'use'ing liveview's context
+
+      ## Build filters that can be sent to the Listable
       def filter_recurse(listable, filters, section) do
         #### TODO handle errors
         Enum.reduce(Map.get(filters, section, []), [],
@@ -195,8 +198,12 @@ defmodule ListableComponentsTailwind.ViewSelector do
         end)
       end
 
+      #Build filter tree that can be sent back to the form
       def filter_form_recurse(listable, filters, section) do
-        Enum.reduce(Map.get(filters, section, []), [],
+        Enum.reduce(
+          Map.get(filters, section, [])
+          |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
+            [],
         fn
           %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
               acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(listable, filters, f["section_name"])}]
@@ -213,7 +220,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
             Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
           end )
-        socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
+        ### Just show errors
+        #socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
 
         {:noreply, socket}
       end

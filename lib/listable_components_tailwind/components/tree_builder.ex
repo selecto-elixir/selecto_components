@@ -36,6 +36,7 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   ### <%= {:subsection, section, conj, filters} when is_list(filters) -> %>
 
   defp render_area(assigns) do
+    assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black  p-1"
       x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});"
@@ -43,13 +44,15 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
         <%= @section %>
         <div class="pl-4"
 
-          :for={ s <- @filters } %>
+          :for={ {s, index} <- @filters } %>
           <%= case s do %>
 
             <% {uuid, section, filter, value} -> %>
               <div>
-                <%= render_slot(@filter_form, {uuid, section, filter, value}) %>
+                <%= render_slot(@filter_form, {uuid, index, section, filter, value}) %>
               </div>
+
+            <!-- handle subsections...-->
           <% end %>
         </div>
 
