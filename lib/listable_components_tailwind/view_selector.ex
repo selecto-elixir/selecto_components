@@ -190,9 +190,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
         filters_by_section = Map.values(Map.get(params, "filters", %{}))
           |> Enum.reduce(%{},
             fn f, acc -> Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] ) end )
+        |> IO.inspect()
 
+        filtered = Enum.reduce(Map.get(filters_by_section, "filters[main]", []), [], fn f, acc ->
+          acc ++ [ {f["filter"], f["value"]}]
+        end)
         ## Build filters walking the filters_by_section
 
+        |> IO.inspect()
 
         listable =
           Map.put(listable, :set,
