@@ -31,7 +31,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
               fieldname="viewsel"
               view_mode={@view_mode}>
               <:section id="aggregate" label="Aggregate View">
-
+      DOES NOT WORK RIGHT NOW
       Group By
                 <.live_component
                   module={ListableComponentsTailwind.Components.ListPicker}
