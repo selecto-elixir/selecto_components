@@ -22,12 +22,16 @@ defmodule ListableComponentsTailwind.ViewSelector do
           <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end} class="border">
+
+      View Type
             <.live_component
               module={ListableComponentsTailwind.Components.RadioTabs}
               id="view_mode"
               fieldname="viewsel"
               view_mode={@view_mode}>
               <:section id="aggregate" label="Aggregate View">
+
+      Group By
                 <.live_component
                   module={ListableComponentsTailwind.Components.ListPicker}
                   id="group_by"
@@ -40,7 +44,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     Group By: <%= id %> <%= item %> (config)
                   </:item_form>
                 </.live_component>
-                  Aggregates:
+
+      Aggregates:
                   <.live_component
                     module={ListableComponentsTailwind.Components.ListPicker}
                     id="aggregate"
@@ -62,7 +67,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
                 </.live_component>
               </:section>
               <:section id="detail" label="Detail View">
-                Columns
+
+      Columns
                 <.live_component
                     module={ListableComponentsTailwind.Components.ListPicker}
                     id="selected"
@@ -82,7 +88,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
                       config={config}/>
                   </:item_form>
                 </.live_component>
-                Order by
+
+
+      Order by
                 <.live_component
                     module={ListableComponentsTailwind.Components.ListPicker}
                     id="order_by"
@@ -103,13 +111,15 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
           </div>
           <div class={if @active_tab == "filter" do "" else "hidden" end} class="border">
-            FILTER SECTION
+
+      FILTER SECTION
             <.live_component
                     module={ListableComponentsTailwind.Components.TreeBuilder}
                     id="filter_tree"
                     available={@columns}
                     filters={@filters}
                     selected_items={@filters}>
+
               <:filter_form :let={{uuid, section, filter, value}}>
                 <.live_component
                     module={ListableComponentsTailwind.Components.FilterForms}
@@ -122,22 +132,26 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     filters_available={@listable.config.filters}
                     >
                 </.live_component>
-
               </:filter_form>
+
             </.live_component>
-            Select a filterable column or filter and add filter criteria
+
+
 
           </div>
 
           <div class={if @active_tab == "export" do "" else "hidden" end} class="border">
-            EXPORT SECTION
+            EXPORT SECTION PLANNED
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
             download / send via email (add note)
 
             collate and send to an email address in a column
           </div>
+
           <button>Submit</button>
+
+
         </.form>
       </div>
 
@@ -171,6 +185,11 @@ defmodule ListableComponentsTailwind.ViewSelector do
         listable = socket.assigns.listable
         filtered = listable.set.filtered
         columns = listable.config.columns
+
+        filters_by_section = Map.values(Map.get(params, "filters", %{}))
+          |> Enum.reduce(%{},
+            fn f, acc -> Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] ) end )
+
         listable =
           Map.put(listable, :set,
           case socket.assigns.view_mode do
