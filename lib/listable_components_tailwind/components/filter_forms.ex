@@ -16,7 +16,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
         <input name={"filters[#{@uuid}][section]"} type="hidden" value={@section}/>
 
         <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def, value: @value} ) %>
-
+        TODO: SHOW ERRORS
       </div>
     """
   end

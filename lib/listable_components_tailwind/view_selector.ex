@@ -166,22 +166,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
     {:noreply, socket}
   end
 
-  def filter_recurse(filters, section) do
-    Enum.reduce(Map.get(filters, section, []), [],
-    fn
-      %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc -> acc ++ [{section, conj, filter_recurse(filters, section)}]
-      f, acc -> acc ++ [ {f["filter"], f["value"]}]
-    end)
-  end
 
-  def filter_form_recurse(filters, section) do
-    Enum.reduce(Map.get(filters, section, []), [],
-    fn
-      %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
-          acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(filters, f["section_name"])}]
-      f, acc -> acc ++ [ {UUID.uuid4(), section, f["filter"], f["value"] }]
-    end)
-  end
 
 
 
@@ -189,6 +174,36 @@ defmodule ListableComponentsTailwind.ViewSelector do
     quote do
 
       ### These run in the 'use'ing liveview's context
+      def filter_recurse(listable, filters, section) do
+        #### TODO handle errors
+        Enum.reduce(Map.get(filters, section, []), [],
+        fn
+          %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc -> acc ++ [{section, conj, filter_recurse(listable, filters, section)}]
+          f, acc ->
+            if listable.config.filters[f["filter"]] do
+              listable.config.filters[f["filter"]]
+            else
+
+              case listable.config.columns[f["filter"]].type do
+                :id ->
+                  acc ++ [ {f["filter"], String.to_integer(f["value"])}]
+                :string ->
+                  acc ++ [ {f["filter"], f["value"]}]
+              end
+            end
+
+        end)
+      end
+
+      def filter_form_recurse(listable, filters, section) do
+        Enum.reduce(Map.get(filters, section, []), [],
+        fn
+          %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
+              acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(listable, filters, f["section_name"])}]
+          f, acc -> acc ++ [ {UUID.uuid4(), section, f["filter"], f["value"] }]
+        end)
+      end
+
 
       def handle_event("view-update", par, socket) do ##On Change
         {:noreply, socket}
@@ -208,16 +223,19 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
         filters_by_section = Map.values(Map.get(params, "filters", %{}))
           |> Enum.reduce(%{},
-            fn f, acc -> Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] ) end )
+            fn f, acc ->
+              ## Custom Form Processor?
+
+              Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
+            end )
         |> IO.inspect()
 
-        filtered = ListableComponentsTailwind.ViewSelector.filter_recurse(filters_by_section, "filters[main]")
         ## Build filters walking the filters_by_section
 
-        filters_for_assign = ListableComponentsTailwind.ViewSelector.filter_form_recurse(filters_by_section, "filters[main]")
+        socket = assign(socket, filters: filter_form_recurse(listable, filters_by_section, "filters[main]"))
 
-
-        |> IO.inspect()
+        ## THIS CAN FAIL...
+        filtered = filter_recurse(listable, filters_by_section, "filters[main]")
 
         listable =
           Map.put(listable, :set,
@@ -266,7 +284,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
               }
 
           end )
-        {:noreply, assign(socket, listable: listable, filters: filters_for_assign)}
+        {:noreply, assign(socket, listable: listable)}
       end
 
 
