@@ -119,7 +119,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     id="filter_tree"
                     available={@columns}
                     filters={@filters}
-                    selected_items={@filters}>
+                    >
 
               <:filter_form :let={{uuid, section, filter, value}}>
                 <.live_component
@@ -166,6 +166,25 @@ defmodule ListableComponentsTailwind.ViewSelector do
     {:noreply, socket}
   end
 
+  def filter_recurse(filters, section) do
+    Enum.reduce(Map.get(filters, section, []), [],
+    fn
+      %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc -> acc ++ [{section, conj, filter_recurse(filters, section)}]
+      f, acc -> acc ++ [ {f["filter"], f["value"]}]
+    end)
+  end
+
+  def filter_form_recurse(filters, section) do
+    Enum.reduce(Map.get(filters, section, []), [],
+    fn
+      %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
+          acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(filters, f["section_name"])}]
+      f, acc -> acc ++ [ {UUID.uuid4(), section, f["filter"], f["value"] }]
+    end)
+  end
+
+
+
   defmacro __using__(_opts \\ []) do
     quote do
 
@@ -192,10 +211,11 @@ defmodule ListableComponentsTailwind.ViewSelector do
             fn f, acc -> Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] ) end )
         |> IO.inspect()
 
-        filtered = Enum.reduce(Map.get(filters_by_section, "filters[main]", []), [], fn f, acc ->
-          acc ++ [ {f["filter"], f["value"]}]
-        end)
+        filtered = ListableComponentsTailwind.ViewSelector.filter_recurse(filters_by_section, "filters[main]")
         ## Build filters walking the filters_by_section
+
+        filters_for_assign = ListableComponentsTailwind.ViewSelector.filter_form_recurse(filters_by_section, "filters[main]")
+
 
         |> IO.inspect()
 
@@ -210,7 +230,6 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   case col.type do
                     x when x in [:naive_datetime, :utc_datetime] ->
                       {:to_char, {col.colid, date_formats[e["format"]]}, col.colid }
-
 
                     _ -> col.colid
                   end
@@ -247,17 +266,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
               }
 
           end )
-        {:noreply, assign(socket, listable: listable)}
+        {:noreply, assign(socket, listable: listable, filters: filters_for_assign)}
       end
 
 
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
-
         socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, new_filter, nil}] )
-
-
         {:noreply, socket}
       end
 
