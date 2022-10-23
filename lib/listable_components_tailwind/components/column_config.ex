@@ -40,5 +40,4 @@ defmodule ListableComponentsTailwind.Components.ColumnConfig do
   #                   <option :for={i <- Enum.to_list(0 .. 5)} value={i} selected={Map.get(@config, "precision") == i} >
   #                     <%= i %></option></select></label>
   #               <label><input name={"#{@fieldname}[#{@uuid}][commas]"} type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label> -->
-
 end

@@ -1,12 +1,10 @@
 defmodule ListableComponentsTailwind.Components.TreeBuilder do
   use Phoenix.LiveComponent
 
-  #available,
-  #filters
-
+  # available,
+  # filters
 
   def render(assigns) do
-
     IO.inspect(assigns.filters, label: "HERE")
 
     ~H"""
@@ -32,7 +30,6 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
     """
   end
 
-
   ### TODO figure ou tohw to do this recursive data structure easily...
   ###  ++ if Enum.count(@filters) > 0 do [{"#{@section}[#{Enum.count(@filters) +1}]", "AND", []}] else [] end}
   ### <%= render_area(%{ available: @available, filters: filters, conjunction: conj, section: section }) %>
@@ -41,6 +38,7 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   defp render_area(assigns) do
     IO.inspect(assigns.filters)
     assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
+
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black  p-1"
       x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});"
@@ -64,12 +62,9 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
     """
   end
 
-  #handle:
-  #delete filter,
-  #delete section
-  #add section
-  #change conjunction
-
-
-
+  # handle:
+  # delete filter,
+  # delete section
+  # add section
+  # change conjunction
 end

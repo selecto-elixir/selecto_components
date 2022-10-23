@@ -9,7 +9,6 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     type = filter_def.type
     assigns = assign(assigns, type: type, def: filter_def)
 
-
     ~H"""
       <div>
         <input name={"filters[#{@uuid}][filter]"} type="hidden" value={@filter["filter"]}/>
@@ -28,7 +27,8 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: :id} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap )
+    assigns = Map.put(assigns, :valmap, valmap)
+
     ~H"""
       <div>
 
@@ -44,7 +44,8 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     def = assigns.def
     valmap = assigns.filter
     IO.inspect(valmap)
-    assigns = Map.put(assigns, :valmap, valmap )
+    assigns = Map.put(assigns, :valmap, valmap)
+
     ~H"""
       <div>
         <label>
@@ -66,6 +67,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :float} = assigns) do
     def = assigns.def
+
     ~H"""
       <div>
         <label>
@@ -78,6 +80,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :integer} = assigns) do
     def = assigns.def
+
     ~H"""
       <div>
         <label>
@@ -90,6 +93,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :decimal} = assigns) do
     def = assigns.def
+
     ~H"""
       <div>
         <label>
@@ -102,6 +106,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :boolean} = assigns) do
     def = assigns.def
+
     ~H"""
       <div>
         <label>
@@ -112,22 +117,20 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     """
   end
 
-
   def render_form(%{type: type} = assigns) when type in [:naive_datetime, :utc_datetime] do
     def = assigns.def
+
     ~H"""
       G: <%= @type %> <%= @filter %>
 
     """
   end
 
-  def render_form(%{type: :custom} =assigns) do
+  def render_form(%{type: :custom} = assigns) do
     def = assigns.def
+
     ~H"""
       H: <%= @type %> <%= @filter %>
     """
   end
-
-
-
 end

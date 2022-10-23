@@ -159,170 +159,214 @@ defmodule ListableComponentsTailwind.ViewSelector do
     """
   end
 
-
-
   def handle_event("set_active_tab", params, socket) do
     send(self(), {:set_active_tab, params["tab"]})
     {:noreply, socket}
   end
 
-
-
-
-
   defmacro __using__(_opts \\ []) do
     quote do
-
       ### These run in the 'use'ing liveview's context
 
       defp _make_string_filter(filter) do
         comp = filter["comp"]
-        ignore_case = filter["ignore_case"] ##TODO
+        ## TODO
+        ignore_case = filter["ignore_case"]
         value = filter["value"]
+
         case comp do
-          "=" -> value
+          "=" ->
+            value
+
           x when x in ~w( != <= >= < >) ->
             {x, value}
+
           "starts" ->
             {:like, value <> "%"}
+
           "ends" ->
             {:like, "%" <> value}
         end
-
       end
-
 
       ## Build filters that can be sent to the Listable
       def filter_recurse(listable, filters, section) do
         #### TODO handle errors
-        Enum.reduce(Map.get(filters, section, []), [],
-        fn
-          %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc -> acc ++ [{section, conj, filter_recurse(listable, filters, section)}]
+        Enum.reduce(Map.get(filters, section, []), [], fn
+          %{"is_section" => "Y", "name" => name, "conj" => conj} = f, acc ->
+            acc ++ [{section, conj, filter_recurse(listable, filters, section)}]
+
           f, acc ->
             if listable.config.filters[f["filter"]] do
               listable.config.filters[f["filter"]]
             else
-
               case listable.config.columns[f["filter"]].type do
                 :id ->
-                  acc ++ [ {f["filter"], String.to_integer(f["value"])}]
+                  acc ++ [{f["filter"], String.to_integer(f["value"])}]
+
                 :string ->
-                  acc ++ [ {f["filter"], _make_string_filter(f)}]
+                  acc ++ [{f["filter"], _make_string_filter(f)}]
               end
             end
-
         end)
       end
 
-      #Build filter tree that can be sent back to the form
+      # Build filter tree that can be sent back to the form
       def filter_form_recurse(listable, filters, section) do
         Enum.reduce(
-          Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end), [],
-        fn
-          %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
-              acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(listable, filters, f["section_name"])}]
-          f, acc -> acc ++ [ {UUID.uuid4(), section, f }]
-          end)
+          Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
+          [],
+          fn
+            %{"is_section" => "Y", "name" => name, "conj" => conj} = f, acc ->
+              acc ++
+                [
+                  {:section, UUID.uuid4(), conj,
+                   filter_form_recurse(listable, filters, f["section_name"])}
+                ]
+
+            f, acc ->
+              acc ++ [{UUID.uuid4(), section, f}]
+          end
+        )
       end
 
-      ##TODO validate form entry, display errors to user, keep order stable
-      def handle_event("view-update", params, socket) do ##On Change
-        filters_by_section = Map.values(Map.get(params, "filters", %{}))
-        |> Enum.reduce(%{},
-          fn f, acc ->
-            ## Custom Form Processor?
+      ## TODO validate form entry, display errors to user, keep order stable
+      ## On Change
+      def handle_event("view-update", params, socket) do
+        filters_by_section =
+          Map.values(Map.get(params, "filters", %{}))
+          |> Enum.reduce(
+            %{},
+            fn f, acc ->
+              ## Custom Form Processor?
 
-            Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
-          end )
+              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+            end
+          )
+
         ### Just show errors
-        #socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
+        # socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
 
         {:noreply, socket}
       end
 
-      def handle_event("view-apply", params, socket) do #on submit
-
+      # on submit
+      def handle_event("view-apply", params, socket) do
         IO.inspect(params)
 
-        date_formats = %{ #move this somewhere shared
+        # move this somewhere shared
+        date_formats = %{
           "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
-          "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM",
-        };
+          "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
+        }
+
         listable = socket.assigns.listable
         filtered = listable.set.filtered
         columns = listable.config.columns
 
-        filters_by_section = Map.values(Map.get(params, "filters", %{}))
-          |> Enum.reduce(%{},
+        filters_by_section =
+          Map.values(Map.get(params, "filters", %{}))
+          |> Enum.reduce(
+            %{},
             fn f, acc ->
               ## Custom Form Processor?
 
-              Map.put( acc, f["section"], Map.get(acc, f["section"], []) ++ [f] )
-            end )
-
+              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+            end
+          )
 
         ## Build filters walking the filters_by_section
 
-        socket = assign(socket, filters: filter_form_recurse(listable, filters_by_section, "filters[main]"))
+        socket =
+          assign(socket,
+            filters: filter_form_recurse(listable, filters_by_section, "filters[main]")
+          )
 
         ## THIS CAN FAIL...
         filtered = filter_recurse(listable, filters_by_section, "filters[main]")
 
         listable =
-          Map.put(listable, :set,
-          case socket.assigns.view_mode do
-            "detail" ->
-              selected = params["selected"] |> Map.values()
-                |> Enum.sort(fn a,b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
-                |> Enum.map( fn e ->
-                  col = columns[ e["field"] ]
-                  case col.type do   #move to a validation lib
-                    x when x in [:naive_datetime, :utc_datetime] ->
-                      {:to_char, {col.colid, date_formats[e["format"]]}, col.colid }
+          Map.put(
+            listable,
+            :set,
+            case socket.assigns.view_mode do
+              "detail" ->
+                selected =
+                  params["selected"]
+                  |> Map.values()
+                  |> Enum.sort(fn a, b ->
+                    String.to_integer(a["index"]) <= String.to_integer(b["index"])
+                  end)
+                  |> Enum.map(fn e ->
+                    col = columns[e["field"]]
+                    # move to a validation lib
+                    case col.type do
+                      x when x in [:naive_datetime, :utc_datetime] ->
+                        {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
 
-                    _ -> col.colid
-                  end
+                      _ ->
+                        col.colid
+                    end
+                  end)
 
-                end)
-              order_by = Map.get(params, "order_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
-                |> Enum.map(
-                  fn e ->
+                order_by =
+                  Map.get(params, "order_by", %{})
+                  |> Map.values()
+                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                  |> Enum.map(fn e ->
                     case e["dir"] do
                       "desc" -> {:desc, e["field"]}
                       _ -> e["field"]
                     end
                   end)
 
-                %{  ### TODO add config
-                selected: selected,
-                order_by: order_by,
-                filtered: filtered,
-                group_by: []
-              }
-            "aggregate" ->
-              aggregate = params["aggregate"] |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
-                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+                ### TODO add config
+                %{
+                  selected: selected,
+                  order_by: order_by,
+                  filtered: filtered,
+                  group_by: []
+                }
 
-              group_by = Map.get(params, "group_by", %{}) |> Map.values() |> Enum.sort(fn a,b -> a["index"] <= b["index"] end)
-                |> Enum.map( fn e -> e["field"] end) ### TODO apply config
+              "aggregate" ->
+                aggregate =
+                  params["aggregate"]
+                  |> Map.values()
+                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                  ### TODO apply config
+                  |> Enum.map(fn e -> e["field"] end)
 
-              %{  ### todo add config
-                selected: aggregate,
-                filtered: filtered,
-                group_by: group_by,
-                order_by: [],
+                group_by =
+                  Map.get(params, "group_by", %{})
+                  |> Map.values()
+                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                  ### TODO apply config
+                  |> Enum.map(fn e -> e["field"] end)
 
-              }
+                ### todo add config
+                %{
+                  selected: aggregate,
+                  filtered: filtered,
+                  group_by: group_by,
+                  order_by: []
+                }
+            end
+          )
 
-          end )
         {:noreply, assign(socket, listable: listable)}
       end
-
 
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
-        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, %{"filter"=>new_filter, "value"=>nil}}] )
+
+        socket =
+          assign(socket,
+            filters:
+              socket.assigns.filters ++
+                [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+          )
+
         {:noreply, socket}
       end
 
