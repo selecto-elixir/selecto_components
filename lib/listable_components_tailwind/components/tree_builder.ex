@@ -47,9 +47,9 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
           :for={ {s, index} <- @filters } %>
           <%= case s do %>
 
-            <% {uuid, section, filter, value} -> %>
+            <% {uuid, section, fv} -> %>
               <div>
-                <%= render_slot(@filter_form, {uuid, index, section, filter, value}) %>
+                <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
 
             <!-- handle subsections...-->

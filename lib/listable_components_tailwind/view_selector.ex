@@ -121,15 +121,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     filters={@filters}
                     >
 
-              <:filter_form :let={{uuid, index, section, filter, value}}>
+              <:filter_form :let={{uuid, index, section, fv}}>
                 <.live_component
                     module={ListableComponentsTailwind.Components.FilterForms}
                     id={uuid}
                     uuid={uuid}
                     section={section}
                     index={index}
-                    filter={filter}
-                    value={value}
+                    filter={fv}
                     columns={@listable.config.columns}
                     filters_available={@listable.config.filters}
                     >
@@ -176,6 +175,23 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       ### These run in the 'use'ing liveview's context
 
+      defp _make_string_filter(filter) do
+        comp = filter["comp"]
+        ignore_case = filter["ignore_case"] ##TODO
+        value = filter["value"]
+        case comp do
+          "=" -> value
+          x when x in ~w( != <= >= < >) ->
+            {x, value}
+          "starts" ->
+            {:like, value <> "%"}
+          "ends" ->
+            {:like, "%" <> value}
+        end
+
+      end
+
+
       ## Build filters that can be sent to the Listable
       def filter_recurse(listable, filters, section) do
         #### TODO handle errors
@@ -191,7 +207,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                 :id ->
                   acc ++ [ {f["filter"], String.to_integer(f["value"])}]
                 :string ->
-                  acc ++ [ {f["filter"], f["value"]}]
+                  acc ++ [ {f["filter"], _make_string_filter(f)}]
               end
             end
 
@@ -207,7 +223,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
         fn
           %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
               acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(listable, filters, f["section_name"])}]
-          f, acc -> acc ++ [ {UUID.uuid4(), section, f["filter"], f["value"] }]
+          f, acc -> acc ++ [ {UUID.uuid4(), section, f }]
         end)
       end
 
@@ -308,7 +324,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
-        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, new_filter, nil}] )
+        socket = assign( socket, filters: socket.assigns.filters ++ [{UUID.uuid4(), target, %{"filter"=>new_filter, "value"=>nil}}] )
         {:noreply, socket}
       end
 
