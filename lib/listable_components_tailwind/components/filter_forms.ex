@@ -1,5 +1,6 @@
 defmodule ListableComponentsTailwind.Components.FilterForms do
   use Phoenix.LiveComponent
+  import ListableComponentsTailwind.Components.Common
 
   def render(assigns) do
     filter_def = Map.get(assigns.columns, assigns.filter)
@@ -15,74 +16,77 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
         <input name={"filters[#{@uuid}][section]"} type="hidden" value={@section}/>
 
         <%= @filter %>
-        <%= case @type do %>
-          <% :id -> %>
-            <%= render_id_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% :float -> %>
-            <%= render_float_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% :decimal -> %>
-            <%= render_decimal_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% :string -> %>
-            <%= render_string_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% :integer -> %>
-            <%= render_integer_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% x when x in [:naive_datetime, :utc_datetime] -> %>
-            <%= render_datetime_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
-          <% :boolean -> %>
-            <%= render_boolean_form( %{id: @id, filter: @filter, def: @def, value: @value} ) %>
+        <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def, value: @value} ) %>
 
-        <% end %>
       </div>
     """
   end
 
-  def render_id_form(assigns) do  ### if we were provided with a fn to get possible values, show a multi-select
+  def render_form(%{type: :id} = assigns) do
+    def = assigns.def
     ~H"""
-      ID FORM
+      <div>
+        <label>
+          A: <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
+    """
+  end
+
+  def render_form(%{type: :string} = assigns) do
+    def = assigns.def
+    ~H"""
+      B: <%= @type %> <%= @filter %>
+
+    """
+  end
+
+  def render_form(%{type: :float} = assigns) do
+    def = assigns.def
+    ~H"""
+      C: <%= @type %> <%= @filter %>
+
+    """
+  end
+
+  def render_form(%{type: :integer} = assigns) do
+    def = assigns.def
+    ~H"""
+      D: <%= @type %> <%= @filter %>
+
+    """
+  end
+
+  def render_form(%{type: :decimal} = assigns) do
+    def = assigns.def
+    ~H"""
+      E: <%= @type %> <%= @filter %>
+
+    """
+  end
+
+  def render_form(%{type: :boolean} = assigns) do
+    def = assigns.def
+    ~H"""
+      F: <%= @type %> <%= @filter %>
+
     """
   end
 
 
-  def render_custom_form(assigns) do  ### Filter definition has provided a custom form!
+  def render_form(%{type: type} = assigns) when type in [:naive_datetime, :utc_datetime] do
+    def = assigns.def
     ~H"""
-      Custom FORM
+      G: <%= @type %> <%= @filter %>
+
     """
   end
 
-  def render_string_form(assigns) do   ### let them enter strings to partial match
+  def render_form(%{type: :custom} =assigns) do
+    def = assigns.def
     ~H"""
-      string FORM
-    """
-  end
-
-
-  def render_integer_form(assigns) do
-    ~H"""
-      INTERGER FORM
-    """
-  end
-
-  def render_decimal_form(assigns) do ### let them do <= >= and between..
-    ~H"""
-      Decimal FORM
-    """
-  end
-
-  def render_float_form(assigns) do ### let them do <= >= and between..
-    ~H"""
-      Float FORM
-    """
-  end
-
-  def render_datetime_form(assigns) do ### Let them pick 'today' 'yesterday' etc or enter a start and/or end date
-    ~H"""
-      datetime FORM
-    """
-  end
-
-  def render_boolean_form(assigns) do
-    ~H"""
-      BOOL FORM
+      H: <%= @type %> <%= @filter %>
     """
   end
 

@@ -2,6 +2,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
   use Phoenix.LiveComponent
 
   # use Phoenix.Component
+  import ListableComponentsTailwind.Components.Common
 
   def render(assigns) do
     assigns =
@@ -17,9 +18,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
-          <button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</button>
-          <button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</button>
-          <button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</button>
+          <.button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</.button>
+          <.button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
+          <.button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end} class="border">
 
