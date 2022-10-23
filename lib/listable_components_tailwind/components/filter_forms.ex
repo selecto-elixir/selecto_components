@@ -15,7 +15,6 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
         <input name={"filters[#{@uuid}][filter]"} type="hidden" value={@filter}/>
         <input name={"filters[#{@uuid}][section]"} type="hidden" value={@section}/>
 
-        <%= @filter %>
         <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def, value: @value} ) %>
 
       </div>
@@ -27,7 +26,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     ~H"""
       <div>
         <label>
-          A: <%= @type %> <%= @filter %>
+          <%= @type %> <%= @filter %>
           <.input name={"filters[#{@uuid}][value]"} value={@value}/>
         </label>
       </div>
@@ -37,40 +36,60 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
     ~H"""
-      B: <%= @type %> <%= @filter %>
-
+      <div>
+        <label>
+          <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
     """
   end
 
   def render_form(%{type: :float} = assigns) do
     def = assigns.def
     ~H"""
-      C: <%= @type %> <%= @filter %>
-
+      <div>
+        <label>
+          <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
     """
   end
 
   def render_form(%{type: :integer} = assigns) do
     def = assigns.def
     ~H"""
-      D: <%= @type %> <%= @filter %>
-
+      <div>
+        <label>
+          <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
     """
   end
 
   def render_form(%{type: :decimal} = assigns) do
     def = assigns.def
     ~H"""
-      E: <%= @type %> <%= @filter %>
-
+      <div>
+        <label>
+          <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
     """
   end
 
   def render_form(%{type: :boolean} = assigns) do
     def = assigns.def
     ~H"""
-      F: <%= @type %> <%= @filter %>
-
+      <div>
+        <label>
+          <%= @type %> <%= @filter %>
+          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+        </label>
+      </div>
     """
   end
 
