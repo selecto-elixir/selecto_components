@@ -217,14 +217,12 @@ defmodule ListableComponentsTailwind.ViewSelector do
       #Build filter tree that can be sent back to the form
       def filter_form_recurse(listable, filters, section) do
         Enum.reduce(
-          Map.get(filters, section, [])
-          |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
-            [],
+          Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end), [],
         fn
           %{"is_section"=>"Y", "name"=>name, "conj"=> conj} = f, acc ->
               acc ++ [{:section, UUID.uuid4(), conj, filter_form_recurse(listable, filters, f["section_name"])}]
           f, acc -> acc ++ [ {UUID.uuid4(), section, f }]
-        end)
+          end)
       end
 
       ##TODO validate form entry, display errors to user, keep order stable

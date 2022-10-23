@@ -6,6 +6,9 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
 
 
   def render(assigns) do
+
+    IO.inspect(assigns.filters, label: "HERE")
+
     ~H"""
       <div>
         <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1">
@@ -36,6 +39,7 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   ### <%= {:subsection, section, conj, filters} when is_list(filters) -> %>
 
   defp render_area(assigns) do
+    IO.inspect(assigns.filters)
     assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black  p-1"

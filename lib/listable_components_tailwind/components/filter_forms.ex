@@ -27,17 +27,14 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :id} = assigns) do
     def = assigns.def
-    valmap = case assigns.filter["value"] do
-      %{} -> assigns.value
-      _ -> %{value: assigns.value}
-    end
+    valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap )
     ~H"""
       <div>
 
         <label>
           <%= def.name %>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap.value}/>
+          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
         </label>
       </div>
     """
@@ -45,10 +42,8 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
-    valmap = case assigns.filter["value"] do
-      %{} -> assigns.value
-      _ -> %{value: assigns.filter["value"]}
-    end
+    valmap = assigns.filter
+    IO.inspect(valmap)
     assigns = Map.put(assigns, :valmap, valmap )
     ~H"""
       <div>
@@ -62,7 +57,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
             <option value="contains" selected={Map.get(@valmap, "comp") == "contains"}>Contains</option>
 
           </select>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap.value}/>
+          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <!-- <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} value="Y"/>Ignore Case</label> -->
         </label>
       </div>
