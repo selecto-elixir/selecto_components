@@ -17,6 +17,7 @@ Plans for '0.5.0':
  - special aggregate table, clicing on the group-by will link to the configured detail view with the group-by value applied as a filter
  - Forms - line forms & column forms
  - cleanup liveviews and make it look nice
+ - error handing
 
 Plans for later: 
  - generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
