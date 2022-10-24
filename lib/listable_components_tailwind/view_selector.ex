@@ -352,7 +352,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
                 ### todo add config
                 %{
-                  selected: aggregate,
+                  selected: group_by ++ aggregate,
                   filtered: filtered,
                   group_by: group_by,
                   order_by: []
