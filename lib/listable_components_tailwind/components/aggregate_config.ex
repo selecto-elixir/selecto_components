@@ -9,24 +9,44 @@ defmodule ListableComponentsTailwind.Components.AggregateConfig do
 
   def render(assigns) do
 
-    assigns = Map.put(assigns, prefix: "#{@fieldname}[#{@uuid}]" )
+    assigns = Map.put(assigns, :prefix, "#{assigns.fieldname}[#{assigns.uuid}]" )
 
     ~H"""
       <div>
         <%= case @col.type do%>
           <% x when x in [:int, :id, :decimal] -> %>
-          agg: avg, sum, min, max, all those stats aggs...
+          agg: count, avg, sum, min, max, all those stats aggs...
             <%= @col.name %>
+            <label>Format
+              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                Enum.map(~w(count avg sum min max), fn o -> {o, o} end)
+              }/>
+            </label>
               <!-- <label><input name={"#{@fieldname}[#{@uuid}][commas]"} type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>-->
           <% x when x in [:float] -> %>
           agg: avg, sum, min, max, all those stats aggs...
             <%= @col.name %>
+            <label>Format
+              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                Enum.map(~w(avg sum min max), fn o -> {o, o} end)
+              }/>
+            </label>
           <% x when x in [:string] -> %>
           agg: string_agg, min, max,
             <%= @col.name %>
+            <label>Format
+              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                Enum.map(~w(min max), fn o -> {o, o} end)
+              }/>
+            </label>
           <% :boolean -> %>
-              agg types: count(true), %true
+            agg types: count(true), %true
             <%= @col.name %><!--:Y_N :1_0 :yes_no :check_blank -->
+            <label>Format
+
+
+            </label>
+
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
               agg types: age buckets?
             <%= @col.name %>

@@ -334,7 +334,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   |> Map.values()
                   |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                   ### TODO apply config
-                  |> Enum.map(fn e -> e["field"] end)
+                  |> Enum.map(fn
+                    ### Make sure e["format"] is a valid field name!
+                    e -> {String.to_atom(case e["format"] do
+                      nil -> "count"
+                      _ -> e["format"]
+                    end
+                    ), e["field"]}
+                  end)
 
                 group_by =
                   Map.get(params, "group_by", %{})
