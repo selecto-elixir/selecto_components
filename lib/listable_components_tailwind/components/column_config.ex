@@ -1,6 +1,7 @@
 defmodule ListableComponentsTailwind.Components.ColumnConfig do
   use Phoenix.LiveComponent
 
+  import ListableComponentsTailwind.Components.Common
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string
@@ -21,10 +22,11 @@ defmodule ListableComponentsTailwind.Components.ColumnConfig do
             <%= @col.name %><!--:Y_N :1_0 :yes_no :check_blank -->
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
             <%= @col.name %>
-            <label>Format <select name={"#{@fieldname}[#{@uuid}][format]"}
-              class="border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:focus:border-primary-500   disabled:bg-gray-100 disabled:cursor-not-allowed pl-3 pr-10 py-2 text-base focus:outline-none sm:text-sm rounded-md dark:disabled:bg-gray-700 dark:focus:border-primary-500 dark:text-gray-300 dark:bg-gray-800" >
-              <option :for={i <-["MM-DD-YYYY HH:MM", "YYYY-MM-DD HH:MM",]} value={i}
-                selected={Map.get(@config, "format") == i}><%= i %></option></select></label>
+            <label>Format
+              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                Enum.map(["MM-DD-YYYY HH:MM", "YYYY-MM-DD HH:MM"], fn o -> {o, o} end)
+              }/>
+            </label>
           <% _ -> %>
             <%= @col.name %>
           <% end %>
