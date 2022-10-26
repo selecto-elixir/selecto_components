@@ -113,7 +113,8 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: :boolean} = assigns) do
     def = assigns.def
-
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap)
     ~H"""
       <div>
         <label>
@@ -126,16 +127,27 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
 
   def render_form(%{type: type} = assigns) when type in [:naive_datetime, :utc_datetime] do
     def = assigns.def
-
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap)
     ~H"""
-      G: <%= @type %> <%= @filter %>
-
+    <div>
+      <label>
+        <%= def.name %>
+        After:
+        <.input type="datetime-local" name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+      </label>
+      <label>
+        Before:
+        <.input type="datetime-local" name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+      </label>
+    </div>
     """
   end
 
   def render_form(%{type: :custom} = assigns) do
     def = assigns.def
-
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap)
     ~H"""
       H: <%= @type %> <%= @filter %>
     """

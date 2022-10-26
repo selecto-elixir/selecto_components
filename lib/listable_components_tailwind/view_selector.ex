@@ -207,6 +207,19 @@ defmodule ListableComponentsTailwind.ViewSelector do
         end
       end
 
+      defp _make_date_filter(filter) do
+        comp = filter["comp"]
+        ## TODO handle time zones...
+        {:ok, value, _} = DateTime.from_iso8601(filter["value"] <> ":00Z")
+        {:ok, value2, _} = DateTime.from_iso8601(filter["value2"] <> ":00Z")
+        ### Add more options
+
+
+        {:between, value, value2}
+
+      end
+
+
       ## Build filters that can be sent to the Listable
       def filter_recurse(listable, filters, section) do
         #### TODO handle errors
@@ -219,11 +232,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
               listable.config.filters[f["filter"]]
             else
               case listable.config.columns[f["filter"]].type do
-                x when x in [:id :integer :float :decimal] ->
+                x when x in [:id, :integer, :float, :decimal] ->
                   acc ++ [{f["filter"], _make_num_filter(f)}]
 
                 :string ->
                   acc ++ [{f["filter"], _make_string_filter(f)}]
+
+                x when x in [:naive_datetime, :utc_datetime] ->
+                  acc ++ [{f["filter"], _make_date_filter(f)}]
 
 
               end
