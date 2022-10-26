@@ -397,6 +397,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
                       x when x in [:naive_datetime, :utc_datetime] ->
                         {:extract, col.colid, e["format"]}
 
+                      ### add support for YYYY-MM-DD also..
+
                       _ ->
                         col.colid
                     end
