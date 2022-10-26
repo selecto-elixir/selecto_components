@@ -415,7 +415,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
             end
           )
 
-        {:noreply, assign(socket, listable: listable)}
+        {:noreply, assign(socket, listable: listable, applied_view: socket.assigns.view_mode)}
       end
 
       def handle_event("treedrop", par, socket) do
