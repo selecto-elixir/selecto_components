@@ -8,6 +8,8 @@ defmodule ListableComponentsTailwind.Components.ColumnConfig do
   # slog :config, :map
 
   def render(assigns) do
+    assigns = Map.put(assigns, :prefix, "#{assigns.fieldname}[#{assigns.uuid}]" )
+
     ~H"""
       <div>
         <%= case @col.type do%>

@@ -168,6 +168,24 @@ defmodule ListableComponentsTailwind.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+      defp _make_num_filter(filter) do
+        comp = filter["comp"]
+        ## TODO
+        value = String.to_integer(filter["value"])
+
+        case comp do
+          "=" ->
+            value
+
+          "between" ->
+            {:between, value, String.to_integer(filter["value2"])}
+
+          x when x in ~w( != <= >= < >) ->
+            {x, value}
+
+        end
+      end
+
       defp _make_string_filter(filter) do
         comp = filter["comp"]
         ## TODO
@@ -201,11 +219,13 @@ defmodule ListableComponentsTailwind.ViewSelector do
               listable.config.filters[f["filter"]]
             else
               case listable.config.columns[f["filter"]].type do
-                :id ->
-                  acc ++ [{f["filter"], String.to_integer(f["value"])}]
+                x when x in [:id :integer :float :decimal] ->
+                  acc ++ [{f["filter"], _make_num_filter(f)}]
 
                 :string ->
                   acc ++ [{f["filter"], _make_string_filter(f)}]
+
+
               end
             end
         end)

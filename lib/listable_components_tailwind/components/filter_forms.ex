@@ -24,21 +24,6 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     """
   end
 
-  def render_form(%{type: :id} = assigns) do
-    def = assigns.def
-    valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap)
-
-    ~H"""
-      <div>
-
-        <label>
-          <%= def.name %>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
-        </label>
-      </div>
-    """
-  end
 
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
@@ -65,40 +50,62 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     """
   end
 
-  def render_form(%{type: :float} = assigns) do
+
+  def render_form(%{type: t} = assigns) when t in [:id, :integer]do
     def = assigns.def
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap)
 
     ~H"""
       <div>
+
         <label>
-          <%= @type %> <%= @filter %>
-          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+          <%= def.name %>
+          <select name={"filters[#{@uuid}][comp]"}>
+            <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
+            <option value="=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
+            <option value="=" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
+            <option value="=" selected={Map.get(@valmap, "comp") == ">"}>Greater Than</option>
+            <option value="=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
+            <option value="=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
+            <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
+          </select>
+          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+          <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+
         </label>
       </div>
     """
   end
 
-  def render_form(%{type: :integer} = assigns) do
+  def render_form(%{type: t} = assigns) when t in [:decimal, :float] do
     def = assigns.def
-
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap)
     ~H"""
       <div>
         <label>
-          <%= @type %> <%= @filter %>
-          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
-        </label>
-      </div>
-    """
-  end
+          <%= def.name %>
+          <select name={"filters[#{@uuid}][comp]"}>
+            <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
+            <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
+            <option value="<" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
+            <option value=">" selected={Map.get(@valmap, "comp") == ">"}>Greater Than</option>
+            <option value="<=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
+            <option value=">=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
+            <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
+          </select>
+          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+          <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+          <%!--
+          <label>Round to for Comparison
+          <select name={"filters[#{@uuid}][precision]]"}>
 
-  def render_form(%{type: :decimal} = assigns) do
-    def = assigns.def
+            <option :for={p <- Enum.to_list(0..5)} value={p} selected={Map.get(@valmap, "precision") == p}><%= p %></option>
+          </select>
+          </label>
+          --%>
 
-    ~H"""
-      <div>
-        <label>
-          <%= @type %> <%= @filter %>
-          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
         </label>
       </div>
     """
