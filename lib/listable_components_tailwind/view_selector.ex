@@ -39,10 +39,17 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   fieldname="group_by"
                   available={@columns}
                   selected_items={@group_by}>
-                  <:item_form :let={{id, item, _config, index} }>
+                  <:item_form :let={{id, item, config, index} }>
                     <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
-                    Group By: <%= id %> <%= item %> (config)
+                    <.live_component
+                      module={ListableComponentsTailwind.Components.GroupByConfig}
+                      id={id}
+                      col={@listable.config.columns[item]}
+                      uuid={id}
+                      item={item}
+                      fieldname="group_by"
+                      config={config}/>
                   </:item_form>
                 </.live_component>
 
@@ -384,7 +391,17 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   |> Map.values()
                   |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                   ### TODO apply config
-                  |> Enum.map(fn e -> e["field"] end)
+                  |> Enum.map(fn e ->
+                    col = columns[e["field"]]
+                    case col.type do
+                      x when x in [:naive_datetime, :utc_datetime] ->
+                        {:extract, col.colid, e["format"]}
+
+                      _ ->
+                        col.colid
+                    end
+
+                end)|> IO.inspect()
 
                 ### todo add config
                 %{

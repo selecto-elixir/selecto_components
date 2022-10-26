@@ -116,7 +116,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap)
     ~H"""
-      <div>
+      <div> TODO
         <label>
           <%= @type %> <%= @filter %>
           <.input name={"filters[#{@uuid}][value]"} value={@value}/>
