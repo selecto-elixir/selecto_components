@@ -5,7 +5,6 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   # filters
 
   def render(assigns) do
-    IO.inspect(assigns.filters, label: "HERE")
 
     ~H"""
       <div>
@@ -36,7 +35,6 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   ### <%= {:subsection, section, conj, filters} when is_list(filters) -> %>
 
   defp render_area(assigns) do
-    IO.inspect(assigns.filters)
     assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
 
     ~H"""

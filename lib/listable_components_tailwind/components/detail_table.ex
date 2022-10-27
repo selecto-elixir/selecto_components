@@ -10,7 +10,6 @@ defmodule ListableComponentsTailwind.Components.DetailTable do
     {results, aliases} = Listable.execute(assigns.listable)
 
     selected = assigns.listable.set.selected
-    IO.inspect(selected, label: "Selecetd")
     selected = Enum.map( selected, fn
       {a, f} = sel->
         {sel, assigns.listable.config.columns[f]}
@@ -34,7 +33,6 @@ defmodule ListableComponentsTailwind.Components.DetailTable do
         <tr :for={r <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
           <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
             <%= with {sel, def} <- @fmap[c] do %>
-              <% IO.inspect(def) %>
               <%= case def do %>
                 <% %{format: fmt_fun} = def when is_function(fmt_fun) -> %>
                   AAA <%= r[c] %>

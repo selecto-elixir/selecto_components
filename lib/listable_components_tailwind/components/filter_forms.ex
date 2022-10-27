@@ -28,7 +28,6 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    IO.inspect(valmap)
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
 
     ~H"""

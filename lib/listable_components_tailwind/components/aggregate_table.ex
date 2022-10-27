@@ -7,7 +7,6 @@ defmodule ListableComponentsTailwind.Components.AggregateTable do
   def render(assigns) do
     {results, aliases} = Listable.execute(assigns.listable)
 
-    IO.inspect(results)
     group_by = assigns.listable.set.group_by
     aggregates = assigns.listable.set.selected -- group_by
 
@@ -56,10 +55,8 @@ defmodule ListableComponentsTailwind.Components.AggregateTable do
         </tr>
 
         <tr :for={r <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
-          <% IO.inspect(r) %>
           <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
             <%= with def <- @fmap[c] do %>
-              <% IO.inspect(def) %>
               <%= case def do %>
                 <% {:group_by, g, def} -> %>
                   GROUP <%= r[c] %>

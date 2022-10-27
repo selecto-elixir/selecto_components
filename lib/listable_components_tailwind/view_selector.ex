@@ -413,8 +413,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                         col.colid
                     end
 
-                end)|> IO.inspect()
-
+                end)
                 ### todo add config
                 %{
                   selected: group_by ++ aggregate,
