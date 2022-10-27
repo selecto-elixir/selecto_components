@@ -300,7 +300,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       # on submit
       def handle_event("view-apply", params, socket) do
-
+        IO.inspect(params, label: "Params")
         # move this somewhere shared
         date_formats = %{
           "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",

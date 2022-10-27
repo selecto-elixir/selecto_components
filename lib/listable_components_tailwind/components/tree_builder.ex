@@ -4,6 +4,8 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
   # available,
   # filters
 
+  import ListableComponentsTailwind.Components.Common
+
   def render(assigns) do
 
     ~H"""
@@ -38,22 +40,35 @@ defmodule ListableComponentsTailwind.Components.TreeBuilder do
     assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
 
     ~H"""
-      <div class="border-solid border rounded-md border-grey dark:border-black  p-1"
+      <div class="border-solid border rounded-md border-grey dark:border-grey  p-1 pb-8"
       x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});"
       id={@section}>
-        <%= @section %>
-        <div class="pl-4"
+        <%= @section %>: <%= @conjunction %>
+        <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey"
 
           :for={ {s, index} <- @filters } %>
           <%= case s do %>
 
-            <% {uuid, section, fv} -> %>
-              <div>
-                <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
-              </div>
+          <% {uuid, section, fv} -> %>
+          XXX
+            <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
+              <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
+            </div>
 
-            <!-- handle subsections...-->
+          <% {:section, uuid, conj, filters} -> %>
+            <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
+              <.input name={"filters[#{uuid}][is_section]"} value="Y"/>
+              <.input name={"filters[#{uuid}][conjunction]"} value={conj}/>
+              <.input name={"filters[#{uuid}][name]"} value={uuid}/>
+
+
+              <%= render_area(%{ available: @available, filters: filters,
+                section: uuid, conjunction: conj, filter_form: @filter_form }) %>
+            </div>
           <% end %>
+
+
+
         </div>
 
       </div>
