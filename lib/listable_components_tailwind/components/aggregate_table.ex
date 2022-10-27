@@ -64,7 +64,7 @@ defmodule ListableComponentsTailwind.Components.AggregateTable do
                 <% {:group_by, g, def} -> %>
                   GROUP <%= r[c] %>
 
-                <% {:agg, {func, _field}, %{format: fmt_fun} = def} -> %>
+                <% {:agg, {func, _field}, %{format: fmt_fun} = def} when is_function(fmt_fun) -> %>
                   FMT AGG <%= fmt_fun.(r[c]) %>
                 <% _ -> %>
                   AGG <%= r[c] %>
@@ -76,5 +76,8 @@ defmodule ListableComponentsTailwind.Components.AggregateTable do
     </div>
     """
   end
+
+
+
 
 end

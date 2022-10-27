@@ -293,9 +293,13 @@ defmodule ListableComponentsTailwind.ViewSelector do
         {:noreply, socket}
       end
 
+
+      def do_view(listable) do
+
+      end
+
       # on submit
       def handle_event("view-apply", params, socket) do
-        IO.inspect(params)
 
         # move this somewhere shared
         date_formats = %{
@@ -304,8 +308,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
         }
 
         listable = socket.assigns.listable
-        filtered = listable.set.filtered
         columns = listable.config.columns
+
+        selected = params["selected"]
+        order_by = Map.get(params, "order_by", %{})
+        aggregate = params["aggregate"]
+        group_by = Map.get(params, "group_by", %{})
+
+
 
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
@@ -335,7 +345,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
             case socket.assigns.view_mode do
               "detail" ->
                 selected =
-                  params["selected"]
+                  selected
                   |> Map.values()
                   |> Enum.sort(fn a, b ->
                     String.to_integer(a["index"]) <= String.to_integer(b["index"])
@@ -353,7 +363,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   end)
 
                 order_by =
-                  Map.get(params, "order_by", %{})
+                  order_by
                   |> Map.values()
                   |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                   |> Enum.map(fn e ->
@@ -373,7 +383,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
               "aggregate" ->
                 aggregate =
-                  params["aggregate"]
+                  aggregate
                   |> Map.values()
                   |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                   ### TODO apply config
@@ -387,7 +397,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
                   end)
 
                 group_by =
-                  Map.get(params, "group_by", %{})
+                  group_by
                   |> Map.values()
                   |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                   ### TODO apply config
@@ -416,6 +426,11 @@ defmodule ListableComponentsTailwind.ViewSelector do
           )
 
         {:noreply, assign(socket, listable: listable, applied_view: socket.assigns.view_mode)}
+      end
+
+      def handle_event("filter_from_aggregate", par, socket) do
+
+
       end
 
       def handle_event("treedrop", par, socket) do
