@@ -27,10 +27,7 @@ defmodule ListableComponentsTailwind.Components.AggregateTable do
     end)
 
     fmap = Enum.zip(aliases, group_by ++ aggregates ) |> Enum.into(%{})
-
     assigns = assign(assigns, results: results, aliases: aliases, group_by: group_by, aggregate: aggregates, fmap: fmap)
-
-
 
     ~H"""
     <div>
