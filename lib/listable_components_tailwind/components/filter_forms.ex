@@ -29,7 +29,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     def = assigns.def
     valmap = assigns.filter
     IO.inspect(valmap)
-    assigns = Map.put(assigns, :valmap, valmap)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( def: def)
 
     ~H"""
       <div>
@@ -54,7 +54,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: t} = assigns) when t in [:id, :integer]do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( def: def)
 
     ~H"""
       <div>
@@ -81,7 +81,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: t} = assigns) when t in [:decimal, :float] do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( def: def)
     ~H"""
       <div>
         <label>
@@ -114,7 +114,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: :boolean} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( def: def)
     ~H"""
       <div> TODO
         <label>
@@ -132,7 +132,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     ~H"""
     <div>
       <label>
-        <%= def.name %>
+        <%= @def.name %>
         After:
         <.input type="datetime-local" name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
       </label>
@@ -147,7 +147,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
   def render_form(%{type: :custom} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( def: def)
     ~H"""
       H: <%= @type %> <%= @filter %>
     """
