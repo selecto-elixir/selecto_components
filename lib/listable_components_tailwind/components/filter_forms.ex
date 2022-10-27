@@ -34,7 +34,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     ~H"""
       <div>
         <label>
-          <%= def.name %>
+          <%= @def.name %>
           <select name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
@@ -60,7 +60,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
       <div>
 
         <label>
-          <%= def.name %>
+          <%= @def.name %>
           <select name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
@@ -85,7 +85,7 @@ defmodule ListableComponentsTailwind.Components.FilterForms do
     ~H"""
       <div>
         <label>
-          <%= def.name %>
+          <%= @def.name %>
           <select name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
