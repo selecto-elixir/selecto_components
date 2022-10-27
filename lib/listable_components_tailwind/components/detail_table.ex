@@ -34,10 +34,12 @@ defmodule ListableComponentsTailwind.Components.DetailTable do
           <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
             <%= with {sel, def} <- @fmap[c] do %>
               <%= case def do %>
+                <% %{link: fmt_fun} = def when is_function(fmt_fun) -> %>
+
                 <% %{format: fmt_fun} = def when is_function(fmt_fun) -> %>
-                  AAA <%= r[c] %>
+                  <%= fmt_fun.(r[c]) %>
                 <% _ -> %>
-                  BBB <%= r[c] %>
+                  <%= r[c] %>
               <%= end %>
             <%= end %>
           </td>
