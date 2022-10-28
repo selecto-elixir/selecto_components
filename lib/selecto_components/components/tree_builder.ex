@@ -41,7 +41,9 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-grey  p-1 pb-8"
-      x-on:drop=" event.preventDefault(); PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});"
+      x-on:drop=" event.preventDefault();
+        PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
+        event.stopPropagation()"
       id={@section}>
         <%= @section %>: <%= @conjunction %>
         <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey"
@@ -58,6 +60,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
           <% {:section, uuid, conj, filters} -> %>
             <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
               <.input name={"filters[#{uuid}][is_section]"} value="Y"/>
+              <.input name={"filters[#{uuid}][section]"} value={@section}/>
               <.input name={"filters[#{uuid}][conjunction]"} value={conj}/>
               <.input name={"filters[#{uuid}][name]"} value={uuid}/>
 
@@ -67,7 +70,14 @@ defmodule SelectoComponents.Components.TreeBuilder do
             </div>
           <% end %>
 
-
+          <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
+            <.input name={"filters[#{@section}new][is_section]"} value="Y"/>
+            <.input name={"filters[#{@section}new][section]"} value={@section}/>
+            <.input name={"filters[#{@section}new][conjunction]"} value="and"/>
+            <.input name={"filters[#{@section}new][name]"} value="new"/>
+            <%= render_area(%{ available: @available, filters: [],
+              section: @section <> "new", conjunction: "and", filter_form: @filter_form }) %>
+          </div>
 
         </div>
 
