@@ -1,7 +1,7 @@
-defmodule ListableComponentsTailwind.Components.ColumnConfig do
+defmodule SelectoComponents.Components.ColumnConfig do
   use Phoenix.LiveComponent
 
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string

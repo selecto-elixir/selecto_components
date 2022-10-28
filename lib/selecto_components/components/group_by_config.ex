@@ -1,7 +1,7 @@
-defmodule ListableComponentsTailwind.Components.GroupByConfig do
+defmodule SelectoComponents.Components.GroupByConfig do
   use Phoenix.LiveComponent
 
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string

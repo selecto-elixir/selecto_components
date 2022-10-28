@@ -1,6 +1,6 @@
-defmodule ListableComponentsTailwind.Components.AggregateConfig do
+defmodule SelectoComponents.Components.AggregateConfig do
   use Phoenix.LiveComponent
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
 
   # slot :type, :atom
   # slot :uuid, :string

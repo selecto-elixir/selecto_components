@@ -1,14 +1,14 @@
-defmodule ListableComponentsTailwind.ViewSelector do
+defmodule SelectoComponents.ViewSelector do
   use Phoenix.LiveComponent
 
   # use Phoenix.Component
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
 
   def render(assigns) do
     assigns =
       assign(assigns,
         columns:
-          Map.values(assigns.listable.config.columns)
+          Map.values(assigns.selecto.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
           |> Enum.map(fn c -> {c.colid, c.name} end)
       )
@@ -26,7 +26,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       View Type
             <.live_component
-              module={ListableComponentsTailwind.Components.RadioTabs}
+              module={SelectoComponents.Components.RadioTabs}
               id="view_mode"
               fieldname="viewsel"
               view_mode={@view_mode}>
@@ -34,7 +34,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       Group By
                 <.live_component
-                  module={ListableComponentsTailwind.Components.ListPicker}
+                  module={SelectoComponents.Components.ListPicker}
                   id="group_by"
                   fieldname="group_by"
                   available={@columns}
@@ -43,9 +43,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
                     <.live_component
-                      module={ListableComponentsTailwind.Components.GroupByConfig}
+                      module={SelectoComponents.Components.GroupByConfig}
                       id={id}
-                      col={@listable.config.columns[item]}
+                      col={@selecto.config.columns[item]}
                       uuid={id}
                       item={item}
                       fieldname="group_by"
@@ -55,7 +55,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       Aggregates:
                   <.live_component
-                    module={ListableComponentsTailwind.Components.ListPicker}
+                    module={SelectoComponents.Components.ListPicker}
                     id="aggregate"
                     fieldname="aggregate"
                     available={@columns}
@@ -64,9 +64,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
                     <.live_component
-                      module={ListableComponentsTailwind.Components.AggregateConfig}
+                      module={SelectoComponents.Components.AggregateConfig}
                       id={id}
-                      col={@listable.config.columns[item]}
+                      col={@selecto.config.columns[item]}
                       uuid={id}
                       item={item}
                       fieldname="aggregate"
@@ -78,7 +78,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       Columns
                 <.live_component
-                    module={ListableComponentsTailwind.Components.ListPicker}
+                    module={SelectoComponents.Components.ListPicker}
                     id="selected"
                     fieldname="selected"
                     available={@columns}
@@ -87,9 +87,9 @@ defmodule ListableComponentsTailwind.ViewSelector do
                     <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
                     <.live_component
-                      module={ListableComponentsTailwind.Components.ColumnConfig}
+                      module={SelectoComponents.Components.ColumnConfig}
                       id={id}
-                      col={@listable.config.columns[item]}
+                      col={@selecto.config.columns[item]}
                       uuid={id}
                       item={item}
                       fieldname="selected"
@@ -100,7 +100,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       Order by
                 <.live_component
-                    module={ListableComponentsTailwind.Components.ListPicker}
+                    module={SelectoComponents.Components.ListPicker}
                     id="order_by"
                     fieldname="order_by"
                     available={@columns}
@@ -122,7 +122,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
       FILTER SECTION
             <.live_component
-                    module={ListableComponentsTailwind.Components.TreeBuilder}
+                    module={SelectoComponents.Components.TreeBuilder}
                     id="filter_tree"
                     available={@columns}
                     filters={@filters}
@@ -130,14 +130,14 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
               <:filter_form :let={{uuid, index, section, fv}}>
                 <.live_component
-                    module={ListableComponentsTailwind.Components.FilterForms}
+                    module={SelectoComponents.Components.FilterForms}
                     id={uuid}
                     uuid={uuid}
                     section={section}
                     index={index}
                     filter={fv}
-                    columns={@listable.config.columns}
-                    filters_available={@listable.config.filters}
+                    columns={@selecto.config.columns}
+                    filters_available={@selecto.config.filters}
                     >
                 </.live_component>
               </:filter_form>
@@ -227,18 +227,18 @@ defmodule ListableComponentsTailwind.ViewSelector do
       end
 
 
-      ## Build filters that can be sent to the Listable
-      def filter_recurse(listable, filters, section) do
+      ## Build filters that can be sent to the selecto
+      def filter_recurse(selecto, filters, section) do
         #### TODO handle errors
         Enum.reduce(Map.get(filters, section, []), [], fn
           %{"is_section" => "Y", "name" => name, "conj" => conj} = f, acc ->
-            acc ++ [{section, conj, filter_recurse(listable, filters, section)}]
+            acc ++ [{section, conj, filter_recurse(selecto, filters, section)}]
 
           f, acc ->
-            if listable.config.filters[f["filter"]] do
-              listable.config.filters[f["filter"]]
+            if selecto.config.filters[f["filter"]] do
+              selecto.config.filters[f["filter"]]
             else
-              case listable.config.columns[f["filter"]].type do
+              case selecto.config.columns[f["filter"]].type do
                 x when x in [:id, :integer, :float, :decimal] ->
                   acc ++ [{f["filter"], _make_num_filter(f)}]
 
@@ -255,7 +255,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
       end
 
       # Build filter tree that can be sent back to the form
-      def filter_form_recurse(listable, filters, section) do
+      def filter_form_recurse(selecto, filters, section) do
         Enum.reduce(
           Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
           [],
@@ -264,7 +264,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
               acc ++
                 [
                   {:section, UUID.uuid4(), conj,
-                   filter_form_recurse(listable, filters, f["section_name"])}
+                   filter_form_recurse(selecto, filters, f["section_name"])}
                 ]
 
             f, acc ->
@@ -288,13 +288,13 @@ defmodule ListableComponentsTailwind.ViewSelector do
           )
 
         ### Just show errors
-        # socket = assign(socket, filters: filter_form_recurse(socket.assigns.listable, filters_by_section, "filters[main]"))
+        # socket = assign(socket, filters: filter_form_recurse(socket.assigns.selecto, filters_by_section, "filters[main]"))
 
         {:noreply, socket}
       end
 
 
-      def do_view(listable) do
+      def do_view(selecto) do
 
       end
 
@@ -307,8 +307,8 @@ defmodule ListableComponentsTailwind.ViewSelector do
           "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
         }
 
-        listable = socket.assigns.listable
-        columns = listable.config.columns
+        selecto = socket.assigns.selecto
+        columns = selecto.config.columns
 
         selected = params["selected"]
         order_by = Map.get(params, "order_by", %{})
@@ -332,15 +332,15 @@ defmodule ListableComponentsTailwind.ViewSelector do
 
         socket =
           assign(socket,
-            filters: filter_form_recurse(listable, filters_by_section, "filters[main]")
+            filters: filter_form_recurse(selecto, filters_by_section, "filters[main]")
           )
 
         ## THIS CAN FAIL...
-        filtered = filter_recurse(listable, filters_by_section, "filters[main]")
+        filtered = filter_recurse(selecto, filters_by_section, "filters[main]")
 
-        listable =
+        selecto =
           Map.put(
-            listable,
+            selecto,
             :set,
             case socket.assigns.view_mode do
               "detail" ->
@@ -424,7 +424,7 @@ defmodule ListableComponentsTailwind.ViewSelector do
             end
           )
 
-        {:noreply, assign(socket, listable: listable, applied_view: socket.assigns.view_mode)}
+        {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
       end
 
       def handle_event("filter_from_aggregate", par, socket) do

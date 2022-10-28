@@ -1,8 +1,8 @@
-defmodule ListableComponentsTailwindTest do
+defmodule SelectoComponentsTest do
   use ExUnit.Case
-  doctest ListableComponentsTailwind
+  doctest SelectoComponents
 
   test "greets the world" do
-    assert ListableComponentsTailwind.hello() == :world
+    assert SelectoComponents.hello() == :world
   end
 end

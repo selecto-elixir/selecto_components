@@ -1,28 +1,28 @@
-defmodule ListableComponentsTailwind.Components.AggregateTable do
+defmodule SelectoComponents.Components.AggregateTable do
   @doc """
     display results of aggregate view
   """
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = Listable.execute(assigns.listable)
+    {results, aliases} = selecto.execute(assigns.selecto)
 
-    group_by = assigns.listable.set.group_by
-    aggregates = assigns.listable.set.selected -- group_by
+    group_by = assigns.selecto.set.group_by
+    aggregates = assigns.selecto.set.selected -- group_by
 
     group_by = Enum.map( group_by,
        fn
         {:extract, f, fmt} = g ->
-          {:group_by, g, assigns.listable.config.columns[f]}
+          {:group_by, g, assigns.selecto.config.columns[f]}
         {a, f} = g ->
-          {:group_by, g, assigns.listable.config.columns[f]}
+          {:group_by, g, assigns.selecto.config.columns[f]}
       end)
 
     aggregates = Enum.map( aggregates, fn
       {:extract, f, fmt} = agg ->
-        {:agg, agg, assigns.listable.config.columns[f]}
+        {:agg, agg, assigns.selecto.config.columns[f]}
       {a, f} = agg->
-        {:agg, agg, assigns.listable.config.columns[f]}
+        {:agg, agg, assigns.selecto.config.columns[f]}
     end)
 
     fmap = Enum.zip(aliases, group_by ++ aggregates ) |> Enum.into(%{})

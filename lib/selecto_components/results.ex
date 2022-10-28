@@ -1,11 +1,11 @@
-defmodule ListableComponentsTailwind.Results do
+defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
 
-  # attr :listable, Listable, required: true
+  # attr :selecto, selecto, required: true
   # attr :view_control, %{}
 
   def render(assigns) do
-    {results, aliases} = Listable.execute(assigns.listable)
+    {results, aliases} = selecto.execute(assigns.selecto)
     assigns = assign(assigns, results: results, aliases: aliases)
 
     ~H"""

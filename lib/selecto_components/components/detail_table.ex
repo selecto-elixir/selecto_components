@@ -1,4 +1,4 @@
-defmodule ListableComponentsTailwind.Components.DetailTable do
+defmodule SelectoComponents.Components.DetailTable do
   @doc """
     Display results of a detail view
 
@@ -7,14 +7,14 @@ defmodule ListableComponentsTailwind.Components.DetailTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = Listable.execute(assigns.listable)
+    {results, aliases} = selecto.execute(assigns.selecto)
 
-    selected = assigns.listable.set.selected
+    selected = assigns.selecto.set.selected
     selected = Enum.map( selected, fn
       {a, f} = sel->
-        {sel, assigns.listable.config.columns[f]}
+        {sel, assigns.selecto.config.columns[f]}
       f ->
-        {f, assigns.listable.config.columns[f]}
+        {f, assigns.selecto.config.columns[f]}
     end)
 
     fmap = Enum.zip(aliases, selected ) |> Enum.into(%{})

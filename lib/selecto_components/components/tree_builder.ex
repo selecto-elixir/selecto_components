@@ -1,10 +1,10 @@
-defmodule ListableComponentsTailwind.Components.TreeBuilder do
+defmodule SelectoComponents.Components.TreeBuilder do
   use Phoenix.LiveComponent
 
   # available,
   # filters
 
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
 
   def render(assigns) do
 

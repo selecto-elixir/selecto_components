@@ -1,4 +1,4 @@
-defmodule ListableComponentsTailwind.Components.Common do
+defmodule SelectoComponents.Components.Common do
   use Phoenix.Component
 
   def button(assigns) do

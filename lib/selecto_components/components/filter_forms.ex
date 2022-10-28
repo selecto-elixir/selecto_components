@@ -1,6 +1,6 @@
-defmodule ListableComponentsTailwind.Components.FilterForms do
+defmodule SelectoComponents.Components.FilterForms do
   use Phoenix.LiveComponent
-  import ListableComponentsTailwind.Components.Common
+  import SelectoComponents.Components.Common
 
   def render(assigns) do
     filter_def = Map.get(assigns.columns, assigns.filter["filter"])

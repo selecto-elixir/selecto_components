@@ -1,9 +1,9 @@
-defmodule ListableComponentsTailwind.MixProject do
+defmodule SelectoComponents.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :listable_components_tailwind,
+      app: :selecto_components,
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
@@ -24,7 +24,7 @@ defmodule ListableComponentsTailwind.MixProject do
       {:phoenix, "~> 1.6"},
       {:phoenix_live_view, "~> 0.18"},
       # {:petal_components, "~> 0.18.5"},
-      {:listable, path: "../listable"},
+      {:selecto, path: "../selecto"},
       {:uuid, "~> 1.1"}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}

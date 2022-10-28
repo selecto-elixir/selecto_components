@@ -1,4 +1,4 @@
-defmodule ListableComponentsTailwind.Components.Tabs do
+defmodule SelectoComponents.Components.Tabs do
   ## TODO make tabs for view select sections
   use Phoenix.LiveComponent
 

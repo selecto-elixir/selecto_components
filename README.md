@@ -1,8 +1,8 @@
-# ListableComponentsTailwind
+# SelectoComponents
 
-Tailwind based UI for listable
+Tailwind based UI for selecto
 
-Provides 2 main components: ListableComponentsTailwind.ViewSelector and ListableComponentsTailwind.Results
+Provides 2 main components: SelectoComponents.ViewSelector and SelectoComponents.Results
 
 ViewSelector is a live component that creates a control panel to build a query.
 
@@ -39,19 +39,19 @@ This system is inspired by a system I wrote starting in 2004 and currently has a
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `listable_components_tailwind` to your list of dependencies in `mix.exs`:
+by adding `selecto_components` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:listable_components_tailwind, "~> 0.1.0"}
+    {:selecto_components, "~> 0.1.0"}
   ]
 end
 ```
 
 Additionally:
 
-You will need to add alpinejs and Tailwind to your app, and configure tailwind to look at *ex files in listable_components_tailwind.
+You will need to add alpinejs and Tailwind to your app, and configure tailwind to look at *ex files in selecto_components.
 
 You will need to include a Hook in your app.js for the drag and drop
 
@@ -68,4 +68,4 @@ const PushEventHook = {
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/listable_components_tailwind>.
+be found at <https://hexdocs.pm/selecto_components>.
