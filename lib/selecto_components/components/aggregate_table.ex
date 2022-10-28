@@ -10,23 +10,37 @@ defmodule SelectoComponents.Components.AggregateTable do
     group_by = assigns.selecto.set.group_by
     aggregates = assigns.selecto.set.selected -- group_by
 
-    group_by = Enum.map( group_by,
-       fn
-        {:extract, f, fmt} = g ->
-          {:group_by, g, assigns.selecto.config.columns[f]}
-        {a, f} = g ->
-          {:group_by, g, assigns.selecto.config.columns[f]}
+    group_by =
+      Enum.map(
+        group_by,
+        fn
+          {:extract, f, fmt} = g ->
+            {:group_by, g, assigns.selecto.config.columns[f]}
+
+          {a, f} = g ->
+            {:group_by, g, assigns.selecto.config.columns[f]}
+        end
+      )
+
+    aggregates =
+      Enum.map(aggregates, fn
+        {:extract, f, fmt} = agg ->
+          {:agg, agg, assigns.selecto.config.columns[f]}
+
+        {a, f} = agg ->
+          {:agg, agg, assigns.selecto.config.columns[f]}
       end)
 
-    aggregates = Enum.map( aggregates, fn
-      {:extract, f, fmt} = agg ->
-        {:agg, agg, assigns.selecto.config.columns[f]}
-      {a, f} = agg->
-        {:agg, agg, assigns.selecto.config.columns[f]}
-    end)
+    fmap = Enum.zip(aliases, group_by ++ aggregates) |> Enum.into(%{})
 
-    fmap = Enum.zip(aliases, group_by ++ aggregates ) |> Enum.into(%{})
-    assigns = assign(assigns, results: results, aliases: aliases, group_by: group_by, aggregate: aggregates, fmap: fmap)
+    assigns =
+      assign(assigns,
+        results: results,
+        aliases: aliases,
+        group_by: group_by,
+        aggregate: aggregates,
+        fmap: fmap
+      )
 
     ~H"""
     <div>
@@ -73,8 +87,4 @@ defmodule SelectoComponents.Components.AggregateTable do
     </div>
     """
   end
-
-
-
-
 end

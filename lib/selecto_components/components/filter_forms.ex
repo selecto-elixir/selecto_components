@@ -24,11 +24,10 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
-
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
     ~H"""
       <div>
@@ -49,11 +48,10 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
-
-  def render_form(%{type: t} = assigns) when t in [:id, :integer]do
+  def render_form(%{type: t} = assigns) when t in [:id, :integer] do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
     ~H"""
       <div>
@@ -80,7 +78,8 @@ defmodule SelectoComponents.Components.FilterForms do
   def render_form(%{type: t} = assigns) when t in [:decimal, :float] do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
+
     ~H"""
       <div>
         <label>
@@ -113,7 +112,8 @@ defmodule SelectoComponents.Components.FilterForms do
   def render_form(%{type: :boolean} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
+
     ~H"""
       <div> TODO
         <label>
@@ -128,6 +128,7 @@ defmodule SelectoComponents.Components.FilterForms do
     def = assigns.def
     valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap)
+
     ~H"""
     <div>
       <label>
@@ -146,7 +147,8 @@ defmodule SelectoComponents.Components.FilterForms do
   def render_form(%{type: :custom} = assigns) do
     def = assigns.def
     valmap = assigns.filter
-    assigns = Map.put(assigns, :valmap, valmap) |> Map.put( :def, def)
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
+
     ~H"""
       H: <%= @type %> <%= @filter %>
     """

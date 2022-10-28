@@ -10,17 +10,19 @@ defmodule SelectoComponents.Components.DetailTable do
     {results, aliases} = Selecto.execute(assigns.selecto)
 
     selected = assigns.selecto.set.selected
-    selected = Enum.map( selected, fn
-      {a, f} = sel->
-        {sel, assigns.selecto.config.columns[f]}
-      f ->
-        {f, assigns.selecto.config.columns[f]}
-    end)
 
-    fmap = Enum.zip(aliases, selected ) |> Enum.into(%{})
+    selected =
+      Enum.map(selected, fn
+        {a, f} = sel ->
+          {sel, assigns.selecto.config.columns[f]}
+
+        f ->
+          {f, assigns.selecto.config.columns[f]}
+      end)
+
+    fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
     assigns = assign(assigns, fmap: fmap, results: results, aliases: aliases)
-
 
     ~H"""
     <div>
@@ -48,6 +50,4 @@ defmodule SelectoComponents.Components.DetailTable do
     </div>
     """
   end
-
-
 end

@@ -25,7 +25,7 @@ defmodule SelectoComponents.MixProject do
       {:phoenix_live_view, "~> 0.18"},
       {:selecto, path: "../selecto"},
       {:uuid, "~> 1.1"},
-      {:ex_doc, "~> 0.27", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.27", only: :dev, runtime: false}
 
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}

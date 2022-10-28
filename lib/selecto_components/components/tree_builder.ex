@@ -7,7 +7,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
   import SelectoComponents.Components.Common
 
   def render(assigns) do
-
     ~H"""
       <div>
         <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1">

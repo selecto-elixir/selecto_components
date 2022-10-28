@@ -32,8 +32,6 @@ defmodule SelectoComponents.Components.Common do
         <option :for={{val, lab} <- @options} value={val} selected={val == @value}><%= lab %></option>
       </select>
     """
-
-
   end
 
   def checkbox(assigns) do

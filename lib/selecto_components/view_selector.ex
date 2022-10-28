@@ -189,7 +189,6 @@ defmodule SelectoComponents.ViewSelector do
 
           x when x in ~w( != <= >= < >) ->
             {x, value}
-
         end
       end
 
@@ -221,11 +220,8 @@ defmodule SelectoComponents.ViewSelector do
         {:ok, value2, _} = DateTime.from_iso8601(filter["value2"] <> ":00Z")
         ### Add more options
 
-
         {:between, value, value2}
-
       end
-
 
       ## Build filters that can be sent to the selecto
       def filter_recurse(selecto, filters, section) do
@@ -247,8 +243,6 @@ defmodule SelectoComponents.ViewSelector do
 
                 x when x in [:naive_datetime, :utc_datetime] ->
                   acc ++ [{f["filter"], _make_date_filter(f)}]
-
-
               end
             end
         end)
@@ -293,9 +287,7 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
-
       def do_view(selecto) do
-
       end
 
       # on submit
@@ -314,8 +306,6 @@ defmodule SelectoComponents.ViewSelector do
         order_by = Map.get(params, "order_by", %{})
         aggregate = params["aggregate"]
         group_by = Map.get(params, "group_by", %{})
-
-
 
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
@@ -389,11 +379,13 @@ defmodule SelectoComponents.ViewSelector do
                   ### TODO apply config
                   |> Enum.map(fn
                     ### Make sure e["format"] is a valid field name!
-                    e -> {String.to_atom(case e["format"] do
-                      nil -> "count"
-                      _ -> e["format"]
-                    end
-                    ), e["field"]}
+                    e ->
+                      {String.to_atom(
+                         case e["format"] do
+                           nil -> "count"
+                           _ -> e["format"]
+                         end
+                       ), e["field"]}
                   end)
 
                 group_by =
@@ -403,6 +395,7 @@ defmodule SelectoComponents.ViewSelector do
                   ### TODO apply config
                   |> Enum.map(fn e ->
                     col = columns[e["field"]]
+
                     case col.type do
                       x when x in [:naive_datetime, :utc_datetime] ->
                         {:extract, col.colid, e["format"]}
@@ -412,8 +405,8 @@ defmodule SelectoComponents.ViewSelector do
                       _ ->
                         col.colid
                     end
+                  end)
 
-                end)
                 ### todo add config
                 %{
                   selected: group_by ++ aggregate,
@@ -428,8 +421,6 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       def handle_event("filter_from_aggregate", par, socket) do
-
-
       end
 
       def handle_event("treedrop", par, socket) do
