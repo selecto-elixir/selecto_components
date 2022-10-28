@@ -37,6 +37,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
   defp render_area(assigns) do
     assigns = %{assigns | filters: Enum.with_index(assigns.filters)}
+    assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
 
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-grey  p-1 pb-8"
@@ -68,15 +69,16 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 section: uuid, conjunction: conj, filter_form: @filter_form }) %>
             </div>
           <% end %>
-
+<%!--
           <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
-            <.input name={"filters[#{@section}new][is_section]"} value="Y"/>
-            <.input name={"filters[#{@section}new][section]"} value={@section}/>
-            <.input name={"filters[#{@section}new][conjunction]"} value="and"/>
-            <.input name={"filters[#{@section}new][name]"} value="new"/>
+            <.input name={"filters[#{@new_uuid}][is_section]"} value="Y"/>
+            <.input name={"filters[#{@new_uuid}][section]"} value={@section}/>
+            <.input name={"filters[#{@new_uuid}][conjunction]"} value="and"/>
+            <.input name={"filters[#{@new_uuid}][name]"} value="new"/>
             <%= render_area(%{ available: @available, filters: [],
-              section: @section <> "new", conjunction: "and", filter_form: @filter_form }) %>
+              section: @new_uuid, conjunction: "and", filter_form: @filter_form }) %>
           </div>
+          --%>
 
         </div>
 
