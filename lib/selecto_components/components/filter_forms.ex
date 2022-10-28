@@ -114,11 +114,16 @@ defmodule SelectoComponents.Components.FilterForms do
     valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
+    IO.inspect(valmap)
+
     ~H"""
-      <div> TODO
-        <label>
-          <%= @type %> <%= @filter %>
-          <.input name={"filters[#{@uuid}][value]"} value={@value}/>
+      <div>
+        <%= @type %> <%= @def.name %>
+        <label>Y
+          <.input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] == "true"} value="true"/>
+        </label>
+        <label>N
+          <.input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] != "true"} value="false"/>
         </label>
       </div>
     """

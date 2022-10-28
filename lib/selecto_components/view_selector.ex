@@ -238,6 +238,13 @@ defmodule SelectoComponents.ViewSelector do
                 x when x in [:id, :integer, :float, :decimal] ->
                   acc ++ [{f["filter"], _make_num_filter(f)}]
 
+                :boolean ->
+                  acc ++ [{f["filter"], case f["value"] do
+                    "true" -> true
+                    _ -> false
+                  end
+                  }]
+
                 :string ->
                   acc ++ [{f["filter"], _make_string_filter(f)}]
 
