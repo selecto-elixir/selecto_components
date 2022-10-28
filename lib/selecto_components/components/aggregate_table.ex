@@ -5,7 +5,7 @@ defmodule SelectoComponents.Components.AggregateTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = selecto.execute(assigns.selecto)
+    {results, aliases} = Selecto.execute(assigns.selecto)
 
     group_by = assigns.selecto.set.group_by
     aggregates = assigns.selecto.set.selected -- group_by

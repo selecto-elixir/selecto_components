@@ -5,7 +5,7 @@ defmodule SelectoComponents.Results do
   # attr :view_control, %{}
 
   def render(assigns) do
-    {results, aliases} = selecto.execute(assigns.selecto)
+    {results, aliases} = Selecto.execute(assigns.selecto)
     assigns = assign(assigns, results: results, aliases: aliases)
 
     ~H"""

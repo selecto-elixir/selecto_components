@@ -7,7 +7,7 @@ defmodule SelectoComponents.Components.DetailTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = selecto.execute(assigns.selecto)
+    {results, aliases} = Selecto.execute(assigns.selecto)
 
     selected = assigns.selecto.set.selected
     selected = Enum.map( selected, fn
