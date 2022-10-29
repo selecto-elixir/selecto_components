@@ -210,6 +210,9 @@ defmodule SelectoComponents.ViewSelector do
 
           "ends" ->
             {:like, "%" <> value}
+
+          "contains" ->
+            {:like, "%" <> value <> "%"}
         end
       end
 
