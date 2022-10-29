@@ -14,7 +14,7 @@ defmodule SelectoComponents.ViewSelector do
       )
 
     ~H"""
-      <div>
+      <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
 
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
@@ -22,7 +22,8 @@ defmodule SelectoComponents.ViewSelector do
           <.button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
           <.button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
 
-          <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end} class="border">
+          <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end}
+            class="border-solid border rounded-md border-grey dark:border-black h-90 p-1">
 
       View Type
             <.live_component
@@ -119,7 +120,9 @@ defmodule SelectoComponents.ViewSelector do
 
 
           </div>
-          <div class={if @active_tab == "filter" do "" else "hidden" end} class="border">
+
+          <div class={if @active_tab == "filter" do "" else "hidden" end}
+            class="border-solid border rounded-md border-grey dark:border-black h-90  p-1">
 
       FILTER SECTION
             <.live_component
@@ -149,7 +152,8 @@ defmodule SelectoComponents.ViewSelector do
 
           </div>
 
-          <div class={if @active_tab == "export" do "" else "hidden" end} class="border">
+          <div class={if @active_tab == "export" do "" else "hidden" end}
+            class="border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1">
             EXPORT SECTION PLANNED
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
@@ -158,7 +162,7 @@ defmodule SelectoComponents.ViewSelector do
             collate and send to an email address in a column
           </div>
 
-          <button>Submit</button>
+          <.button>Submit</.button>
 
 
         </.form>

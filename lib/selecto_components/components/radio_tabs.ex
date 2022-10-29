@@ -28,7 +28,7 @@ defmodule SelectoComponents.Components.RadioTabs do
               phx-target={@myself}/>
             <%= s.label %>
           </label>
-          <div class={if @view_mode == s.id do "" else "hidden" end}>
+          <div class={if @view_mode == s.id do " pl-16" else "hidden" end}>
             <%= render_slot(s) %>
           </div>
         </div>
