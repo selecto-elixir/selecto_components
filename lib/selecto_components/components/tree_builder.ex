@@ -9,19 +9,19 @@ defmodule SelectoComponents.Components.TreeBuilder do
   def render(assigns) do
     ~H"""
       <div class="">
-        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 max-h-70">
+        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1">
 
           <div>Available Filter Columns</div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-70 overflow-auto p-1">
+          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
 
             <div :for={{id, name} <- @available}>
-              <div draggable="true" x-on:drag=" dragging = event.srcElement.id; " id={id}><%= name %></div>
+              <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-600" draggable="true" x-on:drag=" dragging = event.srcElement.id; " id={id}><%= name %></div>
             </div>
 
           </div>
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-70 overflow-auto p-1">
+          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
             <%= render_area(%{ available: @available, filters: @filters, section: "filters[main]", conjunction: 'AND', filter_form: @filter_form }) %>
 
           </div>
@@ -58,23 +58,19 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           <% {:section, uuid, conj, filters} -> %>
             <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
-              <.input name={"filters[#{uuid}][is_section]"} value="Y"/>
-              <.input name={"filters[#{uuid}][section]"} value={@section}/>
-              <.input name={"filters[#{uuid}][conjunction]"} value={conj}/>
-              <.input name={"filters[#{uuid}][name]"} value={uuid}/>
+              <input type="hidden" name={"filters[#{uuid}][is_section]"} value="Y"/>
+              <input type="hidden" name={"filters[#{uuid}][section]"} value={@section}/>
+              <input type="hidden" name={"filters[#{uuid}][conjunction]"} value={conj}/>
+              <input type="hidden" name={"filters[#{uuid}][name]"} value={uuid}/>
+              <input type="hidden" name={"filters[#{@uuid}][index]"} type="hidden" value={@index}/>
+
               <%= render_area(%{ available: @available, filters: filters,
                 section: uuid, conjunction: conj, filter_form: @filter_form }) %>
             </div>
           <% end %>
 <%!--
-          <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
-            <.input name={"filters[#{@new_uuid}][is_section]"} value="Y"/>
-            <.input name={"filters[#{@new_uuid}][section]"} value={@section}/>
-            <.input name={"filters[#{@new_uuid}][conjunction]"} value="and"/>
-            <.input name={"filters[#{@new_uuid}][name]"} value="new"/>
-            <%= render_area(%{ available: @available, filters: [],
-              section: @new_uuid, conjunction: "and", filter_form: @filter_form }) %>
-          </div>
+    New Section here..
+
           --%>
 
         </div>
