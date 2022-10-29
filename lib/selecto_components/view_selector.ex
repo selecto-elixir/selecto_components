@@ -106,6 +106,7 @@ defmodule SelectoComponents.ViewSelector do
                     available={@columns}
                     selected_items={@order_by}>
                   <:item_form :let={{id, item, config, index} }>
+                    <%!-- MAKE THIS INTO COMPOENT SO IT DOESN"T REDRAW ALL THE TIME and lose its form! --%>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
                     <%= item %>
@@ -316,6 +317,8 @@ defmodule SelectoComponents.ViewSelector do
         order_by = Map.get(params, "order_by", %{})
         aggregate = params["aggregate"]
         group_by = Map.get(params, "group_by", %{})
+
+        IO.inspect(order_by, label: "ORDER BY")
 
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
