@@ -52,7 +52,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
           <%= case s do %>
 
           <% {uuid, section, fv} -> %>
-          XXX
             <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
               <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
             </div>
@@ -63,8 +62,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <.input name={"filters[#{uuid}][section]"} value={@section}/>
               <.input name={"filters[#{uuid}][conjunction]"} value={conj}/>
               <.input name={"filters[#{uuid}][name]"} value={uuid}/>
-
-
               <%= render_area(%{ available: @available, filters: filters,
                 section: uuid, conjunction: conj, filter_form: @filter_form }) %>
             </div>

@@ -33,14 +33,14 @@ defmodule SelectoComponents.Components.FilterForms do
       <div>
         <label>
           <%= @def.name %>
-          <select name={"filters[#{@uuid}][comp]"}>
+          <.select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
             <option value="starts" selected={Map.get(@valmap, "comp") == "starts"}>Starts With</option>
             <option value="ends" selected={Map.get(@valmap, "comp") == "ends"}>Ends With</option>
             <option value="contains" selected={Map.get(@valmap, "comp") == "contains"}>Contains</option>
 
-          </select>
+          </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <!-- <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} value="Y"/>Ignore Case</label> -->
         </label>
@@ -58,7 +58,7 @@ defmodule SelectoComponents.Components.FilterForms do
 
         <label>
           <%= @def.name %>
-          <select name={"filters[#{@uuid}][comp]"}>
+          <.select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
             <option value="=" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
@@ -66,7 +66,7 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
             <option value="=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
             <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
-          </select>
+          </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
 
@@ -84,7 +84,7 @@ defmodule SelectoComponents.Components.FilterForms do
       <div>
         <label>
           <%= @def.name %>
-          <select name={"filters[#{@uuid}][comp]"}>
+          <.select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
             <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
             <option value="<" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
@@ -92,7 +92,7 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="<=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
             <option value=">=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
             <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
-          </select>
+          </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
           <%!--
