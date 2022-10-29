@@ -22,8 +22,7 @@ defmodule SelectoComponents.ViewSelector do
           <.button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
           <.button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
 
-          <div class={if @active_tab == "view" or @active_tab == nil do "" else "hidden" end}
-            class="border-solid border rounded-md border-grey dark:border-black h-90 p-1">
+          <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
 
       View Type
             <.live_component
@@ -121,8 +120,7 @@ defmodule SelectoComponents.ViewSelector do
 
           </div>
 
-          <div class={if @active_tab == "filter" do "" else "hidden" end}
-            class="border-solid border rounded-md border-grey dark:border-black h-90  p-1">
+          <div class={if @active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
 
       FILTER SECTION
             <.live_component
@@ -152,8 +150,7 @@ defmodule SelectoComponents.ViewSelector do
 
           </div>
 
-          <div class={if @active_tab == "export" do "" else "hidden" end}
-            class="border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1">
+          <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             EXPORT SECTION PLANNED
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
