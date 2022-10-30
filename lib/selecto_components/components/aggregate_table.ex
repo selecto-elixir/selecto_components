@@ -10,6 +10,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     group_by = assigns.selecto.set.group_by
     aggregates = assigns.selecto.set.selected -- group_by
 
+    IO.inspect(group_by, label: "Group By")
     group_by =
       Enum.map(
         group_by,
@@ -19,6 +20,8 @@ defmodule SelectoComponents.Components.AggregateTable do
 
           {a, f} = g ->
             {:group_by, g, assigns.selecto.config.columns[f]}
+          g ->
+            {:group_by, g, assigns.selecto.config.columns[g]}
         end
       )
 
