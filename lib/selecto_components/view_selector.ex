@@ -319,8 +319,6 @@ defmodule SelectoComponents.ViewSelector do
         aggregate = params["aggregate"]
         group_by = Map.get(params, "group_by", %{})
 
-        IO.inspect(order_by, label: "ORDER BY")
-
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
           |> Enum.reduce(

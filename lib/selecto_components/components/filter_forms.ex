@@ -114,8 +114,6 @@ defmodule SelectoComponents.Components.FilterForms do
     valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
-    IO.inspect(valmap)
-
     ~H"""
       <div>
         <%= @type %> <%= @def.name %>
