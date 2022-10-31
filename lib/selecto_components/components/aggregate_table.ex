@@ -5,7 +5,7 @@ defmodule SelectoComponents.Components.AggregateTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = Selecto.execute(assigns.selecto)
+    {results, aliases} = Selecto.execute(assigns.selecto, group_by_type: :rollup)
 
     group_by = assigns.selecto.set.group_by
     aggregates = assigns.selecto.set.selected -- group_by
@@ -74,13 +74,19 @@ defmodule SelectoComponents.Components.AggregateTable do
           <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
             <%= with def <- @fmap[c] do %>
               <%= case def do %>
+
                 <% {:group_by, g, def} -> %>
-                  GROUP <%= r[c] %>
+                  <div >
+                    <%= r[c] %>
+                  </div>
 
                 <% {:agg, {func, _field}, %{format: fmt_fun} = def} when is_function(fmt_fun) -> %>
-                  FMT AGG <%= fmt_fun.(r[c]) %>
+                  FMT <%= fmt_fun.(r[c]) %>
+
                 <% _ -> %>
                   AGG <%= r[c] %>
+
+
               <% end %>
             <% end %>
           </td>
