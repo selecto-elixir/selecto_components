@@ -424,7 +424,7 @@ defmodule SelectoComponents.ViewSelector do
                   selected: group_by ++ aggregate,
                   filtered: filtered,
                   group_by: [{:rollup, group_by}],
-                  order_by: []
+                  order_by: group_by
                 }
             end
           )

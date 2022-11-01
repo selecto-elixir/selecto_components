@@ -6,10 +6,8 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   def render(assigns) do
     {results, aliases} = Selecto.execute(assigns.selecto, group_by_type: :rollup)
-IO.inspect(assigns.selecto.set.group_by)
     {:ok, group_by} = Keyword.fetch(assigns.selecto.set.group_by, :rollup)
     aggregates = assigns.selecto.set.selected -- group_by
-IO.puts("HERE")
 
     group_by =
       Enum.map(
@@ -26,7 +24,6 @@ IO.puts("HERE")
         end
       )
 
-IO.puts("HERE")
     aggregates =
       Enum.map(aggregates, fn
         {:extract, f, fmt} = agg ->
@@ -38,9 +35,7 @@ IO.puts("HERE")
         nil ->
           {:agg, nil, nil}
       end)
-IO.puts("HERE")
     fmap = Enum.zip(aliases, group_by ++ aggregates) |> Enum.into(%{})
-IO.puts("HERE")
     assigns =
       assign(assigns,
         results: results,
