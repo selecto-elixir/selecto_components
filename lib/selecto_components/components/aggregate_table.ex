@@ -82,10 +82,10 @@ defmodule SelectoComponents.Components.AggregateTable do
                   </div>
 
                 <% {:agg, {func, _field}, %{format: fmt_fun} = def} when is_function(fmt_fun) -> %>
-                  FMT <%= fmt_fun.(r[c]) %>
+                  <%= fmt_fun.(r[c]) %>
 
                 <% _ -> %>
-                  AGG <%= r[c] %>
+                  <%= r[c] %>
 
 
               <% end %>
