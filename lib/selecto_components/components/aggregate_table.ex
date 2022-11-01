@@ -6,9 +6,10 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   def render(assigns) do
     {results, aliases} = Selecto.execute(assigns.selecto, group_by_type: :rollup)
-
-    group_by = assigns.selecto.set.group_by
+IO.inspect(assigns.selecto.set.group_by)
+    {:ok, group_by} = Keyword.fetch(assigns.selecto.set.group_by, :rollup)
     aggregates = assigns.selecto.set.selected -- group_by
+IO.puts("HERE")
 
     group_by =
       Enum.map(
@@ -21,9 +22,11 @@ defmodule SelectoComponents.Components.AggregateTable do
             {:group_by, g, assigns.selecto.config.columns[f]}
           g ->
             {:group_by, g, assigns.selecto.config.columns[g]}
+
         end
       )
 
+IO.puts("HERE")
     aggregates =
       Enum.map(aggregates, fn
         {:extract, f, fmt} = agg ->
@@ -31,10 +34,13 @@ defmodule SelectoComponents.Components.AggregateTable do
 
         {a, f} = agg ->
           {:agg, agg, assigns.selecto.config.columns[f]}
+
+        nil ->
+          {:agg, nil, nil}
       end)
-
+IO.puts("HERE")
     fmap = Enum.zip(aliases, group_by ++ aggregates) |> Enum.into(%{})
-
+IO.puts("HERE")
     assigns =
       assign(assigns,
         results: results,
@@ -61,6 +67,7 @@ defmodule SelectoComponents.Components.AggregateTable do
           </th>
 
           <th :for={r <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+            <% IO.puts("here") %>
             <%= case r do %>
             <% {:agg, {a, f}, def} -> %>
               <%= a %>: <%= f %>
@@ -71,7 +78,9 @@ defmodule SelectoComponents.Components.AggregateTable do
         </tr>
 
         <tr :for={r <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+          <% IO.puts("here") %>
           <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <% IO.puts("here") %>
             <%= with def <- @fmap[c] do %>
               <%= case def do %>
 
