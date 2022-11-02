@@ -2,11 +2,13 @@
 
 Tailwind based UI for selecto
 
-Provides 2 main components: SelectoComponents.ViewSelector and SelectoComponents.Results
+Provides main components: SelectoComponents.ViewSelector, SelectoComponents.AggregateTable and SelectoComponents.DetailTable
 
 ViewSelector is a live component that creates a control panel to build a query.
 
-Results is a live component to display the results of that query.
+AggregateTable and DetailTable are live compoents to display the results of that query.
+
+See the live views in selecto_test for an example of how to setup. Documentaiton will be added once the API is stabilized.
 
 Plans for '0.5.0':
 
@@ -15,24 +17,27 @@ Plans for '0.5.0':
 - ability to save view configuration
 - multi level filter section
 - support custom filters and columns
-- special aggregate table, clicing on the group-by will link to the configured detail view with the group-by value applied as a filter
+- special aggregate table, clicking on the group-by will link to the configured detail view with the group-by value applied as a filter
 - Forms - line forms & column forms
 - cleanup liveviews and make it look nice
+- cleanup the event handlers
 - error handing
+- pagination
+
 
 Plans for later:
 
 - generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
 - Export results, email results, POST/PUT results
 - Use a column in the results as email address and send that email address all the rows they are in
-- results as XML, JSON, TXT, CSV, PDF, Excel if there's a module...
+- results as XML, JSON, TXT, CSV, PDF, Excel...
 - show generated SQL and show Ecto command
-- pagination
 - Caching
 - Dashboard components - save or code a view and drop it into another page
 - graphing
 - pub sub to trigger updating view
 - infinite scroll
+- update to work with improved planned selecto interface
 
 This system is inspired by a system I wrote starting in 2004 and currently has all the features listed above except pub-sub and infinite scroll.
 
