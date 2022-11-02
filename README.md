@@ -24,7 +24,6 @@ Plans for '0.5.0':
 - error handing
 - pagination
 
-
 Plans for later:
 
 - generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
