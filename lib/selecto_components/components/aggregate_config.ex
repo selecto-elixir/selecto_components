@@ -13,7 +13,7 @@ defmodule SelectoComponents.Components.AggregateConfig do
     ~H"""
       <div>
         <%= case @col.type do%>
-          <% x when x in [:int, :id, :decimal] -> %>
+          <% x when x in [:integer, :id, :decimal] -> %>
           agg: count, avg, sum, min, max, all those stats aggs...
             <%= @col.name %>
             <label>Format
@@ -52,7 +52,8 @@ defmodule SelectoComponents.Components.AggregateConfig do
             </label>
 
           <% _ -> %>
-            <%= @col.name %>
+            <%= @col.name %> /       <%= @col.type %>
+
           <% end %>
       </div>
 
