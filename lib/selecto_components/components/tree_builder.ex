@@ -22,7 +22,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
-            <%= render_area(%{ available: @available, filters: @filters, section: "filters[main]", conjunction: 'AND', filter_form: @filter_form }) %>
+            <%= render_area(%{ available: @available, filters: @filters, section: "filters", index: 1, conjunction: 'AND', filter_form: @filter_form }) %>
 
           </div>
         </div>
@@ -45,31 +45,36 @@ defmodule SelectoComponents.Components.TreeBuilder do
         PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
         event.stopPropagation()"
       id={@section}>
+
         <%= @section %>: <%= @conjunction %>
         <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey"
+          :for={ {s, index} <-
+            Enum.filter( @filters, fn {{_uuid,section,_conf}, _i} = f -> section == @section end )
+          } %>
 
-          :for={ {s, index} <- @filters } %>
           <%= case s do %>
 
-          <% {uuid, section, fv} -> %>
-            <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
-              <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
-            </div>
+            <% {uuid, section, fv} -> %>
+              <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
+                <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
+              </div>
 
-          <% {:section, uuid, conj, filters} -> %>
-            <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
-              <input type="hidden" name={"filters[#{uuid}][is_section]"} value="Y"/>
-              <input type="hidden" name={"filters[#{uuid}][section]"} value={@section}/>
-              <input type="hidden" name={"filters[#{uuid}][conjunction]"} value={conj}/>
-              <input type="hidden" name={"filters[#{uuid}][name]"} value={uuid}/>
-              <input type="hidden" name={"filters[#{@uuid}][index]"} type="hidden" value={@index}/>
+            <% {:section, uuid, conj} -> %>
 
-              <%= render_area(%{ available: @available, filters: filters,
-                section: uuid, conjunction: conj, filter_form: @filter_form }) %>
-            </div>
+              <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
+                <%= render_area(%{ available: @available, filters: @filters, index: @index,
+                  parent_section: @section,
+                  section: uuid, conjunction: conj, filter_form: @filter_form }) %>
+              </div>
+
           <% end %>
+
+
+
 <%!--
     New Section here..
+
+
 
           --%>
 

@@ -18,9 +18,9 @@ defmodule SelectoComponents.ViewSelector do
 
         <.form for={:view} phx-change="view-update" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
-          <.button phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</.button>
-          <.button phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
-          <.button phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
 
@@ -304,132 +304,139 @@ defmodule SelectoComponents.ViewSelector do
 
       # on submit
       def handle_event("view-apply", params, socket) do
-        IO.inspect(params, label: "Params")
-        # move this somewhere shared
-        date_formats = %{
-          "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
-          "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
-        }
+        try do
 
-        selecto = socket.assigns.selecto
-        columns = selecto.config.columns
+          IO.inspect(params, label: "Params")
+          # move this somewhere shared
+          date_formats = %{
+            "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
+            "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
+          }
 
-        selected = params["selected"]
-        order_by = Map.get(params, "order_by", %{})
-        aggregate = params["aggregate"]
-        group_by = Map.get(params, "group_by", %{})
+          selecto = socket.assigns.selecto
+          columns = selecto.config.columns
 
-        filters_by_section =
-          Map.values(Map.get(params, "filters", %{}))
-          |> Enum.reduce(
-            %{},
-            fn f, acc ->
-              ## Custom Form Processor?
+          selected = params["selected"]
+          order_by = Map.get(params, "order_by", %{})
+          aggregate = params["aggregate"]
+          group_by = Map.get(params, "group_by", %{})
 
-              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
-            end
-          )
+          filters_by_section =
+            Map.values(Map.get(params, "filters", %{}))
+            |> Enum.reduce(
+              %{},
+              fn f, acc ->
+                ## Custom Form Processor?
 
-        ## Build filters walking the filters_by_section
+                Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+              end
+            )
 
-        socket =
-          assign(socket,
-            filters: filter_form_recurse(selecto, filters_by_section, "filters[main]")
-          )
+          ## Build filters walking the filters_by_section
 
-        ## THIS CAN FAIL...
-        filtered = filter_recurse(selecto, filters_by_section, "filters[main]")
+          socket =
+            assign(socket,
+              filters: filter_form_recurse(selecto, filters_by_section, "filters")
+            )
 
-        selecto =
-          Map.put(
-            selecto,
-            :set,
-            case socket.assigns.view_mode do
-              "detail" ->
-                selected =
-                  selected
-                  |> Map.values()
-                  |> Enum.sort(fn a, b ->
-                    String.to_integer(a["index"]) <= String.to_integer(b["index"])
-                  end)
-                  |> Enum.map(fn e ->
-                    col = columns[e["field"]]
-                    # move to a validation lib
-                    case col.type do
-                      x when x in [:naive_datetime, :utc_datetime] ->
-                        {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
+          ## THIS CAN FAIL...
+          filtered = filter_recurse(selecto, filters_by_section, "filters")
 
-                      _ ->
-                        col.colid
-                    end
-                  end)
+          selecto =
+            Map.put(
+              selecto,
+              :set,
+              case socket.assigns.view_mode do
+                "detail" ->
+                  selected =
+                    selected
+                    |> Map.values()
+                    |> Enum.sort(fn a, b ->
+                      String.to_integer(a["index"]) <= String.to_integer(b["index"])
+                    end)
+                    |> Enum.map(fn e ->
+                      col = columns[e["field"]]
+                      # move to a validation lib
+                      case col.type do
+                        x when x in [:naive_datetime, :utc_datetime] ->
+                          {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
 
-                order_by =
-                  order_by
-                  |> Map.values()
-                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                  |> Enum.map(fn e ->
-                    case e["dir"] do
-                      "desc" -> {:desc, e["field"]}
-                      _ -> e["field"]
-                    end
-                  end)
+                        _ ->
+                          col.colid
+                      end
+                    end)
 
-                ### TODO add config
-                %{
-                  selected: selected,
-                  order_by: order_by,
-                  filtered: filtered,
-                  group_by: []
-                }
+                  order_by =
+                    order_by
+                    |> Map.values()
+                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                    |> Enum.map(fn e ->
+                      case e["dir"] do
+                        "desc" -> {:desc, e["field"]}
+                        _ -> e["field"]
+                      end
+                    end)
 
-              "aggregate" ->
-                aggregate =
-                  aggregate
-                  |> Map.values()
-                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                  ### TODO apply config
-                  |> Enum.map(fn
-                    ### Make sure e["format"] is a valid field name!
-                    e ->
-                      {String.to_atom(
-                         case e["format"] do
-                           nil -> "count"
-                           _ -> e["format"]
-                         end
-                       ), e["field"]}
-                  end)
+                  ### TODO add config
+                  %{
+                    selected: selected,
+                    order_by: order_by,
+                    filtered: filtered,
+                    group_by: []
+                  }
 
-                group_by =
-                  group_by
-                  |> Map.values()
-                  |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                  ### TODO apply config
-                  |> Enum.map(fn e ->
-                    col = columns[e["field"]]
+                "aggregate" ->
+                  aggregate =
+                    aggregate
+                    |> Map.values()
+                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                    ### TODO apply config
+                    |> Enum.map(fn
+                      ### Make sure e["format"] is a valid field name!
+                      e ->
+                        {String.to_atom(
+                          case e["format"] do
+                            nil -> "count"
+                            _ -> e["format"]
+                          end
+                        ), e["field"]}
+                    end)
 
-                    case col.type do
-                      x when x in [:naive_datetime, :utc_datetime] ->
-                        {:extract, col.colid, e["format"]}
+                  group_by =
+                    group_by
+                    |> Map.values()
+                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+                    ### TODO apply config
+                    |> Enum.map(fn e ->
+                      col = columns[e["field"]]
 
-                      ### add support for YYYY-MM-DD also..
+                      case col.type do
+                        x when x in [:naive_datetime, :utc_datetime] ->
+                          {:extract, col.colid, e["format"]}
 
-                      _ ->
-                        col.colid
-                    end
-                  end)
+                        ### add support for YYYY-MM-DD also..
 
-                ### todo add config
-                %{
-                  selected: group_by ++ aggregate,
-                  filtered: filtered,
-                  group_by: [{:rollup, group_by}],
-                  order_by: group_by
-                }
-            end
-          )
+                        _ ->
+                          col.colid
+                      end
+                    end)
 
-        {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
+                  ### todo add config
+                  %{
+                    selected: group_by ++ aggregate,
+                    filtered: filtered,
+                    group_by: [{:rollup, group_by}],
+                    order_by: group_by
+                  }
+              end
+            )
+
+          {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
+
+        rescue
+          e -> IO.inspect(e)
+            {:noreply, socket}
+        end
       end
 
       def handle_event("filter_from_aggregate", par, socket) do
@@ -445,6 +452,8 @@ defmodule SelectoComponents.ViewSelector do
               socket.assigns.filters ++
                 [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
           )
+
+        IO.inspect(socket.assigns.filters)
 
         {:noreply, socket}
       end
