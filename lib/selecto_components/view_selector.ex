@@ -450,7 +450,11 @@ defmodule SelectoComponents.ViewSelector do
           assign(socket,
             filters:
               socket.assigns.filters ++
-                [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                case new_filter do
+                  "__AND__" -> [{UUID.uuid4(), target, "AND"}]
+                  "__OR__" ->  [{UUID.uuid4(), target, "OR"}]
+                  _ ->         [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                end
           )
 
         IO.inspect(socket.assigns.filters)
