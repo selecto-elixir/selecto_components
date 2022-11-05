@@ -8,7 +8,7 @@ ViewSelector is a live component that creates a control panel to build a query.
 
 AggregateTable and DetailTable are live compoents to display the results of that query.
 
-See the live views in selecto_test for an example of how to setup. Documentaiton will be added once the API is stabilized.
+See the live views in [selecto_test](https://github.com/seeken/selecto_test) for an example of how to setup. Documentaiton will be added once the API is stabilized.
 
 Plans for '0.5.0':
 
