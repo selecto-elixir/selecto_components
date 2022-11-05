@@ -232,8 +232,11 @@ defmodule SelectoComponents.ViewSelector do
       def filter_recurse(selecto, filters, section) do
         #### TODO handle errors
         Enum.reduce(Map.get(filters, section, []), [], fn
-          %{"is_section" => "Y", "name" => name, "conj" => conj} = f, acc ->
-            acc ++ [{section, conj, filter_recurse(selecto, filters, section)}]
+          %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj} = f, acc ->
+            acc ++ [{case conj do
+              "AND" -> :and
+              "OR" -> :or
+            end, filter_recurse(selecto, filters, uuid)}]
 
           f, acc ->
             if selecto.config.filters[f["filter"]] do
@@ -266,11 +269,11 @@ defmodule SelectoComponents.ViewSelector do
           Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
           [],
           fn
-            %{"is_section" => "Y", "name" => name, "conj" => conj} = f, acc ->
+            %{"is_section" => "Y", "section"=>section, "uuid" => uuid, "conjunction" => conj} = f, acc ->
               acc ++
                 [
-                  {:section, UUID.uuid4(), conj,
-                   filter_form_recurse(selecto, filters, f["section_name"])}
+                  {uuid, section, conj},
+                  filter_form_recurse(selecto, filters, uuid)
                 ]
 
             f, acc ->
@@ -333,15 +336,15 @@ defmodule SelectoComponents.ViewSelector do
             ) |> IO.inspect()
 
           ## Build filters walking the filters_by_section
-
-          socket =
-            assign(socket,
-              filters: filter_form_recurse(selecto, filters_by_section, "filters")
-            )
+IO.puts(1)
+          #socket =
+          #  assign(socket,
+          #    filters: filter_form_recurse(selecto, filters_by_section, "filters")
+          #  )
 
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
-
+          IO.inspect(filtered)
           selecto =
             Map.put(
               selecto,
@@ -430,7 +433,7 @@ defmodule SelectoComponents.ViewSelector do
                   }
               end
             )
-
+            IO.puts(3)
           {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
 
         rescue
