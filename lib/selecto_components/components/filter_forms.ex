@@ -14,7 +14,7 @@ defmodule SelectoComponents.Components.FilterForms do
         <input name={"filters[#{@uuid}][filter]"} type="hidden" value={@filter["filter"]}/>
         <input name={"filters[#{@uuid}][section]"} type="hidden" value={@section}/>
         <input name={"filters[#{@uuid}][index]"} type="hidden" value={@index}/>
-
+        <input name={"filters[#{@uuid}][uuid]"} type="hidden" value={@uuid}/>
 
         <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def} ) %>
         <%!-- TODO: SHOW ERRORS

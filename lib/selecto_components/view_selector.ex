@@ -263,25 +263,6 @@ defmodule SelectoComponents.ViewSelector do
         end)
       end
 
-      # Build filter tree that can be sent back to the form
-      def filter_form_recurse(selecto, filters, section) do
-        Enum.reduce(
-          Map.get(filters, section, []) |> Enum.sort(fn a, b -> a["index"] <= b["index"] end),
-          [],
-          fn
-            %{"is_section" => "Y", "section"=>section, "uuid" => uuid, "conjunction" => conj} = f, acc ->
-              acc ++
-                [
-                  {uuid, section, conj},
-                  filter_form_recurse(selecto, filters, uuid)
-                ]
-
-            f, acc ->
-              acc ++ [{UUID.uuid4(), section, f}]
-          end
-        )
-      end
-
       ## TODO validate form entry, display errors to user, keep order stable
       ## On Change
       def handle_event("view-update", params, socket) do
@@ -336,11 +317,16 @@ defmodule SelectoComponents.ViewSelector do
             ) |> IO.inspect()
 
           ## Build filters walking the filters_by_section
-IO.puts(1)
-          #socket =
-          #  assign(socket,
-          #    filters: filter_form_recurse(selecto, filters_by_section, "filters")
-          #  )
+          socket =
+           assign(socket,
+             filters: Map.values(Map.get(params, "filters", %{}))
+              |> Enum.map( fn
+                %{"is_section"=>"Y"} = f -> {f["uuid"], f["section"], f["conjunction"]}
+                f -> {f["uuid"], f["section"], f}
+              end
+              ) |> IO.inspect()
+
+           )
 
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
