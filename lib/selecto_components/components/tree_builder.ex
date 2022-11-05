@@ -66,10 +66,8 @@ filter[section path][section_uuid][is_section, conjunction]
             Enum.filter( @filters, fn {{_uuid,section,_conf}, _i} = f -> section == @section end )
           } %>
 
-          <% IO.inspect(s) %>
           <%= case s do %>
             <% {uuid, section, conjunction} when is_binary(conjunction) -> %>
-              <% IO.puts( section ) %>
               <input name={"filters[#{uuid}][uuid]"} type="hidden" value={uuid}/>
               <input name={"filters[#{uuid}][section]"} type="hidden" value={@section}/>
               <input name={"filters[#{uuid}][index]"} type="hidden" value={@index}/>
@@ -77,7 +75,6 @@ filter[section path][section_uuid][is_section, conjunction]
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
             <% {uuid, section, fv} -> %>
-              <% IO.puts( "HERE" ) %>
 
               <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>

@@ -314,7 +314,7 @@ defmodule SelectoComponents.ViewSelector do
 
                 Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
               end
-            ) |> IO.inspect()
+            )
 
           ## Build filters walking the filters_by_section
           socket =
@@ -324,13 +324,12 @@ defmodule SelectoComponents.ViewSelector do
                 %{"is_section"=>"Y"} = f -> {f["uuid"], f["section"], f["conjunction"]}
                 f -> {f["uuid"], f["section"], f}
               end
-              ) |> IO.inspect()
+              )
 
            )
 
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
-          IO.inspect(filtered)
           selecto =
             Map.put(
               selecto,
@@ -419,7 +418,6 @@ defmodule SelectoComponents.ViewSelector do
                   }
               end
             )
-            IO.puts(3)
           {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
 
         rescue
@@ -445,8 +443,6 @@ defmodule SelectoComponents.ViewSelector do
                   _ ->         [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
                 end
           )
-
-        IO.inspect(socket.assigns.filters)
 
         {:noreply, socket}
       end
