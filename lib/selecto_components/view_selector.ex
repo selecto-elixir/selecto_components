@@ -330,7 +330,7 @@ defmodule SelectoComponents.ViewSelector do
 
                 Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
               end
-            )
+            ) |> IO.inspect()
 
           ## Build filters walking the filters_by_section
 

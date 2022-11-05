@@ -60,7 +60,7 @@ filter[section path][section_uuid][is_section, conjunction]
         event.stopPropagation()"
       id={@section}>
 
-        <%= @section %>: <%= @conjunction %>
+        <%= @conjunction %>
         <div class="p-2 pl-6 border-solid border  border-black dark:border-grey"
           :for={ {s, index} <-
             Enum.filter( @filters, fn {{_uuid,section,_conf}, _i} = f -> section == @section end )
@@ -70,7 +70,11 @@ filter[section path][section_uuid][is_section, conjunction]
           <%= case s do %>
             <% {uuid, section, conjunction} when is_binary(conjunction) -> %>
               <% IO.puts( section ) %>
-              SECTION
+              <input name={"filters[#{uuid}][uuid]"} type="hidden" value={uuid}/>
+              <input name={"filters[#{uuid}][section]"} type="hidden" value={@section}/>
+              <input name={"filters[#{uuid}][index]"} type="hidden" value={@index}/>
+              <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
+              <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
             <% {uuid, section, fv} -> %>
               <% IO.puts( "HERE" ) %>
@@ -78,8 +82,6 @@ filter[section path][section_uuid][is_section, conjunction]
               <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
-
-
 
           <% end %>
 
