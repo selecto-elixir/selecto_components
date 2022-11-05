@@ -35,20 +35,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
   end
 
 
-@doc"""
-filter- {{ID, Parent, FV Struct}, index}
-
-filter[section path][uuid...][filter, comp, section, index, value, value2]
-
-filter[section path][section_uuid][is_section, conjunction]
-
-"""
-
-
-  ### TODO figure ou tohw to do this recursive data structure easily...
-  ###  ++ if Enum.count(@filters) > 0 do [{"#{@section}[#{Enum.count(@filters) +1}]", "AND", []}] else [] end}
-  ### <%= render_area(%{ available: @available, filters: filters, conjunction: conj, section: section }) %>
-  ### <%= {:subsection, section, conj, filters} when is_list(filters) -> %>
 
   defp render_area(assigns) do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())

@@ -15,7 +15,6 @@ Plans for '0.5.0':
 - finish various TODOs in the code
 - update URL so users can bookmark views
 - ability to save view configuration
-- multi level filter section
 - support custom filters and columns
 - special aggregate table, clicking on the group-by will link to the configured detail view with the group-by value applied as a filter
 - Forms - line forms & column forms
