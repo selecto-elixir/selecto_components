@@ -16,6 +16,7 @@ Plans for '0.5.0':
 - update URL so users can bookmark views
 - ability to save view configuration
 - support custom filters and columns
+- fix persist filter values in filter tree
 - special aggregate table, clicking on the group-by will link to the configured detail view with the group-by value applied as a filter
 - Forms - line forms & column forms
 - cleanup liveviews and make it look nice
