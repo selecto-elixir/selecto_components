@@ -26,7 +26,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
-            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 1, conjunction: 'AND', filter_form: @filter_form }) %>
+            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: 'AND', filter_form: @filter_form }) %>
 
           </div>
         </div>

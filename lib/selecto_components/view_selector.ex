@@ -114,10 +114,14 @@ defmodule SelectoComponents.ViewSelector do
                     <label><input name={"order_by[#{id}][dir]"} type="radio" value="desc" checked={Map.get(config, "dir")=="desc"}/>Descending</label>
                   </:item_form>
                 </.live_component>
+      Pagination
+                Per Page:
+                <select name="per_page">
+                  <option :for={i <- [30]} selected={@per_page == i} value={i}><%= i %></option>
+                </select>
+
               </:section>
             </.live_component>
-
-
           </div>
 
           <div class={if @active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
@@ -283,7 +287,7 @@ defmodule SelectoComponents.ViewSelector do
           end
         )
 
-
+        socket = assign(socket, :per_page, params["per_page"])
 
         {:noreply, assign( socket, filters: filters ) }
       end
@@ -423,6 +427,10 @@ defmodule SelectoComponents.ViewSelector do
                   }
               end
             )
+
+          socket = assign(socket, :executed, true)
+          socket = assign(socket, :page, 0)
+          socket = assign(socket, :per_page, String.to_integer(params["per_page"]))
           {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
 
         rescue
@@ -458,6 +466,10 @@ defmodule SelectoComponents.ViewSelector do
 
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_mode: view)}
+      end
+
+      def handle_info({:set_detail_page, page}, socket) do
+        {:noreply, assign(socket, page: String.to_integer(page))}
       end
 
       def handle_info({:list_picker_remove, list, item}, socket) do
