@@ -16,7 +16,7 @@ defmodule SelectoComponents.ViewSelector do
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
 
-        <.form for={:view} phx-change="view-update" phx-submit="view-apply">
+        <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.button type="button" phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</.button>
           <.button type="button" phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
@@ -265,22 +265,27 @@ defmodule SelectoComponents.ViewSelector do
 
       ## TODO validate form entry, display errors to user, keep order stable
       ## On Change
-      def handle_event("view-update", params, socket) do
-        filters_by_section =
-          Map.values(Map.get(params, "filters", %{}))
-          |> Enum.reduce(
-            %{},
-            fn f, acc ->
-              ## Custom Form Processor?
+      def handle_event("view-validate", params, socket) do
+        IO.inspect(params, label: "Params VAL")
 
-              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
-            end
-          )
+        IO.inspect(socket.assigns.filters)
 
-        ### Just show errors
-        # socket = assign(socket, filters: filter_form_recurse(socket.assigns.selecto, filters_by_section, "filters[main]"))
+        filters = Map.get(params, "filters", %{})
+        |> Map.values()
+        |> Enum.sort(fn a, b -> a <= b end)
+        |> Enum.reduce(
+          [],
+          fn f, acc ->
+            acc ++ [{f["uuid"], f["section"], case Map.get(f, "conjunction", nil) do
+              nil -> f
+              a -> a
+            end}]
+          end
+        )
 
-        {:noreply, socket}
+
+
+        {:noreply, assign( socket, filters: filters ) }
       end
 
       def do_view(selecto) do
