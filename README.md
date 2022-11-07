@@ -22,7 +22,7 @@ Plans for '0.5.0':
 - cleanup liveviews and make it look nice
 - cleanup the event handlers
 - error handing
-- pagination
+- better pagination
 
 Plans for later:
 
