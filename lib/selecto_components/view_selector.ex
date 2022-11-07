@@ -339,12 +339,14 @@ defmodule SelectoComponents.ViewSelector do
 
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
+
           selecto =
             Map.put(
               selecto,
               :set,
               case socket.assigns.view_mode do
                 "detail" ->
+                  detail_columns = selected
                   selected =
                     selected
                     |> Map.values()
@@ -358,10 +360,15 @@ defmodule SelectoComponents.ViewSelector do
                         x when x in [:naive_datetime, :utc_datetime] ->
                           {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
 
+                        :custom ->
+                          col.requires_select
+
                         _ ->
                           col.colid
                       end
                     end)
+                    |> List.flatten
+                    |> IO.inspect()
 
                   order_by =
                     order_by
@@ -376,6 +383,7 @@ defmodule SelectoComponents.ViewSelector do
 
                   ### TODO add config
                   %{
+                    columns: detail_columns,  ### Columns will be used be
                     selected: selected,
                     order_by: order_by,
                     filtered: filtered,
