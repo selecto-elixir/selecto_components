@@ -22,7 +22,7 @@ defmodule SelectoComponents.Components.DetailTable do
           {f, assigns.selecto.config.columns[f]}
       end)
 
-    fmap = Enum.zip(aliases, selected) |> Enum.into(%{}) |> IO.inspect
+    fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
 
     page = assigns.page;
