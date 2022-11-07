@@ -287,7 +287,7 @@ defmodule SelectoComponents.ViewSelector do
           end
         )
 
-        socket = assign(socket, :per_page, params["per_page"])
+        socket = assign(socket, :per_page, String.to_integer(params["per_page"]))
 
         {:noreply, assign( socket, filters: filters ) }
       end
