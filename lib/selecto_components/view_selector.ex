@@ -9,8 +9,16 @@ defmodule SelectoComponents.ViewSelector do
       assign(assigns,
         columns:
           Map.values(assigns.selecto.config.columns)
+          |> Enum.filter(fn c -> c.type != :custom_filter end)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name} end)
+          |> Enum.map(fn c -> {c.colid, c.name} end),
+        available_filters:
+          Map.values(assigns.selecto.config.columns)
+          |> Enum.filter(fn c -> c.type != :custom_column end)
+          |> Enum.sort(fn a, b -> a.name <= b.name end)
+          |> Enum.map(fn c -> {c.colid, c.name} end),
+
+
       )
 
     ~H"""
@@ -130,7 +138,7 @@ defmodule SelectoComponents.ViewSelector do
             <.live_component
                     module={SelectoComponents.Components.TreeBuilder}
                     id="filter_tree"
-                    available={@columns}
+                    available={@available_filters}
                     filters={@filters}
                     >
 
