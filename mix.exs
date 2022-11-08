@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "LiveView Components for Selecto",
@@ -25,7 +25,7 @@ defmodule SelectoComponents.MixProject do
     [
       {:phoenix, "~> 1.6"},
       {:phoenix_live_view, "~> 0.18"},
-      {:selecto, "~> 0.1.0"},
+      {:selecto, "~> 0.1.2"},
       {:uuid, "~> 1.1"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false}
 
