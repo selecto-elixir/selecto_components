@@ -51,7 +51,7 @@ defmodule SelectoComponents.Components.DetailTable do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">#</th>
-          <th :for={{_uuid, r} <- @columns} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={ r <- @columns} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= r["field"] %>
           </th>
         </tr>
@@ -59,7 +59,7 @@ defmodule SelectoComponents.Components.DetailTable do
           <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
             <%= i + 1 %>
           </td>
-          <td :for={{_uuid, c} <- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+          <td :for={ c<- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
 
             <%= with def <- @selecto.config.columns[c["field"]] do %>
 

@@ -347,12 +347,13 @@ defmodule SelectoComponents.ViewSelector do
               case socket.assigns.view_mode do
                 "detail" ->
                   detail_columns = selected
+                  |> Map.values()
+                  |> Enum.sort(fn a, b ->
+                    String.to_integer(a["index"]) <= String.to_integer(b["index"])
+                  end)
                   selected =
-                    selected
-                    |> Map.values()
-                    |> Enum.sort(fn a, b ->
-                      String.to_integer(a["index"]) <= String.to_integer(b["index"])
-                    end)
+                    detail_columns
+
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
                       # move to a validation lib
