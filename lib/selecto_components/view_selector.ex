@@ -36,7 +36,7 @@ defmodule SelectoComponents.ViewSelector do
             <.live_component
               module={SelectoComponents.Components.RadioTabs}
               id="view_mode"
-              fieldname="viewsel"
+              fieldname="view_mode"
               view_mode={@view_mode}>
               <:section id="aggregate" label="Aggregate View">
 
@@ -352,7 +352,7 @@ defmodule SelectoComponents.ViewSelector do
             Map.put(
               selecto,
               :set,
-              case socket.assigns.view_mode do
+              case params["view_mode"] do
                 "detail" ->
                   detail_columns = selected
                   |> Map.values()
@@ -445,6 +445,7 @@ defmodule SelectoComponents.ViewSelector do
               end
             )
 
+          ### Set these assigns to reset the view!
           socket = assign(socket, :executed, true)
           socket = assign(socket, :page, 0)
           socket = assign(socket, :per_page, String.to_integer(params["per_page"]))

@@ -21,7 +21,7 @@ defmodule SelectoComponents.Components.RadioTabs do
             <!--TODO use LiveView.JS? -->
             <input
               type="radio"
-              name="@fieldname"
+              name={@fieldname}
               value={s.id}
               checked={@view_mode == s.id}
               phx-click="view_set"
