@@ -64,6 +64,8 @@ defmodule SelectoComponents.Components.DetailTable do
             <%= with def <- @selecto.config.columns[c["field"]] do %>
 
               <%= case def do %>
+                <%= %{format: :component} = def -> %>
+                  <%= def.component.(%{row: r}) %>
                 <%= %{format: :link} = def -> %>
 
                   <%= with {href, txt} <- def.link_parts.(r)  do %>

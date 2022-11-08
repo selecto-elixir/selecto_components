@@ -369,7 +369,7 @@ defmodule SelectoComponents.ViewSelector do
                         x when x in [:naive_datetime, :utc_datetime] ->
                           {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
 
-                        :custom ->
+                        :custom_column ->
                           col.requires_select
 
                         _ ->
