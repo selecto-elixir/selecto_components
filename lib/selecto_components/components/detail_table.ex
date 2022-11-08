@@ -11,7 +11,7 @@ defmodule SelectoComponents.Components.DetailTable do
   def render(assigns) do
     {results, aliases} = Selecto.execute(assigns.selecto)
 
-    selected = assigns.selecto.set.columns
+    selected = Map.get(assigns.selecto.set, :columns, [])
 
     selected =
       Enum.map(selected, fn
@@ -37,7 +37,7 @@ defmodule SelectoComponents.Components.DetailTable do
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
 
-    assigns = assign(assigns, fmap: fmap, results: results, columns: assigns.selecto.set.columns, max_pages: page_count)
+    assigns = assign(assigns, fmap: fmap, results: results, columns: Map.get(assigns.selecto.set, :columns, []), max_pages: page_count)
 
     ~H"""
     <div>
