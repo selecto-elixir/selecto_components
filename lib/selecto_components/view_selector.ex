@@ -189,6 +189,33 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+      @impl true
+      def handle_params(params, _uri, socket) do
+
+        socket =
+          assign(socket,
+            ### required for selecto components
+
+            executed: false,
+            applied_view: nil,
+
+            view_mode: params["view_mode"] || "detail",
+            active_tab: params["active_tab"] || "view",
+            per_page: if params["per_page"] do String.to_integer(params["per_page"]) else 30 end,
+            page: if params["page"] do String.to_integer(params["page"]) else 0 end,
+
+            aggregate: [],
+            group_by: [],
+            order_by: [],
+            selected: [],
+            filters: []
+          )
+
+        {:noreply, socket}
+      end
+
+
+
       defp _make_num_filter(filter) do
         comp = filter["comp"]
         ## TODO
@@ -277,6 +304,7 @@ defmodule SelectoComponents.ViewSelector do
 
       ## TODO validate form entry, display errors to user, keep order stable
       ## On Change
+      @impl true
       def handle_event("view-validate", params, socket) do
         IO.inspect(params, label: "Params VAL")
 
@@ -304,6 +332,7 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       # on submit
+      @impl true
       def handle_event("view-apply", params, socket) do
         try do
 
@@ -457,9 +486,11 @@ defmodule SelectoComponents.ViewSelector do
         end
       end
 
+      @impl true
       def handle_event("filter_from_aggregate", par, socket) do
       end
 
+      @impl true
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
@@ -478,18 +509,22 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
+      @impl true
       def handle_info({:set_active_tab, tab}, socket) do
         {:noreply, assign(socket, active_tab: tab)}
       end
 
+      @impl true
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_mode: view)}
       end
 
+      @impl true
       def handle_info({:set_detail_page, page}, socket) do
         {:noreply, assign(socket, page: String.to_integer(page))}
       end
 
+      @impl true
       def handle_info({:list_picker_remove, list, item}, socket) do
         list = String.to_atom(list)
 
@@ -500,6 +535,8 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       ### TODO fix this up
+
+      @impl true
       def handle_info({:list_picker_move, list, uuid, direction}, socket) do
         list = String.to_atom(list)
         item_list = socket.assigns[list]
@@ -520,6 +557,7 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
+      @impl true
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
         id = UUID.uuid4()
