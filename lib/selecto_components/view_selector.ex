@@ -297,6 +297,9 @@ defmodule SelectoComponents.ViewSelector do
 
                 x when x in [:naive_datetime, :utc_datetime] ->
                   acc ++ [{f["filter"], _make_date_filter(f)}]
+
+                {:parameterized, _, enum_conf} ->
+                  acc ++ [{f["filter"], f["selected"]}]
               end
             end
         end)

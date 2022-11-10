@@ -24,6 +24,8 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
+
+
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
     valmap = assigns.filter
@@ -156,4 +158,27 @@ defmodule SelectoComponents.Components.FilterForms do
       H: <%= @type %> <%= @filter %>
     """
   end
+
+  def render_form(%{type: {:parameterized, Ecto.Enum, typemap}} = assigns) do
+    assigns = Map.put(assigns, :values, typemap.mappings )
+    valmap = assigns.filter
+
+    assigns = Map.put(assigns, :valmap, valmap)
+    ~H"""
+      <div>
+        <%= @def.name %>
+        <label :for={{_a, v} <- @values}>
+          <input name={"filters[#{@uuid}][selected][]"}
+            id={"filters_#{@uuid}_selected_#{v}"}
+            type="checkbox"
+            value={v}
+            checked={ Enum.member?(Map.get(@valmap, "selected", []), v) }/>
+          <%= v %>
+        </label>
+
+      </div>
+    """
+  end
+
+
 end
