@@ -474,10 +474,13 @@ defmodule SelectoComponents.ViewSelector do
             )
 
           ### Set these assigns to reset the view!
-          socket = assign(socket, :executed, true)
-          socket = assign(socket, :page, 0)
-          socket = assign(socket, :per_page, String.to_integer(params["per_page"]))
-          {:noreply, assign(socket, selecto: selecto, applied_view: socket.assigns.view_mode)}
+          {:noreply, assign(socket,
+            selecto: selecto,
+            applied_view: socket.assigns.view_mode,
+            executed: true,
+            page: 0,
+            per_page: String.to_integer(params["per_page"])
+          )}
 
         rescue
           e -> IO.inspect(e)
@@ -487,6 +490,7 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_event("filter_from_aggregate", par, socket) do
+
       end
 
       @impl true
