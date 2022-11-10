@@ -7,6 +7,7 @@ V 0.1.3
 
 - move handle_params into view selector
 - support for components columns
+- support for enum filters
 
 V 0.1.2
 -------
