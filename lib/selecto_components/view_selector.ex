@@ -299,6 +299,7 @@ defmodule SelectoComponents.ViewSelector do
                   acc ++ [{f["filter"], _make_date_filter(f)}]
 
                 {:parameterized, _, enum_conf} ->
+                  # TODO check selected against enum_conf.mappings!
                   acc ++ [{f["filter"], f["selected"]}]
               end
             end
