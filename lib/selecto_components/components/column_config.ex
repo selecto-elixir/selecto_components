@@ -30,7 +30,18 @@ defmodule SelectoComponents.Components.ColumnConfig do
               }/>
             </label>
           <% _ -> %>
-            <%= @col.name %>
+            <%= case Map.get(@col, :configure_component) do %>
+            <% x when is_function(x) -> %>
+              <%= x.(%{
+                col: @col,
+                config: @config,
+                prefix: @prefix
+              }) %>
+            <% nil -> %>
+              <%= @col.name %>
+
+            <% end %>
+
           <% end %>
       </div>
 

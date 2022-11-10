@@ -306,10 +306,6 @@ defmodule SelectoComponents.ViewSelector do
       ## On Change
       @impl true
       def handle_event("view-validate", params, socket) do
-        IO.inspect(params, label: "Params VAL")
-
-        IO.inspect(socket.assigns.filters)
-
         filters = Map.get(params, "filters", %{})
         |> Map.values()
         |> Enum.sort(fn a, b -> a <= b end)
@@ -406,7 +402,6 @@ defmodule SelectoComponents.ViewSelector do
                       end
                     end)
                     |> List.flatten
-                    |> IO.inspect()
 
                   order_by =
                     order_by
