@@ -395,13 +395,17 @@ defmodule SelectoComponents.ViewSelector do
                           {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
 
                         :custom_column ->
-                          col.requires_select
+                          case col.requires_select do
+                            x when is_list(x) -> col.requires_select
+                            x when is_function(x) -> col.requires_select.(e)
+                          end
 
                         _ ->
                           col.colid
                       end
                     end)
                     |> List.flatten
+                    |> IO.inspect
 
                   order_by =
                     order_by
