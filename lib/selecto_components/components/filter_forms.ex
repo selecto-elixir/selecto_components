@@ -6,7 +6,7 @@ defmodule SelectoComponents.Components.FilterForms do
     filter_def = Map.get(assigns.columns, assigns.filter["filter"])
     #  Map.get(assigns.filters(filter))
 
-    type = filter_def.type
+    type = Map.get(filter_def, :filter_type, filter_def.type)
     assigns = assign(assigns, type: type, def: filter_def)
 
     ~H"""
@@ -146,6 +146,16 @@ defmodule SelectoComponents.Components.FilterForms do
         <.input type="datetime-local" name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
       </label>
     </div>
+    """
+  end
+
+  def render_form(%{type: :custom} = assigns) do
+    def = assigns.def
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
+
+    ~H"""
+      H: <%= @type %> <%= @filter %>
     """
   end
 
