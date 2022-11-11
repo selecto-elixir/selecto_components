@@ -1,3 +1,4 @@
+
 # SelectoComponents
 
 Tailwind based UI for selecto
@@ -10,21 +11,22 @@ AggregateTable and DetailTable are live compoents to display the results of that
 
 See the live views in [selecto_test](https://github.com/seeken/selecto_test) for an example of how to setup. Documentaiton will be added once the API is stabilized.
 
-Plans for '0.5.0':
+## Plans for '0.5.0'
 
 - finish various TODOs in the code
 - update URL so users can bookmark views
 - ability to save view configuration
-- support custom filters and columns
-- fix persist filter values in filter tree
+- support custom filters
+- fix order by direction persist
 - special aggregate table, clicking on the group-by will link to the configured detail view with the group-by value applied as a filter
 - Forms - line forms & column forms
-- cleanup liveviews and make it look nice
+- cleanup liveviews / refactor
+- make it look nice
 - cleanup the event handlers
-- error handing
-- better pagination
+- error handing on view form
+- better pagination in detail view, paginate by value, select All
 
-Plans for later:
+## Plans for later
 
 - generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
 - Export results, email results, POST/PUT results
