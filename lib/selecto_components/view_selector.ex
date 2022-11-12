@@ -287,8 +287,8 @@ defmodule SelectoComponents.ViewSelector do
 
           f, acc ->
             if selecto.config.filters[f["filter"]] do
-
-             acc ++ [selecto.config.filters[f["filter"]].apply.( f, selecto )]
+              ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO
+              acc ++ [selecto.config.filters[f["filter"]].apply.( f, selecto )]
 
             else
               case selecto.config.columns[f["filter"]].type do
