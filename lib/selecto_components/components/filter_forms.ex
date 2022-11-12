@@ -3,8 +3,15 @@ defmodule SelectoComponents.Components.FilterForms do
   import SelectoComponents.Components.Common
 
   def render(assigns) do
-    filter_def = Map.get(assigns.columns, assigns.filter["filter"])
+
+    filter_def =
+      Map.get(assigns.custom_filters, assigns.filter["filter"]) ||
+      Map.get(assigns.columns, assigns.filter["filter"])
+
+
+
     #  Map.get(assigns.filters(filter))
+
 
     type = Map.get(filter_def, :filter_type, filter_def.type)
     assigns = assign(assigns, type: type, def: filter_def)
@@ -149,14 +156,13 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
-  def render_form(%{type: :custom} = assigns) do
+  def render_form(%{type: :component} = assigns) do
     def = assigns.def
     valmap = assigns.filter
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
-    ~H"""
-      H: <%= @type %> <%= @filter %>
-    """
+    def.component.(assigns)
+
   end
 
   def render_form(%{type: :custom} = assigns) do

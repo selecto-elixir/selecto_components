@@ -5,19 +5,27 @@ defmodule SelectoComponents.ViewSelector do
   import SelectoComponents.Components.Common
 
   def render(assigns) do
+
+    filters =
+      Map.values(assigns.selecto.config.filters) ++
+      [Map.values(assigns.selecto.config.columns)
+        |> Enum.filter(fn c -> c.type != :custom_column end)]
+      |> List.flatten
+      |> Enum.sort(fn a, b -> a.name <= b.name end)
+      |> Enum.map(fn
+        %{colid: id} = c -> {id, c.name}
+        %{id: id} = c -> {id, c.name}
+
+      end)
+
     assigns =
       assign(assigns,
         columns:
           Map.values(assigns.selecto.config.columns)
-          |> Enum.filter(fn c -> c.type != :custom_filter end)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
           |> Enum.map(fn c -> {c.colid, c.name} end),
-        available_filters:
-          Map.values(assigns.selecto.config.columns)
-          |> Enum.filter(fn c -> c.type != :custom_column end)
-          |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name} end),
-
+        field_filters:
+          filters
 
       )
 
@@ -138,7 +146,7 @@ defmodule SelectoComponents.ViewSelector do
             <.live_component
                     module={SelectoComponents.Components.TreeBuilder}
                     id="filter_tree"
-                    available={@available_filters}
+                    available={@field_filters}
                     filters={@filters}
                     >
 
@@ -151,7 +159,7 @@ defmodule SelectoComponents.ViewSelector do
                     index={index}
                     filter={fv}
                     columns={@selecto.config.columns}
-                    filters_available={@selecto.config.filters}
+                    custom_filters={@selecto.config.filters}
                     >
                 </.live_component>
               </:filter_form>
@@ -279,7 +287,9 @@ defmodule SelectoComponents.ViewSelector do
 
           f, acc ->
             if selecto.config.filters[f["filter"]] do
-              selecto.config.filters[f["filter"]]
+
+             acc ++ [selecto.config.filters[f["filter"]].apply.( f, selecto )]
+
             else
               case selecto.config.columns[f["filter"]].type do
                 x when x in [:id, :integer, :float, :decimal] ->
@@ -409,7 +419,6 @@ defmodule SelectoComponents.ViewSelector do
                       end
                     end)
                     |> List.flatten
-                    |> IO.inspect
 
                   order_by =
                     order_by
