@@ -35,7 +35,10 @@ defmodule SelectoComponents.Components.AggregateTable do
         nil ->
           {:agg, nil, nil}
       end)
-    fmap = Enum.zip(aliases, group_by ++ aggregates) |> Enum.into(%{})
+    fmap = Enum.zip(aliases, group_by ++ aggregates)
+    group_by = Enum.take(fmap, Enum.count(group_by))
+    aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
+
     assigns =
       assign(assigns,
         results: results,
@@ -48,9 +51,9 @@ defmodule SelectoComponents.Components.AggregateTable do
     ~H"""
     <div>
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
-        <tr>
 
-          <th :for={{:group_by, g, def} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+        <tr>
+          <th :for={{alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= case g do %>
             <%= {:extract, f, fmt} -> %>
               <%= fmt %>: <%= def.name %>
@@ -61,7 +64,7 @@ defmodule SelectoComponents.Components.AggregateTable do
             <% end %>
           </th>
 
-          <th :for={r <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{alias, r} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= case r do %>
             <% {:agg, {a, f}, def} -> %>
               <%= a %>: <%= f %>
@@ -72,25 +75,25 @@ defmodule SelectoComponents.Components.AggregateTable do
         </tr>
 
         <tr :for={r <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
-          <td :for={c <- @aliases} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-            <%= with def <- @fmap[c] do %>
-              <%= case def do %>
 
-                <% {:group_by, g, def} -> %>
-                  <div >
-                    <%= r[c] %>
-                  </div>
+          <td :for={{alias, {:group_by, c, def}} <- @group_by} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <div >
+              <%= r[c] %>
+            </div>
+          </td>
 
-                <% {:agg, {func, _field}, %{format: fmt_fun} = def} when is_function(fmt_fun) -> %>
-                  <%= fmt_fun.(r[c]) %>
-
-                <% _ -> %>
-                  <%= r[c] %>
-
-
-              <% end %>
+          <td :for={{alias, {:agg, {a, c}, def}} = agg <- @aggregate} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <% IO.inspect(agg ) %>
+            <%= case def do %>
+              <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
+                <%= fmt_fun.(r[c]) %>
+              <% _ -> %>
+                <%= r[alias] %>
             <% end %>
           </td>
+
+
+
         </tr>
       </table>
     </div>
