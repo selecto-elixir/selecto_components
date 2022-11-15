@@ -5,7 +5,7 @@ defmodule SelectoComponents.Components.AggregateTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = Selecto.execute(assigns.selecto, group_by_type: :rollup)
+    {results, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
     {:ok, group_by} = Keyword.fetch(assigns.selecto.set.group_by, :rollup)
     aggregates = assigns.selecto.set.selected -- group_by
 
@@ -23,6 +23,8 @@ defmodule SelectoComponents.Components.AggregateTable do
 
         end
       )
+
+    resultsTree = rollup(results, group_by)
 
     aggregates =
       Enum.map(aggregates, fn
@@ -83,7 +85,6 @@ defmodule SelectoComponents.Components.AggregateTable do
           </td>
 
           <td :for={{alias, {:agg, {a, c}, def}} = agg <- @aggregate} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-            <% IO.inspect(agg ) %>
             <%= case def do %>
               <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
                 <%= fmt_fun.(r[c]) %>
@@ -99,4 +100,11 @@ defmodule SelectoComponents.Components.AggregateTable do
     </div>
     """
   end
+
+  defp rollup(results, groups) do
+
+
+
+  end
+
 end

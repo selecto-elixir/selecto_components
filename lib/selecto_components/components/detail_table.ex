@@ -37,7 +37,7 @@ defmodule SelectoComponents.Components.DetailTable do
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
 
-    assigns = assign(assigns, fmap: fmap, results: results, columns: Map.get(assigns.selecto.set, :columns, []), max_pages: page_count)
+    assigns = assign(assigns, aliases: aliases, fmap: fmap, results: results, columns: Map.get(assigns.selecto.set, :columns, []), max_pages: page_count)
 
     ~H"""
     <div>
@@ -55,32 +55,34 @@ defmodule SelectoComponents.Components.DetailTable do
             <%= r["field"] %>
           </th>
         </tr>
-        <tr :for={{r, i} <- Enum.slice(Enum.with_index(@results), show_start, per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
-          <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-            <%= i + 1 %>
-          </td>
-          <td :for={ c<- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), show_start, per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+          <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
+            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <%= i + 1 %>
+            </td>
+            <td :for={ c<- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
 
-            <%= with def <- @selecto.config.columns[c["field"]] do %>
+              <%= with def <- @selecto.config.columns[c["field"]] do %>
 
-              <%= case def do %>
-                <%= %{format: :component} = def -> %>
-                  <%= def.component.(%{row: r, config: c}) %>
-                <%= %{format: :link} = def -> %>
+                <%= case def do %>
+                  <%= %{format: :component} = def -> %>
+                    <%= def.component.(%{row: r, config: c}) %>
+                  <%= %{format: :link} = def -> %>
 
-                  <%= with {href, txt} <- def.link_parts.(r)  do %>
+                    <%= with {href, txt} <- def.link_parts.(r)  do %>
 
-                    <.link href={href}>
-                      <%= txt %>
-                    </.link>
+                      <.link href={href}>
+                        <%= txt %>
+                      </.link>
 
-                  <% end %>
+                    <% end %>
 
-                <% _ -> %>
-                  <%= r[c["field"]] %>
+                  <% _ -> %>
+                    <%= r[c["field"]] %>
+                <%= end %>
               <%= end %>
-            <%= end %>
-          </td>
+            </td>
+          <% end %>
         </tr>
       </table>
     </div>
