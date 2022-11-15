@@ -76,24 +76,25 @@ defmodule SelectoComponents.Components.AggregateTable do
           </th>
         </tr>
 
-        <tr :for={r <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+        <tr :for={resrow <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+          <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
 
-          <td :for={{alias, {:group_by, c, def}} <- @group_by} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-            <div >
-              <%= r[c] %>
-            </div>
-          </td>
+            <td :for={{alias, {:group_by, c, def}} <- @group_by} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <div >
+                <%= r[c] %>
+              </div>
+            </td>
 
-          <td :for={{alias, {:agg, {a, c}, def}} = agg <- @aggregate} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-            <%= case def do %>
-              <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
-                <%= fmt_fun.(r[c]) %>
-              <% _ -> %>
-                <%= r[alias] %>
-            <% end %>
-          </td>
+            <td :for={{alias, {:agg, {a, c}, def}} = agg <- @aggregate} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <%= case def do %>
+                <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
+                  <%= fmt_fun.(r[c]) %>
+                <% _ -> %>
+                  <%= r[alias] %>
+              <% end %>
+            </td>
 
-
+          <% end %>
 
         </tr>
       </table>
