@@ -6,7 +6,7 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   def render(assigns) do
     {results, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
-    {:ok, group_by} = Keyword.fetch(assigns.selecto.set.group_by, :rollup)
+    group_by = assigns.selecto.set.groups
     aggregates = assigns.selecto.set.selected -- group_by
 
     group_by =

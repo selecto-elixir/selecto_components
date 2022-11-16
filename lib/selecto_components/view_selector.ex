@@ -23,7 +23,7 @@ defmodule SelectoComponents.ViewSelector do
         columns:
           Map.values(assigns.selecto.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name} end),
+          |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end),
         field_filters:
           filters
 
@@ -53,7 +53,7 @@ defmodule SelectoComponents.ViewSelector do
                   module={SelectoComponents.Components.ListPicker}
                   id="group_by"
                   fieldname="group_by"
-                  available={@columns}
+                  available={Enum.filter( @columns, fn {_f, _n, format} -> format not in [:component, :link] end)}
                   selected_items={@group_by}>
                   <:item_form :let={{id, item, config, index} }>
                     <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
@@ -437,7 +437,8 @@ defmodule SelectoComponents.ViewSelector do
                     selected: selected,
                     order_by: order_by,
                     filtered: filtered,
-                    group_by: []
+                    group_by: [],
+                    groups: []
                   }
 
                 "aggregate" ->
@@ -478,10 +479,11 @@ defmodule SelectoComponents.ViewSelector do
 
                   ### todo add config
                   %{
+                    groups: group_by,
                     selected: group_by ++ aggregate,
                     filtered: filtered,
-                    group_by: [{:rollup, group_by}],
-                    order_by: group_by
+                    group_by: [{:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g, g} end)}],
+                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g, g} end)
                   }
               end
             )
