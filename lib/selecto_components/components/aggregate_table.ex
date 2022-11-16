@@ -80,8 +80,10 @@ defmodule SelectoComponents.Components.AggregateTable do
           <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
 
             <td :for={{alias, {:group_by, c, def}} <- @group_by} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <% IO.inspect(r) %>
+              <% IO.inspect(c)%>
               <div >
-                <%= r[c] %>
+                <%= r[alias] %>
               </div>
             </td>
 
