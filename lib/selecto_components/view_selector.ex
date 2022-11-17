@@ -247,6 +247,8 @@ defmodule SelectoComponents.ViewSelector do
           "null" -> nil
           "not_null" -> :not_null
           x when x in ~w( != <= >= < >) -> {x, value}
+
+          ### TODO sanitize like value
           "starts" -> {:like, value <> "%"}
           "ends" -> {:like, "%" <> value}
           "contains" -> {:like, "%" <> value <> "%"}
