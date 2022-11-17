@@ -472,8 +472,8 @@ defmodule SelectoComponents.ViewSelector do
                     groups: group_by,
                     selected: group_by ++ aggregate,
                     filtered: filtered,
-                    group_by: [{:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g, g} end)}],
-                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g, g} end)
+                    group_by: [{:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}],
+                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
                   }
               end
             )
