@@ -226,18 +226,13 @@ defmodule SelectoComponents.ViewSelector do
 
       defp _make_num_filter(filter) do
         comp = filter["comp"]
-        ## TODO
-        value = String.to_integer(filter["value"])
 
         case comp do
-          "=" ->
-            value
-
-          "between" ->
-            {:between, value, String.to_integer(filter["value2"])}
-
-          x when x in ~w( != <= >= < >) ->
-            {x, value}
+          "=" -> String.to_integer(filter["value"])
+          "null" -> nil
+          "not_null" -> :not_null
+          "between" -> {:between, String.to_integer(filter["value"]), String.to_integer(filter["value2"])}
+          x when x in ~w( != <= >= < >) -> {x, String.to_integer(filter["value"])}
         end
       end
 
@@ -248,20 +243,13 @@ defmodule SelectoComponents.ViewSelector do
         value = filter["value"]
 
         case comp do
-          "=" ->
-            value
-
-          x when x in ~w( != <= >= < >) ->
-            {x, value}
-
-          "starts" ->
-            {:like, value <> "%"}
-
-          "ends" ->
-            {:like, "%" <> value}
-
-          "contains" ->
-            {:like, "%" <> value <> "%"}
+          "=" -> value
+          "null" -> nil
+          "not_null" -> :not_null
+          x when x in ~w( != <= >= < >) -> {x, value}
+          "starts" -> {:like, value <> "%"}
+          "ends" -> {:like, "%" <> value}
+          "contains" -> {:like, "%" <> value <> "%"}
         end
       end
 
@@ -287,8 +275,8 @@ defmodule SelectoComponents.ViewSelector do
 
           f, acc ->
             if selecto.config.filters[f["filter"]] do
-              ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO
-              acc ++ [selecto.config.filters[f["filter"]].apply.( f, selecto )]
+              ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO???
+              acc ++ [selecto.config.filters[f["filter"]].apply.( selecto, f )]
 
             else
               case selecto.config.columns[f["filter"]].type do

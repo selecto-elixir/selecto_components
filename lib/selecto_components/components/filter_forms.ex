@@ -48,7 +48,8 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="starts" selected={Map.get(@valmap, "comp") == "starts"}>Starts With</option>
             <option value="ends" selected={Map.get(@valmap, "comp") == "ends"}>Ends With</option>
             <option value="contains" selected={Map.get(@valmap, "comp") == "contains"}>Contains</option>
-
+            <option value="null" selected={Map.get(@valmap, "comp") == "null"}>Null</option>
+            <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
           </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <!-- <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} value="Y"/>Ignore Case</label> -->
@@ -75,6 +76,9 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
             <option value="=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
             <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
+            <option value="null" selected={Map.get(@valmap, "comp") == "null"}>Null</option>
+            <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
+
           </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
@@ -101,6 +105,9 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="<=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
             <option value=">=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
             <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
+            <option value="null" selected={Map.get(@valmap, "comp") == "null"}>Null</option>
+            <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
+
           </.select_with_slot>
           <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
