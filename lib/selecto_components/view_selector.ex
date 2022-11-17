@@ -93,6 +93,10 @@ defmodule SelectoComponents.ViewSelector do
               <:section id="detail" label="Detail View">
 
       Columns
+
+      <% IO.inspect( @selected ) %>
+
+
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
                     id="selected"
@@ -102,6 +106,7 @@ defmodule SelectoComponents.ViewSelector do
                   <:item_form :let={{id, item, config, index} }>
                     <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
+                    <input name={"selected[#{id}][uuid]"} type="hidden" value={id}/>
                     <.live_component
                       module={SelectoComponents.Components.ColumnConfig}
                       id={id}
@@ -115,6 +120,9 @@ defmodule SelectoComponents.ViewSelector do
 
 
       Order by
+
+      <% IO.inspect( @order_by ) %>
+
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
                     id="order_by"
@@ -125,11 +133,17 @@ defmodule SelectoComponents.ViewSelector do
                     <%!-- MAKE THIS INTO COMPOENT SO IT DOESN"T REDRAW ALL THE TIME and lose its form! --%>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-                    <%= item %>
-                    <label><input name={"order_by[#{id}][dir]"} type="radio" value="asc" checked={Map.get(config, "dir")=="asc"}/>Ascending</label>
-                    <label><input name={"order_by[#{id}][dir]"} type="radio" value="desc" checked={Map.get(config, "dir")=="desc"}/>Descending</label>
+
+                    <.live_component
+                      module={SelectoComponents.Components.OrderByConfig}
+                      id={id}
+                      col={@selecto.config.columns[item]}
+                      item={item}
+                      fieldname="order_by"
+                      config={config}/>
                   </:item_form>
                 </.live_component>
+
       Pagination
                 Per Page:
                 <select name="per_page">
@@ -384,6 +398,7 @@ defmodule SelectoComponents.ViewSelector do
               case params["view_mode"] do
                 "detail" ->
                   detail_columns = selected
+
                   |> Map.values()
                   |> Enum.sort(fn a, b ->
                     String.to_integer(a["index"]) <= String.to_integer(b["index"])
@@ -393,19 +408,24 @@ defmodule SelectoComponents.ViewSelector do
 
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
+                      uuid = e["uuid"]
                       # move to a validation lib
                       case col.type do
                         x when x in [:naive_datetime, :utc_datetime] ->
-                          {:to_char, {col.colid, date_formats[e["format"]]}, col.colid}
+                          {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
 
                         :custom_column ->
-                          case col.requires_select do
-                            x when is_list(x) -> col.requires_select
-                            x when is_function(x) -> col.requires_select.(e)
-                          end
+                          {
+                            :row,
+                              case col.requires_select do
+                                x when is_list(x) -> col.requires_select
+                                x when is_function(x) -> col.requires_select.(e)
+                              end,
+                            uuid
+                          }
 
                         _ ->
-                          col.colid
+                          {:field, col.colid, uuid}
                       end
                     end)
                     |> List.flatten

@@ -10,8 +10,9 @@ defmodule SelectoComponents.Components.DetailTable do
 
   def render(assigns) do
     {results, fields, aliases} = Selecto.execute(assigns.selecto)
-IO.inspect(aliases)
+IO.inspect(aliases, label: "ALIASES")
     selected = Map.get(assigns.selecto.set, :columns, [])
+IO.inspect(selected, label: "SELECTED")
 
     selected =
       Enum.map(selected, fn
@@ -23,7 +24,7 @@ IO.inspect(aliases)
       end)
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
-
+IO.inspect(fmap, label: "FMAP")
 
     page = assigns.page;
     per_page = assigns.per_page
@@ -66,10 +67,10 @@ IO.inspect(aliases)
 
                 <%= case def do %>
                   <%= %{format: :component} = def -> %>
-                    <%= def.component.(%{row: r, config: c}) %>
+                    <%= def.component.(%{row: r[c["uuid"]], config: c}) %>
                   <%= %{format: :link} = def -> %>
 
-                    <%= with {href, txt} <- def.link_parts.(r)  do %>
+                    <%= with {href, txt} <- def.link_parts.(r[c["uuid"]])  do %>
 
                       <.link href={href}>
                         <%= txt %>
@@ -78,7 +79,7 @@ IO.inspect(aliases)
                     <% end %>
 
                   <% _ -> %>
-                    <%= r[c["field"]] %>
+                    <%= r[c["uuid"]] %>
                 <%= end %>
               <%= end %>
             </td>
