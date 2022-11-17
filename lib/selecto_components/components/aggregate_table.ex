@@ -5,8 +5,12 @@ defmodule SelectoComponents.Components.AggregateTable do
   use Phoenix.LiveComponent
 
   def render(assigns) do
-    {results, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
-    group_by = assigns.selecto.set.groups
+
+    ### TODO
+    ### Group-by can be a row() to return ID + NAME for filter links
+
+    {results, fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
+    group_by = assigns.selecto.set.groups ### Will always be first X items
     aggregates = assigns.selecto.set.selected -- group_by
 
     group_by =
@@ -36,6 +40,7 @@ defmodule SelectoComponents.Components.AggregateTable do
         nil ->
           {:agg, nil, nil}
       end)
+
     fmap = Enum.zip(aliases, group_by ++ aggregates)
     group_by = Enum.take(fmap, Enum.count(group_by))
     aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
@@ -45,8 +50,7 @@ defmodule SelectoComponents.Components.AggregateTable do
         results: results,
         aliases: aliases,
         group_by: group_by,
-        aggregate: aggregates,
-        fmap: fmap
+        aggregate: aggregates
       )
 
     ~H"""

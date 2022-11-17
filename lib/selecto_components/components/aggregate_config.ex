@@ -14,7 +14,6 @@ defmodule SelectoComponents.Components.AggregateConfig do
       <div>
         <%= case @col.type do%>
           <% x when x in [:integer, :id, :decimal] -> %>
-          agg: count, avg, sum, min, max, all those stats aggs...
             <%= @col.name %>
             <label>Format
               <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
@@ -22,7 +21,6 @@ defmodule SelectoComponents.Components.AggregateConfig do
               }/>
             </label>
           <% x when x in [:float] -> %>
-          agg: avg, sum, min, max, all those stats aggs...
             <%= @col.name %>
             <label>Format
               <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
@@ -30,7 +28,6 @@ defmodule SelectoComponents.Components.AggregateConfig do
               }/>
             </label>
           <% x when x in [:string] -> %>
-          agg: string_agg, min, max,
             <%= @col.name %>
             <label>Format
               <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
@@ -38,17 +35,16 @@ defmodule SelectoComponents.Components.AggregateConfig do
               }/>
             </label>
           <% :boolean -> %>
-            agg types: count(true), %true
             <%= @col.name %><!--:Y_N :1_0 :yes_no :check_blank -->
             <label>Format
-    #TODO
+              #TODO
             </label>
 
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
               agg types: age buckets?
             <%= @col.name %>
             <label>Format
-    #TODO
+              #TODO
             </label>
 
           <% _ -> %>

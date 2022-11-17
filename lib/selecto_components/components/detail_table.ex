@@ -9,7 +9,7 @@ defmodule SelectoComponents.Components.DetailTable do
 
 
   def render(assigns) do
-    {results, aliases} = Selecto.execute(assigns.selecto)
+    {results, fields, aliases} = Selecto.execute(assigns.selecto)
 
     selected = Map.get(assigns.selecto.set, :columns, [])
 
