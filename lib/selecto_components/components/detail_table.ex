@@ -10,9 +10,7 @@ defmodule SelectoComponents.Components.DetailTable do
 
   def render(assigns) do
     {results, fields, aliases} = Selecto.execute(assigns.selecto)
-IO.inspect(aliases, label: "ALIASES")
     selected = Map.get(assigns.selecto.set, :columns, [])
-IO.inspect(selected, label: "SELECTED")
 
     selected =
       Enum.map(selected, fn
@@ -24,7 +22,6 @@ IO.inspect(selected, label: "SELECTED")
       end)
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
-IO.inspect(fmap, label: "FMAP")
 
     page = assigns.page;
     per_page = assigns.per_page
