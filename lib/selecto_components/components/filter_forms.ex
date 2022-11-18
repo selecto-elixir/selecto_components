@@ -3,15 +3,11 @@ defmodule SelectoComponents.Components.FilterForms do
   import SelectoComponents.Components.Common
 
   def render(assigns) do
-
     filter_def =
       Map.get(assigns.custom_filters, assigns.filter["filter"]) ||
-      Map.get(assigns.columns, assigns.filter["filter"])
-
-
+        Map.get(assigns.columns, assigns.filter["filter"])
 
     #  Map.get(assigns.filters(filter))
-
 
     type = Map.get(filter_def, :filter_type, filter_def.type)
     assigns = assign(assigns, type: type, def: filter_def)
@@ -30,8 +26,6 @@ defmodule SelectoComponents.Components.FilterForms do
       </div>
     """
   end
-
-
 
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
@@ -169,7 +163,6 @@ defmodule SelectoComponents.Components.FilterForms do
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def)
 
     def.component.(assigns)
-
   end
 
   def render_form(%{type: :custom} = assigns) do
@@ -183,10 +176,11 @@ defmodule SelectoComponents.Components.FilterForms do
   end
 
   def render_form(%{type: {:parameterized, Ecto.Enum, typemap}} = assigns) do
-    assigns = Map.put(assigns, :values, typemap.mappings )
+    assigns = Map.put(assigns, :values, typemap.mappings)
     valmap = assigns.filter
 
     assigns = Map.put(assigns, :valmap, valmap)
+
     ~H"""
       <div>
         <%= @def.name %>
@@ -202,6 +196,4 @@ defmodule SelectoComponents.Components.FilterForms do
       </div>
     """
   end
-
-
 end

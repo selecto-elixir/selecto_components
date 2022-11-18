@@ -7,7 +7,6 @@ defmodule SelectoComponents.Components.DetailTable do
   use Phoenix.LiveComponent
   use Phoenix.HTML
 
-
   def render(assigns) do
     {results, fields, aliases} = Selecto.execute(assigns.selecto)
     selected = Map.get(assigns.selecto.set, :columns, [])
@@ -23,7 +22,7 @@ defmodule SelectoComponents.Components.DetailTable do
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
-    page = assigns.page;
+    page = assigns.page
     per_page = assigns.per_page
 
     show_start = page * per_page
@@ -31,11 +30,16 @@ defmodule SelectoComponents.Components.DetailTable do
 
     page_count = Float.ceil(Enum.count(results) / per_page)
 
-
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
-
-    assigns = assign(assigns, aliases: aliases, fmap: fmap, results: results, columns: Map.get(assigns.selecto.set, :columns, []), max_pages: page_count)
+    assigns =
+      assign(assigns,
+        aliases: aliases,
+        fmap: fmap,
+        results: results,
+        columns: Map.get(assigns.selecto.set, :columns, []),
+        max_pages: page_count
+      )
 
     ~H"""
     <div>
@@ -92,7 +96,4 @@ defmodule SelectoComponents.Components.DetailTable do
 
     {:noreply, socket}
   end
-
-
-
 end

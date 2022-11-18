@@ -8,7 +8,6 @@ defmodule SelectoComponents.Components.OrderByConfig do
   # slog :config, :map
 
   def render(assigns) do
-
     ~H"""
       <div>
         <%= @item %>

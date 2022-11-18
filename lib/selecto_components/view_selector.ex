@@ -5,17 +5,17 @@ defmodule SelectoComponents.ViewSelector do
   import SelectoComponents.Components.Common
 
   def render(assigns) do
-
     filters =
-      Map.values(assigns.selecto.config.filters) ++
-      [Map.values(assigns.selecto.config.columns)
-        |> Enum.filter(fn c -> c.type != :custom_column end)]
-      |> List.flatten
+      (Map.values(assigns.selecto.config.filters) ++
+         [
+           Map.values(assigns.selecto.config.columns)
+           |> Enum.filter(fn c -> c.type != :custom_column end)
+         ])
+      |> List.flatten()
       |> Enum.sort(fn a, b -> a.name <= b.name end)
       |> Enum.map(fn
         %{colid: id} = c -> {id, c.name}
         %{id: id} = c -> {id, c.name}
-
       end)
 
     assigns =
@@ -24,9 +24,7 @@ defmodule SelectoComponents.ViewSelector do
           Map.values(assigns.selecto.config.columns)
           |> Enum.sort(fn a, b -> a.name <= b.name end)
           |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end),
-        field_filters:
-          filters
-
+        field_filters: filters
       )
 
     ~H"""
@@ -213,19 +211,26 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_params(params, _uri, socket) do
-
         socket =
           assign(socket,
             ### required for selecto components
 
             executed: false,
             applied_view: nil,
-
             view_mode: params["view_mode"] || "detail",
             active_tab: params["active_tab"] || "view",
-            per_page: if params["per_page"] do String.to_integer(params["per_page"]) else 30 end,
-            page: if params["page"] do String.to_integer(params["page"]) else 0 end,
-
+            per_page:
+              if params["per_page"] do
+                String.to_integer(params["per_page"])
+              else
+                30
+              end,
+            page:
+              if params["page"] do
+                String.to_integer(params["page"])
+              else
+                0
+              end,
             aggregate: [],
             group_by: [],
             order_by: [],
@@ -236,17 +241,24 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
-
-
       defp _make_num_filter(filter) do
         comp = filter["comp"]
 
         case comp do
-          "=" -> String.to_integer(filter["value"])
-          "null" -> nil
-          "not_null" -> :not_null
-          "between" -> {:between, String.to_integer(filter["value"]), String.to_integer(filter["value2"])}
-          x when x in ~w( != <= >= < >) -> {x, String.to_integer(filter["value"])}
+          "=" ->
+            String.to_integer(filter["value"])
+
+          "null" ->
+            nil
+
+          "not_null" ->
+            :not_null
+
+          "between" ->
+            {:between, String.to_integer(filter["value"]), String.to_integer(filter["value2"])}
+
+          x when x in ~w( != <= >= < >) ->
+            {x, String.to_integer(filter["value"])}
         end
       end
 
@@ -261,7 +273,6 @@ defmodule SelectoComponents.ViewSelector do
           "null" -> nil
           "not_null" -> :not_null
           x when x in ~w( != <= >= < >) -> {x, value}
-
           ### TODO sanitize like value
           "starts" -> {:like, value <> "%"}
           "ends" -> {:like, "%" <> value}
@@ -284,27 +295,32 @@ defmodule SelectoComponents.ViewSelector do
         #### TODO handle errors
         Enum.reduce(Map.get(filters, section, []), [], fn
           %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj} = f, acc ->
-            acc ++ [{case conj do
-              "AND" -> :and
-              "OR" -> :or
-            end, filter_recurse(selecto, filters, uuid)}]
+            acc ++
+              [
+                {case conj do
+                   "AND" -> :and
+                   "OR" -> :or
+                 end, filter_recurse(selecto, filters, uuid)}
+              ]
 
           f, acc ->
             if selecto.config.filters[f["filter"]] do
               ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO???
-              acc ++ [selecto.config.filters[f["filter"]].apply.( selecto, f )]
-
+              acc ++ [selecto.config.filters[f["filter"]].apply.(selecto, f)]
             else
               case selecto.config.columns[f["filter"]].type do
                 x when x in [:id, :integer, :float, :decimal] ->
                   acc ++ [{f["filter"], _make_num_filter(f)}]
 
                 :boolean ->
-                  acc ++ [{f["filter"], case f["value"] do
-                    "true" -> true
-                    _ -> false
-                  end
-                  }]
+                  acc ++
+                    [
+                      {f["filter"],
+                       case f["value"] do
+                         "true" -> true
+                         _ -> false
+                       end}
+                    ]
 
                 :string ->
                   acc ++ [{f["filter"], _make_string_filter(f)}]
@@ -324,22 +340,27 @@ defmodule SelectoComponents.ViewSelector do
       ## On Change
       @impl true
       def handle_event("view-validate", params, socket) do
-        filters = Map.get(params, "filters", %{})
-        |> Map.values()
-        |> Enum.sort(fn a, b -> a <= b end)
-        |> Enum.reduce(
-          [],
-          fn f, acc ->
-            acc ++ [{f["uuid"], f["section"], case Map.get(f, "conjunction", nil) do
-              nil -> f
-              a -> a
-            end}]
-          end
-        )
+        filters =
+          Map.get(params, "filters", %{})
+          |> Map.values()
+          |> Enum.sort(fn a, b -> a <= b end)
+          |> Enum.reduce(
+            [],
+            fn f, acc ->
+              acc ++
+                [
+                  {f["uuid"], f["section"],
+                   case Map.get(f, "conjunction", nil) do
+                     nil -> f
+                     a -> a
+                   end}
+                ]
+            end
+          )
 
         socket = assign(socket, :per_page, String.to_integer(params["per_page"]))
 
-        {:noreply, assign( socket, filters: filters ) }
+        {:noreply, assign(socket, filters: filters)}
       end
 
       def do_view(selecto) do
@@ -349,7 +370,6 @@ defmodule SelectoComponents.ViewSelector do
       @impl true
       def handle_event("view-apply", params, socket) do
         try do
-
           IO.inspect(params, label: "Params")
           # move this somewhere shared
           date_formats = %{
@@ -378,15 +398,14 @@ defmodule SelectoComponents.ViewSelector do
 
           ## Build filters walking the filters_by_section
           socket =
-           assign(socket,
-             filters: Map.values(Map.get(params, "filters", %{}))
-              |> Enum.map( fn
-                %{"is_section"=>"Y"} = f -> {f["uuid"], f["section"], f["conjunction"]}
-                f -> {f["uuid"], f["section"], f}
-              end
-              )
-
-           )
+            assign(socket,
+              filters:
+                Map.values(Map.get(params, "filters", %{}))
+                |> Enum.map(fn
+                  %{"is_section" => "Y"} = f -> {f["uuid"], f["section"], f["conjunction"]}
+                  f -> {f["uuid"], f["section"], f}
+                end)
+            )
 
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
@@ -397,15 +416,15 @@ defmodule SelectoComponents.ViewSelector do
               :set,
               case params["view_mode"] do
                 "detail" ->
-                  detail_columns = selected
+                  detail_columns =
+                    selected
+                    |> Map.values()
+                    |> Enum.sort(fn a, b ->
+                      String.to_integer(a["index"]) <= String.to_integer(b["index"])
+                    end)
 
-                  |> Map.values()
-                  |> Enum.sort(fn a, b ->
-                    String.to_integer(a["index"]) <= String.to_integer(b["index"])
-                  end)
                   selected =
                     detail_columns
-
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
                       uuid = e["uuid"]
@@ -417,10 +436,10 @@ defmodule SelectoComponents.ViewSelector do
                         :custom_column ->
                           {
                             :row,
-                              case col.requires_select do
-                                x when is_list(x) -> col.requires_select
-                                x when is_function(x) -> col.requires_select.(e)
-                              end,
+                            case col.requires_select do
+                              x when is_list(x) -> col.requires_select
+                              x when is_function(x) -> col.requires_select.(e)
+                            end,
                             uuid
                           }
 
@@ -428,7 +447,7 @@ defmodule SelectoComponents.ViewSelector do
                           {:field, col.colid, uuid}
                       end
                     end)
-                    |> List.flatten
+                    |> List.flatten()
 
                   order_by =
                     order_by
@@ -443,7 +462,8 @@ defmodule SelectoComponents.ViewSelector do
 
                   ### TODO add config
                   %{
-                    columns: detail_columns,  ### Columns will be used be
+                    ### Columns will be used be
+                    columns: detail_columns,
                     selected: selected,
                     order_by: order_by,
                     filtered: filtered,
@@ -461,11 +481,11 @@ defmodule SelectoComponents.ViewSelector do
                       ### Make sure e["format"] is a valid field name!
                       e ->
                         {String.to_atom(
-                          case e["format"] do
-                            nil -> "count"
-                            _ -> e["format"]
-                          end
-                        ), e["field"]}
+                           case e["format"] do
+                             nil -> "count"
+                             _ -> e["format"]
+                           end
+                         ), e["field"]}
                     end)
 
                   group_by =
@@ -492,30 +512,32 @@ defmodule SelectoComponents.ViewSelector do
                     groups: group_by,
                     selected: group_by ++ aggregate,
                     filtered: filtered,
-                    group_by: [{:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}],
+                    group_by: [
+                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
+                    ],
                     order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
                   }
               end
             )
 
           ### Set these assigns to reset the view!
-          {:noreply, assign(socket,
-            selecto: selecto,
-            applied_view: socket.assigns.view_mode,
-            executed: true,
-            page: 0,
-            per_page: String.to_integer(params["per_page"])
-          )}
-
+          {:noreply,
+           assign(socket,
+             selecto: selecto,
+             applied_view: socket.assigns.view_mode,
+             executed: true,
+             page: 0,
+             per_page: String.to_integer(params["per_page"])
+           )}
         rescue
-          e -> IO.inspect(e)
+          e ->
+            IO.inspect(e)
             {:noreply, socket}
         end
       end
 
       @impl true
       def handle_event("filter_from_aggregate", par, socket) do
-
       end
 
       @impl true
@@ -529,8 +551,8 @@ defmodule SelectoComponents.ViewSelector do
               socket.assigns.filters ++
                 case new_filter do
                   "__AND__" -> [{UUID.uuid4(), target, "AND"}]
-                  "__OR__" ->  [{UUID.uuid4(), target, "OR"}]
-                  _ ->         [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                  "__OR__" -> [{UUID.uuid4(), target, "OR"}]
+                  _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
                 end
           )
 

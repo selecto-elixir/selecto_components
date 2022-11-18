@@ -34,8 +34,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
     """
   end
 
-
-
   defp render_area(assigns) do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
 
