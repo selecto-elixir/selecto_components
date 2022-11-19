@@ -4,6 +4,35 @@ defmodule SelectoComponents.Components.AggregateTable do
   """
   use Phoenix.LiveComponent
 
+
+  def result_tree(results, group_by) do
+    groups = Enum.to_list( 1 .. Enum.count(group_by) )
+
+    descend(results, groups) |> IO.inspect
+
+  end
+
+
+  defp descend(results, [g | t]) do
+    Enum.chunk_by(results,
+      fn r -> List.first(r) end
+    )
+    |> Enum.map(
+        fn z ->
+            {
+              List.first( List.first( z )),
+              descend(Enum.map(z, fn
+                [lh | lt] -> lt
+              end ), t)
+            }
+        end )
+  end
+  defp descend(results, _) do
+    results
+  end
+
+
+
   def render(assigns) do
     ### TODO
     ### Group-by can be a row() to return ID + NAME for filter links
@@ -43,6 +72,8 @@ defmodule SelectoComponents.Components.AggregateTable do
     fmap = Enum.zip(aliases, group_by ++ aggregates)
     group_by = Enum.take(fmap, Enum.count(group_by))
     aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
+
+    result_tree = result_tree(results, group_by)
 
     assigns =
       assign(assigns,
