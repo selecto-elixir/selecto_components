@@ -14,17 +14,14 @@ defmodule SelectoComponents.Components.AggregateTable do
 
 
   defp descend(results, [g | t]) do
-    Enum.chunk_by(results,
+    Enum.chunk_by(results,   #### what do do when a group-by is null? coalease and let the rollup row have the nulll..
       fn r -> List.first(r) end
     )
     |> Enum.map(
         fn z ->
-            {
+            {  # we have to strip out the first item of each subarray. Is there a better way?
               List.first( List.first( z )),
-              descend(Enum.map(z, fn
-                [lh | lt] -> lt
-              end ), t)
-            }
+              descend(Enum.map(z, fn [lh | lt] -> lt end ), t) }
         end )
   end
   defp descend(results, _) do
