@@ -75,6 +75,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     assigns =
       assign(assigns,
         results: results,
+        results_tree: result_tree,
         aliases: aliases,
         group_by: group_by,
         aggregate: aggregates
