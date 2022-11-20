@@ -8,7 +8,7 @@ defmodule SelectoComponents.Components.AggregateTable do
   def result_tree(results, group_by) do
     groups = Enum.to_list( 1 .. Enum.count(group_by) )
 
-    descend(results, groups) |> IO.inspect
+    descend(results, groups)
 
   end
 
@@ -26,6 +26,36 @@ defmodule SelectoComponents.Components.AggregateTable do
   end
   defp descend(results, _) do
     results
+  end
+
+  defp tree_table( %{subs: {{gb, subs}, index}, groups: [group]} = assigns ) do
+    assigns = Map.put(assigns, :subs, subs) |> Map.put(:index, index)
+    ~H"""
+      <tr class={if @index == 0 do "bg-slate-200" else "" end} >
+        <th :for={{{g, v}, i} <- Enum.with_index(@payload)} class={if i == @index do "" else "" end} >
+          <div :if={i == @index} >
+            <%= v %>
+          </div>
+        </th>
+        <th>
+          <%= gb %>
+        </th>
+
+        <td :for={s <- List.first(@subs)}><%= s %></td>
+      </tr>
+
+    """
+  end
+  defp tree_table( %{subs: {{gb, subs}, index}, groups: [first_group | groups]} = assigns ) do
+    payload = Map.get(assigns, :payload, []) ++ [{first_group, gb}]
+    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups)
+
+    ~H"""
+      <.tree_table :for={res <- Enum.with_index(@subs)} payload={@payload} subs={res} groups={@groups}>
+
+      </.tree_table>
+    """
+
   end
 
 
@@ -107,21 +137,21 @@ defmodule SelectoComponents.Components.AggregateTable do
           </th>
         </tr>
 
+        <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by}/>
+
+      <%!--
         <tr :for={resrow <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
           <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
-
             <td :for={{alias, {:group_by, c, coldef}} <- @group_by} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <div>
                 <%= case coldef do %>
                   <% %{group_by_format: comp} -> %>
                     <%= comp.(r[alias], coldef) %>
-
                   <% _ -> %>
                     <%= r[alias] %>
                 <% end %>
               </div>
             </td>
-
             <td :for={{alias, {:agg, {a, c}, coldef}} = agg <- @aggregate} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <%= case coldef do %>
                 <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
@@ -132,8 +162,9 @@ defmodule SelectoComponents.Components.AggregateTable do
             </td>
 
           <% end %>
-
         </tr>
+        --%>
+
       </table>
     </div>
     """
