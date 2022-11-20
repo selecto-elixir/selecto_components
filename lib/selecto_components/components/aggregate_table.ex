@@ -14,7 +14,7 @@ defmodule SelectoComponents.Components.AggregateTable do
 
 
   defp descend(results, [g | t]) do
-    Enum.chunk_by(results,   #### what do do when a group-by is null? coalease and let the rollup row have the nulll..
+    Enum.chunk_by(results,   #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
       fn r -> List.first(r) end
     )
     |> Enum.map(
@@ -28,26 +28,22 @@ defmodule SelectoComponents.Components.AggregateTable do
     results
   end
 
-  defp tree_table( %{subs: {{gb, subs}, index}, groups: [first_group | groups]} = assigns ) do
+  defp tree_table( %{subs: {gb, subs}, groups: [first_group | groups]} = assigns ) do
     payload = Map.get(assigns, :payload, []) ++ [{first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
-    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups) |> Map.put(:index, index)
+    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups)
 
     ~H"""
-      <.tree_table :for={res <- Enum.with_index(@subs)} idx={@index} payload={@payload} subs={res} groups={@groups}>
-
-      </.tree_table>
+      <.tree_table :for={res <- @subs} payload={@payload} subs={res} groups={@groups}/>
     """
 
   end
 
-  ### TODO fix for 3+ levels...
-  defp tree_table( %{subs: {subs, index}} = assigns ) do
-    assigns = Map.put(assigns, :subs, subs) |> Map.put(:index, index)
+  defp tree_table( assigns ) do
     ~H"""
-      <tr class={if @index == 0 do "bg-slate-200" else "" end} >
-        <th :for={{{g, v, ind}, i} <- Enum.with_index(@payload)} class={if i == @index do "" else "" end} >
+      <tr  >
+        <th :for={{g, v, ind} <- @payload}  >
           <div :if={true}>
-            <%= v %>
+            <%= ind %>: <%= v %>
           </div>
         </th>
 
@@ -137,7 +133,7 @@ defmodule SelectoComponents.Components.AggregateTable do
           </th>
         </tr>
 
-        <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by}/>
+        <.tree_table :for={res <- @results_tree} subs={res} groups={@group_by}/>
 
       <%!--
         <tr :for={resrow <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
