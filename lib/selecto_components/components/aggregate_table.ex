@@ -28,6 +28,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     results
   end
 
+  ### TODO fix for 3+ levels...
   defp tree_table( %{subs: {{gb, subs}, index}, groups: [group]} = assigns ) do
     assigns = Map.put(assigns, :subs, subs) |> Map.put(:index, index)
     ~H"""
