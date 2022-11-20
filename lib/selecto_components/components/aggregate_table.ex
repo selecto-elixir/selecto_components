@@ -28,37 +28,36 @@ defmodule SelectoComponents.Components.AggregateTable do
     results
   end
 
-  ### TODO fix for 3+ levels...
-  defp tree_table( %{subs: {{gb, subs}, index}, groups: [group]} = assigns ) do
-    assigns = Map.put(assigns, :subs, subs) |> Map.put(:index, index)
-    ~H"""
-      <tr class={if @index == 0 do "bg-slate-200" else "" end} >
-        <th :for={{{g, v}, i} <- Enum.with_index(@payload)} class={if i == @index do "" else "" end} >
-          <div :if={i == @index} >
-            <%= v %>
-          </div>
-        </th>
-        <th>
-          <%= gb %>
-        </th>
-
-        <td :for={s <- List.first(@subs)}><%= s %></td>
-      </tr>
-
-    """
-  end
   defp tree_table( %{subs: {{gb, subs}, index}, groups: [first_group | groups]} = assigns ) do
-    payload = Map.get(assigns, :payload, []) ++ [{first_group, gb}]
-    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups)
+    payload = Map.get(assigns, :payload, []) ++ [{first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
+    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups) |> Map.put(:index, index)
 
     ~H"""
-      <.tree_table :for={res <- Enum.with_index(@subs)} payload={@payload} subs={res} groups={@groups}>
+      <.tree_table :for={res <- Enum.with_index(@subs)} idx={@index} payload={@payload} subs={res} groups={@groups}>
 
       </.tree_table>
     """
 
   end
 
+  ### TODO fix for 3+ levels...
+  defp tree_table( %{subs: {subs, index}} = assigns ) do
+    assigns = Map.put(assigns, :subs, subs) |> Map.put(:index, index)
+    ~H"""
+      <tr class={if @index == 0 do "bg-slate-200" else "" end} >
+        <th :for={{{g, v, ind}, i} <- Enum.with_index(@payload)} class={if i == @index do "" else "" end} >
+          <div :if={true}>
+            <%= v %>
+          </div>
+        </th>
+
+        <td :for={s <- @subs}>
+          <%= s %>
+        </td>
+      </tr>
+
+    """
+  end
 
 
   def render(assigns) do
