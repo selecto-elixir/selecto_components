@@ -92,8 +92,6 @@ defmodule SelectoComponents.ViewSelector do
 
       Columns
 
-      <% IO.inspect( @selected ) %>
-
 
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
@@ -118,8 +116,6 @@ defmodule SelectoComponents.ViewSelector do
 
 
       Order by
-
-      <% IO.inspect( @order_by ) %>
 
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
@@ -572,7 +568,6 @@ defmodule SelectoComponents.ViewSelector do
                 end
                 )
           )
-          IO.inspect(socket.assigns.filters)
         {:noreply, socket}
       end
 
