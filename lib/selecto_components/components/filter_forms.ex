@@ -64,11 +64,11 @@ defmodule SelectoComponents.Components.FilterForms do
           <%= @def.name %>
           <.select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={Map.get(@valmap, "comp") == "="}>Equals</option>
-            <option value="=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
-            <option value="=" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
-            <option value="=" selected={Map.get(@valmap, "comp") == ">"}>Greater Than</option>
-            <option value="=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
-            <option value="=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
+            <option value="!=" selected={Map.get(@valmap, "comp") == "!="}>Not Equals</option>
+            <option value="<" selected={Map.get(@valmap, "comp") == "<"}>Less Than</option>
+            <option value=">" selected={Map.get(@valmap, "comp") == ">"}>Greater Than</option>
+            <option value="<=" selected={Map.get(@valmap, "comp") == "<="}>Less Than/Equal</option>
+            <option value=">=" selected={Map.get(@valmap, "comp") == ">="}>Greater Than/Equal</option>
             <option value="between" selected={Map.get(@valmap, "comp") == "between"}>Between</option>
             <option value="null" selected={Map.get(@valmap, "comp") == "null"}>Null</option>
             <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
