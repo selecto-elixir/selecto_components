@@ -47,7 +47,9 @@ defmodule SelectoComponents.Components.TreeBuilder do
         <%= @conjunction %>
         <div class="p-2 pl-6 border-solid border  border-black dark:border-grey"
           :for={ {s, index} <-
-            Enum.filter( @filters, fn {{_uuid,section,_conf}, _i} = f -> section == @section end )
+            Enum.filter( @filters, fn
+            {{_uuid,section,_conf}, _i} = f -> section == @section
+            end )
           } %>
 
           <%= case s do %>

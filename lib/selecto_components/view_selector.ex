@@ -366,6 +366,8 @@ defmodule SelectoComponents.ViewSelector do
       def do_view(selecto) do
       end
 
+
+
       # on submit
       @impl true
       def handle_event("view-apply", params, socket) do
@@ -556,6 +558,21 @@ defmodule SelectoComponents.ViewSelector do
                 end
           )
 
+        {:noreply, socket}
+      end
+
+
+      def handle_event("agg_add_filters", params, socket) do
+        socket =
+          assign(socket,
+            filters:
+              socket.assigns.filters ++
+                Enum.map(params, fn {f, v} ->
+                  {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                end
+                )
+          )
+          IO.inspect(socket.assigns.filters)
         {:noreply, socket}
       end
 

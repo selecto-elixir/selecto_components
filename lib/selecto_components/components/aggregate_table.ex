@@ -44,7 +44,7 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   defp tree_table(  %{subs: {subs, i} } = assigns ) do
 
-    aggs = Enum.zip(subs, assigns.aggregate) |> IO.inspect(label: "HERE")
+    aggs = Enum.zip(subs, assigns.aggregate)
 
     level = Enum.count(assigns.payload) -
       (Enum.filter(assigns.payload, fn
@@ -52,7 +52,27 @@ defmodule SelectoComponents.Components.AggregateTable do
         _ -> false
       end) |> Enum.count())
 
-      IO.inspect(subs)
+    #IO.inspect(subs)
+    ## <th :for={{{i, {_id, {:group_by, _col, coldef}}, v, ind}, c} <- Enum.with_index(@payload) }  >
+
+    groups = assigns.payload |> Enum.reduce([],
+      fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
+        ### make this use a with!
+        prefil = [List.last(acc)] |> Enum.map( fn
+            nil -> %{}
+            {_i, _c, _v, fil} -> fil
+          end ) |> List.first()
+        acc ++ [
+          {
+            i, coldef, v,
+            Map.merge(
+              %{"phx-value-#{ coldef.field }" => v},
+              prefil
+            )
+          }
+        ]
+    end  )
+
 
     assigns = Map.put(assigns, :aggs, aggs) |> Map.put(:level, level) |> Map.put(:subs, subs)
 
@@ -66,8 +86,10 @@ defmodule SelectoComponents.Components.AggregateTable do
         _ -> "bg-slate-50 text-left text-black"
         end
       } >
-        <th :for={{{i, {_id, {:group_by, _col, coldef}}, v, ind}, c} <- Enum.with_index(@payload)}  >
-          <div :if={ level - 1 == c }>
+        <th :for={{{i, coldef, v, filters}, c} <- Enum.with_index(groups) }  >
+
+
+          <div :if={ level - 1 == c } phx-click="agg_add_filters" { filters } >
             <%= case coldef do %>
               <% %{group_by_format: comp} -> %>
                 <%= comp.(v, coldef) %>
@@ -88,6 +110,8 @@ defmodule SelectoComponents.Components.AggregateTable do
 
     """
   end
+
+
 
 
   def render(assigns) do
