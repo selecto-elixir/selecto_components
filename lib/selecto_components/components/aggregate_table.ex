@@ -119,6 +119,12 @@ defmodule SelectoComponents.Components.AggregateTable do
     ### Group-by can be a row() to return ID + NAME for filter links
 
     {results, fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
+
+    results = case results do #WTF postgres does wrong rollup order sometimes!
+      [[f | _ft] | _t] when not is_nil(f) -> Enum.reverse(results)
+      _ -> results
+    end
+
     ### Will always be first X items
     group_by = assigns.selecto.set.groups
     aggregates = assigns.selecto.set.selected -- group_by
