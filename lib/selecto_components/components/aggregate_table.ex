@@ -5,6 +5,8 @@ defmodule SelectoComponents.Components.AggregateTable do
   use Phoenix.LiveComponent
 
 
+  ### TODO when a level has 1 and it's child has 1, combine them
+
   def result_tree(results, group_by) do
     groups = Enum.to_list( 1 .. Enum.count(group_by) )
 
@@ -41,22 +43,28 @@ defmodule SelectoComponents.Components.AggregateTable do
   end
 
   defp tree_table(  %{subs: {subs, i} } = assigns ) do
-    level = Enum.find_index(assigns.payload, fn {i,_g,_v,_in} -> i == 0 end)
+    level = Enum.count(assigns.payload) -
+      (Enum.filter(assigns.payload, fn
+        {_, _g, nil ,_in} -> true
+        _ -> false
+      end) |> Enum.count())
     ~H"""
       <tr class={ case level do
         nil -> ""
-        0 -> "bg-slate-400"
-        1 -> "bg-slate-300"
-        2 -> "bg-slate-200"
-        3 -> "bg-slate-100"
-        4 -> ""
-        _ -> ""
+        0 -> "bg-slate-500 text-left text-white"
+        1 -> "bg-slate-400 text-left text-black"
+        2 -> "bg-slate-300 text-left text-black"
+        3 -> "bg-slate-200 text-left text-black"
+        4 -> "bg-slate-100 text-left text-black"
+        _ -> "bg-slate-50 text-left text-black"
         end
       } >
         <th :for={{{i, g, v, ind}, c} <- Enum.with_index(@payload)}  >
-          <div>
+          <div :if={ level - 1 == c }>
             <%= v %>
           </div>
+
+
         </th>
 
         <td :for={s <- subs}>
