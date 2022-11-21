@@ -15,6 +15,8 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   defp descend(results, [g | t]) do
     Enum.chunk_by(results,   #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
+    ### OR-- change nulls to {:nil, uuid} so they don't chunk... then keep a list of them so
+    ### we can determine which nul is from the rollup vs from the data
       fn r -> List.first(r) end
     )
     |> Enum.map(
