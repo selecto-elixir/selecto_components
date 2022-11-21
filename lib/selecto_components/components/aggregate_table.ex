@@ -28,26 +28,36 @@ defmodule SelectoComponents.Components.AggregateTable do
     results
   end
 
-  defp tree_table( %{subs: {gb, subs}, groups: [first_group | groups]} = assigns ) do
-    payload = Map.get(assigns, :payload, []) ++ [{first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
+  defp tree_table( %{subs: {{gb, subs}, i}, groups: [first_group | groups]} = assigns ) do
+    payload = Map.get(assigns, :payload, []) ++ [{i, first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
     assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups)
 
     ~H"""
-      <.tree_table :for={res <- @subs} payload={@payload} subs={res} groups={@groups}/>
+      <.tree_table :for={res <- Enum.with_index(@subs)} payload={@payload} subs={res} groups={@groups}/>
     """
 
   end
 
-  defp tree_table( assigns ) do
+  defp tree_table(  %{subs: {subs, i} } = assigns ) do
+    level = Enum.find_index(assigns.payload, fn {i,_g,_v,_in} -> i == 0 end)
     ~H"""
-      <tr  >
-        <th :for={{g, v, ind} <- @payload}  >
-          <div :if={true}>
-            <%= ind %>: <%= v %>
+      <tr class={ case level do
+        nil -> ""
+        0 -> "bg-slate-400"
+        1 -> "bg-slate-300"
+        2 -> "bg-slate-200"
+        3 -> "bg-slate-100"
+        4 -> ""
+        _ -> ""
+        end
+      } >
+        <th :for={{{i, g, v, ind}, c} <- Enum.with_index(@payload)}  >
+          <div>
+            <%= v %>
           </div>
         </th>
 
-        <td :for={s <- @subs}>
+        <td :for={s <- subs}>
           <%= s %>
         </td>
       </tr>
@@ -133,7 +143,7 @@ defmodule SelectoComponents.Components.AggregateTable do
           </th>
         </tr>
 
-        <.tree_table :for={res <- @results_tree} subs={res} groups={@group_by}/>
+        <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by}/>
 
       <%!--
         <tr :for={resrow <- @results} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
