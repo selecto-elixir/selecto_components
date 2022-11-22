@@ -562,7 +562,8 @@ defmodule SelectoComponents.ViewSelector do
             socket.assigns.selecto.set.detail_set
         ) |> Selecto.filter(Enum.map(params, fn {f,v} -> {f, v} end ))
 
-        IO.inspect(selecto.set)
+        IO.inspect(params)
+        IO.inspect(socket.assigns.filters)
 
         socket =
           assign(socket,
@@ -570,7 +571,7 @@ defmodule SelectoComponents.ViewSelector do
             view_mode: "detail",
             applied_view: "detail",
             filters:
-              socket.assigns.filters ++
+              Enum.filter(socket.assigns.filters, fn {_id, "filters", f} -> ! Map.has_key?(params, f["filter"]) end) ++
                 Enum.map(params, fn {f, v} ->
                   {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
                 end
