@@ -565,7 +565,9 @@ defmodule SelectoComponents.ViewSelector do
         socket =
           assign(socket,
             filters:
-              socket.assigns.filters |> Enum.filter( fn {u, s, _c} -> u != params["uuid"] && s != params["uuid"] end )
+              socket.assigns.filters |> Enum.filter( fn
+                {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
+              end )
           )
 
         {:noreply, socket}
@@ -589,8 +591,9 @@ defmodule SelectoComponents.ViewSelector do
             view_mode: "detail",
             applied_view: "detail",
             filters:
-              Enum.filter(socket.assigns.filters, fn {_id, "filters", f} ->
-                !Map.has_key?(params, f["filter"])
+              Enum.filter(socket.assigns.filters, fn
+                  {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
+                  _ -> true
               end) ++
                 Enum.map(params, fn {f, v} ->
                   {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
