@@ -559,6 +559,18 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
+      def handle_event("filter_remove", params, socket) do
+        IO.inspect(params)
+
+        socket =
+          assign(socket,
+            filters:
+              socket.assigns.filters |> Enum.filter( fn {u, s, _c} -> u != params["uuid"] && s != params["uuid"] end )
+          )
+
+        {:noreply, socket}
+      end
+
       def handle_event("agg_add_filters", params, socket) do
         selecto =
           Map.put(

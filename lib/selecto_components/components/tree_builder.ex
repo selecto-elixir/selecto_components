@@ -60,11 +60,14 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
+              <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+
             <% {uuid, section, fv} -> %>
 
               <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
+              <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
 
           <% end %>
 
@@ -75,6 +78,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
       </div>
     """
   end
+
+
 
   # handle:
   # delete filter,
