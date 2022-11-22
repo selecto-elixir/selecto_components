@@ -79,11 +79,4 @@ defmodule SelectoComponents.Components.TreeBuilder do
     """
   end
 
-
-
-  # handle:
-  # delete filter,
-  # delete section
-  # add section
-  # change conjunction
 end
