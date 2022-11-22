@@ -4,75 +4,91 @@ defmodule SelectoComponents.Components.AggregateTable do
   """
   use Phoenix.LiveComponent
 
-
   ### TODO when a level has 1 and it's child has 1, combine them
 
   def result_tree(results, group_by) do
-    groups = Enum.to_list( 1 .. Enum.count(group_by) )
-
-    descend(results, groups)
-
+    descend(results, group_by)
   end
-
 
   defp descend(results, [g | t]) do
-    Enum.chunk_by(results,   #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
-    ### OR-- change nulls to {:nil, uuid} so they don't chunk... then keep a list of them so
-    ### we can determine which nul is from the rollup vs from the data
+    #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
+    Enum.chunk_by(
+      results,
+      ### OR-- change nulls to {:nil, uuid} so they don't chunk... then keep a list of them so
+      ### we can determine which nul is from the rollup vs from the data
       fn r -> List.first(r) end
     )
-    |> Enum.map(
-        fn z ->
-            {  # we have to strip out the first item of each subarray. Is there a better way?
-              List.first( List.first( z )),
-              descend(Enum.map(z, fn [lh | lt] -> lt end ), t) }
-        end )
+    |> Enum.map(fn z ->
+      # we have to strip out the first item of each subarray. Is there a better way?
+      {
+        List.first(List.first(z)),
+        descend(Enum.map(z, fn [lh | lt] -> lt end), t)
+      }
+    end)
   end
+
   defp descend(results, _) do
     results
   end
 
-  defp tree_table( %{subs: {{gb, subs}, i}, groups: [first_group | groups]} = assigns ) do
-    payload = Map.get(assigns, :payload, []) ++ [{i, first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
-    assigns = Map.put(assigns, :payload, payload) |> Map.put(:subs, subs) |> Map.put(:groups, groups)
+  defp tree_table(%{subs: {{gb, subs}, i}, groups: [first_group | groups]} = assigns) do
+    ## Carry the data to construct this group by forward until we get to the place we will actually draw the row
+    payload =
+      Map.get(assigns, :payload, []) ++
+        [{i, first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
+
+    assigns =
+      Map.put(assigns, :payload, payload)
+      |> Map.put(:subs, subs)
+      |> Map.put(:groups, groups)
 
     ~H"""
       <.tree_table :for={res <- Enum.with_index(@subs)} payload={@payload} subs={res} groups={@groups} aggregate={@aggregate} />
     """
-
   end
 
-  defp tree_table(  %{subs: {subs, i} } = assigns ) do
-
+  defp tree_table(%{subs: {subs, i}} = assigns) do
     aggs = Enum.zip(subs, assigns.aggregate)
 
-    level = Enum.count(assigns.payload) -
-      (Enum.filter(assigns.payload, fn
-        {_, _g, nil ,_in} -> true
-        _ -> false
-      end) |> Enum.count())
+    level =
+      Enum.count(assigns.payload) -
+        (Enum.filter(assigns.payload, fn
+           {_, _g, nil, _in} -> true
+           _ -> false
+         end)
+         |> Enum.count())
 
-    #IO.inspect(subs)
+    # IO.inspect(subs)
     ## <th :for={{{i, {_id, {:group_by, _col, coldef}}, v, ind}, c} <- Enum.with_index(@payload) }  >
 
-    groups = assigns.payload |> Enum.reduce([],
-      fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
-        ### make this use a with!
-        prefil = [List.last(acc)] |> Enum.map( fn
-            nil -> %{}
-            {_i, _c, _v, fil} -> fil
-          end ) |> List.first()
-        acc ++ [
-          {
-            i, coldef, v,
-            Map.merge(
-              %{"phx-value-#{ coldef.field }" => v},
-              prefil
-            )
-          }
-        ]
-    end  )
+    groups =
+      assigns.payload
+      |> Enum.reduce(
+        [],
+        fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
+          ### make this use a with!
+          prefil =
+            [List.last(acc)]
+            |> Enum.map(fn
+              nil -> %{}
+              {_i, _c, _v, fil} -> fil
+            end)
+            |> List.first()
 
+          acc ++
+            [
+              {
+                i,
+                coldef,
+                v,
+                Map.merge(
+                  %{"phx-value-#{coldef.field}" => v},
+                  prefil
+                )
+              }
+            ]
+        end
+      )
 
     assigns = Map.put(assigns, :aggs, aggs) |> Map.put(:level, level) |> Map.put(:subs, subs)
 
@@ -111,19 +127,18 @@ defmodule SelectoComponents.Components.AggregateTable do
     """
   end
 
-
-
-
   def render(assigns) do
     ### TODO
     ### Group-by can be a row() to return ID + NAME for filter links
 
     {results, fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
 
-    results = case results do #WTF postgres does wrong rollup order sometimes!
-      [[f | _ft] | _t] when not is_nil(f) -> Enum.reverse(results)
-      _ -> results
-    end
+    # WTF postgres does wrong rollup order sometimes!
+    results =
+      case results do
+        [[f | _ft] | _t] when not is_nil(f) -> Enum.reverse(results)
+        _ -> results
+      end
 
     ### Will always be first X items
     group_by = assigns.selecto.set.groups

@@ -208,6 +208,7 @@ defmodule SelectoComponents.ViewSelector do
       @impl true
       def handle_params(params, _uri, socket) do
         selecto = socket.assigns.selecto
+
         socket =
           assign(socket,
             ### required for selecto components
@@ -239,9 +240,10 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       defp set_defaults(list) do
-        list |> Enum.map( fn
-          i when is_bitstring(i) -> {UUID.uuid4, i, %{}}
-          {i, conf} -> {UUID.uuid4, i, conf}
+        list
+        |> Enum.map(fn
+          i when is_bitstring(i) -> {UUID.uuid4(), i, %{}}
+          {i, conf} -> {UUID.uuid4(), i, conf}
         end)
       end
 
@@ -370,8 +372,6 @@ defmodule SelectoComponents.ViewSelector do
       def do_view(selecto) do
       end
 
-
-
       # on submit
       @impl true
       def handle_event("view-apply", params, socket) do
@@ -421,7 +421,8 @@ defmodule SelectoComponents.ViewSelector do
             |> Map.values()
             |> Enum.sort(fn a, b ->
               String.to_integer(a["index"]) <= String.to_integer(b["index"])
-            end) |> IO.inspect(label: "Detail Cols")
+            end)
+            |> IO.inspect(label: "Detail Cols")
 
           detail_selected =
             detail_columns
@@ -450,19 +451,17 @@ defmodule SelectoComponents.ViewSelector do
             |> List.flatten()
             |> IO.inspect(label: "Detail Sel")
 
-
-            detail_order_by =
-              order_by
-              |> Map.values()
-              |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-              |> Enum.map(fn e ->
-                case e["dir"] do
-                  "desc" -> {:desc, e["field"]}
-                  _ -> e["field"]
-                end
-              end) |> IO.inspect(label: "Detail Order")
-
-
+          detail_order_by =
+            order_by
+            |> Map.values()
+            |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+            |> Enum.map(fn e ->
+              case e["dir"] do
+                "desc" -> {:desc, e["field"]}
+                _ -> e["field"]
+              end
+            end)
+            |> IO.inspect(label: "Detail Order")
 
           detail_set = %{
             columns: detail_columns,
@@ -473,36 +472,40 @@ defmodule SelectoComponents.ViewSelector do
             groups: []
           }
 
-
-
           selecto =
             Map.put(
               selecto,
               :set,
               case params["view_mode"] do
-                "detail" -> detail_set
-                  ### TODO add config
+                "detail" ->
+                  detail_set
+
+                ### TODO add config
                 "aggregate" ->
                   aggregate =
                     aggregate
                     |> Map.values()
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                     |> Enum.map(fn e ->
-                        {String.to_atom(
-                            case e["format"] do
-                              nil -> "count"
-                              _ -> e["format"]
-                            end
-                          ), e["field"]}
+                      {String.to_atom(
+                         case e["format"] do
+                           nil -> "count"
+                           _ -> e["format"]
+                         end
+                       ), e["field"]}
                     end)
 
-                  group_by = group_by |> Map.values()
+                  group_by =
+                    group_by
+                    |> Map.values()
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
+
                       case col.type do
                         x when x in [:naive_datetime, :utc_datetime] ->
                           {:extract, col.colid, e["format"]}
+
                         _ ->
                           col.colid
                       end
@@ -518,8 +521,6 @@ defmodule SelectoComponents.ViewSelector do
                     order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
                     detail_set: detail_set
                   }
-
-
               end
             )
 
@@ -558,13 +559,14 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
-
       def handle_event("agg_add_filters", params, socket) do
-        selecto = Map.put(
-          socket.assigns.selecto,
-          :set,
+        selecto =
+          Map.put(
+            socket.assigns.selecto,
+            :set,
             socket.assigns.selecto.set.detail_set
-        ) |> Selecto.filter(Enum.map(params, fn {f,v} -> {f, v} end ))
+          )
+          |> Selecto.filter(Enum.map(params, fn {f, v} -> {f, v} end))
 
         IO.inspect(params)
         IO.inspect(socket.assigns.filters)
@@ -575,12 +577,14 @@ defmodule SelectoComponents.ViewSelector do
             view_mode: "detail",
             applied_view: "detail",
             filters:
-              Enum.filter(socket.assigns.filters, fn {_id, "filters", f} -> ! Map.has_key?(params, f["filter"]) end) ++
+              Enum.filter(socket.assigns.filters, fn {_id, "filters", f} ->
+                !Map.has_key?(params, f["filter"])
+              end) ++
                 Enum.map(params, fn {f, v} ->
                   {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                end
-                )
+                end)
           )
+
         {:noreply, socket}
       end
 
@@ -640,7 +644,6 @@ defmodule SelectoComponents.ViewSelector do
         socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, config}]))
         {:noreply, socket}
       end
-
 
       # :list_picker_config_item, list, uuid, newconf
     end
