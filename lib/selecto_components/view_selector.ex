@@ -408,104 +408,98 @@ defmodule SelectoComponents.ViewSelector do
           ## THIS CAN FAIL...
           filtered = filter_recurse(selecto, filters_by_section, "filters")
 
+          detail_columns =
+            selected
+            |> Map.values()
+            |> Enum.sort(fn a, b ->
+              String.to_integer(a["index"]) <= String.to_integer(b["index"])
+            end) |> IO.inspect(label: "Detail Cols")
+
+          detail_selected =
+            detail_columns
+            |> Enum.map(fn e ->
+              col = columns[e["field"]]
+              uuid = e["uuid"]
+              # move to a validation lib
+              case col.type do
+                x when x in [:naive_datetime, :utc_datetime] ->
+                  {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
+
+                :custom_column ->
+                  {
+                    :row,
+                    case col.requires_select do
+                      x when is_list(x) -> col.requires_select
+                      x when is_function(x) -> col.requires_select.(e)
+                    end,
+                    uuid
+                  }
+
+                _ ->
+                  {:field, col.colid, uuid}
+              end
+            end)
+            |> List.flatten()
+            |> IO.inspect(label: "Detail Sel")
+
+
+            detail_order_by =
+              order_by
+              |> Map.values()
+              |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
+              |> Enum.map(fn e ->
+                case e["dir"] do
+                  "desc" -> {:desc, e["field"]}
+                  _ -> e["field"]
+                end
+              end) |> IO.inspect(label: "Detail Order")
+
+
+
+          detail_set = %{
+            columns: detail_columns,
+            selected: detail_selected,
+            order_by: detail_order_by,
+            filtered: filtered,
+            group_by: [],
+            groups: []
+          }
+
+
+
           selecto =
             Map.put(
               selecto,
               :set,
               case params["view_mode"] do
-                "detail" ->
-                  detail_columns =
-                    selected
-                    |> Map.values()
-                    |> Enum.sort(fn a, b ->
-                      String.to_integer(a["index"]) <= String.to_integer(b["index"])
-                    end)
-
-                  selected =
-                    detail_columns
-                    |> Enum.map(fn e ->
-                      col = columns[e["field"]]
-                      uuid = e["uuid"]
-                      # move to a validation lib
-                      case col.type do
-                        x when x in [:naive_datetime, :utc_datetime] ->
-                          {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
-
-                        :custom_column ->
-                          {
-                            :row,
-                            case col.requires_select do
-                              x when is_list(x) -> col.requires_select
-                              x when is_function(x) -> col.requires_select.(e)
-                            end,
-                            uuid
-                          }
-
-                        _ ->
-                          {:field, col.colid, uuid}
-                      end
-                    end)
-                    |> List.flatten()
-
-                  order_by =
-                    order_by
-                    |> Map.values()
-                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                    |> Enum.map(fn e ->
-                      case e["dir"] do
-                        "desc" -> {:desc, e["field"]}
-                        _ -> e["field"]
-                      end
-                    end)
-
+                "detail" -> detail_set
                   ### TODO add config
-                  %{
-                    ### Columns will be used be
-                    columns: detail_columns,
-                    selected: selected,
-                    order_by: order_by,
-                    filtered: filtered,
-                    group_by: [],
-                    groups: []
-                  }
-
                 "aggregate" ->
                   aggregate =
                     aggregate
                     |> Map.values()
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                    ### TODO apply config
-                    |> Enum.map(fn
-                      ### Make sure e["format"] is a valid field name!
-                      e ->
+                    |> Enum.map(fn e ->
                         {String.to_atom(
-                           case e["format"] do
-                             nil -> "count"
-                             _ -> e["format"]
-                           end
-                         ), e["field"]}
+                            case e["format"] do
+                              nil -> "count"
+                              _ -> e["format"]
+                            end
+                          ), e["field"]}
                     end)
 
-                  group_by =
-                    group_by
-                    |> Map.values()
+                  group_by = group_by |> Map.values()
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                    ### TODO apply config
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
-
                       case col.type do
                         x when x in [:naive_datetime, :utc_datetime] ->
                           {:extract, col.colid, e["format"]}
-
-                        ### add support for YYYY-MM-DD also..
-
                         _ ->
                           col.colid
                       end
                     end)
 
-                  ### todo add config
                   %{
                     groups: group_by,
                     selected: group_by ++ aggregate,
@@ -513,8 +507,11 @@ defmodule SelectoComponents.ViewSelector do
                     group_by: [
                       {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
                     ],
-                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
+                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
+                    detail_set: detail_set
                   }
+
+
               end
             )
 
@@ -559,8 +556,19 @@ defmodule SelectoComponents.ViewSelector do
 
 
       def handle_event("agg_add_filters", params, socket) do
+        selecto = Map.put(
+          socket.assigns.selecto,
+          :set,
+            socket.assigns.selecto.set.detail_set
+        ) |> Selecto.filter(Enum.map(params, fn {f,v} -> {f, v} end ))
+
+        IO.inspect(selecto.set)
+
         socket =
           assign(socket,
+            selecto: selecto,
+            view_mode: "detail",
+            applied_view: "detail",
             filters:
               socket.assigns.filters ++
                 Enum.map(params, fn {f, v} ->
