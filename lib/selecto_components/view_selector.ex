@@ -207,6 +207,7 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_params(params, _uri, socket) do
+        selecto = socket.assigns.selecto
         socket =
           assign(socket,
             ### required for selecto components
@@ -227,14 +228,21 @@ defmodule SelectoComponents.ViewSelector do
               else
                 0
               end,
-            aggregate: [],
-            group_by: [],
-            order_by: [],
-            selected: [],
+            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
+            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
+            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
+            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
             filters: []
           )
 
         {:noreply, socket}
+      end
+
+      defp set_defaults(list) do
+        list |> Enum.map( fn
+          i when is_bitstring(i) -> {UUID.uuid4, i, %{}}
+          {i, conf} -> {UUID.uuid4, i, conf}
+        end)
       end
 
       defp _make_num_filter(filter) do
@@ -532,10 +540,6 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       @impl true
-      def handle_event("filter_from_aggregate", par, socket) do
-      end
-
-      @impl true
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
@@ -631,10 +635,12 @@ defmodule SelectoComponents.ViewSelector do
       @impl true
       def handle_info({:list_picker_add, list, item}, socket) do
         list = String.to_atom(list)
+        config = %{}
         id = UUID.uuid4()
-        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, %{}}]))
+        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, config}]))
         {:noreply, socket}
       end
+
 
       # :list_picker_config_item, list, uuid, newconf
     end
