@@ -82,7 +82,7 @@ defmodule SelectoComponents.Components.AggregateTable do
                 coldef,
                 v,
                 Map.merge(
-                  %{"phx-value-#{coldef.field}" => v},
+                  %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => v},
                   prefil
                 )
               }

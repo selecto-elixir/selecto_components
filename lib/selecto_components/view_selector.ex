@@ -435,17 +435,13 @@ defmodule SelectoComponents.ViewSelector do
                   {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
 
                 :custom_column ->
-                  {
-                    :row,
-                    case col.requires_select do
-                      x when is_list(x) -> col.requires_select
-                      x when is_function(x) -> col.requires_select.(e)
-                    end,
-                    uuid
-                  }
-
-                _ ->
-                  {:field, col.colid, uuid}
+                  case Map.get(col, :requires_select) do
+                    x when is_list(x) -> {:row, col.requires_select, uuid}
+                    x when is_function(x) -> {:row, col.requires_select.(e), uuid}
+                    nil -> {:field, col.colid, uuid}
+                  end
+                  _ ->
+                    {:field, col.colid, uuid}
               end
             end)
             |> List.flatten()
