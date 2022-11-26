@@ -68,26 +68,19 @@ defmodule SelectoComponents.Components.AggregateTable do
         fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
           IO.inspect(v)
           ### make this use a with!
-          prefil =
-            [List.last(acc)]
-            |> Enum.map(fn
-              nil -> %{}
-              {_i, _c, _v, fil} -> fil
-            end)
-            |> List.first()
+          ### Filters from previous payload
+          prefil = [List.last(acc)] |> Enum.map(fn
+            nil -> %{}
+            {_i, _c, _v, fil} -> fil
+          end) |> List.first()
+
+          newfil = case v do
+            {view, filt} -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => filt}
+            val -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => v}
+          end
 
           acc ++
-            [
-              {
-                i,
-                coldef,
-                v,
-                Map.merge(
-                  %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => v},
-                  prefil
-                )
-              }
-            ]
+            [ { i, coldef, v, Map.merge( newfil, prefil ) } ]
         end
       )
 
@@ -143,20 +136,20 @@ defmodule SelectoComponents.Components.AggregateTable do
 
     ### Will always be first X items
     group_by = assigns.selecto.set.groups |> IO.inspect()
-    aggregates = assigns.selecto.set.selected -- group_by
+    aggregates = assigns.selecto.set.aggregates
 
     group_by =
       Enum.map(
         group_by,
         fn
-          {:extract, f, fmt} = g ->
-            {:group_by, g, assigns.selecto.config.columns[f]}
+          {col, {:extract, f, fmt}} = g ->
+            {:group_by, g, col}
 
-          {a, f} = g ->
-            {:group_by, g, assigns.selecto.config.columns[f]}
+          {col, {a, f}} = g ->
+            {:group_by, g, col}
 
-          g ->
-            {:group_by, g, assigns.selecto.config.columns[g]}
+          {col, g} ->
+            {:group_by, g, col}
         end
       )
 

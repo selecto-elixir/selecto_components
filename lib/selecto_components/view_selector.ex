@@ -389,7 +389,7 @@ defmodule SelectoComponents.ViewSelector do
           selected = params["selected"]
           order_by = Map.get(params, "order_by", %{})
           aggregate = params["aggregate"]
-          group_by = Map.get(params, "group_by", %{})
+          group_by_params = Map.get(params, "group_by", %{})
 
           filters_by_section =
             Map.values(Map.get(params, "filters", %{}))
@@ -492,7 +492,7 @@ defmodule SelectoComponents.ViewSelector do
                     end)
 
                   group_by =
-                    group_by
+                    group_by_params
                     |> Map.values()
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                     |> Enum.map(fn e ->
@@ -500,34 +500,37 @@ defmodule SelectoComponents.ViewSelector do
                       uuid = e["uuid"]
 
                       ### Group by filter, _select, format...
+                      sel =
+                        if Map.get(col, :group_by_filter_select) do
+                          case col.group_by_filter_select do
+                            x when is_list(x) -> {:row, col.group_by_filter_select, uuid}
+                            x when is_function(x) -> {:row, col.group_by_filter_select.(e), uuid}
+                          end
+                        else
+                          case col.type do
+                            x when x in [:naive_datetime, :utc_datetime] ->
+                              {:extract, col.colid, e["format"]}
 
-                      if Map.get(col, :group_by_filter_select) do
-                        case col.group_by_filter_select do
-                          x when is_list(x) -> {:row, col.group_by_filter_select, uuid}
-                          x when is_function(x) -> {:row, col.group_by_filter_select.(e), uuid}
+
+                            :custom_column ->
+                              case Map.get(col, :requires_select) do
+                                x when is_list(x) -> {:row, col.requires_select, uuid}
+                                x when is_function(x) -> {:row, col.requires_select.(e), uuid}
+                                nil -> col.colid
+                              end
+                              _ ->
+                                col.colid
+
+                          end
                         end
-                      else
-                        case col.type do
-                          x when x in [:naive_datetime, :utc_datetime] ->
-                            {:extract, col.colid, e["format"]}
-
-
-                          :custom_column ->
-                            case Map.get(col, :requires_select) do
-                              x when is_list(x) -> {:row, col.requires_select, uuid}
-                              x when is_function(x) -> {:row, col.requires_select.(e), uuid}
-                              nil -> col.colid
-                            end
-                            _ ->
-                              col.colid
-
-                        end
-                      end
+                      {col, sel}
                     end)
 
                   %{
                     groups: group_by,
-                    selected: group_by ++ aggregate,
+                    gb_params: group_by_params,
+                    aggregates: aggregate,
+                    selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
                     filtered: filtered,
                     group_by: [
                       {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
