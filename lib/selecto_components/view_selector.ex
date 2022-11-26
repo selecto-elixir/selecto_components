@@ -497,13 +497,31 @@ defmodule SelectoComponents.ViewSelector do
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                     |> Enum.map(fn e ->
                       col = columns[e["field"]]
+                      uuid = e["uuid"]
 
-                      case col.type do
-                        x when x in [:naive_datetime, :utc_datetime] ->
-                          {:extract, col.colid, e["format"]}
+                      ### Group by filter, _select, format...
 
-                        _ ->
-                          col.colid
+                      if Map.get(col, :group_by_filter_select) do
+                        case col.group_by_filter_select do
+                          x when is_list(x) -> {:row, col.group_by_filter_select, uuid}
+                          x when is_function(x) -> {:row, col.group_by_filter_select.(e), uuid}
+                        end
+                      else
+                        case col.type do
+                          x when x in [:naive_datetime, :utc_datetime] ->
+                            {:extract, col.colid, e["format"]}
+
+
+                          :custom_column ->
+                            case Map.get(col, :requires_select) do
+                              x when is_list(x) -> {:row, col.requires_select, uuid}
+                              x when is_function(x) -> {:row, col.requires_select.(e), uuid}
+                              nil -> col.colid
+                            end
+                            _ ->
+                              col.colid
+
+                        end
                       end
                     end)
 
