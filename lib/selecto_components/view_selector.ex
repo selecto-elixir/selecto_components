@@ -422,7 +422,7 @@ defmodule SelectoComponents.ViewSelector do
             |> Enum.sort(fn a, b ->
               String.to_integer(a["index"]) <= String.to_integer(b["index"])
             end)
-            |> IO.inspect(label: "Detail Cols")
+            #|> IO.inspect(label: "Detail Cols")
 
           detail_selected =
             detail_columns
@@ -445,7 +445,7 @@ defmodule SelectoComponents.ViewSelector do
               end
             end)
             |> List.flatten()
-            |> IO.inspect(label: "Detail Sel")
+            #|> IO.inspect(label: "Detail Sel")
 
           detail_order_by =
             order_by
@@ -457,7 +457,7 @@ defmodule SelectoComponents.ViewSelector do
                 _ -> e["field"]
               end
             end)
-            |> IO.inspect(label: "Detail Order")
+            #|> IO.inspect(label: "Detail Order")
 
           detail_set = %{
             columns: detail_columns,
@@ -552,7 +552,7 @@ defmodule SelectoComponents.ViewSelector do
            )}
         rescue
           e ->
-            IO.inspect(e)
+            IO.inspect(e, label: "Error on view creation")
             {:noreply, socket}
         end
       end
@@ -577,8 +577,6 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       def handle_event("filter_remove", params, socket) do
-        IO.inspect(params)
-
         socket =
           assign(socket,
             filters:
@@ -599,8 +597,6 @@ defmodule SelectoComponents.ViewSelector do
           )
           |> Selecto.filter(Enum.map(params, fn {f, v} -> {f, v} end))
 
-        IO.inspect(params)
-        IO.inspect(socket.assigns.filters)
 
         socket =
           assign(socket,

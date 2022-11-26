@@ -62,7 +62,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     ## <th :for={{{i, {_id, {:group_by, _col, coldef}}, v, ind}, c} <- Enum.with_index(@payload) }  >
 
     groups =
-      assigns.payload |> IO.inspect()
+      assigns.payload
       |> Enum.reduce(
         [],
         fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
@@ -135,7 +135,7 @@ defmodule SelectoComponents.Components.AggregateTable do
       end
 
     ### Will always be first X items
-    group_by = assigns.selecto.set.groups |> IO.inspect()
+    group_by = assigns.selecto.set.groups
     aggregates = assigns.selecto.set.aggregates
 
     group_by =
@@ -169,7 +169,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     group_by = Enum.take(fmap, Enum.count(group_by))
     aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
 
-    result_tree = result_tree(results, group_by) #|> IO.inspect()
+    result_tree = result_tree(results, group_by)
 
     assigns =
       assign(assigns,
