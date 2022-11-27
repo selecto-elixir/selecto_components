@@ -16,7 +16,6 @@ See the live views in [selecto_test](https://github.com/seeken/selecto_test) for
 - finish various TODOs in the code
 - update URL so users can bookmark views
 - ability to save view configuration
-- special aggregate table, clicking on the group-by will link to the configured detail view with the group-by value applied as a filter
 - Forms - line forms & column forms
 - cleanup liveviews / refactor
 - make it look nice
