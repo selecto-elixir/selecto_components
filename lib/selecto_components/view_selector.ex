@@ -476,7 +476,6 @@ defmodule SelectoComponents.ViewSelector do
                 "detail" ->
                   detail_set
 
-                ### TODO add config
                 "aggregate" ->
                   aggregate =
                     aggregate

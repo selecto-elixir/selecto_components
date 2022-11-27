@@ -20,8 +20,7 @@ defmodule SelectoComponents.Components.FilterForms do
         <input name={"filters[#{@uuid}][uuid]"} type="hidden" value={@uuid}/>
 
         <%= render_form(%{type: @type, uuid: @uuid, id: @id, filter: @filter, def: @def} ) %>
-        <%!-- TODO: SHOW ERRORS
-        TODO: button to remove item --%>
+        <%!-- TODO: SHOW ERRORS --%>
 
       </div>
     """

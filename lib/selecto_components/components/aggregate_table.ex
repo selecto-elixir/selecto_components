@@ -122,8 +122,6 @@ defmodule SelectoComponents.Components.AggregateTable do
   end
 
   def render(assigns) do
-    ### TODO
-    ### Group-by can be a row() to return ID + NAME for filter links
 
     {results, fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
 
