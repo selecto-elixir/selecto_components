@@ -75,8 +75,8 @@ defmodule SelectoComponents.Components.AggregateTable do
           end) |> List.first()
 
           newfil = case v do
-            {view, filt} -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => filt}
-            val -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :field))}" => v}
+            {view, filt} -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => filt}
+            val -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
           end
 
           acc ++
