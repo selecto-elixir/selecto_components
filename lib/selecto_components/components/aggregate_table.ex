@@ -47,7 +47,7 @@ defmodule SelectoComponents.Components.AggregateTable do
     """
   end
 
-  defp tree_table(%{subs: {subs, i}} = assigns) do
+  defp tree_table(%{subs: {subs, _i}} = assigns) do
     aggs = Enum.zip(subs, assigns.aggregate)
 
     level =
@@ -96,10 +96,10 @@ defmodule SelectoComponents.Components.AggregateTable do
         _ -> "bg-slate-50 text-left text-black"
         end
       } >
-        <th :for={{{i, coldef, v, filters}, c} <- Enum.with_index(groups) }  >
+        <th :for={{{_i, coldef, v, filters}, c} <- Enum.with_index(groups) }  >
 
 
-          <div :if={ level - 1 == c } phx-click="agg_add_filters" { filters } >
+          <div :if={ @level - 1 == c } phx-click="agg_add_filters" { filters } >
             <%= case coldef do %>
               <% %{group_by_format: comp} -> %>
                 <%= comp.(v, coldef) %>
@@ -123,7 +123,7 @@ defmodule SelectoComponents.Components.AggregateTable do
 
   def render(assigns) do
 
-    {results, fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
+    {results, _fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
 
     # WTF postgres does wrong rollup order sometimes!
     results =
@@ -140,10 +140,10 @@ defmodule SelectoComponents.Components.AggregateTable do
       Enum.map(
         group_by,
         fn
-          {col, {:extract, f, fmt}} = g ->
+          {col, {:extract, _f, _fmt}} = g ->
             {:group_by, g, col}
 
-          {col, {a, f}} = g ->
+          {col, {_a, _f}} = g ->
             {:group_by, g, col}
 
           {col, g} ->
@@ -183,9 +183,9 @@ defmodule SelectoComponents.Components.AggregateTable do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
 
         <tr>
-          <th :for={{alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{_alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= case g do %>
-            <%= {:extract, f, fmt} -> %>
+            <%= {:extract, _f, fmt} -> %>
               <%= fmt %>: <%= def.name %>
             <% {a, f} -> %>
               <%= a %>: <%= f %>
