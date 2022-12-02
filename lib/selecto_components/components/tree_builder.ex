@@ -78,5 +78,4 @@ defmodule SelectoComponents.Components.TreeBuilder do
       </div>
     """
   end
-
 end

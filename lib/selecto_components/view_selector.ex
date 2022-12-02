@@ -205,8 +205,6 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
-
-
       defp set_defaults(list) do
         list
         |> Enum.map(fn
@@ -332,14 +330,15 @@ defmodule SelectoComponents.ViewSelector do
             end
           )
 
-        socket = assign(socket,
-        view_config: %{socket.assigns.view_config |
-          per_page: String.to_integer(params["per_page"])
-        })
+        socket =
+          assign(socket,
+            view_config: %{
+              socket.assigns.view_config
+              | per_page: String.to_integer(params["per_page"])
+            }
+          )
 
-        {:noreply,
-          assign(socket, view_config: %{socket.assigns.view_config | filters: filters})
-        }
+        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | filters: filters})}
       end
 
       def do_view(selecto) do
@@ -395,7 +394,8 @@ defmodule SelectoComponents.ViewSelector do
             |> Enum.sort(fn a, b ->
               String.to_integer(a["index"]) <= String.to_integer(b["index"])
             end)
-            #|> IO.inspect(label: "Detail Cols")
+
+          # |> IO.inspect(label: "Detail Cols")
 
           detail_selected =
             detail_columns
@@ -413,12 +413,14 @@ defmodule SelectoComponents.ViewSelector do
                     x when is_function(x) -> {:row, col.requires_select.(e), uuid}
                     nil -> {:field, col.colid, uuid}
                   end
-                  _ ->
-                    {:field, col.colid, uuid}
+
+                _ ->
+                  {:field, col.colid, uuid}
               end
             end)
             |> List.flatten()
-            #|> IO.inspect(label: "Detail Sel")
+
+          # |> IO.inspect(label: "Detail Sel")
 
           detail_order_by =
             order_by
@@ -430,7 +432,8 @@ defmodule SelectoComponents.ViewSelector do
                 _ -> e["field"]
               end
             end)
-            #|> IO.inspect(label: "Detail Order")
+
+          # |> IO.inspect(label: "Detail Order")
 
           detail_set = %{
             columns: detail_columns,
@@ -483,18 +486,18 @@ defmodule SelectoComponents.ViewSelector do
                             x when x in [:naive_datetime, :utc_datetime] ->
                               {:extract, col.colid, e["format"]}
 
-
                             :custom_column ->
                               case Map.get(col, :requires_select) do
                                 x when is_list(x) -> {:row, col.requires_select, uuid}
                                 x when is_function(x) -> {:row, col.requires_select.(e), uuid}
                                 nil -> col.colid
                               end
-                              _ ->
-                                col.colid
 
+                            _ ->
+                              col.colid
                           end
                         end
+
                       {col, sel}
                     end)
 
@@ -520,10 +523,11 @@ defmodule SelectoComponents.ViewSelector do
              applied_view: socket.assigns.view_config.view_mode,
              executed: true,
              page: 0,
-            view_config: %{socket.assigns.view_config |
-             per_page: String.to_integer(params["per_page"])
-            }
-            )}
+             view_config: %{
+               socket.assigns.view_config
+               | per_page: String.to_integer(params["per_page"])
+             }
+           )}
         rescue
           e ->
             IO.inspect(e, label: "Error on view creation")
@@ -537,17 +541,19 @@ defmodule SelectoComponents.ViewSelector do
         target = par["target"]
 
         IO.inspect(socket.assigns.view_config)
+
         socket =
           assign(socket,
-            view_config: %{socket.assigns.view_config |
-              filters:
-                socket.assigns.view_config.filters ++
-                  case new_filter do
-                    "__AND__" -> [{UUID.uuid4(), target, "AND"}]
-                    "__OR__" -> [{UUID.uuid4(), target, "OR"}]
-                    _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
-                  end
-                }
+            view_config: %{
+              socket.assigns.view_config
+              | filters:
+                  socket.assigns.view_config.filters ++
+                    case new_filter do
+                      "__AND__" -> [{UUID.uuid4(), target, "AND"}]
+                      "__OR__" -> [{UUID.uuid4(), target, "OR"}]
+                      _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                    end
+            }
           )
 
         {:noreply, socket}
@@ -556,11 +562,13 @@ defmodule SelectoComponents.ViewSelector do
       def handle_event("filter_remove", params, socket) do
         socket =
           assign(socket,
-            view_config: %{socket.assigns.view_config |
-              filters:
-                socket.assigns.view_config.filters |> Enum.filter( fn
-                  {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
-                end )
+            view_config: %{
+              socket.assigns.view_config
+              | filters:
+                  socket.assigns.view_config.filters
+                  |> Enum.filter(fn
+                    {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
+                  end)
             }
           )
 
@@ -576,21 +584,21 @@ defmodule SelectoComponents.ViewSelector do
           )
           |> Selecto.filter(Enum.map(params, fn {f, v} -> {f, v} end))
 
-
         socket =
           assign(socket,
             selecto: selecto,
             applied_view: "detail",
-            view_config: %{socket.assigns.view_config |
-              view_mode: "detail",
-              filters:
-                Enum.filter(socket.assigns.view_config.filters, fn
+            view_config: %{
+              socket.assigns.view_config
+              | view_mode: "detail",
+                filters:
+                  Enum.filter(socket.assigns.view_config.filters, fn
                     {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
                     _ -> true
-                end) ++
-                  Enum.map(params, fn {f, v} ->
-                    {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                  end)
+                  end) ++
+                    Enum.map(params, fn {f, v} ->
+                      {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                    end)
             }
           )
 
@@ -604,12 +612,13 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_info({:view_set, view}, socket) do
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view} )}
+        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
       end
 
       @impl true
       def handle_info({:set_detail_page, page}, socket) do
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | page: String.to_integer(page)})}
+        {:noreply,
+         assign(socket, view_config: %{socket.assigns.view_config | page: String.to_integer(page)})}
       end
 
       @impl true
@@ -617,7 +626,14 @@ defmodule SelectoComponents.ViewSelector do
         list = String.to_atom(list)
 
         socket =
-          assign(socket, view_config: Map.put(socket.assigns.view_config, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end)))
+          assign(socket,
+            view_config:
+              Map.put(
+                socket.assigns.view_config,
+                list,
+                Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end)
+              )
+          )
 
         {:noreply, socket}
       end
@@ -641,8 +657,7 @@ defmodule SelectoComponents.ViewSelector do
             item
           )
 
-        socket = assign(socket, view_config:
-          Map.put(socket.assigns.view_config, list, item_list) )
+        socket = assign(socket, view_config: Map.put(socket.assigns.view_config, list, item_list))
         {:noreply, socket}
       end
 
@@ -651,11 +666,17 @@ defmodule SelectoComponents.ViewSelector do
         list = String.to_atom(list)
         config = %{}
         id = UUID.uuid4()
-        socket = assign(socket, view_config:
-          Map.put(
-            socket.assigns.view_config,
-            list, Enum.uniq(socket.assigns[list] ++ [{id, item, config}])
-           ) )
+
+        socket =
+          assign(socket,
+            view_config:
+              Map.put(
+                socket.assigns.view_config,
+                list,
+                Enum.uniq(socket.assigns[list] ++ [{id, item, config}])
+              )
+          )
+
         {:noreply, socket}
       end
 

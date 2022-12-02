@@ -69,18 +69,28 @@ defmodule SelectoComponents.Components.AggregateTable do
           IO.inspect(v)
           ### make this use a with!
           ### Filters from previous payload
-          prefil = [List.last(acc)] |> Enum.map(fn
-            nil -> %{}
-            {_i, _c, _v, fil} -> fil
-          end) |> List.first()
+          prefil =
+            [List.last(acc)]
+            |> Enum.map(fn
+              nil -> %{}
+              {_i, _c, _v, fil} -> fil
+            end)
+            |> List.first()
 
-          newfil = case v do
-            {view, filt} -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => filt}
-            val -> %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
-          end
+          newfil =
+            case v do
+              {view, filt} ->
+                %{
+                  "phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" =>
+                    filt
+                }
+
+              val ->
+                %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
+            end
 
           acc ++
-            [ { i, coldef, v, Map.merge( newfil, prefil ) } ]
+            [{i, coldef, v, Map.merge(newfil, prefil)}]
         end
       )
 
@@ -122,7 +132,6 @@ defmodule SelectoComponents.Components.AggregateTable do
   end
 
   def render(assigns) do
-
     {results, _fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
 
     # WTF postgres does wrong rollup order sometimes!
