@@ -36,14 +36,14 @@ defmodule SelectoComponents.ViewSelector do
           <.button type="button" phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
           <.button type="button" phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
 
-          <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
+          <div class={if @view_config.active_tab == "view" or @view_config.active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
 
       View Type
             <.live_component
               module={SelectoComponents.Components.RadioTabs}
               id="view_mode"
               fieldname="view_mode"
-              view_mode={@view_mode}>
+              view_mode={@view_config.view_mode}>
               <:section id="aggregate" label="Aggregate View">
 
       Group By
@@ -52,7 +52,7 @@ defmodule SelectoComponents.ViewSelector do
                   id="group_by"
                   fieldname="group_by"
                   available={Enum.filter( @columns, fn {_f, _n, format} -> format not in [:component, :link] end)}
-                  selected_items={@group_by}>
+                  selected_items={@view_config.group_by}>
                   <:item_form :let={{id, item, config, index} }>
                     <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
@@ -73,7 +73,7 @@ defmodule SelectoComponents.ViewSelector do
                     id="aggregate"
                     fieldname="aggregate"
                     available={@columns}
-                    selected_items={@aggregate}>
+                    selected_items={@view_config.aggregate}>
                   <:item_form :let={{id, item, config, index}}>
                     <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
@@ -98,7 +98,7 @@ defmodule SelectoComponents.ViewSelector do
                     id="selected"
                     fieldname="selected"
                     available={@columns}
-                    selected_items={@selected}>
+                    selected_items={@view_config.selected}>
                   <:item_form :let={{id, item, config, index} }>
                     <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
@@ -122,7 +122,7 @@ defmodule SelectoComponents.ViewSelector do
                     id="order_by"
                     fieldname="order_by"
                     available={@columns}
-                    selected_items={@order_by}>
+                    selected_items={@view_config.order_by}>
                   <:item_form :let={{id, item, config, index} }>
                     <%!-- MAKE THIS INTO COMPOENT SO IT DOESN"T REDRAW ALL THE TIME and lose its form! --%>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
@@ -141,21 +141,21 @@ defmodule SelectoComponents.ViewSelector do
       Pagination
                 Per Page:
                 <select name="per_page">
-                  <option :for={i <- [30]} selected={@per_page == i} value={i}><%= i %></option>
+                  <option :for={i <- [30]} selected={@view_config.per_page == i} value={i}><%= i %></option>
                 </select>
 
               </:section>
             </.live_component>
           </div>
 
-          <div class={if @active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
+          <div class={if @view_config.active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
 
       FILTER SECTION
             <.live_component
                     module={SelectoComponents.Components.TreeBuilder}
                     id="filter_tree"
                     available={@field_filters}
-                    filters={@filters}
+                    filters={@view_config.filters}
                     >
 
               <:filter_form :let={{uuid, index, section, fv}}>
@@ -178,7 +178,7 @@ defmodule SelectoComponents.ViewSelector do
 
           </div>
 
-          <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
+          <div class={if @view_config.active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             EXPORT SECTION PLANNED
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
@@ -205,39 +205,7 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
-      @impl true
-      def handle_params(params, _uri, socket) do
-        selecto = socket.assigns.selecto
 
-        socket =
-          assign(socket,
-            ### required for selecto components
-
-            executed: false,
-            applied_view: nil,
-            view_mode: params["view_mode"] || "detail",
-            active_tab: params["active_tab"] || "view",
-            per_page:
-              if params["per_page"] do
-                String.to_integer(params["per_page"])
-              else
-                30
-              end,
-            page:
-              if params["page"] do
-                String.to_integer(params["page"])
-              else
-                0
-              end,
-            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
-            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
-            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
-            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
-            filters: []
-          )
-
-        {:noreply, socket}
-      end
 
       defp set_defaults(list) do
         list
@@ -364,9 +332,14 @@ defmodule SelectoComponents.ViewSelector do
             end
           )
 
-        socket = assign(socket, :per_page, String.to_integer(params["per_page"]))
+        socket = assign(socket,
+        view_config: %{socket.assigns.view_config |
+          per_page: String.to_integer(params["per_page"])
+        })
 
-        {:noreply, assign(socket, filters: filters)}
+        {:noreply,
+          assign(socket, view_config: %{socket.assigns.view_config | filters: filters})
+        }
       end
 
       def do_view(selecto) do
@@ -544,11 +517,13 @@ defmodule SelectoComponents.ViewSelector do
           {:noreply,
            assign(socket,
              selecto: selecto,
-             applied_view: socket.assigns.view_mode,
+             applied_view: socket.assigns.view_config.view_mode,
              executed: true,
              page: 0,
+            view_config: %{socket.assigns.view_config |
              per_page: String.to_integer(params["per_page"])
-           )}
+            }
+            )}
         rescue
           e ->
             IO.inspect(e, label: "Error on view creation")
@@ -563,13 +538,15 @@ defmodule SelectoComponents.ViewSelector do
 
         socket =
           assign(socket,
-            filters:
-              socket.assigns.filters ++
-                case new_filter do
-                  "__AND__" -> [{UUID.uuid4(), target, "AND"}]
-                  "__OR__" -> [{UUID.uuid4(), target, "OR"}]
-                  _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
-                end
+            view_config: %{socket.assigns.view_config |
+              filters:
+                socket.assigns.filters ++
+                  case new_filter do
+                    "__AND__" -> [{UUID.uuid4(), target, "AND"}]
+                    "__OR__" -> [{UUID.uuid4(), target, "OR"}]
+                    _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                  end
+                }
           )
 
         {:noreply, socket}
@@ -578,10 +555,12 @@ defmodule SelectoComponents.ViewSelector do
       def handle_event("filter_remove", params, socket) do
         socket =
           assign(socket,
-            filters:
-              socket.assigns.filters |> Enum.filter( fn
-                {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
-              end )
+            view_config: %{socket.assigns.view_config |
+              filters:
+                socket.assigns.filters |> Enum.filter( fn
+                  {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
+                end )
+            }
           )
 
         {:noreply, socket}
@@ -600,16 +579,18 @@ defmodule SelectoComponents.ViewSelector do
         socket =
           assign(socket,
             selecto: selecto,
-            view_mode: "detail",
             applied_view: "detail",
-            filters:
-              Enum.filter(socket.assigns.filters, fn
-                  {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
-                  _ -> true
-              end) ++
-                Enum.map(params, fn {f, v} ->
-                  {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                end)
+            view_config: %{socket.assigns.view_config |
+              view_mode: "detail",
+              filters:
+                Enum.filter(socket.assigns.filters, fn
+                    {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
+                    _ -> true
+                end) ++
+                  Enum.map(params, fn {f, v} ->
+                    {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                  end)
+            }
           )
 
         {:noreply, socket}
@@ -617,17 +598,17 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_info({:set_active_tab, tab}, socket) do
-        {:noreply, assign(socket, active_tab: tab)}
+        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | active_tab: tab})}
       end
 
       @impl true
       def handle_info({:view_set, view}, socket) do
-        {:noreply, assign(socket, view_mode: view)}
+        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view} )}
       end
 
       @impl true
       def handle_info({:set_detail_page, page}, socket) do
-        {:noreply, assign(socket, page: String.to_integer(page))}
+        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | page: String.to_integer(page)})}
       end
 
       @impl true
@@ -635,7 +616,7 @@ defmodule SelectoComponents.ViewSelector do
         list = String.to_atom(list)
 
         socket =
-          assign(socket, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end))
+          assign(socket, view_config: Map.put(socket.assigns.view_config, list, Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end)))
 
         {:noreply, socket}
       end
@@ -659,7 +640,8 @@ defmodule SelectoComponents.ViewSelector do
             item
           )
 
-        socket = assign(socket, list, item_list)
+        socket = assign(socket, view_config:
+          Map.put(socket.assigns.view_config, list, item_list) )
         {:noreply, socket}
       end
 
@@ -668,7 +650,11 @@ defmodule SelectoComponents.ViewSelector do
         list = String.to_atom(list)
         config = %{}
         id = UUID.uuid4()
-        socket = assign(socket, list, Enum.uniq(socket.assigns[list] ++ [{id, item, config}]))
+        socket = assign(socket, view_config:
+          Map.put(
+            socket.assigns.view_config,
+            list, Enum.uniq(socket.assigns[list] ++ [{id, item, config}])
+           ) )
         {:noreply, socket}
       end
 

@@ -23,7 +23,7 @@ defmodule SelectoComponents.Components.DetailTable do
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
     page = assigns.page
-    per_page = assigns.per_page
+    per_page = assigns.view_config.per_page
 
     show_start = page * per_page
     show_end = show_start + per_page
