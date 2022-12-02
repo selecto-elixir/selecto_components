@@ -536,11 +536,12 @@ defmodule SelectoComponents.ViewSelector do
         new_filter = par["element"]
         target = par["target"]
 
+        IO.inspect(socket.assigns.view_config)
         socket =
           assign(socket,
             view_config: %{socket.assigns.view_config |
               filters:
-                socket.assigns.filters ++
+                socket.assigns.view_config.filters ++
                   case new_filter do
                     "__AND__" -> [{UUID.uuid4(), target, "AND"}]
                     "__OR__" -> [{UUID.uuid4(), target, "OR"}]
@@ -557,7 +558,7 @@ defmodule SelectoComponents.ViewSelector do
           assign(socket,
             view_config: %{socket.assigns.view_config |
               filters:
-                socket.assigns.filters |> Enum.filter( fn
+                socket.assigns.view_config.filters |> Enum.filter( fn
                   {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
                 end )
             }
@@ -583,7 +584,7 @@ defmodule SelectoComponents.ViewSelector do
             view_config: %{socket.assigns.view_config |
               view_mode: "detail",
               filters:
-                Enum.filter(socket.assigns.filters, fn
+                Enum.filter(socket.assigns.view_config.filters, fn
                     {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
                     _ -> true
                 end) ++
