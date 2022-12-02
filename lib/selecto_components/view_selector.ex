@@ -618,7 +618,7 @@ defmodule SelectoComponents.ViewSelector do
       @impl true
       def handle_info({:set_detail_page, page}, socket) do
         {:noreply,
-         assign(socket, view_config: %{socket.assigns.view_config | page: String.to_integer(page)})}
+         assign(socket, page: String.to_integer(page) )}
       end
 
       @impl true
