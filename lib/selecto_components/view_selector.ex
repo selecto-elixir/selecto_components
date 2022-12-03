@@ -205,11 +205,17 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+      @impl true
+      def handle_params(params, _uri, socket) do
+        IO.inspect(params)
+        {:noreply, socket}
+      end
+
       defp url_to_state(socket) do
 
       end
       defp state_to_url(socket) do
-
+        {:noreply, push_patch(socket, to: "#{socket.assigns.my_path}?t=1")}
       end
 
       def get_initial_state(selecto) do
@@ -544,17 +550,18 @@ defmodule SelectoComponents.ViewSelector do
             )
 
           ### Set these assigns to reset the view!
-          {:noreply,
-           assign(socket,
-             selecto: selecto,
-             applied_view: socket.assigns.view_config.view_mode,
-             executed: true,
-             page: 0,
-             view_config: %{
-               socket.assigns.view_config
-               | per_page: String.to_integer(params["per_page"])
-             }
-           )}
+          state_to_url(
+            assign(socket,
+              selecto: selecto,
+              applied_view: socket.assigns.view_config.view_mode,
+              executed: true,
+              page: 0,
+              view_config: %{
+                socket.assigns.view_config
+                | per_page: String.to_integer(params["per_page"])
+              }
+            )
+          )
         rescue
           e ->
             IO.inspect(e, label: "Error on view creation")
@@ -655,7 +662,7 @@ defmodule SelectoComponents.ViewSelector do
               Map.put(
                 socket.assigns.view_config,
                 list,
-                Enum.filter(socket.assigns[list], fn {id, _, _} -> id != item end)
+                Enum.filter(socket.assigns.view_config[list], fn {id, _, _} -> id != item end)
               )
           )
 
@@ -697,7 +704,7 @@ defmodule SelectoComponents.ViewSelector do
               Map.put(
                 socket.assigns.view_config,
                 list,
-                Enum.uniq(socket.assigns[list] ++ [{id, item, config}])
+                Enum.uniq(socket.assigns.view_config[list] ++ [{id, item, config}])
               )
           )
 
