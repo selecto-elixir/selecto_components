@@ -205,6 +205,36 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+      defp url_to_state(socket) do
+
+      end
+      defp state_to_url(socket) do
+
+      end
+
+      def get_initial_state(selecto) do
+        [
+          selecto: selecto,
+
+          ###
+          executed: false,
+          applied_view: nil,
+          page: 0,
+
+          ### Build the view:
+          view_config: %{
+            view_mode: "aggregate",
+            active_tab: "view",
+            per_page: 30,
+            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
+            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
+            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
+            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
+            filters: []
+          }
+        ]
+      end
+
       defp set_defaults(list) do
         list
         |> Enum.map(fn
@@ -339,9 +369,6 @@ defmodule SelectoComponents.ViewSelector do
           )
 
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | filters: filters})}
-      end
-
-      def do_view(selecto) do
       end
 
       # on submit
@@ -539,9 +566,6 @@ defmodule SelectoComponents.ViewSelector do
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
-
-        IO.inspect(socket.assigns.view_config)
-
         socket =
           assign(socket,
             view_config: %{
