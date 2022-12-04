@@ -207,8 +207,8 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_params(params, _uri, socket) do
-        IO.inspect(params, label: "Handle Params")
-        {:noreply, socket}
+        #IO.inspect(params, label: "Handle Params")
+        {:noreply, view_from_params(params, socket)}
       end
 
 
@@ -217,9 +217,9 @@ defmodule SelectoComponents.ViewSelector do
 
       end
       defp state_to_url(params, socket) do
-      #  params = parameterize("", %{ v: socket.assigns.view_config })
+        #IO.inspect(params, label: "To URL")
         params = Doumi.URI.Query.encode(params)
-        {:noreply, push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")}
+        push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
       end
 
       def get_initial_state(selecto) do
@@ -348,8 +348,7 @@ defmodule SelectoComponents.ViewSelector do
         end)
       end
 
-      ## TODO validate form entry, display errors to user, keep order stable
-      ## On Change
+      ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
         filters =
@@ -385,15 +384,10 @@ defmodule SelectoComponents.ViewSelector do
       #### functions for interpreting filters, selections, etc should be better organized
       ####
       defp view_from_params(params, socket) do
-
-      end
-
-      @impl true
-      ### TODO view-apply should call view_from_params, and also update URI to include params
-      def handle_event("view-apply", params, socket) do
         try do
-          IO.inspect(params, label: "Params")
+          #IO.inspect(params, label: "View From Params")
           # move this somewhere shared
+
           date_formats = %{
             "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
             "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
@@ -402,9 +396,9 @@ defmodule SelectoComponents.ViewSelector do
           selecto = socket.assigns.selecto
           columns = selecto.config.columns
 
-          selected = params["selected"]
+          selected = Map.get(params, "selected", %{})
           order_by = Map.get(params, "order_by", %{})
-          aggregate = params["aggregate"]
+          aggregate = Map.get(params, "aggregate", %{})
           group_by_params = Map.get(params, "group_by", %{})
 
           filters_by_section =
@@ -507,11 +501,11 @@ defmodule SelectoComponents.ViewSelector do
                     |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
                     |> Enum.map(fn e ->
                       {String.to_atom(
-                         case e["format"] do
-                           nil -> "count"
-                           _ -> e["format"]
-                         end
-                       ), e["field"]}
+                        case e["format"] do
+                          nil -> "count"
+                          _ -> e["format"]
+                        end
+                      ), e["field"]}
                     end)
 
                   ### defp process_group_by
@@ -565,24 +559,29 @@ defmodule SelectoComponents.ViewSelector do
               end
             )
 
-          ### Set these assigns to reset the view!
-          state_to_url(params,
-            assign(socket,
-              selecto: selecto,
-              applied_view: socket.assigns.view_config.view_mode,
-              executed: true,
-              page: 0,
-              view_config: %{
-                socket.assigns.view_config
-                | per_page: String.to_integer(params["per_page"])
-              }
-            )
+
+          assign(socket,
+            selecto: selecto,
+            applied_view: params["view_mode"],
+            executed: true,
+            page: 0,
+            view_config: %{
+              socket.assigns.view_config
+              | per_page: String.to_integer(params["per_page"])
+            }
           )
+
         rescue
           e ->
             IO.inspect(e, label: "Error on view creation")
-            {:noreply, socket}
+            socket
         end
+      end
+
+      @impl true
+      ### TODO view-apply should call view_from_params, and also update URI to include params
+      def handle_event("view-apply", params, socket) do
+        {:noreply, view_from_params(params, state_to_url(params, socket))}
       end
 
       @impl true
@@ -648,7 +647,7 @@ defmodule SelectoComponents.ViewSelector do
                     end)
             }
           )
-
+        ### TODO merge into full view params..
         {:noreply, socket}
       end
 
