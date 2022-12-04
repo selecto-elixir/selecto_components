@@ -207,15 +207,19 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_params(params, _uri, socket) do
-        IO.inspect(params)
+        IO.inspect(params, label: "Handle Params")
         {:noreply, socket}
       end
+
+
 
       defp url_to_state(socket) do
 
       end
-      defp state_to_url(socket) do
-        {:noreply, push_patch(socket, to: "#{socket.assigns.my_path}?t=1")}
+      defp state_to_url(params, socket) do
+      #  params = parameterize("", %{ v: socket.assigns.view_config })
+        params = Doumi.URI.Query.encode(params)
+        {:noreply, push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")}
       end
 
       def get_initial_state(selecto) do
@@ -377,8 +381,15 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | filters: filters})}
       end
 
-      # on submit
+      #### TODO refactor. We want to rebuild all state from params and be able to build view from handle_params etc
+      #### functions for interpreting filters, selections, etc should be better organized
+      ####
+      defp view_from_params(params, socket) do
+
+      end
+
       @impl true
+      ### TODO view-apply should call view_from_params, and also update URI to include params
       def handle_event("view-apply", params, socket) do
         try do
           IO.inspect(params, label: "Params")
@@ -430,6 +441,8 @@ defmodule SelectoComponents.ViewSelector do
 
           # |> IO.inspect(label: "Detail Cols")
 
+
+          ### def process_detail_selected
           detail_selected =
             detail_columns
             |> Enum.map(fn e ->
@@ -455,6 +468,7 @@ defmodule SelectoComponents.ViewSelector do
 
           # |> IO.inspect(label: "Detail Sel")
 
+          ### def process_detail_order_by
           detail_order_by =
             order_by
             |> Map.values()
@@ -485,6 +499,7 @@ defmodule SelectoComponents.ViewSelector do
                 "detail" ->
                   detail_set
 
+                ### defp process_aggregates
                 "aggregate" ->
                   aggregate =
                     aggregate
@@ -499,6 +514,7 @@ defmodule SelectoComponents.ViewSelector do
                        ), e["field"]}
                     end)
 
+                  ### defp process_group_by
                   group_by =
                     group_by_params
                     |> Map.values()
@@ -550,7 +566,7 @@ defmodule SelectoComponents.ViewSelector do
             )
 
           ### Set these assigns to reset the view!
-          state_to_url(
+          state_to_url(params,
             assign(socket,
               selecto: selecto,
               applied_view: socket.assigns.view_config.view_mode,
