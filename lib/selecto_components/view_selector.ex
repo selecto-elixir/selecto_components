@@ -385,7 +385,7 @@ defmodule SelectoComponents.ViewSelector do
       ####
       defp view_from_params(params, socket) do
         try do
-          #IO.inspect(params, label: "View From Params")
+          IO.inspect(params, label: "View From Params")
           # move this somewhere shared
 
           date_formats = %{
@@ -559,9 +559,11 @@ defmodule SelectoComponents.ViewSelector do
               end
             )
 
+          ### TODO update the selected, group_by, aggregate, order_by, filters from params into the form drawer
 
           assign(socket,
             selecto: selecto,
+            used_params: params,
             applied_view: params["view_mode"],
             executed: true,
             page: 0,
@@ -622,33 +624,41 @@ defmodule SelectoComponents.ViewSelector do
       end
 
       def handle_event("agg_add_filters", params, socket) do
-        selecto =
-          Map.put(
-            socket.assigns.selecto,
-            :set,
-            socket.assigns.selecto.set.detail_set
-          )
-          |> Selecto.filter(Enum.map(params, fn {f, v} -> {f, v} end))
-
-        socket =
-          assign(socket,
-            selecto: selecto,
-            applied_view: "detail",
-            view_config: %{
-              socket.assigns.view_config
-              | view_mode: "detail",
-                filters:
-                  Enum.filter(socket.assigns.view_config.filters, fn
-                    {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
-                    _ -> true
-                  end) ++
-                    Enum.map(params, fn {f, v} ->
-                      {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                    end)
-            }
-          )
-        ### TODO merge into full view params..
-        {:noreply, socket}
+        view_params = %{ socket.assigns.used_params |
+            "view_mode"=> "detail"}
+            |> Map.put( "filters",
+              Enum.reduce(
+                params,
+                Map.get(socket.assigns.used_params, "filters", %{}),
+                fn {f,v}, acc->
+                  newid = UUID.uuid4()
+                  Map.put(acc, newid, %{
+                    "comp"=>"=",
+                    "filter"=>f,
+                    "index"=>"0",
+                    "section"=>"filters",
+                    "uuid"=>newid,
+                    "value"=>v,
+                    "value2"=>""
+                  })
+                end)
+            )
+          socket =
+            assign(socket,
+              view_config: %{
+                socket.assigns.view_config
+                | view_mode: "detail",
+                  filters:
+                    Enum.filter(socket.assigns.view_config.filters, fn
+                      {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
+                      _ -> true
+                    end) ++
+                      Enum.map(params, fn {f, v} ->
+                        {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                      end)
+              }
+            )
+        {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
       @impl true
