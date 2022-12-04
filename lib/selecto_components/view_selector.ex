@@ -629,6 +629,7 @@ defmodule SelectoComponents.ViewSelector do
             |> Map.put( "filters",
               Enum.reduce(
                 params,
+                ### TODO remove existing section=filters uses of this filter
                 Map.get(socket.assigns.used_params, "filters", %{}),
                 fn {f,v}, acc->
                   newid = UUID.uuid4()
