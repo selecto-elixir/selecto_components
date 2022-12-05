@@ -218,7 +218,7 @@ defmodule SelectoComponents.ViewSelector do
       end
       defp state_to_url(params, socket) do
         #IO.inspect(params, label: "To URL")
-        params = Doumi.URI.Query.encode(params)
+        params = Plug.Conn.Query.encode(params)
         push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
       end
 
