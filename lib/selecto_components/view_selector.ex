@@ -208,14 +208,26 @@ defmodule SelectoComponents.ViewSelector do
       @impl true
       def handle_params(params, _uri, socket) do
         #IO.inspect(params, label: "Handle Params")
-        socket = url_to_state(params, socket)
+        socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
 
 
 
-      defp url_to_state(params, socket) do
+      defp params_to_state(params, socket) do
         ### build view_config from URL
+        IO.inspect(params, label: "To State")
+
+        #socket = assign( socket,
+          # view_config: %{
+          #   view_mode: params["view_mode"],
+          #   per_page: params["per_page"],
+          #   active_tab: params["active_tab"]
+          #   #filters: Enum.map(params[filters])
+
+          # }
+        #)
+
 
         socket
       end

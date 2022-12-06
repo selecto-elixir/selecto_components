@@ -5,6 +5,7 @@ CHANGES
 V 0.2.0
 -------
 
+- Update URL for view
 - Support custom filters
 - aggregate views/filters
 
