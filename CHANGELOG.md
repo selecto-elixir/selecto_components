@@ -2,10 +2,16 @@
 CHANGES
 =======
 
+V 0.2.1
+-------
+
+- Update URL on view
+- group by updates
+- support defaults
+
 V 0.2.0
 -------
 
-- Update URL for view
 - Support custom filters
 - aggregate views/filters
 
