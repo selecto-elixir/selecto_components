@@ -216,7 +216,7 @@ defmodule SelectoComponents.ViewSelector do
 
       ### build view_config from URL
       defp params_to_state(params, socket) do
-        IO.inspect(params, label: "To State")
+        #IO.inspect(params, label: "To State")
 
         #TODO refactor
         filters =   Enum.reduce(Map.get(params, "filters",   %{}), [], fn {u, f}, acc -> acc ++ [{u, f["section"], f}] end)
@@ -408,7 +408,7 @@ defmodule SelectoComponents.ViewSelector do
       ####
       defp view_from_params(params, socket) do
         try do
-          IO.inspect(params, label: "View From Params")
+          #IO.inspect(params, label: "View From Params")
           # move this somewhere shared
 
           date_formats = %{
@@ -429,8 +429,7 @@ defmodule SelectoComponents.ViewSelector do
             |> Enum.reduce(
               %{},
               fn f, acc ->
-                ## Custom Form Processor?
-
+                ## Custom Form Processor? probably no need if subform fields are named properly
                 Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
               end
             )
@@ -456,9 +455,6 @@ defmodule SelectoComponents.ViewSelector do
               String.to_integer(a["index"]) <= String.to_integer(b["index"])
             end)
 
-          # |> IO.inspect(label: "Detail Cols")
-
-
           ### def process_detail_selected
           detail_selected =
             detail_columns
@@ -483,8 +479,6 @@ defmodule SelectoComponents.ViewSelector do
             end)
             |> List.flatten()
 
-          # |> IO.inspect(label: "Detail Sel")
-
           ### def process_detail_order_by
           detail_order_by =
             order_by
@@ -496,8 +490,6 @@ defmodule SelectoComponents.ViewSelector do
                 _ -> e["field"]
               end
             end)
-
-          # |> IO.inspect(label: "Detail Order")
 
           detail_set = %{
             columns: detail_columns,
