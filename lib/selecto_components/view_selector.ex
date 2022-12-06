@@ -218,16 +218,24 @@ defmodule SelectoComponents.ViewSelector do
         ### build view_config from URL
         IO.inspect(params, label: "To State")
 
-        #socket = assign( socket,
-          # view_config: %{
-          #   view_mode: params["view_mode"],
-          #   per_page: params["per_page"],
-          #   active_tab: params["active_tab"]
-          #   #filters: Enum.map(params[filters])
+        filters = Enum.reduce(Map.get(params, "filters", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["section"], f}] end)
+        selected = Enum.reduce(Map.get(params, "selected", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
+        group_by = Enum.reduce(Map.get(params, "group_by", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
+        aggregate = Enum.reduce(Map.get(params, "aggregate", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
+        order_by = Enum.reduce(Map.get(params, "order_by", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
 
-          # }
-        #)
-
+        socket = assign(socket,
+            view_config: %{
+              filters: filters,
+              selected: selected,
+              aggregate: aggregate,
+              group_by: group_by,
+              order_by: order_by,
+              view_mode: Map.get(params, "view_mode", "aggregate"),
+              active_tab: Map.get(params, "active_tab", "view"),
+              per_page: Map.get(params, "per_page", 30),
+            }
+        )
 
         socket
       end
