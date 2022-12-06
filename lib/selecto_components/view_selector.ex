@@ -205,26 +205,27 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
-      @impl true
-      def handle_params(params, _uri, socket) do
-        #IO.inspect(params, label: "Handle Params")
+      def handle_params(%{"view_mode" => _m } = params, _uri, socket) do
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
+      ### accept default config
+      def handle_params(params, _uri, socket) do
+        {:noreply, socket}
+      end
 
-
-
+      ### build view_config from URL
       defp params_to_state(params, socket) do
-        ### build view_config from URL
         IO.inspect(params, label: "To State")
 
-        filters = Enum.reduce(Map.get(params, "filters", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["section"], f}] end)
-        selected = Enum.reduce(Map.get(params, "selected", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
-        group_by = Enum.reduce(Map.get(params, "group_by", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
-        aggregate = Enum.reduce(Map.get(params, "aggregate", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
-        order_by = Enum.reduce(Map.get(params, "order_by", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"], f}] end)
+        #TODO refactor
+        filters =   Enum.reduce(Map.get(params, "filters",   %{}), [], fn {u, f}, acc -> acc ++ [{u, f["section"], f}] end)
+        selected =  Enum.reduce(Map.get(params, "selected",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
+        group_by =  Enum.reduce(Map.get(params, "group_by",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
+        aggregate = Enum.reduce(Map.get(params, "aggregate", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
+        order_by =  Enum.reduce(Map.get(params, "order_by",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
 
-        socket = assign(socket,
+        assign(socket,
             view_config: %{
               filters: filters,
               selected: selected,
@@ -236,11 +237,10 @@ defmodule SelectoComponents.ViewSelector do
               per_page: Map.get(params, "per_page", 30),
             }
         )
-
-        socket
       end
+
+      ### Update the URL to include the configured View
       defp state_to_url(params, socket) do
-        #IO.inspect(params, label: "To URL")
         params = Plug.Conn.Query.encode(params)
         push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
       end
