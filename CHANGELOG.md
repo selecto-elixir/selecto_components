@@ -2,6 +2,13 @@
 CHANGES
 =======
 
+V 0.2.2
+-------
+
+- refactor view_selector TODO
+- update support for date cols and filters TODO
+- Update look and feel of view selector form TODO
+  
 V 0.2.1
 -------
 
