@@ -214,16 +214,22 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
+      defp build_items( params, item_name, section) do
+        Map.get(params, item_name,   %{})
+        |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
+        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index"=>index2}} -> String.to_integer(index) <= String.to_integer(index2)  end )
+      end
+
       ### build view_config from URL
       defp params_to_state(params, socket) do
         #IO.inspect(params, label: "To State")
 
         #TODO refactor
-        filters =   Enum.reduce(Map.get(params, "filters",   %{}), [], fn {u, f}, acc -> acc ++ [{u, f["section"], f}] end)
-        selected =  Enum.reduce(Map.get(params, "selected",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
-        group_by =  Enum.reduce(Map.get(params, "group_by",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
-        aggregate = Enum.reduce(Map.get(params, "aggregate", %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
-        order_by =  Enum.reduce(Map.get(params, "order_by",  %{}), [], fn {u, f}, acc -> acc ++ [{u, f["field"],   f}] end)
+        filters =   build_items(params, "filters", "section")
+        selected =  build_items(params, "selected", "field")
+        group_by =  build_items(params, "group_by", "field")
+        aggregate = build_items(params, "aggregate", "field")
+        order_by =  build_items(params, "order_by", "field")
 
         assign(socket,
             view_config: %{
@@ -403,7 +409,6 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | filters: filters})}
       end
 
-      #### TODO refactor. We want to rebuild all state from params and be able to build view from handle_params etc
       #### functions for interpreting filters, selections, etc should be better organized
       ####
       defp view_from_params(params, socket) do
