@@ -15,7 +15,6 @@ See the live views in [selecto_test](https://github.com/seeken/selecto_test) for
 
 - Make gb rollup an option
 - finish various TODOs in the code
-- update URL so users can bookmark views
 - ability to save view configuration
 - Forms - line forms & column forms
 - cleanup liveviews / refactor
