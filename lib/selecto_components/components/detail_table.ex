@@ -8,6 +8,8 @@ defmodule SelectoComponents.Components.DetailTable do
   use Phoenix.HTML
 
   def render(assigns) do
+    ### Todo Deal with page changes without executing again.......
+
     {results, fields, aliases} = Selecto.execute(assigns.selecto)
     selected = Map.get(assigns.selecto.set, :columns, [])
 
@@ -23,7 +25,7 @@ defmodule SelectoComponents.Components.DetailTable do
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
     page = assigns.page
-    per_page = assigns.view_config.per_page
+    per_page = assigns.per_page
 
     show_start = page * per_page
     show_end = show_start + per_page
@@ -36,6 +38,8 @@ defmodule SelectoComponents.Components.DetailTable do
       assign(assigns,
         aliases: aliases,
         fmap: fmap,
+        show_start: show_start,
+        per_page: per_page,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
         max_pages: page_count
@@ -43,8 +47,6 @@ defmodule SelectoComponents.Components.DetailTable do
 
     ~H"""
     <div>
-
-
       <button :if={@page > 0} type="button" phx-click="set_page" phx-value-page={@page - 1} phx-target={@myself}>Prev Page</button>
       <span><%= Enum.count(@results) %> Rows Found</span>
       <button :if={@page < @max_pages} type="button" phx-click="set_page" phx-value-page={@page + 1} phx-target={@myself}>Next Page</button>
@@ -57,7 +59,7 @@ defmodule SelectoComponents.Components.DetailTable do
             <%= r["field"] %>
           </th>
         </tr>
-        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), show_start, per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
           <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <%= i + 1 %>
