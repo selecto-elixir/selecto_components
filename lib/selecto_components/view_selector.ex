@@ -205,7 +205,12 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+
+        ## TODO fix view conf update causing reload of views
+
+
       def handle_params(%{"view_mode" => _m } = params, _uri, socket) do
+        IO.puts("Handle Params")
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
