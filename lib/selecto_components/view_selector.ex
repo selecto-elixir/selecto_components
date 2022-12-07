@@ -416,10 +416,7 @@ defmodule SelectoComponents.ViewSelector do
           #IO.inspect(params, label: "View From Params")
           # move this somewhere shared
 
-          date_formats = %{
-            "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
-            "YYYY-MM-DD HH:MM" => "YYYY-MM-DD HH:MM"
-          }
+          date_formats = SelectoComponents.Helpers.date_formats()
 
           selecto = socket.assigns.selecto
           columns = selecto.config.columns
