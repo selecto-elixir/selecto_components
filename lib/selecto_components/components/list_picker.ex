@@ -10,6 +10,8 @@ defmodule SelectoComponents.Components.ListPicker do
   """
   use Phoenix.LiveComponent
 
+  import SelectoComponents.Components.Common
+
   attr(:avail, :list, required: true)
   attr(:selected_items, :list, required: true)
   attr(:fieldname, :string, required: true)
@@ -18,14 +20,16 @@ defmodule SelectoComponents.Components.ListPicker do
   # TODO fix the selected items spacing ...
   def render(assigns) do
     ~H"""
-      <div class="grid grid-cols-2 gap-1">
-        <div>Avialable (search)</div>
+      <div class="grid grid-cols-2 gap-1" x-data="{ filter: ''}">
+        <div>Avialable <.input x-model="filter"/></div>
 
         <div>Selected</div>
 
         <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600">
+            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600"
+            x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
+            >
             <%= name %>
           </div>
         </div>
@@ -44,6 +48,10 @@ defmodule SelectoComponents.Components.ListPicker do
         </div>
       </div>
     """
+  end
+
+  def handle_event("search_upd", params, socket) do
+
   end
 
   def handle_event("remove", params, socket) do
