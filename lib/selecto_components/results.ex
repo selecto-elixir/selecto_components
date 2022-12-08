@@ -4,21 +4,23 @@ defmodule SelectoComponents.Results do
   def render(assigns) do
     ~H"""
       <div>
-        <%= if @applied_view == "detail" do %>
-          <.live_component
-            module={SelectoComponents.Components.DetailTable}
-            id="dettable"
-            selecto={@selecto}
-            page={@page}
-            per_page={@per_page}
-          />
-        <% else %>
-          <.live_component
-            module={SelectoComponents.Components.AggregateTable}
-            id="aggtable"
-            selecto={@selecto}
-          />
-        <% end %>
+        <div :if={@executed}>
+          <%= if @applied_view == "detail" do %>
+            <.live_component
+              module={SelectoComponents.Components.DetailTable}
+              id="dettable"
+              selecto={@selecto}
+              page={@page}
+              per_page={@per_page}
+            />
+          <% else %>
+            <.live_component
+              module={SelectoComponents.Components.AggregateTable}
+              id="aggtable"
+              selecto={@selecto}
+            />
+          <% end %>
+        </div>
       </div>
     """
   end

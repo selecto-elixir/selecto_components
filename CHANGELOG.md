@@ -5,7 +5,8 @@ CHANGES
 V 0.2.2
 -------
 
-- refactor view_selector TODO
+- results & form components
+- cleanup & refactor view_selector
 - update support for date cols and filters TODO
 - Update look and feel of view selector form TODO
   
