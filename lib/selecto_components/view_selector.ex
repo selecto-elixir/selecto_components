@@ -4,6 +4,12 @@ defmodule SelectoComponents.ViewSelector do
   # use Phoenix.Component
   import SelectoComponents.Components.Common
 
+  @doc """
+Form for configuing Selecto View
+
+  """
+
+
   def render(assigns) do
     filters =
       (Map.values(assigns.selecto.config.filters) ++
