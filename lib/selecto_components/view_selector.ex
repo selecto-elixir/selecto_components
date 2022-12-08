@@ -200,166 +200,10 @@ defmodule SelectoComponents.ViewSelector do
         {:noreply, socket}
       end
 
-      defp build_items(params, item_name, section) do
-        Map.get(params, item_name, %{})
-        |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
-        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
-          String.to_integer(index) <= String.to_integer(index2)
-        end)
-      end
-
-      ### build view_config from URL
-      defp params_to_state(params, socket) do
-        filters = build_items(params, "filters", "section")
-        selected = build_items(params, "selected", "field")
-        group_by = build_items(params, "group_by", "field")
-        aggregate = build_items(params, "aggregate", "field")
-        order_by = build_items(params, "order_by", "field")
-
-        assign(socket,
-          view_config: %{
-            filters: filters,
-            selected: selected,
-            aggregate: aggregate,
-            group_by: group_by,
-            order_by: order_by,
-            view_mode: Map.get(params, "view_mode", "aggregate"),
-            active_tab: Map.get(params, "active_tab", "view"),
-            per_page: Map.get(params, "per_page", 30)
-          }
-        )
-      end
-
-      ### Update the URL to include the configured View
-      defp state_to_url(params, socket) do
-        params = Plug.Conn.Query.encode(params)
-        push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
-      end
-
-      def get_initial_state(selecto) do
-        [
-          selecto: selecto,
-          executed: false,
-          applied_view: nil,
-          page: 0,
-          view_config: %{
-            view_mode: "aggregate",
-            active_tab: "view",
-            per_page: 30,
-            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
-            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
-            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
-            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
-            filters: []
-          }
-        ]
-      end
-
-      defp set_defaults(list) do
-        list
-        |> Enum.map(fn
-          i when is_bitstring(i) -> {UUID.uuid4(), i, %{}}
-          {i, conf} -> {UUID.uuid4(), i, conf}
-        end)
-      end
-
       ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
         {:noreply, socket}
-      end
-
-      defp view_from_params(params, socket) do
-        try do
-          IO.inspect(params, label: "View From Params")
-
-          selecto = socket.assigns.selecto
-          columns = selecto.config.columns
-
-          filters_by_section =
-            Map.values(Map.get(params, "filters", %{}))
-            |> Enum.reduce(%{}, fn f, acc ->
-              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
-            end)
-
-          filtered =
-            SelectoComponents.Helpers.Filters.filter_recurse(
-              selecto,
-              filters_by_section,
-              "filters"
-            )
-
-          detail_columns =
-            Map.get(params, "selected", %{})
-            |> Map.values()
-            |> Enum.sort(fn a, b ->
-              String.to_integer(a["index"]) <= String.to_integer(b["index"])
-            end)
-
-          ### Selecto Set for Detail View
-          detail_set = %{
-            columns: detail_columns,
-            selected: detail_columns |> SelectoComponents.Helpers.process_selected(columns),
-            order_by:
-              Map.get(params, "order_by", %{})
-              |> SelectoComponents.Helpers.process_order_by(columns),
-            filtered: filtered,
-            group_by: [],
-            groups: []
-          }
-
-          selecto =
-            Map.put(
-              selecto,
-              :set,
-              case params["view_mode"] do
-                "detail" ->
-                  detail_set
-
-                "aggregate" ->
-                  group_by_params = Map.get(params, "group_by", %{})
-
-                  aggregate =
-                    Map.get(params, "aggregate", %{})
-                    |> SelectoComponents.Helpers.process_aggregates(columns)
-
-                  group_by =
-                    group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
-
-                  %{
-                    groups: group_by,
-                    gb_params: group_by_params,
-                    aggregates: aggregate,
-                    selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
-                    filtered: filtered,
-                    group_by: [
-                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
-                    ],
-                    ### when using rollup, we need to workaround postgres bug
-                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
-                    detail_set: detail_set
-                  }
-              end
-            )
-
-          ### TODO update the selected, group_by, aggregate, order_by, filters from params into the form drawer
-
-          assign(socket,
-            selecto: selecto,
-            used_params: params,
-            applied_view: params["view_mode"],
-            executed: true,
-            page: 0,
-            view_config: %{
-              socket.assigns.view_config
-              | per_page: String.to_integer(params["per_page"])
-            }
-          )
-        rescue
-          e ->
-            IO.inspect(e, label: "Error on view creation")
-            socket
-        end
       end
 
       @impl true
@@ -531,11 +375,168 @@ defmodule SelectoComponents.ViewSelector do
 
         {:noreply, socket}
       end
-    end
 
+      defp view_param_process(params, item_name, section) do
+        Map.get(params, item_name, %{})
+        |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
+        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
+          String.to_integer(index) <= String.to_integer(index2)
+        end)
+      end
+
+      defp view_from_params(params, socket) do
+        try do
+          IO.inspect(params, label: "View From Params")
+
+          selecto = socket.assigns.selecto
+          columns = selecto.config.columns
+
+          filters_by_section =
+            Map.values(Map.get(params, "filters", %{}))
+            |> Enum.reduce(%{}, fn f, acc ->
+              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+            end)
+
+          filtered =
+            SelectoComponents.Helpers.Filters.filter_recurse(
+              selecto,
+              filters_by_section,
+              "filters"
+            )
+
+          detail_columns =
+            Map.get(params, "selected", %{})
+            |> Map.values()
+            |> Enum.sort(fn a, b ->
+              String.to_integer(a["index"]) <= String.to_integer(b["index"])
+            end)
+
+          ### Selecto Set for Detail View
+          detail_set = %{
+            columns: detail_columns,
+            selected: detail_columns |> SelectoComponents.Helpers.process_selected(columns),
+            order_by:
+              Map.get(params, "order_by", %{})
+              |> SelectoComponents.Helpers.process_order_by(columns),
+            filtered: filtered,
+            group_by: [],
+            groups: []
+          }
+
+          selecto =
+            Map.put(
+              selecto,
+              :set,
+              case params["view_mode"] do
+                "detail" ->
+                  detail_set
+
+                "aggregate" ->
+                  group_by_params = Map.get(params, "group_by", %{})
+
+                  aggregate =
+                    Map.get(params, "aggregate", %{})
+                    |> SelectoComponents.Helpers.process_aggregates(columns)
+
+                  group_by =
+                    group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
+
+                  %{
+                    groups: group_by,
+                    gb_params: group_by_params,
+                    aggregates: aggregate,
+                    selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
+                    filtered: filtered,
+                    group_by: [
+                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
+                    ],
+                    ### when using rollup, we need to workaround postgres bug
+                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
+                    detail_set: detail_set
+                  }
+              end
+            )
+
+          ### TODO update the selected, group_by, aggregate, order_by, filters from params into the form drawer
+
+          assign(socket,
+            selecto: selecto,
+            used_params: params,
+            applied_view: params["view_mode"],
+            executed: true,
+            page: 0,
+            view_config: %{
+              socket.assigns.view_config
+              | per_page: String.to_integer(params["per_page"])
+            }
+          )
+        rescue
+          e ->
+            IO.inspect(e, label: "Error on view creation")
+            socket
+        end
+      end
+
+      ### build view_config from URL
+      defp params_to_state(params, socket) do
+        filters = view_param_process(params, "filters", "section")
+        selected = view_param_process(params, "selected", "field")
+        group_by = view_param_process(params, "group_by", "field")
+        aggregate = view_param_process(params, "aggregate", "field")
+        order_by = view_param_process(params, "order_by", "field")
+
+        assign(socket,
+          view_config: %{
+            filters: filters,
+            selected: selected,
+            aggregate: aggregate,
+            group_by: group_by,
+            order_by: order_by,
+            view_mode: Map.get(params, "view_mode", "aggregate"),
+            active_tab: Map.get(params, "active_tab", "view"),
+            per_page: Map.get(params, "per_page", 30)
+          }
+        )
+      end
+
+      ### Update the URL to include the configured View
+      defp state_to_url(params, socket) do
+        params = Plug.Conn.Query.encode(params)
+        push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
+      end
+
+      def get_initial_state(selecto) do
+        [
+          selecto: selecto,
+          executed: false,
+          applied_view: nil,
+          page: 0,
+          view_config: %{
+            view_mode: "aggregate",
+            active_tab: "view",
+            per_page: 30,
+            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
+            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
+            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
+            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
+            filters: []
+          }
+        ]
+      end
+
+      defp set_defaults(list) do
+        list
+        |> Enum.map(fn
+          i when is_bitstring(i) -> {UUID.uuid4(), i, %{}}
+          {i, conf} -> {UUID.uuid4(), i, conf}
+        end)
+      end
+
+
+
+    end
     ### quote do
   end
-
   ### __using___
 
   ### Reorg these to use in pickers
