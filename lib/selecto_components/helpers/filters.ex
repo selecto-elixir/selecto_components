@@ -23,7 +23,7 @@ defmodule SelectoComponents.Helpers.Filters do
   defp _make_string_filter(filter) do
     comp = filter["comp"]
     ## TODO
-    ignore_case = filter["ignore_case"]
+    #ignore_case = filter["ignore_case"]
     value = filter["value"]
 
     case comp do
@@ -39,7 +39,7 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp _make_date_filter(filter) do
-    comp = filter["comp"]
+    #comp = filter["comp"]
     ## TODO handle time zones...
     {:ok, value, _} = DateTime.from_iso8601(filter["value"] <> ":00Z")
     {:ok, value2, _} = DateTime.from_iso8601(filter["value2"] <> ":00Z")
@@ -52,7 +52,7 @@ defmodule SelectoComponents.Helpers.Filters do
   def filter_recurse(selecto, filters, section) do
     #### TODO handle errors
     Enum.reduce(Map.get(filters, section, []), [], fn
-      %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj} = f, acc ->
+      %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj}, acc ->
         acc ++
           [
             {case conj do
@@ -86,7 +86,7 @@ defmodule SelectoComponents.Helpers.Filters do
             x when x in [:naive_datetime, :utc_datetime] ->
               acc ++ [{f["filter"], _make_date_filter(f)}]
 
-            {:parameterized, _, enum_conf} ->
+            {:parameterized, _, _enum_conf} ->
               # TODO check selected against enum_conf.mappings!
               acc ++ [{f["filter"], f["selected"]}]
           end

@@ -56,7 +56,7 @@ defmodule SelectoComponents.Helpers do
     end)
   end
 
-  def process_order_by(order_by, columns) do
+  def process_order_by(order_by, _columns) do
     order_by
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
