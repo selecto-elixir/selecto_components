@@ -210,9 +210,6 @@ defmodule SelectoComponents.ViewSelector do
 
       ### build view_config from URL
       defp params_to_state(params, socket) do
-        # IO.inspect(params, label: "To State")
-
-        # TODO refactor
         filters = build_items(params, "filters", "section")
         selected = build_items(params, "selected", "field")
         group_by = build_items(params, "group_by", "field")
@@ -245,7 +242,6 @@ defmodule SelectoComponents.ViewSelector do
           executed: false,
           applied_view: nil,
           page: 0,
-          ### Build the view:
           view_config: %{
             view_mode: "aggregate",
             active_tab: "view",
