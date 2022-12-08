@@ -1,5 +1,4 @@
 defmodule SelectoComponents.Helpers do
-
   def date_formats() do
     %{
       "MM-DD-YYYY HH:MM" => "MM-DD-YYYY HH:MM",
@@ -49,11 +48,11 @@ defmodule SelectoComponents.Helpers do
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn e ->
       {String.to_atom(
-        case e["format"] do
-          nil -> "count"
-          _ -> e["format"]
-        end
-      ), e["field"]}
+         case e["format"] do
+           nil -> "count"
+           _ -> e["format"]
+         end
+       ), e["field"]}
     end)
   end
 
@@ -93,7 +92,5 @@ defmodule SelectoComponents.Helpers do
       end
     end)
     |> List.flatten()
-
   end
-
 end

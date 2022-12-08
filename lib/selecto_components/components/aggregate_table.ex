@@ -66,7 +66,7 @@ defmodule SelectoComponents.Components.AggregateTable do
       |> Enum.reduce(
         [],
         fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
-          #IO.inspect(v)
+          # IO.inspect(v)
           ### make this use a with!
           ### Filters from previous payload
           prefil =

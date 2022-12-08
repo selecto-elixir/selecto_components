@@ -1,5 +1,4 @@
 defmodule SelectoComponents.Helpers.Filters do
-
   defp _make_num_filter(filter) do
     comp = filter["comp"]
 
@@ -49,7 +48,6 @@ defmodule SelectoComponents.Helpers.Filters do
     {:between, value, value2}
   end
 
-
   ## Build filters that can be sent to the selecto
   def filter_recurse(selecto, filters, section) do
     #### TODO handle errors
@@ -95,8 +93,4 @@ defmodule SelectoComponents.Helpers.Filters do
         end
     end)
   end
-
-
-
-
 end

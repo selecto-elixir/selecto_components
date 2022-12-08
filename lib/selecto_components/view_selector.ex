@@ -5,32 +5,19 @@ defmodule SelectoComponents.ViewSelector do
   import SelectoComponents.Components.Common
 
   @doc """
-Form for configuing Selecto View
+  Form for configuing Selecto View
+
+  attrs:
+  selecto: the selecto structure
+  view_config: attr which contains the data to draw the view
 
   """
 
-
   def render(assigns) do
-    filters =
-      (Map.values(assigns.selecto.config.filters) ++
-         [
-           Map.values(assigns.selecto.config.columns)
-           |> Enum.filter(fn c -> c.type != :custom_column end)
-         ])
-      |> List.flatten()
-      |> Enum.sort(fn a, b -> a.name <= b.name end)
-      |> Enum.map(fn
-        %{colid: id} = c -> {id, c.name}
-        %{id: id} = c -> {id, c.name}
-      end)
-
     assigns =
       assign(assigns,
-        columns:
-          Map.values(assigns.selecto.config.columns)
-          |> Enum.sort(fn a, b -> a.name <= b.name end)
-          |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end),
-        field_filters: filters
+        columns: build_column_list(selecto),
+        field_filters: build_filter_list(assigns.selecto)
       )
 
     ~H"""
@@ -50,8 +37,8 @@ Form for configuing Selecto View
               id="view_mode"
               fieldname="view_mode"
               view_mode={@view_config.view_mode}>
-              <:section id="aggregate" label="Aggregate View">
 
+              <:section id="aggregate" label="Aggregate View">
       Group By
                 <.live_component
                   module={SelectoComponents.Components.ListPicker}
@@ -72,7 +59,6 @@ Form for configuing Selecto View
                       config={config}/>
                   </:item_form>
                 </.live_component>
-
       Aggregates:
                   <.live_component
                     module={SelectoComponents.Components.ListPicker}
@@ -94,11 +80,9 @@ Form for configuing Selecto View
                   </:item_form>
                 </.live_component>
               </:section>
+
               <:section id="detail" label="Detail View">
-
       Columns
-
-
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
                     id="selected"
@@ -119,10 +103,7 @@ Form for configuing Selecto View
                       config={config}/>
                   </:item_form>
                 </.live_component>
-
-
       Order by
-
                 <.live_component
                     module={SelectoComponents.Components.ListPicker}
                     id="order_by"
@@ -130,10 +111,8 @@ Form for configuing Selecto View
                     available={@columns}
                     selected_items={@view_config.order_by}>
                   <:item_form :let={{id, item, config, index} }>
-                    <%!-- MAKE THIS INTO COMPOENT SO IT DOESN"T REDRAW ALL THE TIME and lose its form! --%>
                     <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
                     <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-
                     <.live_component
                       module={SelectoComponents.Components.OrderByConfig}
                       id={id}
@@ -143,14 +122,13 @@ Form for configuing Selecto View
                       config={config}/>
                   </:item_form>
                 </.live_component>
-
       Pagination
                 Per Page:
                 <select name="per_page">
                   <option :for={i <- [30]} selected={@view_config.per_page == i} value={i}><%= i %></option>
                 </select>
-
               </:section>
+
             </.live_component>
           </div>
 
@@ -211,48 +189,47 @@ Form for configuing Selecto View
     quote do
       ### These run in the 'use'ing liveview's context
 
-
-        ## TODO fix view conf update causing reload of views
-
-
-      def handle_params(%{"view_mode" => _m } = params, _uri, socket) do
+      def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
         IO.puts("Handle Params")
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
+
       ### accept default config
       def handle_params(params, _uri, socket) do
         {:noreply, socket}
       end
 
-      defp build_items( params, item_name, section) do
-        Map.get(params, item_name,   %{})
+      defp build_items(params, item_name, section) do
+        Map.get(params, item_name, %{})
         |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
-        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index"=>index2}} -> String.to_integer(index) <= String.to_integer(index2)  end )
+        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
+          String.to_integer(index) <= String.to_integer(index2)
+        end)
       end
 
       ### build view_config from URL
       defp params_to_state(params, socket) do
-        #IO.inspect(params, label: "To State")
+        # IO.inspect(params, label: "To State")
 
-        #TODO refactor
-        filters =   build_items(params, "filters", "section")
-        selected =  build_items(params, "selected", "field")
-        group_by =  build_items(params, "group_by", "field")
+        # TODO refactor
+        filters = build_items(params, "filters", "section")
+        selected = build_items(params, "selected", "field")
+        group_by = build_items(params, "group_by", "field")
         aggregate = build_items(params, "aggregate", "field")
-        order_by =  build_items(params, "order_by", "field")
+        order_by = build_items(params, "order_by", "field")
 
         assign(socket,
-            view_config: %{
-              filters: filters,
-              selected: selected,
-              aggregate: aggregate,
-              group_by: group_by,
-              order_by: order_by,
-              view_mode: Map.get(params, "view_mode", "aggregate"),
-              active_tab: Map.get(params, "active_tab", "view"),
-              per_page: Map.get(params, "per_page", 30),
-            }
+          view_config: %{
+            filters: filters,
+            selected: selected,
+            aggregate: aggregate,
+            group_by: group_by,
+            order_by: order_by,
+            view_mode: Map.get(params, "view_mode", "aggregate"),
+            active_tab: Map.get(params, "active_tab", "view"),
+            per_page: Map.get(params, "per_page", 30)
+          }
         )
       end
 
@@ -265,12 +242,9 @@ Form for configuing Selecto View
       def get_initial_state(selecto) do
         [
           selecto: selecto,
-
-          ###
           executed: false,
           applied_view: nil,
           page: 0,
-
           ### Build the view:
           view_config: %{
             view_mode: "aggregate",
@@ -293,29 +267,31 @@ Form for configuing Selecto View
         end)
       end
 
-
-
       ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
-
-        {:noreply, socket }
+        {:noreply, socket}
       end
 
-      #### functions for interpreting filters, selections, etc should be better organized
-      ####
       defp view_from_params(params, socket) do
         try do
-          #IO.inspect(params, label: "View From Params")
+          IO.inspect(params, label: "View From Params")
 
           selecto = socket.assigns.selecto
           columns = selecto.config.columns
 
           filters_by_section =
             Map.values(Map.get(params, "filters", %{}))
-            |> Enum.reduce( %{}, fn f, acc -> Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f]) end )
+            |> Enum.reduce(%{}, fn f, acc ->
+              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+            end)
 
-          filtered = SelectoComponents.Helpers.Filters.filter_recurse(selecto, filters_by_section, "filters")
+          filtered =
+            SelectoComponents.Helpers.Filters.filter_recurse(
+              selecto,
+              filters_by_section,
+              "filters"
+            )
 
           detail_columns =
             Map.get(params, "selected", %{})
@@ -328,7 +304,9 @@ Form for configuing Selecto View
           detail_set = %{
             columns: detail_columns,
             selected: detail_columns |> SelectoComponents.Helpers.process_selected(columns),
-            order_by: Map.get(params, "order_by", %{}) |> SelectoComponents.Helpers.process_order_by(columns),
+            order_by:
+              Map.get(params, "order_by", %{})
+              |> SelectoComponents.Helpers.process_order_by(columns),
             filtered: filtered,
             group_by: [],
             groups: []
@@ -344,8 +322,13 @@ Form for configuing Selecto View
 
                 "aggregate" ->
                   group_by_params = Map.get(params, "group_by", %{})
-                  aggregate = Map.get(params, "aggregate", %{}) |> SelectoComponents.Helpers.process_aggregates(columns)
-                  group_by = group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
+
+                  aggregate =
+                    Map.get(params, "aggregate", %{})
+                    |> SelectoComponents.Helpers.process_aggregates(columns)
+
+                  group_by =
+                    group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
 
                   %{
                     groups: group_by,
@@ -353,7 +336,9 @@ Form for configuing Selecto View
                     aggregates: aggregate,
                     selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
                     filtered: filtered,
-                    group_by: [ {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)} ],
+                    group_by: [
+                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
+                    ],
                     ### when using rollup, we need to workaround postgres bug
                     order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
                     detail_set: detail_set
@@ -374,7 +359,6 @@ Form for configuing Selecto View
               | per_page: String.to_integer(params["per_page"])
             }
           )
-
         rescue
           e ->
             IO.inspect(e, label: "Error on view creation")
@@ -392,6 +376,7 @@ Form for configuing Selecto View
       def handle_event("treedrop", par, socket) do
         new_filter = par["element"]
         target = par["target"]
+
         socket =
           assign(socket,
             view_config: %{
@@ -399,9 +384,17 @@ Form for configuing Selecto View
               | filters:
                   socket.assigns.view_config.filters ++
                     case new_filter do
-                      "__AND__" -> [{UUID.uuid4(), target, "AND"}]
-                      "__OR__" -> [{UUID.uuid4(), target, "OR"}]
-                      _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil, "index" => 2000}}]
+                      "__AND__" ->
+                        [{UUID.uuid4(), target, "AND"}]
+
+                      "__OR__" ->
+                        [{UUID.uuid4(), target, "OR"}]
+
+                      _ ->
+                        [
+                          {UUID.uuid4(), target,
+                           %{"filter" => new_filter, "value" => nil, "index" => 2000}}
+                        ]
                     end
             }
           )
@@ -426,41 +419,46 @@ Form for configuing Selecto View
       end
 
       def handle_event("agg_add_filters", params, socket) do
-        view_params = %{ socket.assigns.used_params |
-            "view_mode"=> "detail"}
-            |> Map.put( "filters",
-              Enum.reduce(
-                params,
-                ### TODO remove existing section=filters uses of this filter
-                Map.get(socket.assigns.used_params, "filters", %{}),
-                fn {f,v}, acc->
-                  newid = UUID.uuid4()
-                  Map.put(acc, newid, %{
-                    "comp"=>"=",
-                    "filter"=>f,
-                    "index"=>"0",
-                    "section"=>"filters",
-                    "uuid"=>newid,
-                    "value"=>v,
-                    "value2"=>""
-                  })
-                end)
+        view_params =
+          %{socket.assigns.used_params | "view_mode" => "detail"}
+          |> Map.put(
+            "filters",
+            Enum.reduce(
+              params,
+              ### TODO remove existing section=filters uses of this filter
+              Map.get(socket.assigns.used_params, "filters", %{}),
+              fn {f, v}, acc ->
+                newid = UUID.uuid4()
+
+                Map.put(acc, newid, %{
+                  "comp" => "=",
+                  "filter" => f,
+                  "index" => "0",
+                  "section" => "filters",
+                  "uuid" => newid,
+                  "value" => v,
+                  "value2" => ""
+                })
+              end
             )
-          socket =
-            assign(socket,
-              view_config: %{
-                socket.assigns.view_config
-                | view_mode: "detail",
-                  filters:
-                    Enum.filter(socket.assigns.view_config.filters, fn
-                      {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
-                      _ -> true
-                    end) ++
-                      Enum.map(params, fn {f, v} ->
-                        {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                      end)
-              }
-            )
+          )
+
+        socket =
+          assign(socket,
+            view_config: %{
+              socket.assigns.view_config
+              | view_mode: "detail",
+                filters:
+                  Enum.filter(socket.assigns.view_config.filters, fn
+                    {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
+                    _ -> true
+                  end) ++
+                    Enum.map(params, fn {f, v} ->
+                      {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                    end)
+            }
+          )
+
         {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
@@ -476,8 +474,7 @@ Form for configuing Selecto View
 
       @impl true
       def handle_info({:set_detail_page, page}, socket) do
-        {:noreply,
-         assign(socket, page: String.to_integer(page) )}
+        {:noreply, assign(socket, page: String.to_integer(page))}
       end
 
       @impl true
@@ -501,10 +498,8 @@ Form for configuing Selecto View
 
       @impl true
       def handle_info({:list_picker_move, list, uuid, direction}, socket) do
-        IO.inspect({list, direction, uuid})
         list = String.to_atom(list)
         item_list = socket.assigns.view_config[list]
-        IO.inspect(item_list)
         item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
         {item, item_list} = List.pop_at(item_list, item_index)
 
@@ -540,8 +535,28 @@ Form for configuing Selecto View
 
         {:noreply, socket}
       end
-
-      # :list_picker_config_item, list, uuid, newconf
     end
+
+    ### quote do
+  end
+
+  ### __using___
+
+  ### Reorg these to use in pickers
+  defp build_filter_list(selecto) do
+    (Map.values(selecto.config.filters) ++
+       [Map.values(selecto.config.columns) |> Enum.filter(fn c -> c.type != :custom_column end)])
+    |> List.flatten()
+    |> Enum.sort(fn a, b -> a.name <= b.name end)
+    |> Enum.map(fn
+      %{colid: id} = c -> {id, c.name}
+      %{id: id} = c -> {id, c.name}
+    end)
+  end
+
+  defp build_column_list(selecto) do
+    Map.values(selecto.config.columns)
+    |> Enum.sort(fn a, b -> a.name <= b.name end)
+    |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
   end
 end
