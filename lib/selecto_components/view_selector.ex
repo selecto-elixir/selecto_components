@@ -189,6 +189,10 @@ defmodule SelectoComponents.ViewSelector do
     quote do
       ### These run in the 'use'ing liveview's context
 
+      import SelectoComponents.Helpers
+      import SelectoComponents.Helpers.Filters
+
+      @impl true
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
         IO.puts("Handle Params")
         socket = params_to_state(params, socket)
@@ -398,7 +402,7 @@ defmodule SelectoComponents.ViewSelector do
             end)
 
           filtered =
-            SelectoComponents.Helpers.Filters.filter_recurse(
+          filter_recurse(
               selecto,
               filters_by_section,
               "filters"
@@ -414,10 +418,10 @@ defmodule SelectoComponents.ViewSelector do
           ### Selecto Set for Detail View
           detail_set = %{
             columns: detail_columns,
-            selected: detail_columns |> SelectoComponents.Helpers.process_selected(columns),
+            selected: detail_columns |> process_selected(columns),
             order_by:
               Map.get(params, "order_by", %{})
-              |> SelectoComponents.Helpers.process_order_by(columns),
+              |> process_order_by(columns),
             filtered: filtered,
             group_by: [],
             groups: []
@@ -436,10 +440,10 @@ defmodule SelectoComponents.ViewSelector do
 
                   aggregate =
                     Map.get(params, "aggregate", %{})
-                    |> SelectoComponents.Helpers.process_aggregates(columns)
+                    |> process_aggregates(columns)
 
                   group_by =
-                    group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
+                    group_by_params |> process_group_by(columns)
 
                   %{
                     groups: group_by,
