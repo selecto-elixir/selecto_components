@@ -9,19 +9,30 @@ defmodule SelectoComponents.Components.TreeBuilder do
   def render(assigns) do
     ~H"""
       <div class="">
-        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1">
+        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1" x-data="{ filter: ''}">
 
-          <div>Available Filter Columns. Drag to build area.</div>
+          <div>Available Filter Columns. Drag to build area. <.input x-model="filter" placeholder="Filter Available Items"/></div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
 
-            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300" draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__AND__">AND group</div>
-            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300" draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__OR__">OR group</div>
+            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+              x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
+              x-transition
+              draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__AND__">AND group</div>
+            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+              x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
+              x-transition
+              draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__OR__">OR group</div>
 
 
             <div :for={{id, name} <- @available}>
-              <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300" draggable="true" x-on:drag=" dragging = event.srcElement.id; " id={id}><%= name %></div>
+              <div
+                x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
+                x-transition
+                class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+                draggable="true" x-on:drag=" dragging = event.srcElement.id; "
+                id={id}><%= name %></div>
             </div>
 
           </div>
