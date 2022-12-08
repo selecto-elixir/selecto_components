@@ -16,7 +16,7 @@ defmodule SelectoComponents.ViewSelector do
   def render(assigns) do
     assigns =
       assign(assigns,
-        columns: build_column_list(selecto),
+        columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto)
       )
 
