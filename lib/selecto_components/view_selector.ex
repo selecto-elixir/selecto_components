@@ -287,131 +287,13 @@ defmodule SelectoComponents.ViewSelector do
         end)
       end
 
-      defp _make_num_filter(filter) do
-        comp = filter["comp"]
 
-        case comp do
-          "=" ->
-            String.to_integer(filter["value"])
-
-          "null" ->
-            nil
-
-          "not_null" ->
-            :not_null
-
-          "between" ->
-            {:between, String.to_integer(filter["value"]), String.to_integer(filter["value2"])}
-
-          x when x in ~w( != <= >= < >) ->
-            {x, String.to_integer(filter["value"])}
-        end
-      end
-
-      defp _make_string_filter(filter) do
-        comp = filter["comp"]
-        ## TODO
-        ignore_case = filter["ignore_case"]
-        value = filter["value"]
-
-        case comp do
-          "=" -> value
-          "null" -> nil
-          "not_null" -> :not_null
-          x when x in ~w( != <= >= < >) -> {x, value}
-          ### TODO sanitize like value
-          "starts" -> {:like, value <> "%"}
-          "ends" -> {:like, "%" <> value}
-          "contains" -> {:like, "%" <> value <> "%"}
-        end
-      end
-
-      defp _make_date_filter(filter) do
-        comp = filter["comp"]
-        ## TODO handle time zones...
-        {:ok, value, _} = DateTime.from_iso8601(filter["value"] <> ":00Z")
-        {:ok, value2, _} = DateTime.from_iso8601(filter["value2"] <> ":00Z")
-        ### Add more options
-
-        {:between, value, value2}
-      end
-
-      ## Build filters that can be sent to the selecto
-      def filter_recurse(selecto, filters, section) do
-        #### TODO handle errors
-        Enum.reduce(Map.get(filters, section, []), [], fn
-          %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj} = f, acc ->
-            acc ++
-              [
-                {case conj do
-                   "AND" -> :and
-                   "OR" -> :or
-                 end, filter_recurse(selecto, filters, uuid)}
-              ]
-
-          f, acc ->
-            if selecto.config.filters[f["filter"]] do
-              ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO???
-              acc ++ [selecto.config.filters[f["filter"]].apply.(selecto, f)]
-            else
-              case selecto.config.columns[f["filter"]].type do
-                x when x in [:id, :integer, :float, :decimal] ->
-                  acc ++ [{f["filter"], _make_num_filter(f)}]
-
-                :boolean ->
-                  acc ++
-                    [
-                      {f["filter"],
-                       case f["value"] do
-                         "true" -> true
-                         _ -> false
-                       end}
-                    ]
-
-                :string ->
-                  acc ++ [{f["filter"], _make_string_filter(f)}]
-
-                x when x in [:naive_datetime, :utc_datetime] ->
-                  acc ++ [{f["filter"], _make_date_filter(f)}]
-
-                {:parameterized, _, enum_conf} ->
-                  # TODO check selected against enum_conf.mappings!
-                  acc ++ [{f["filter"], f["selected"]}]
-              end
-            end
-        end)
-      end
 
       ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
-        filters =
-          Map.get(params, "filters", %{})
-          |> Map.values()
-          |> Enum.sort(fn a, b -> a <= b end)
-          |> Enum.reduce(
-            [],
-            fn f, acc ->
-              acc ++
-                [
-                  {f["uuid"], f["section"],
-                   case Map.get(f, "conjunction", nil) do
-                     nil -> f
-                     a -> a
-                   end}
-                ]
-            end
-          )
 
-        socket =
-          assign(socket,
-            view_config: %{
-              socket.assigns.view_config
-              | per_page: String.to_integer(params["per_page"])
-            }
-          )
-
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | filters: filters})}
+        {:noreply, socket }
       end
 
       #### functions for interpreting filters, selections, etc should be better organized
@@ -419,89 +301,28 @@ defmodule SelectoComponents.ViewSelector do
       defp view_from_params(params, socket) do
         try do
           #IO.inspect(params, label: "View From Params")
-          # move this somewhere shared
-
-          date_formats = SelectoComponents.Helpers.date_formats()
 
           selecto = socket.assigns.selecto
           columns = selecto.config.columns
 
-          selected = Map.get(params, "selected", %{})
-          order_by = Map.get(params, "order_by", %{})
-          aggregate = Map.get(params, "aggregate", %{})
-          group_by_params = Map.get(params, "group_by", %{})
-
           filters_by_section =
             Map.values(Map.get(params, "filters", %{}))
-            |> Enum.reduce(
-              %{},
-              fn f, acc ->
-                ## Custom Form Processor? probably no need if subform fields are named properly
-                Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
-              end
-            )
+            |> Enum.reduce( %{}, fn f, acc -> Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f]) end )
 
-          ## Build filters walking the filters_by_section
-          socket =
-            assign(socket,
-              filters:
-                Map.values(Map.get(params, "filters", %{}))
-                |> Enum.map(fn
-                  %{"is_section" => "Y"} = f -> {f["uuid"], f["section"], f["conjunction"]}
-                  f -> {f["uuid"], f["section"], f}
-                end)
-            )
-
-          ## THIS CAN FAIL...
-          filtered = filter_recurse(selecto, filters_by_section, "filters")
+          filtered = SelectoComponents.Helpers.Filters.filter_recurse(selecto, filters_by_section, "filters")
 
           detail_columns =
-            selected
+            Map.get(params, "selected", %{})
             |> Map.values()
             |> Enum.sort(fn a, b ->
               String.to_integer(a["index"]) <= String.to_integer(b["index"])
             end)
 
-          ### def process_detail_selected
-          detail_selected =
-            detail_columns
-            |> Enum.map(fn e ->
-              col = columns[e["field"]]
-              uuid = e["uuid"]
-              # move to a validation lib
-              case col.type do
-                x when x in [:naive_datetime, :utc_datetime] ->
-                  {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
-
-                :custom_column ->
-                  case Map.get(col, :requires_select) do
-                    x when is_list(x) -> {:row, col.requires_select, uuid}
-                    x when is_function(x) -> {:row, col.requires_select.(e), uuid}
-                    nil -> {:field, col.colid, uuid}
-                  end
-
-                _ ->
-                  {:field, col.colid, uuid}
-              end
-            end)
-            |> List.flatten()
-
-          ### def process_detail_order_by
-          detail_order_by =
-            order_by
-            |> Map.values()
-            |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-            |> Enum.map(fn e ->
-              case e["dir"] do
-                "desc" -> {:desc, e["field"]}
-                _ -> e["field"]
-              end
-            end)
-
+          ### Selecto Set for Detail View
           detail_set = %{
             columns: detail_columns,
-            selected: detail_selected,
-            order_by: detail_order_by,
+            selected: detail_columns |> SelectoComponents.Helpers.process_selected(columns),
+            order_by: Map.get(params, "order_by", %{}) |> SelectoComponents.Helpers.process_order_by(columns),
             filtered: filtered,
             group_by: [],
             groups: []
@@ -515,56 +336,10 @@ defmodule SelectoComponents.ViewSelector do
                 "detail" ->
                   detail_set
 
-                ### defp process_aggregates
                 "aggregate" ->
-                  aggregate =
-                    aggregate
-                    |> Map.values()
-                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                    |> Enum.map(fn e ->
-                      {String.to_atom(
-                        case e["format"] do
-                          nil -> "count"
-                          _ -> e["format"]
-                        end
-                      ), e["field"]}
-                    end)
-
-                  ### defp process_group_by
-                  group_by =
-                    group_by_params
-                    |> Map.values()
-                    |> Enum.sort(fn a, b -> a["index"] <= b["index"] end)
-                    |> Enum.map(fn e ->
-                      col = columns[e["field"]]
-                      uuid = e["uuid"]
-
-                      ### Group by filter, _select, format...
-                      sel =
-                        if Map.get(col, :group_by_filter_select) do
-                          case col.group_by_filter_select do
-                            x when is_list(x) -> {:row, col.group_by_filter_select, uuid}
-                            x when is_function(x) -> {:row, col.group_by_filter_select.(e), uuid}
-                          end
-                        else
-                          case col.type do
-                            x when x in [:naive_datetime, :utc_datetime] ->
-                              {:extract, col.colid, e["format"]}
-
-                            :custom_column ->
-                              case Map.get(col, :requires_select) do
-                                x when is_list(x) -> {:row, col.requires_select, uuid}
-                                x when is_function(x) -> {:row, col.requires_select.(e), uuid}
-                                nil -> col.colid
-                              end
-
-                            _ ->
-                              col.colid
-                          end
-                        end
-
-                      {col, sel}
-                    end)
+                  group_by_params = Map.get(params, "group_by", %{})
+                  aggregate = Map.get(params, "aggregate", %{}) |> SelectoComponents.Helpers.process_aggregates(columns)
+                  group_by = group_by_params |> SelectoComponents.Helpers.process_group_by(columns)
 
                   %{
                     groups: group_by,
@@ -572,9 +347,8 @@ defmodule SelectoComponents.ViewSelector do
                     aggregates: aggregate,
                     selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
                     filtered: filtered,
-                    group_by: [
-                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
-                    ],
+                    group_by: [ {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)} ],
+                    ### when using rollup, we need to workaround postgres bug
                     order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
                     detail_set: detail_set
                   }
@@ -621,7 +395,7 @@ defmodule SelectoComponents.ViewSelector do
                     case new_filter do
                       "__AND__" -> [{UUID.uuid4(), target, "AND"}]
                       "__OR__" -> [{UUID.uuid4(), target, "OR"}]
-                      _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil}}]
+                      _ -> [{UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil, "index" => 2000}}]
                     end
             }
           )
@@ -721,8 +495,10 @@ defmodule SelectoComponents.ViewSelector do
 
       @impl true
       def handle_info({:list_picker_move, list, uuid, direction}, socket) do
+        IO.inspect({list, direction, uuid})
         list = String.to_atom(list)
-        item_list = socket.assigns[list]
+        item_list = socket.assigns.view_config[list]
+        IO.inspect(item_list)
         item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
         {item, item_list} = List.pop_at(item_list, item_index)
 
