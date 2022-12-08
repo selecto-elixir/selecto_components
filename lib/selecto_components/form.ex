@@ -1,4 +1,4 @@
-defmodule SelectoComponents.ViewSelector do
+defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
   # use Phoenix.Component
