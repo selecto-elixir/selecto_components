@@ -9,18 +9,20 @@ defmodule SelectoComponents.Components.TreeBuilder do
   def render(assigns) do
     ~H"""
       <div class="">
-        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1" x-data="{ filter: ''}">
+        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
           <div>Available Filter Columns. Drag to build area. <.input x-model="filter" placeholder="Filter Available Items"/></div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
+          <div class="flex flex-col gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">
 
-            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+
+
+            <div class="max-w-100 bg-slate-100 dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10"
               x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
               x-transition
               draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__AND__">AND group</div>
-            <div class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+            <div class="max-w-100 bg-slate-100 dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10"
               x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
               x-transition
               draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__OR__">OR group</div>
@@ -30,7 +32,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <div
                 x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
                 x-transition
-                class="border border-gray-100 hover:border-red-500 hover:bg-gray-300"
+                class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10"
                 draggable="true" x-on:drag=" dragging = event.srcElement.id; "
                 id={id}><%= name %></div>
             </div>
@@ -56,7 +58,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
       id={@section}>
 
         <%= @conjunction %>
-        <div class="p-2 pl-6 border-solid border  border-black dark:border-grey"
+        <div class="p-2 pl-6 border-solid border  border-black dark:border-grey relative"
           :for={ {s, index} <-
             Enum.filter( @filters, fn
             {{_uuid,section,_conf}, _i} = f -> section == @section
@@ -71,17 +73,19 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
-              <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+              <div class="absolute top-1 right-1">
+                <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+              </div>
 
             <% {uuid, section, fv} -> %>
-
               <div class="p-2 pl-6 border-solid border rounded-md border-grey dark:border-grey">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
-              <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+              <div class="absolute top-1 right-1">
+                <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+              </div>
 
           <% end %>
-
             <!-- new section -->
 
         </div>
