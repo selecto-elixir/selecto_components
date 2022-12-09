@@ -20,14 +20,14 @@ defmodule SelectoComponents.Components.ListPicker do
   # TODO fix the selected items spacing ...
   def render(assigns) do
     ~H"""
-      <div class="grid grid-cols-2 gap-1" x-data="{ filter: ''}">
+      <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
         <div>Avialable <.input x-model="filter" placeholder="Filter Available Items"/></div>
 
         <div>Selected</div>
 
-        <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-grey dark:border-black h-60 overflow-auto p-1">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600"
+            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600 h-10"
             x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
             x-transition
             >
@@ -35,9 +35,9 @@ defmodule SelectoComponents.Components.ListPicker do
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-1 border rounded-md border-grey dark:border-black max-h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-grey dark:border-black h-60 overflow-auto p-1">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600 max-h-12">
+            class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10 ">
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
             <div class="absolute top-1 right-1">
