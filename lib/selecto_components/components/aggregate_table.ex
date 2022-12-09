@@ -134,13 +134,6 @@ defmodule SelectoComponents.Components.AggregateTable do
   def render(assigns) do
     {results, _fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
 
-    # WTF postgres does wrong rollup order sometimes!
-    results =
-      case results do
-        [[f | _ft] | _t] when not is_nil(f) -> Enum.reverse(results)
-        _ -> results
-      end
-
     ### Will always be first X items
     group_by = assigns.selecto.set.groups
     aggregates = assigns.selecto.set.aggregates
