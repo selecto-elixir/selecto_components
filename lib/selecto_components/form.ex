@@ -1,7 +1,6 @@
 defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
-  # use Phoenix.Component
   import SelectoComponents.Components.Common
 
   @doc """
@@ -22,14 +21,14 @@ defmodule SelectoComponents.Form do
 
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
-
+        <%= @active_tab %>
         <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="view" phx-target={@myself}>View Tab</.button>
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="filter" phx-target={@myself}>Filter Tab</.button>
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="export" phx-target={@myself}>Export Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.button>
+          <.button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.button>
 
-          <div class={if @view_config.active_tab == "view" or @view_config.active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
+          <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
 
       View Type
             <.live_component
@@ -132,7 +131,7 @@ defmodule SelectoComponents.Form do
             </.live_component>
           </div>
 
-          <div class={if @view_config.active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
+          <div class={if @active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
 
       FILTER SECTION
             <.live_component
@@ -162,7 +161,7 @@ defmodule SelectoComponents.Form do
 
           </div>
 
-          <div class={if @view_config.active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
+          <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             EXPORT SECTION PLANNED
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
@@ -178,11 +177,6 @@ defmodule SelectoComponents.Form do
       </div>
 
     """
-  end
-
-  def handle_event("set_active_tab", params, socket) do
-    send(self(), {:set_active_tab, params["tab"]})
-    {:noreply, socket}
   end
 
   defmacro __using__(_opts \\ []) do
@@ -204,9 +198,15 @@ defmodule SelectoComponents.Form do
         {:noreply, socket}
       end
 
+      def handle_event("set_active_tab", params, socket) do
+        IO.inspect(params)
+        {:noreply, assign(socket, active_tab: params["tab"] )}
+      end
+
       ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
+        socket = params_to_state(params, socket)
         {:noreply, socket}
       end
 
@@ -306,10 +306,7 @@ defmodule SelectoComponents.Form do
         {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
-      @impl true
-      def handle_info({:set_active_tab, tab}, socket) do
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | active_tab: tab})}
-      end
+
 
       @impl true
       def handle_info({:view_set, view}, socket) do
@@ -378,6 +375,20 @@ defmodule SelectoComponents.Form do
           )
 
         {:noreply, socket}
+      end
+
+      defp view_filter_process(params, item_name) do
+        Map.get(params, item_name, %{})
+
+        |> IO.inspect()
+        |> Enum.sort(fn {_, %{"index" => index}}, {_, %{"index" => index2}} ->
+          String.to_integer(index) <= String.to_integer(index2)
+        end)
+        |> Enum.reduce([], fn
+            {u, %{"conjunction"=>conj} = f}, acc -> acc ++ [{u, f["section"], conj}]
+            {u, f}, acc -> acc ++ [{u, f["section"], f}]
+          end)
+
       end
 
       defp view_param_process(params, item_name, section) do
@@ -483,7 +494,8 @@ defmodule SelectoComponents.Form do
 
       ### build view_config from URL
       defp params_to_state(params, socket) do
-        filters = view_param_process(params, "filters", "section")
+        IO.inspect(params)
+        filters = view_filter_process(params, "filters")
         selected = view_param_process(params, "selected", "field")
         group_by = view_param_process(params, "group_by", "field")
         aggregate = view_param_process(params, "aggregate", "field")
@@ -497,7 +509,6 @@ defmodule SelectoComponents.Form do
             group_by: group_by,
             order_by: order_by,
             view_mode: Map.get(params, "view_mode", "aggregate"),
-            active_tab: Map.get(params, "active_tab", "view"),
             per_page: Map.get(params, "per_page", 30)
           }
         )
@@ -514,10 +525,10 @@ defmodule SelectoComponents.Form do
           selecto: selecto,
           executed: false,
           applied_view: nil,
+          active_tab: "view",
           page: 0,
           view_config: %{
             view_mode: "aggregate",
-            active_tab: "view",
             per_page: 30,
             aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
             group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
