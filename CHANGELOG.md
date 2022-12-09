@@ -2,6 +2,11 @@
 CHANGES
 =======
 
+V 0.2.3
+-------
+
+- Fix bugs in filters and active tab
+
 V 0.2.2
 -------
 
