@@ -11,7 +11,10 @@ defmodule SelectoComponents.Components.TreeBuilder do
       <div class="">
         <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
-          <div>Available Filter Columns. Drag to build area. <.input x-model="filter" placeholder="Filter Available Items"/></div>
+          <div>Available Filter Columns. Drag to build area.
+            <.input x-model="filter" placeholder="Filter Available Items"/>
+            <span x-on:click="filter = ''" x-show="filter != ''">[x]</span>
+          </div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
           <div class="flex flex-col gap-1 border-solid border rounded-md border-grey dark:border-black overflow-auto p-1">

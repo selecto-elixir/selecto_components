@@ -5,10 +5,10 @@ CHANGES
 V 0.2.2
 -------
 
+- add filters to tree builder and list pickers
 - results & form components
 - cleanup & refactor view_selector
-- update support for date cols and filters TODO
-- Update look and feel of view selector form TODO
+- Update look and feel of view selector form
   
 V 0.2.1
 -------

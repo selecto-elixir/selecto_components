@@ -21,7 +21,10 @@ defmodule SelectoComponents.Components.ListPicker do
   def render(assigns) do
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
-        <div>Avialable <.input x-model="filter" placeholder="Filter Available Items"/></div>
+        <div>Avialable
+          <.input x-model="filter" placeholder="Filter Available Items"/>
+          <span x-on:click="filter = ''" x-show="filter != ''">[x]</span>
+        </div>
 
         <div>Selected</div>
 
