@@ -13,7 +13,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           <div>Available Filter Columns. Drag to build area.
             <.input x-model="filter" placeholder="Filter Available Items"/>
-            <span x-on:click="filter = ''" x-show="filter != ''">[x]</span>
+            <.x_button x-on:click="filter = ''" x-show="filter != ''"/>
           </div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
@@ -77,7 +77,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
               <div class="absolute top-1 right-1">
-                <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+                <.x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 
             <% {uuid, section, fv} -> %>
@@ -85,7 +85,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
               <div class="absolute top-1 right-1">
-                <button type="button" phx-click="filter_remove" phx-value-uuid={uuid}>[X]</button>
+                <.x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 
           <% end %>
