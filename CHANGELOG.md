@@ -2,6 +2,13 @@
 CHANGES
 =======
 
+V 0.2.4
+-------
+
+- use heroicons
+- bug fix
+- only add filters to state on validate
+
 V 0.2.3
 -------
 

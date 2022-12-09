@@ -47,7 +47,7 @@ by adding `selecto_components` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.2.3"}
+    {:selecto_components, "~> 0.2.4"}
   ]
 end
 ```
