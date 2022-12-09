@@ -206,7 +206,7 @@ defmodule SelectoComponents.Form do
       ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
-        socket = params_to_state(params, socket)
+        socket = filter_params_to_state(params, socket)
         {:noreply, socket}
       end
 
@@ -493,8 +493,18 @@ defmodule SelectoComponents.Form do
       end
 
       ### build view_config from URL
+      defp filter_params_to_state(params, socket) do
+        filters = view_filter_process(params, "filters")
+        assign(socket,
+          view_config: %{
+            socket.assigns.view_config |
+            filters: filters,
+          }
+        )
+      end
+
+      ### build view_config from URL
       defp params_to_state(params, socket) do
-        IO.inspect(params)
         filters = view_filter_process(params, "filters")
         selected = view_param_process(params, "selected", "field")
         group_by = view_param_process(params, "group_by", "field")
