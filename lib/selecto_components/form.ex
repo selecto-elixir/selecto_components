@@ -38,7 +38,7 @@ defmodule SelectoComponents.Form do
 
               <:section id="aggregate" label="Aggregate View">
                 <.live_component
-                  module={SelectoComponents.AggregateForm}
+                  module={SelectoComponents.Views.Aggregate.Form}
                   id="agg_form"
                   columns={@columns}
                   view_config={@view_config}
@@ -48,7 +48,7 @@ defmodule SelectoComponents.Form do
 
               <:section id="detail" label="Detail View">
                 <.live_component
-                  module={SelectoComponents.DetailForm}
+                  module={SelectoComponents.Views.Detail.Form}
                   id="agg_form"
                   columns={@columns}
                   view_config={@view_config}

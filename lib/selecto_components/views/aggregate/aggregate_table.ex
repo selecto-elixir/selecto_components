@@ -1,4 +1,4 @@
-defmodule SelectoComponents.Components.AggregateTable do
+defmodule SelectoComponents.Views.Aggregate.Table do
   @doc """
     display results of aggregate view
   """

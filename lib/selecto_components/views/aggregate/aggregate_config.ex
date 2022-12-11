@@ -1,4 +1,4 @@
-defmodule SelectoComponents.Components.AggregateConfig do
+defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
 

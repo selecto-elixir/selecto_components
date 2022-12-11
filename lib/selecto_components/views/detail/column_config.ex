@@ -1,4 +1,4 @@
-defmodule SelectoComponents.Components.GroupByConfig do
+defmodule SelectoComponents.Views.Detail.ColumnConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
@@ -15,8 +15,9 @@ defmodule SelectoComponents.Components.GroupByConfig do
         <%= case @col.type do%>
           <% x when x in [:int, :id, :decimal] -> %>
             <%= @col.name %>
+              <!-- <label><input name={"#{@fieldname}[#{@uuid}][commas]"} type="checkbox" checked={Map.get(@config, "commas")}/> Commas</label>-->
           <% x when x in [:float] -> %>
-            <%= @col.name %> (ranges)
+            <%= @col.name %>
           <% x when x in [:string] -> %>
             <%= @col.name %>
           <% :boolean -> %>
@@ -24,12 +25,21 @@ defmodule SelectoComponents.Components.GroupByConfig do
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
             <%= @col.name %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                Enum.map(["Year", "Month", "Day", "Hour"], fn o -> {o, o} end)
-              }/>
+              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
             </label>
           <% _ -> %>
-            <%= @col.name %>
+            <%= case Map.get(@col, :configure_component) do %>
+            <% x when is_function(x) -> %>
+              <%= x.(%{
+                col: @col,
+                config: @config,
+                prefix: @prefix
+              }) %>
+            <% nil -> %>
+              <%= @col.name %>
+
+            <% end %>
+
           <% end %>
       </div>
 

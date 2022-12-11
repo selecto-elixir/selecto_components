@@ -1,4 +1,4 @@
-defmodule SelectoComponents.DetailForm do
+defmodule SelectoComponents.Views.Detail.Form do
 
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
@@ -19,7 +19,7 @@ defmodule SelectoComponents.DetailForm do
             <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
             <input name={"selected[#{id}][uuid]"} type="hidden" value={id}/>
             <.live_component
-              module={SelectoComponents.Components.ColumnConfig}
+              module={SelectoComponents.Views.Detail.ColumnConfig}
               id={id}
               col={@selecto.config.columns[item]}
               uuid={id}
@@ -39,7 +39,7 @@ defmodule SelectoComponents.DetailForm do
             <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
             <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
             <.live_component
-              module={SelectoComponents.Components.OrderByConfig}
+              module={SelectoComponents.Views.Detail.OrderByConfig}
               id={id}
               col={@selecto.config.columns[item]}
               item={item}

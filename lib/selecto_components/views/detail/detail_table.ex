@@ -1,4 +1,4 @@
-defmodule SelectoComponents.Components.DetailTable do
+defmodule SelectoComponents.Views.Detail.Table do
   @doc """
     Display results of a detail view
 

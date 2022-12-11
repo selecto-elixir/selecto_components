@@ -1,4 +1,4 @@
-defmodule SelectoComponents.AggregateForm do
+defmodule SelectoComponents.Views.Aggregate.Form do
 
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
@@ -18,7 +18,7 @@ defmodule SelectoComponents.AggregateForm do
             <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
             <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
             <.live_component
-              module={SelectoComponents.Components.GroupByConfig}
+              module={SelectoComponents.Views.Aggregate.GroupByConfig}
               id={id}
               col={@selecto.config.columns[item]}
               uuid={id}
@@ -38,7 +38,7 @@ defmodule SelectoComponents.AggregateForm do
             <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
             <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
             <.live_component
-              module={SelectoComponents.Components.AggregateConfig}
+              module={SelectoComponents.Views.Aggregate.Aggregate.Config}
               id={id}
               col={@selecto.config.columns[item]}
               uuid={id}

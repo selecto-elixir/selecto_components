@@ -1,4 +1,4 @@
-defmodule SelectoComponents.Components.OrderByConfig do
+defmodule SelectoComponents.Views.Detail.OrderByConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
