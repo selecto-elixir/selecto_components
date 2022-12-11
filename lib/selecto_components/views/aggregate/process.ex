@@ -14,7 +14,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     }
   end
 
-  def view(params, columns, filtered, selecto, det_set) do
+  def view(params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
 
     aggregate =
@@ -34,8 +34,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
       ],
       ### when using rollup, we need to workaround postgres bug
-      order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
-      detail_set: det_set
+      order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
     }
   end
 

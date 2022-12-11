@@ -343,25 +343,11 @@ defmodule SelectoComponents.Form do
 
           det_set = SelectoComponents.Views.Detail.Process.view(params, columns, filtered, selecto)
 
-          views = %{
-            detail: det_set,
-            aggregate: SelectoComponents.Views.Aggregate.Process.view(params, columns, filtered, selecto, det_set)
+          selected_view = String.to_atom(params["view_mode"])
+          {module, _} = socket.assigns.views[selected_view]
+          view_config = String.to_existing_atom("#{module}.Process").view(params, columns, filtered, selecto)
 
-          }
-
-
-          selecto =
-            Map.put(
-              selecto,
-              :set,
-              case params["view_mode"] do
-                "detail" ->
-                  views.detail
-
-                "aggregate" ->
-                  views.aggregate
-              end
-            )
+          selecto = Map.put( selecto, :set, view_config )
 
           ### TODO update the selected, group_by, aggregate, order_by, filters from params into the form drawer
 
