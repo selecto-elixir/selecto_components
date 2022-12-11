@@ -340,31 +340,16 @@ defmodule SelectoComponents.Form do
               Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
             end)
 
-          filtered =
-          filter_recurse(
-              selecto,
-              filters_by_section,
-              "filters"
-            )
+          filtered = filter_recurse( selecto, filters_by_section, "filters" )
 
-          detail_columns =
-            Map.get(params, "selected", %{})
-            |> Map.values()
-            |> Enum.sort(fn a, b ->
-              String.to_integer(a["index"]) <= String.to_integer(b["index"])
-            end)
+          det_set = SelectoComponents.Views.Detail.Process.view(params, columns, filtered, selecto)
 
-          ### Selecto Set for Detail View
-          detail_set = %{
-            columns: detail_columns,
-            selected: detail_columns |> process_selected(columns),
-            order_by:
-              Map.get(params, "order_by", %{})
-              |> process_order_by(columns),
-            filtered: filtered,
-            group_by: [],
-            groups: []
+          views = %{
+            detail: det_set,
+            aggregate: SelectoComponents.Views.Aggregate.Process.view(params, columns, filtered, selecto, det_set)
+
           }
+
 
           selecto =
             Map.put(
@@ -372,31 +357,10 @@ defmodule SelectoComponents.Form do
               :set,
               case params["view_mode"] do
                 "detail" ->
-                  detail_set
+                  views.detail
 
                 "aggregate" ->
-                  group_by_params = Map.get(params, "group_by", %{})
-
-                  aggregate =
-                    Map.get(params, "aggregate", %{})
-                    |> process_aggregates(columns)
-
-                  group_by =
-                    group_by_params |> process_group_by(columns)
-
-                  %{
-                    groups: group_by,
-                    gb_params: group_by_params,
-                    aggregates: aggregate,
-                    selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
-                    filtered: filtered,
-                    group_by: [
-                      {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
-                    ],
-                    ### when using rollup, we need to workaround postgres bug
-                    order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end),
-                    detail_set: detail_set
-                  }
+                  views.aggregate
               end
             )
 
