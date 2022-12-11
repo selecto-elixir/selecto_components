@@ -29,8 +29,7 @@ defmodule SelectoComponents.Form do
           <.button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
-
-      View Type
+            View Type
             <.live_component
               module={SelectoComponents.Components.RadioTabs}
               id="view_mode"
@@ -38,94 +37,23 @@ defmodule SelectoComponents.Form do
               view_mode={@view_config.view_mode}>
 
               <:section id="aggregate" label="Aggregate View">
-      Group By
                 <.live_component
-                  module={SelectoComponents.Components.ListPicker}
-                  id="group_by"
-                  fieldname="group_by"
-                  available={Enum.filter( @columns, fn {_f, _n, format} -> format not in [:component, :link] end)}
-                  selected_items={@view_config.group_by}>
-                  <:item_form :let={{id, item, config, index} }>
-                    <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
-                    <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
-                    <.live_component
-                      module={SelectoComponents.Components.GroupByConfig}
-                      id={id}
-                      col={@selecto.config.columns[item]}
-                      uuid={id}
-                      item={item}
-                      fieldname="group_by"
-                      config={config}/>
-                  </:item_form>
-                </.live_component>
-      Aggregates:
-                  <.live_component
-                    module={SelectoComponents.Components.ListPicker}
-                    id="aggregate"
-                    fieldname="aggregate"
-                    available={@columns}
-                    selected_items={@view_config.aggregate}>
-                  <:item_form :let={{id, item, config, index}}>
-                    <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
-                    <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>
-                    <.live_component
-                      module={SelectoComponents.Components.AggregateConfig}
-                      id={id}
-                      col={@selecto.config.columns[item]}
-                      uuid={id}
-                      item={item}
-                      fieldname="aggregate"
-                      config={config}/>
-                  </:item_form>
-                </.live_component>
+                  module={SelectoComponents.AggregateForm}
+                  id="agg_form"
+                  columns={@columns}
+                  view_config={@view_config}
+                  selecto={@selecto}
+                />
               </:section>
 
               <:section id="detail" label="Detail View">
-      Columns
                 <.live_component
-                    module={SelectoComponents.Components.ListPicker}
-                    id="selected"
-                    fieldname="selected"
-                    available={@columns}
-                    selected_items={@view_config.selected}>
-                  <:item_form :let={{id, item, config, index} }>
-                    <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
-                    <input name={"selected[#{id}][index]"} type="hidden" value={index}/>
-                    <input name={"selected[#{id}][uuid]"} type="hidden" value={id}/>
-                    <.live_component
-                      module={SelectoComponents.Components.ColumnConfig}
-                      id={id}
-                      col={@selecto.config.columns[item]}
-                      uuid={id}
-                      item={item}
-                      fieldname="selected"
-                      config={config}/>
-                  </:item_form>
-                </.live_component>
-      Order by
-                <.live_component
-                    module={SelectoComponents.Components.ListPicker}
-                    id="order_by"
-                    fieldname="order_by"
-                    available={@columns}
-                    selected_items={@view_config.order_by}>
-                  <:item_form :let={{id, item, config, index} }>
-                    <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
-                    <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
-                    <.live_component
-                      module={SelectoComponents.Components.OrderByConfig}
-                      id={id}
-                      col={@selecto.config.columns[item]}
-                      item={item}
-                      fieldname="order_by"
-                      config={config}/>
-                  </:item_form>
-                </.live_component>
-      Pagination
-                Per Page:
-                <select name="per_page">
-                  <option :for={i <- [30]} selected={@view_config.per_page == i} value={i}><%= i %></option>
-                </select>
+                  module={SelectoComponents.DetailForm}
+                  id="agg_form"
+                  columns={@columns}
+                  view_config={@view_config}
+                  selecto={@selecto}
+                />
               </:section>
 
             </.live_component>
@@ -135,11 +63,11 @@ defmodule SelectoComponents.Form do
 
       FILTER SECTION
             <.live_component
-                    module={SelectoComponents.Components.TreeBuilder}
-                    id="filter_tree"
-                    available={@field_filters}
-                    filters={@view_config.filters}
-                    >
+              module={SelectoComponents.Components.TreeBuilder}
+              id="filter_tree"
+              available={@field_filters}
+              filters={@view_config.filters}
+              >
 
               <:filter_form :let={{uuid, index, section, fv}}>
                 <.live_component
