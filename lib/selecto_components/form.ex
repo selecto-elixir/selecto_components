@@ -13,11 +13,16 @@ defmodule SelectoComponents.Form do
   """
 
   def render(assigns) do
+
+
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto)
       )
+
+
+
 
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
@@ -319,13 +324,7 @@ defmodule SelectoComponents.Form do
 
       end
 
-      defp view_param_process(params, item_name, section) do
-        Map.get(params, item_name, %{})
-        |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
-        |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
-          String.to_integer(index) <= String.to_integer(index2)
-        end)
-      end
+
 
       defp view_from_params(params, socket) do
         try do
@@ -395,21 +394,23 @@ defmodule SelectoComponents.Form do
         )
       end
 
+
+
       ### build view_config from URL
       defp params_to_state(params, socket) do
         filters = view_filter_process(params, "filters")
-        selected = view_param_process(params, "selected", "field")
-        group_by = view_param_process(params, "group_by", "field")
-        aggregate = view_param_process(params, "aggregate", "field")
-        order_by = view_param_process(params, "order_by", "field")
+
+        view_configs = Enum.reduce(socket.assigns.views, %{},
+          fn {view, {module, name}}, acc ->
+            Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").param_to_state(params) })
+          end
+        )
+        |> IO.inspect()
 
         assign(socket,
           view_config: %{
             filters: filters,
-            selected: selected,
-            aggregate: aggregate,
-            group_by: group_by,
-            order_by: order_by,
+            views: view_configs,
             view_mode: Map.get(params, "view_mode", "aggregate"),
             per_page: Map.get(params, "per_page", 30)
           }

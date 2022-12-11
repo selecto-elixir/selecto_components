@@ -1,5 +1,12 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
 
+  def param_to_state(params) do
+    %{
+      group_by: SelectoComponents.Helpers.view_param_process(params, "group_by", "field"),
+      aggregate: SelectoComponents.Helpers.view_param_process(params, "aggregate", "field")
+    }
+  end
+
 
   def view(params, columns, filtered, selecto, det_set) do
     group_by_params = Map.get(params, "group_by", %{})

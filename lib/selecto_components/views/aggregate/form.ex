@@ -13,7 +13,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           id="group_by"
           fieldname="group_by"
           available={Enum.filter( @columns, fn {_f, _n, format} -> format not in [:component, :link] end)}
-          selected_items={@view_config.group_by}>
+          selected_items={@view_config.views.aggregate.group_by}>
           <:item_form :let={{id, item, config, index} }>
             <input name={"group_by[#{id}][field]"} type="hidden" value={item}/>
             <input name={"group_by[#{id}][index]"} type="hidden" value={index}/>
@@ -33,7 +33,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           id="aggregate"
           fieldname="aggregate"
           available={@columns}
-          selected_items={@view_config.aggregate}>
+          selected_items={@view_config.views.aggregate.aggregate}>
           <:item_form :let={{id, item, config, index}}>
             <input name={"aggregate[#{id}][field]"} type="hidden" value={item}/>
             <input name={"aggregate[#{id}][index]"} type="hidden" value={index}/>

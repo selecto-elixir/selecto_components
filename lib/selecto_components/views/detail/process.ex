@@ -1,5 +1,14 @@
 defmodule SelectoComponents.Views.Detail.Process do
 
+  def param_to_state(params) do
+    %{
+      selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
+      order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field")
+
+    }
+  end
+
+  ### Process incoming params to build Selecto.set for view
   def view(params, columns, filtered, selecto) do
     detail_columns =
       Map.get(params, "selected", %{})
