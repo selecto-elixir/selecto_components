@@ -15,4 +15,12 @@ defmodule SelectoComponents.Helpers do
   end
 
 
+  def build_initial_state(list) do
+    list
+    |> Enum.map(fn
+      i when is_bitstring(i) -> {UUID.uuid4(), i, %{}}
+      {i, conf} -> {UUID.uuid4(), i, conf}
+    end)
+  end
+
 end

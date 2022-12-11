@@ -7,7 +7,7 @@ defmodule SelectoComponents.Results do
         <div :if={@executed}>
           <%= if @applied_view == "detail" do %>
             <.live_component
-              module={SelectoComponents.Views.Detail.Table}
+              module={SelectoComponents.Views.Detail.Component}
               id="dettable"
               selecto={@selecto}
               page={@page}
@@ -15,7 +15,7 @@ defmodule SelectoComponents.Results do
             />
           <% else %>
             <.live_component
-              module={SelectoComponents.Views.Aggregate.Table}
+              module={SelectoComponents.Views.Aggregate.Component}
               id="aggtable"
               selecto={@selecto}
             />

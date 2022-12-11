@@ -7,6 +7,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     }
   end
 
+  def initial_state(selecto) do
+    %{
+      aggregate: Map.get(selecto.domain, :default_aggregate, []) |> SelectoComponents.Helpers.build_initial_state(),
+      group_by: Map.get(selecto.domain, :default_group_by, []) |> SelectoComponents.Helpers.build_initial_state()
+    }
+  end
 
   def view(params, columns, filtered, selecto, det_set) do
     group_by_params = Map.get(params, "group_by", %{})

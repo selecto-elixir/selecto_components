@@ -405,14 +405,13 @@ defmodule SelectoComponents.Form do
             Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").param_to_state(params) })
           end
         )
-        |> IO.inspect()
 
         assign(socket,
           view_config: %{
             filters: filters,
             views: view_configs,
             view_mode: Map.get(params, "view_mode", "aggregate"),
-            per_page: Map.get(params, "per_page", 30)
+            per_page: Map.get(params, "per_page", 30)  #TODO move to det
           }
         )
       end
@@ -423,7 +422,15 @@ defmodule SelectoComponents.Form do
         push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
       end
 
-      def get_initial_state(selecto) do
+      def get_initial_state(views, selecto) do
+
+        view_configs =
+          view_configs = Enum.reduce(views, %{},
+          fn {view, {module, name}}, acc ->
+            Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").initial_state(selecto) })
+          end
+        )
+
         [
           selecto: selecto,
           executed: false,
@@ -433,22 +440,12 @@ defmodule SelectoComponents.Form do
           view_config: %{
             view_mode: "aggregate",
             per_page: 30,
-            aggregate: Map.get(selecto.domain, :default_aggregate, []) |> set_defaults(),
-            group_by: Map.get(selecto.domain, :default_group_by, []) |> set_defaults(),
-            order_by: Map.get(selecto.domain, :default_order_by, []) |> set_defaults(),
-            selected: Map.get(selecto.domain, :default_selected, []) |> set_defaults(),
+            views: view_configs,
             filters: []
           }
         ]
       end
 
-      defp set_defaults(list) do
-        list
-        |> Enum.map(fn
-          i when is_bitstring(i) -> {UUID.uuid4(), i, %{}}
-          {i, conf} -> {UUID.uuid4(), i, conf}
-        end)
-      end
 
 
 
