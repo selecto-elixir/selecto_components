@@ -39,8 +39,22 @@ defmodule SelectoComponents.Form do
               module={SelectoComponents.Components.RadioTabs}
               id="view_mode"
               fieldname="view_mode"
-              view_mode={@view_config.view_mode}>
+              view_mode={@view_config.view_mode}
+              options={@views}
+              >
 
+                <:section let={{id, module, name}}>
+                  <%= name %>
+                  <.live_component
+                    module={ String.to_existing_atom("#{module}.Form") }
+                    id={"view_#{id}_form"}
+                    columns={@columns}
+                    view_config={@view_config}
+                    selecto={@selecto}
+                  />
+                </:section>
+
+<%!--
               <:section id="aggregate" label="Aggregate View">
                 <.live_component
                   module={SelectoComponents.Views.Aggregate.Form}
@@ -59,7 +73,7 @@ defmodule SelectoComponents.Form do
                   view_config={@view_config}
                   selecto={@selecto}
                 />
-              </:section>
+              </:section> --%>
 
             </.live_component>
           </div>
@@ -344,7 +358,7 @@ defmodule SelectoComponents.Form do
           det_set = SelectoComponents.Views.Detail.Process.view(params, columns, filtered, selecto)
 
           selected_view = String.to_atom(params["view_mode"])
-          {module, _} = socket.assigns.views[selected_view]
+          {_, module, _} = Enum.find(socket.assigns.views, fn {id, _, _} -> id == selected_view end)
           view_set = String.to_existing_atom("#{module}.Process").view(params, columns, filtered, selecto)
 
           selecto = Map.put( selecto, :set, view_set )
@@ -387,7 +401,7 @@ defmodule SelectoComponents.Form do
         filters = view_filter_process(params, "filters")
 
         view_configs = Enum.reduce(socket.assigns.views, %{},
-          fn {view, {module, name}}, acc ->
+          fn {view, module, name}, acc ->
             Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").param_to_state(params) })
           end
         )
@@ -412,7 +426,7 @@ defmodule SelectoComponents.Form do
 
         view_configs =
           view_configs = Enum.reduce(views, %{},
-          fn {view, {module, name}}, acc ->
+          fn {view, module, name}, acc ->
             Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").initial_state(selecto) })
           end
         )

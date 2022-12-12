@@ -8,6 +8,7 @@ defmodule SelectoComponents.Components.RadioTabs do
   attr(:fieldname, :string, required: false)
   attr(:view_mode, :string, required: false)
 
+
   # slot :section, required: true do
   #   attr :id, :string
   #   attr :label, :string
@@ -16,20 +17,22 @@ defmodule SelectoComponents.Components.RadioTabs do
   def render(assigns) do
     ~H"""
       <div>
-        <div :for={s <- @section}>
+        <div :for={{id, module, name} <- @options}>
           <label>
             <!--TODO use LiveView.JS? -->
             <input
               type="radio"
               name={@fieldname}
-              value={s.id}
-              checked={@view_mode == s.id}
+              value={id}
+              checked={@view_mode == Atom.to_string(id)}
               phx-click="view_set"
               phx-target={@myself}/>
-            <%= s.label %>
+            <%= name %>
           </label>
-          <div class={if @view_mode == s.id do " pl-16" else "hidden" end}>
-            <%= render_slot(s) %>
+          <div class={if @view_mode == Atom.to_string(id) do " pl-16" else "hidden" end}>
+            <%= name %>
+            <%= render_slot(@section, {id, module, name}) %>
+
           </div>
         </div>
       </div>
