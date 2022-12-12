@@ -26,7 +26,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       end)
 
     ### Selecto Set for Detail View
-    detail_set = %{
+    %{
       columns: detail_columns,
       selected: detail_columns |> selected(columns),
       order_by:

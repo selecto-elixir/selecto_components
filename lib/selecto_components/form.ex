@@ -346,7 +346,7 @@ defmodule SelectoComponents.Form do
 
           selecto = Map.put( selecto, :set, view_set )
 
-          ### TODO update the selected, group_by, aggregate, order_by, filters from params into the form drawer
+          ### TODO execute query and store results to prevent SQL query churning
 
           assign(socket,
             selecto: selecto,
