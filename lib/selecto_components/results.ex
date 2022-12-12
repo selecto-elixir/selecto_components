@@ -11,7 +11,7 @@ defmodule SelectoComponents.Results do
               id="dettable"
               selecto={@selecto}
               page={@page}
-              per_page={@per_page}
+              view_config={@view_config}
             />
           <% else %>
             <.live_component

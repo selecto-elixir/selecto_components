@@ -50,7 +50,7 @@ defmodule SelectoComponents.Views.Detail.Form do
         Pagination
         Per Page:
         <select name="per_page">
-          <option :for={i <- [30]} selected={@view_config.per_page == i} value={i}><%= i %></option>
+          <option :for={i <- [30, 60, 100]} selected={@view_config.views.detail.per_page == i} value={i}><%= i %></option>
         </select>
       </div>
 

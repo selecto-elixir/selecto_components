@@ -370,11 +370,7 @@ defmodule SelectoComponents.Form do
             used_params: params,
             applied_view: params["view_mode"],
             executed: true,
-            page: 0,
-            view_config: %{
-              socket.assigns.view_config
-              | per_page: String.to_integer(params["per_page"])
-            }
+            page: 0
           )
         rescue
           e ->
@@ -410,8 +406,7 @@ defmodule SelectoComponents.Form do
           view_config: %{
             filters: filters,
             views: view_configs,
-            view_mode: Map.get(params, "view_mode", "aggregate"),
-            per_page: Map.get(params, "per_page", 30)  #TODO move to det
+            view_mode: Map.get(params, "view_mode", "aggregate")
           }
         )
       end
@@ -439,7 +434,6 @@ defmodule SelectoComponents.Form do
           page: 0,
           view_config: %{
             view_mode: "aggregate",
-            per_page: 30,
             views: view_configs,
             filters: []
           }

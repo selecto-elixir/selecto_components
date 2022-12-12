@@ -25,7 +25,9 @@ defmodule SelectoComponents.Views.Detail.Component do
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
     page = assigns.page
-    per_page = assigns.per_page
+
+    per_page = String.to_integer(assigns.view_config.views.detail.per_page)
+
 
     show_start = page * per_page
     show_end = show_start + per_page

@@ -3,15 +3,16 @@ defmodule SelectoComponents.Views.Detail.Process do
   def param_to_state(params) do
     %{
       selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
-      order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field")
-
+      order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field"),
+      per_page: params["per_page"]
     }
   end
 
   def initial_state(selecto) do
     %{
       order_by: Map.get(selecto.domain, :default_order_by, []) |> SelectoComponents.Helpers.build_initial_state(),
-      selected: Map.get(selecto.domain, :default_selected, []) |> SelectoComponents.Helpers.build_initial_state()
+      selected: Map.get(selecto.domain, :default_selected, []) |> SelectoComponents.Helpers.build_initial_state(),
+      per_page: "30"
     }
   end
 
