@@ -5,21 +5,11 @@ defmodule SelectoComponents.Components.RadioTabs do
   """
   use Phoenix.LiveComponent
 
-  attr(:fieldname, :string, required: false)
-  attr(:view_mode, :string, required: false)
-
-
-  # slot :section, required: true do
-  #   attr :id, :string
-  #   attr :label, :string
-  # end
-
   def render(assigns) do
     ~H"""
       <div>
         <div :for={{id, module, name, opt} <- @options}>
           <label>
-            <!--TODO use LiveView.JS? -->
             <input
               type="radio"
               name={@fieldname}
@@ -32,7 +22,6 @@ defmodule SelectoComponents.Components.RadioTabs do
           <div class={if @view_mode == Atom.to_string(id) do " pl-16" else "hidden" end}>
             <%= name %>
             <%= render_slot(@section, {id, module, name, opt}) %>
-
           </div>
         </div>
       </div>
