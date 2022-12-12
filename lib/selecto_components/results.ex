@@ -2,24 +2,23 @@ defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
 
   def render(assigns) do
+
+    selected_view = String.to_atom(assigns.applied_view)
+    {_, module, _, opt} = Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
+
+    assigns = assign(assigns, module: module, view_opts: opt)
+
     ~H"""
       <div>
         <div :if={@executed}>
-          <%= if @applied_view == "detail" do %>
             <.live_component
-              module={SelectoComponents.Views.Detail.Component}
-              id="dettable"
+              module={String.to_existing_atom("#{@module}.Component")}
+              id="view_results"
               selecto={@selecto}
               page={@page}
+              view_opts={@view_opts}
               view_config={@view_config}
             />
-          <% else %>
-            <.live_component
-              module={SelectoComponents.Views.Aggregate.Component}
-              id="aggtable"
-              selecto={@selecto}
-            />
-          <% end %>
         </div>
       </div>
     """
