@@ -17,7 +17,7 @@ defmodule SelectoComponents.Components.RadioTabs do
   def render(assigns) do
     ~H"""
       <div>
-        <div :for={{id, module, name} <- @options}>
+        <div :for={{id, module, name, opt} <- @options}>
           <label>
             <!--TODO use LiveView.JS? -->
             <input
@@ -31,7 +31,7 @@ defmodule SelectoComponents.Components.RadioTabs do
           </label>
           <div class={if @view_mode == Atom.to_string(id) do " pl-16" else "hidden" end}>
             <%= name %>
-            <%= render_slot(@section, {id, module, name}) %>
+            <%= render_slot(@section, {id, module, name, opt}) %>
 
           </div>
         </div>

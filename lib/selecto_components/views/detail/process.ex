@@ -1,6 +1,6 @@
 defmodule SelectoComponents.Views.Detail.Process do
 
-  def param_to_state(params) do
+  def param_to_state(params, _v) do
     %{
       selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field"),
@@ -8,7 +8,7 @@ defmodule SelectoComponents.Views.Detail.Process do
     }
   end
 
-  def initial_state(selecto) do
+  def initial_state(selecto, v) do
     %{
       order_by: Map.get(selecto.domain, :default_order_by, []) |> SelectoComponents.Helpers.build_initial_state(),
       selected: Map.get(selecto.domain, :default_selected, []) |> SelectoComponents.Helpers.build_initial_state(),
@@ -17,7 +17,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   ### Process incoming params to build Selecto.set for view
-  def view(params, columns, filtered, selecto) do
+  def view(opt, params, columns, filtered, selecto) do
     detail_columns =
       Map.get(params, "selected", %{})
       |> Map.values()

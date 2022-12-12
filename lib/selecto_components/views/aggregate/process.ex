@@ -1,20 +1,20 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
 
-  def param_to_state(params) do
+  def param_to_state(params, _v) do
     %{
       group_by: SelectoComponents.Helpers.view_param_process(params, "group_by", "field"),
       aggregate: SelectoComponents.Helpers.view_param_process(params, "aggregate", "field")
     }
   end
 
-  def initial_state(selecto) do
+  def initial_state(selecto, _v) do
     %{
       aggregate: Map.get(selecto.domain, :default_aggregate, []) |> SelectoComponents.Helpers.build_initial_state(),
       group_by: Map.get(selecto.domain, :default_group_by, []) |> SelectoComponents.Helpers.build_initial_state()
     }
   end
 
-  def view(params, columns, filtered, selecto) do
+  def view(opt, params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
 
     aggregate =
