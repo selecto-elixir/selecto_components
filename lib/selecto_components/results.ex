@@ -3,10 +3,14 @@ defmodule SelectoComponents.Results do
 
   def render(assigns) do
 
-    selected_view = String.to_atom(assigns.applied_view)
-    {_, module, _, opt} = Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
+    assigns = case assigns.applied_view do
+      nil -> assigns
+      _ ->
+        selected_view = String.to_atom(assigns.applied_view)
+        {_, module, _, opt} = Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
+        assigns = assign(assigns, module: module, view_opts: opt)
+    end
 
-    assigns = assign(assigns, module: module, view_opts: opt)
 
     ~H"""
       <div>
