@@ -55,27 +55,6 @@ defmodule SelectoComponents.Form do
                   />
                 </:section>
 
-<%!--
-              <:section id="aggregate" label="Aggregate View">
-                <.live_component
-                  module={SelectoComponents.Views.Aggregate.Form}
-                  id="agg_form"
-                  columns={@columns}
-                  view_config={@view_config}
-                  selecto={@selecto}
-                />
-              </:section>
-
-              <:section id="detail" label="Detail View">
-                <.live_component
-                  module={SelectoComponents.Views.Detail.Form}
-                  id="agg_form"
-                  columns={@columns}
-                  view_config={@view_config}
-                  selecto={@selecto}
-                />
-              </:section> --%>
-
             </.live_component>
           </div>
 
