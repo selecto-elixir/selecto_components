@@ -211,6 +211,11 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("agg_add_filters", params, socket) do
+        selected_view = String.to_atom(socket.assigns.view_config.view_mode)
+        {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
+
+        new_view_mode = Map.get(opt, :drill_down, "detail")
+
         view_params =
           %{socket.assigns.used_params | "view_mode" => "detail"}
           |> Map.put(
@@ -239,7 +244,7 @@ defmodule SelectoComponents.Form do
           assign(socket,
             view_config: %{
               socket.assigns.view_config
-              | view_mode: "detail",
+              | view_mode: new_view_mode,
                 filters:
                   Enum.filter(socket.assigns.view_config.filters, fn
                     {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
