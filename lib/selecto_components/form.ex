@@ -26,7 +26,6 @@ defmodule SelectoComponents.Form do
 
     ~H"""
       <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
-        <%= @active_tab %>
         <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.button>
@@ -44,7 +43,6 @@ defmodule SelectoComponents.Form do
               >
 
                 <:section let={{id, module, name, _} = view}>
-                  <%= name %>
                   <.live_component
                     module={ String.to_existing_atom("#{module}.Form") }
                     id={"view_#{id}_form"}
@@ -115,7 +113,6 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
-        IO.puts("Handle Params")
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
@@ -126,7 +123,6 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("set_active_tab", params, socket) do
-        IO.inspect(params)
         {:noreply, assign(socket, active_tab: params["tab"] )}
       end
 
@@ -317,7 +313,6 @@ defmodule SelectoComponents.Form do
       defp view_filter_process(params, item_name) do
         Map.get(params, item_name, %{})
 
-        |> IO.inspect()
         |> Enum.sort(fn {_, %{"index" => index}}, {_, %{"index" => index2}} ->
           String.to_integer(index) <= String.to_integer(index2)
         end)
