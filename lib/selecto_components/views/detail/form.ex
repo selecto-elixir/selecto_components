@@ -13,6 +13,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             id="selected"
             fieldname="selected"
             available={@columns}
+            view={@view}
             selected_items={@view_config.views.detail.selected}>
           <:item_form :let={{id, item, config, index} }>
             <input name={"selected[#{id}][field]"} type="hidden" value={item}/>
@@ -34,6 +35,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             id="order_by"
             fieldname="order_by"
             available={@columns}
+            view={@view}
             selected_items={@view_config.views.detail.order_by}>
           <:item_form :let={{id, item, config, index} }>
             <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>

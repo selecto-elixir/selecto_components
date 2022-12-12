@@ -43,14 +43,14 @@ defmodule SelectoComponents.Form do
               options={@views}
               >
 
-                <:section let={{id, module, name, opt}}>
+                <:section let={{id, module, name, _} = view}>
                   <%= name %>
                   <.live_component
                     module={ String.to_existing_atom("#{module}.Form") }
                     id={"view_#{id}_form"}
                     columns={@columns}
                     view_config={@view_config}
-                    view_opts={opt}
+                    view={view}
                     selecto={@selecto}
                   />
                 </:section>
@@ -251,16 +251,17 @@ defmodule SelectoComponents.Form do
       end
 
       @impl true
-      def handle_info({:list_picker_remove, list, item}, socket) do
+      def handle_info({:list_picker_remove, view, list, item}, socket) do
+        view = String.to_atom(view)
         list = String.to_atom(list)
 
+        view_config = socket.assigns.view_config
         socket =
           assign(socket,
             view_config:
-              Map.put(
-                socket.assigns.view_config,
-                list,
-                Enum.filter(socket.assigns.view_config[list], fn {id, _, _} -> id != item end)
+              put_in(
+                view_config.views[view][list],
+                Enum.filter(view_config.views[view][list], fn {id, _, _} -> id != item end)
               )
           )
 
@@ -270,9 +271,11 @@ defmodule SelectoComponents.Form do
       ### TODO fix this up
 
       @impl true
-      def handle_info({:list_picker_move, list, uuid, direction}, socket) do
+      def handle_info({:list_picker_move, view, list, uuid, direction}, socket) do
+        view = String.to_atom(view)
         list = String.to_atom(list)
-        item_list = socket.assigns.view_config[list]
+        view_config = socket.assigns.view_config
+        item_list = view_config.views[view][list]
         item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
         {item, item_list} = List.pop_at(item_list, item_index)
 
@@ -286,23 +289,25 @@ defmodule SelectoComponents.Form do
             item
           )
 
-        socket = assign(socket, view_config: Map.put(socket.assigns.view_config, list, item_list))
+        socket = assign(socket, view_config: put_in(view_config.views[view][list], item_list))
         {:noreply, socket}
       end
 
       @impl true
-      def handle_info({:list_picker_add, list, item}, socket) do
+      def handle_info({:list_picker_add, view, list, item}, socket) do
+        view = String.to_atom(view)
         list = String.to_atom(list)
         config = %{}
         id = UUID.uuid4()
 
+        view_config = socket.assigns.view_config
+
         socket =
           assign(socket,
             view_config:
-              Map.put(
-                socket.assigns.view_config,
-                list,
-                Enum.uniq(socket.assigns.view_config[list] ++ [{id, item, config}])
+              put_in(
+                view_config.views[view][list],
+                Enum.uniq(view_config.views[view][list] ++ [{id, item, config}])
               )
           )
 

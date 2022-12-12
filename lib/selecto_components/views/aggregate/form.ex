@@ -12,6 +12,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           module={SelectoComponents.Components.ListPicker}
           id="group_by"
           fieldname="group_by"
+          view={@view}
           available={Enum.filter( @columns, fn {_f, _n, format} -> format not in [:component, :link] end)}
           selected_items={@view_config.views.aggregate.group_by}>
           <:item_form :let={{id, item, config, index} }>
@@ -32,6 +33,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           module={SelectoComponents.Components.ListPicker}
           id="aggregate"
           fieldname="aggregate"
+          view={@view}
           available={@columns}
           selected_items={@view_config.views.aggregate.aggregate}>
           <:item_form :let={{id, item, config, index}}>
