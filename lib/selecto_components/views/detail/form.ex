@@ -40,6 +40,7 @@ defmodule SelectoComponents.Views.Detail.Form do
           <:item_form :let={{id, item, config, index} }>
             <input name={"order_by[#{id}][field]"} type="hidden" value={item}/>
             <input name={"order_by[#{id}][index]"} type="hidden" value={index}/>
+            <input name={"order_by[#{id}][uuid]"} type="hidden" value={id}/>
             <.live_component
               module={SelectoComponents.Views.Detail.OrderByConfig}
               id={id}

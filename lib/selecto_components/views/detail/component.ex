@@ -9,7 +9,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
-    {results, fields, aliases} = assigns.query_results
+    {results, fields, aliases} = assigns.query_results |> IO.inspect()
     #IO.puts("RENDER!")
     #IO.inspect(assigns.view_meta, label: "VIEW META")
 
@@ -39,6 +39,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         show_start: show_start,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
+        column_uuids: Map.get(assigns.selecto.set, :columns, []) |> Enum.map( fn c -> c["uuid"] end ),
         max_pages: page_count
       )
 
@@ -61,19 +62,22 @@ defmodule SelectoComponents.Views.Detail.Component do
           </.button>
         </div>
       </div>
+
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
+
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">#</th>
-          <th :for={ r <- @columns} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
-            <%= r["field"] %>
+          <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+            <%= r %>
           </th>
         </tr>
+
         <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
-          <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
+          <%= with r <- Enum.zip( @column_uuids, resrow ) |> Enum.into(%{}) do %>
             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <%= i + 1 %>
             </td>
-            <td :for={ c<- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td :for={ {alias, c}<- Enum.zip( @column_uuids, @columns )} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <%= with def <- @selecto.config.columns[c["field"]] do %>
                 <%= case def do %>
 

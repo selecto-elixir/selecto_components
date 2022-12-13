@@ -58,20 +58,21 @@ defmodule SelectoComponents.Views.Detail.Process do
     |> Enum.map(fn e ->
       col = columns[e["field"]]
       uuid = e["uuid"]
+      alias = e["alias"] || e["uuid"]
       # move to a validation lib
       case col.type do
         x when x in [:naive_datetime, :utc_datetime] ->
-          {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, uuid}
+          {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, alias}
 
         :custom_column ->
           case Map.get(col, :requires_select) do
-            x when is_list(x) -> {:row, col.requires_select, uuid}
-            x when is_function(x) -> {:row, col.requires_select.(e), uuid}
-            nil -> {:field, col.colid, uuid}
+            x when is_list(x) -> {:row, col.requires_select, alias}
+            x when is_function(x) -> {:row, col.requires_select.(e), alias}
+            nil -> {:field, col.colid, alias}
           end
 
         _ ->
-          {:field, col.colid, uuid}
+          {:field, col.colid, alias}
       end
     end)
     |> List.flatten()

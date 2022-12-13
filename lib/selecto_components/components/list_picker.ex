@@ -45,6 +45,7 @@ defmodule SelectoComponents.Components.ListPicker do
         <div class="flex flex-col gap-1 border rounded-md border-grey dark:border-black h-60 overflow-auto p-1">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
             class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black relative p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10 ">
+
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
             <div class="absolute top-1 right-1">
