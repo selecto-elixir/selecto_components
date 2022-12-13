@@ -43,7 +43,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
             <% end %>
           <% end %>
 
-          <.input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
+          <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
 
       </div>
 

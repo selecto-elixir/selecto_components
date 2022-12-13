@@ -26,8 +26,8 @@ defmodule SelectoComponents.Components.ListPicker do
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
         <div>Avialable
-          <.input x-model="filter" placeholder="Filter Available Items"/>
-          <.x_button x-on:click="filter = ''" x-show="filter != ''"/>
+          <.sc_input x-model="filter" placeholder="Filter Available Items"/>
+          <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
         </div>
 
         <div>Selected</div>
@@ -49,9 +49,9 @@ defmodule SelectoComponents.Components.ListPicker do
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
             <div class="absolute top-1 right-1">
-              <.up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
-              <.down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
-              <.x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
+              <.sc_up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
+              <.sc_down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
+              <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
 
             </div>
           </div>

@@ -12,8 +12,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
         <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
           <div>Available Filter Columns. Double Click or Drag to build area.
-            <.input x-model="filter" placeholder="Filter Available Items"/>
-            <.x_button x-on:click="filter = ''" x-show="filter != ''"/>
+            <.sc_input x-model="filter" placeholder="Filter Available Items"/>
+            <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
           </div>
           <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
@@ -78,7 +78,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
               <div class="absolute top-1 right-1">
-                <.x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 
             <% {uuid, section, fv} -> %>
@@ -86,7 +86,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
               <div class="absolute top-1 right-1">
-                <.x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 
           <% end %>

@@ -44,7 +44,7 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="null" selected={Map.get(@valmap, "comp") == "null"}>Null</option>
             <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
           </.select_with_slot>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+          <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <!-- <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} value="Y"/>Ignore Case</label> -->
         </label>
       </div>
@@ -73,8 +73,8 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
 
           </.select_with_slot>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
-          <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+          <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+          <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
 
         </label>
       </div>
@@ -102,8 +102,8 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
 
           </.select_with_slot>
-          <.input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
-          <.input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+          <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+          <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
           <%!--
           <label>Round to for Comparison
           <select name={"filters[#{@uuid}][precision]]"}>
@@ -127,10 +127,10 @@ defmodule SelectoComponents.Components.FilterForms do
       <div>
         <%= @type %> <%= @def.name %>
         <label>Y
-          <.input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] == "true"} value="true"/>
+          <.sc_input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] == "true"} value="true"/>
         </label>
         <label>N
-          <.input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] != "true"} value="false"/>
+          <.sc_input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] != "true"} value="false"/>
         </label>
       </div>
     """
@@ -146,11 +146,11 @@ defmodule SelectoComponents.Components.FilterForms do
       <label>
         <%= @def.name %>
         After:
-        <.input type="datetime-local" name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+        <.sc_input type="datetime-local" name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
       </label>
       <label>
         Before:
-        <.input type="datetime-local" name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+        <.sc_input type="datetime-local" name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
       </label>
     </div>
     """
