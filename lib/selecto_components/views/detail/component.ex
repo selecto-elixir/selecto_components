@@ -3,7 +3,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     Display results of a detail view
 
   """
-
+  import SelectoComponents.Components.Common
   use Phoenix.LiveComponent
   use Phoenix.HTML
 
@@ -44,10 +44,23 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     ~H"""
     <div>
-      <button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>Prev Page</button>
-      <span><%= Enum.count(@results) %> Rows Found</span>
-      <button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>Next Page</button>
-
+      <div class="flex">
+        <div class="inline">
+          <.button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>
+            <Heroicons.backward class="w-6 h-6 inline"/>
+            Prev Page
+          </.button>
+        </div>
+        <div class="inline middle">
+          <%= Enum.count(@results) %> Rows Found
+        </div>
+        <div class="inline">
+          <.button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>
+            Next Page
+            <Heroicons.forward class="w-6 h-6 inline"/>
+          </.button>
+        </div>
+      </div>
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">#</th>
