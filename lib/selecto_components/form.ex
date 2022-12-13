@@ -241,6 +241,8 @@ defmodule SelectoComponents.Form do
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
       end
 
+
+
       @impl true
       def handle_info({:list_picker_remove, view, list, item}, socket) do
         view = String.to_atom(view)
@@ -258,8 +260,6 @@ defmodule SelectoComponents.Form do
 
         {:noreply, socket}
       end
-
-      ### TODO fix this up
 
       @impl true
       def handle_info({:list_picker_move, view, list, uuid, direction}, socket) do

@@ -59,10 +59,6 @@ defmodule SelectoComponents.Components.ListPicker do
     """
   end
 
-  def handle_event("search_upd", params, socket) do
-
-  end
-
   def handle_event("remove", params, socket) do
     send(self(), {:list_picker_remove, params["view"], params["list-id"], params["item"]})
     {:noreply, socket}
