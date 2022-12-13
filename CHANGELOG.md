@@ -2,6 +2,12 @@
 CHANGES
 =======
 
+V 0.2.5
+-------
+
+- refactor view selection system / modularize views
+- cleanup agg & detail view forms/proc/comp (DOING)
+
 V 0.2.4
 -------
 
