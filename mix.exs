@@ -28,7 +28,9 @@ defmodule SelectoComponents.MixProject do
       {:selecto, "~> 0.1.2"},
       {:uuid, "~> 1.1"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
-      {:heroicons, "~> 0.5.0"}
+      {:heroicons, "~> 0.5.0"},
+      {:vega_lite, "~> 0.1.6"}
+
 
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
