@@ -322,7 +322,8 @@ defmodule SelectoComponents.Form do
 
       defp view_from_params(params, socket) do
         try do
-          IO.inspect(params, label: "View From Params")
+          #IO.inspect(params, label: "View From Params")
+          #IO.puts("Build View")
 
           selecto = socket.assigns.selecto
           columns = selecto.config.columns
@@ -337,16 +338,20 @@ defmodule SelectoComponents.Form do
 
           selected_view = String.to_atom(params["view_mode"])
           {_, module, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-          view_set = String.to_existing_atom("#{module}.Process").view(opt, params, columns, filtered, selecto)
+          {view_set, view_meta} = String.to_existing_atom("#{module}.Process").view(opt, params, columns, filtered, selecto)
 
           selecto = Map.put( selecto, :set, view_set )
+
+          results = Selecto.execute(selecto)
 
           ### TODO execute query and store results to prevent SQL query churning
 
           assign(socket,
             selecto: selecto,
+            query_results: results,
             used_params: params,
             applied_view: params["view_mode"],
+            view_meta: view_meta,
             executed: true
           )
         rescue
@@ -400,13 +405,15 @@ defmodule SelectoComponents.Form do
         [
           selecto: selecto,
           executed: false,
+          query_results: [],
           applied_view: nil,
           active_tab: "view",
           view_config: %{
             view_mode: "aggregate",
             views: view_configs,
             filters: []
-          }
+          },
+          view_meta: %{}
         ]
       end
 

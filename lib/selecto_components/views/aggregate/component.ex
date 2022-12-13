@@ -132,7 +132,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   def render(assigns) do
-    {results, _fields, aliases} = Selecto.execute(assigns.selecto, results_type: :tuples)
+    {results, _fields, aliases} = assigns.query_results
+
 
     ### Will always be first X items
     group_by = assigns.selecto.set.groups

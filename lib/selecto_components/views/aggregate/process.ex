@@ -24,7 +24,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     group_by =
       group_by_params |> SelectoComponents.Views.Aggregate.Process.group_by(columns)
 
-    %{
+    {%{
       groups: group_by,
       gb_params: group_by_params,
       aggregates: aggregate,
@@ -35,7 +35,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       ],
       ### when using rollup, we need to workaround postgres bug
       order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
-    }
+    }, %{}}
   end
 
   def group_by(group_by, columns) do

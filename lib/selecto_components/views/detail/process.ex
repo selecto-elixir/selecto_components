@@ -26,7 +26,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       end)
 
     ### Selecto Set for Detail View
-    %{
+    {%{
       columns: detail_columns,
       selected: detail_columns |> selected(columns),
       order_by:
@@ -34,8 +34,9 @@ defmodule SelectoComponents.Views.Detail.Process do
         |> order_by(columns),
       filtered: filtered,
       group_by: [],
-      groups: []
-    }
+      groups: [],
+      per_page: String.to_integer(params["per_page"])
+    }, %{ page: 0 }}
 
   end
 

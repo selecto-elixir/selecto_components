@@ -9,8 +9,10 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
+    {results, fields, aliases} = assigns.query_results
+    #IO.puts("RENDER!")
+    #IO.inspect(assigns.view_meta, label: "VIEW META")
 
-    {results, fields, aliases} = Selecto.execute(assigns.selecto)
     selected = Map.get(assigns.selecto.set, :columns, [])
 
     selected =
@@ -24,10 +26,9 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
-    page = Map.get(assigns, :page, 0)
+    page = assigns.view_meta.page
 
-    per_page = String.to_integer(assigns.view_config.views.detail.per_page)
-
+    per_page = assigns.selecto.set.per_page
 
     show_start = page * per_page
     show_end = show_start + per_page
@@ -42,7 +43,6 @@ defmodule SelectoComponents.Views.Detail.Component do
         fmap: fmap,
         show_start: show_start,
         per_page: per_page,
-        page: page,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
         max_pages: page_count
@@ -50,9 +50,9 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     ~H"""
     <div>
-      <button :if={@page > 0} type="button" phx-click="set_page" phx-value-page={@page - 1} phx-target={@myself}>Prev Page</button>
+      <button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>Prev Page</button>
       <span><%= Enum.count(@results) %> Rows Found</span>
-      <button :if={@page < @max_pages} type="button" phx-click="set_page" phx-value-page={@page + 1} phx-target={@myself}>Next Page</button>
+      <button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>Next Page</button>
 
 
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
@@ -98,7 +98,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("set_page", params, socket) do
     #send(self(), {:set_detail_page, params["page"]})
-    socket = assign(socket, page: String.to_integer(params["page"]))
+    socket = assign(socket, view_meta: %{ page: String.to_integer(params["page"]) })
 
     {:noreply, socket}
   end

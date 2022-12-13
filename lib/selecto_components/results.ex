@@ -14,13 +14,16 @@ defmodule SelectoComponents.Results do
 
     ~H"""
       <div>
+      <% IO.inspect(@executed, label: "Executed?") %>
         <div :if={@executed}>
             <.live_component
               module={String.to_existing_atom("#{@module}.Component")}
               id="view_results"
               selecto={@selecto}
+              query_results={@query_results}
+              view_meta={@view_meta}
               view_opts={@view_opts}
-              view_config={@view_config}
+
             />
         </div>
       </div>
