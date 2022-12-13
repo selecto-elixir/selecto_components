@@ -33,7 +33,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       group_by: [
         {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
       ],
-      ### when using rollup, we need to workaround postgres bug
+      ### when using rollup, we need to workaround postgres bug. Currently implemented in Selecto builder
       order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
     }, %{}}
   end

@@ -11,7 +11,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
       <div class="">
         <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
-          <div>Available Filter Columns. Drag to build area.
+          <div>Available Filter Columns. Double Click or Drag to build area.
             <.input x-model="filter" placeholder="Filter Available Items"/>
             <.x_button x-on:click="filter = ''" x-show="filter != ''"/>
           </div>
@@ -34,6 +34,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
             <div :for={{id, name} <- @available}>
               <div
                 x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
+                x-on:dblclick="PushEventHook.pushEvent('treedrop', {target: 'filters', element: event.srcElement.id});"
                 x-transition
                 class="max-w-100 bg-slate-100	dark:bg-slate-700 border-solid border rounded-md border-grey-900 dark:border-black p-1 hover:bg-slate-200 dark:hover:bg-slate-600 min-h-10"
                 draggable="true" x-on:drag=" dragging = event.srcElement.id; "

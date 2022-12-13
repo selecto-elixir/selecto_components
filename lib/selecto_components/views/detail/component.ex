@@ -25,14 +25,9 @@ defmodule SelectoComponents.Views.Detail.Component do
       end)
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
-
     page = assigns.view_meta.page
-
     per_page = assigns.view_meta.per_page
-
     show_start = page * per_page
-    show_end = show_start + per_page
-
     page_count = Float.ceil(Enum.count(results) / per_page)
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
@@ -53,7 +48,6 @@ defmodule SelectoComponents.Views.Detail.Component do
       <span><%= Enum.count(@results) %> Rows Found</span>
       <button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>Next Page</button>
 
-
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">#</th>
@@ -67,24 +61,22 @@ defmodule SelectoComponents.Views.Detail.Component do
               <%= i + 1 %>
             </td>
             <td :for={ c<- @columns} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-
               <%= with def <- @selecto.config.columns[c["field"]] do %>
-
                 <%= case def do %>
+
                   <%= %{format: :component} = def -> %>
                     <%= def.component.(%{row: r[c["uuid"]], config: c}) %>
+
                   <%= %{format: :link} = def -> %>
-
                     <%= with {href, txt} <- def.link_parts.(r[c["uuid"]])  do %>
-
                       <.link href={href}>
                         <%= txt %>
                       </.link>
-
                     <% end %>
 
                   <% _ -> %>
                     <%= r[c["uuid"]] %>
+
                 <%= end %>
               <%= end %>
             </td>
