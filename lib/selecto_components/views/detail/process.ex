@@ -58,7 +58,11 @@ defmodule SelectoComponents.Views.Detail.Process do
     |> Enum.map(fn e ->
       col = columns[e["field"]]
       uuid = e["uuid"]
-      alias = e["alias"] || e["uuid"]
+      alias = case e["alias"] do  #????
+        "" -> e["field"]
+        nil -> e["field"]
+        _ -> e["alias"]
+      end
       # move to a validation lib
       case col.type do
         x when x in [:naive_datetime, :utc_datetime] ->

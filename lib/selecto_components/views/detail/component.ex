@@ -9,7 +9,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
-    {results, fields, aliases} = assigns.query_results |> IO.inspect()
+    {results, fields, aliases} = assigns.query_results #|> IO.inspect()
     #IO.puts("RENDER!")
     #IO.inspect(assigns.view_meta, label: "VIEW META")
 
@@ -44,16 +44,16 @@ defmodule SelectoComponents.Views.Detail.Component do
     ~H"""
     <div>
       <div class="flex">
-        <div class="inline">
+        <div class="inline-block">
           <.button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>
             <Heroicons.backward class="w-6 h-6 inline"/>
             Prev Page
           </.button>
         </div>
-        <div class="inline middle">
+        <div class="inline-block px-4 py-2 align-bottom">
           <%= Enum.count(@results) %> Rows Found
         </div>
-        <div class="inline">
+        <div class="inline-block">
           <.button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>
             Next Page
             <Heroicons.forward class="w-6 h-6 inline"/>
