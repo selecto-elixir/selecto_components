@@ -13,19 +13,14 @@ defmodule SelectoComponents.Form do
   """
 
   def render(assigns) do
-
-
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto)
       )
 
-
-
-
     ~H"""
-      <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
+      <div class="border-solid border border-2 rounded-md border-black dark:border-black h-100 overflow-auto p-1">
         <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
@@ -57,33 +52,26 @@ defmodule SelectoComponents.Form do
           </div>
 
           <div class={if @active_tab == "filter" do "border-solid border rounded-md border-grey dark:border-black h-90  p-1" else "hidden" end}>
-
       FILTER SECTION
             <.live_component
               module={SelectoComponents.Components.TreeBuilder}
               id="filter_tree"
               available={@field_filters}
               filters={@view_config.filters}
-              >
-
+            >
               <:filter_form :let={{uuid, index, section, fv}}>
                 <.live_component
-                    module={SelectoComponents.Components.FilterForms}
-                    id={uuid}
-                    uuid={uuid}
-                    section={section}
-                    index={index}
-                    filter={fv}
-                    columns={@selecto.config.columns}
-                    custom_filters={@selecto.config.filters}
-                    >
-                </.live_component>
+                  module={SelectoComponents.Components.FilterForms}
+                  id={uuid}
+                  uuid={uuid}
+                  section={section}
+                  index={index}
+                  filter={fv}
+                  columns={@selecto.config.columns}
+                  custom_filters={@selecto.config.filters}
+                />
               </:filter_form>
-
             </.live_component>
-
-
-
           </div>
 
           <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
@@ -96,8 +84,6 @@ defmodule SelectoComponents.Form do
           </div>
 
           <.sc_button>Submit</.sc_button>
-
-
         </.form>
       </div>
 

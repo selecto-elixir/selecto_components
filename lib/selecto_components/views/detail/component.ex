@@ -43,8 +43,8 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     ~H"""
     <div>
-      <div class="flex">
-        <div class="inline-block">
+      <div class="flex justify-center">
+        <div class="inline-block w-36">
           <.sc_button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>
             <Heroicons.backward class="w-6 h-6 inline"/>
             Prev Page
@@ -53,7 +53,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         <div class="inline-block px-4 py-2 align-bottom">
           <%= Enum.count(@results) %> Rows Found
         </div>
-        <div class="inline-block">
+        <div class="inline-block w-36">
           <.sc_button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>
             Next Page
             <Heroicons.forward class="w-6 h-6 inline"/>
