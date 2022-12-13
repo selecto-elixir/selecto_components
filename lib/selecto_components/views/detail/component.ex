@@ -28,7 +28,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     page = assigns.view_meta.page
 
-    per_page = assigns.selecto.set.per_page
+    per_page = assigns.view_meta.per_page
 
     show_start = page * per_page
     show_end = show_start + per_page
@@ -42,7 +42,6 @@ defmodule SelectoComponents.Views.Detail.Component do
         aliases: aliases,
         fmap: fmap,
         show_start: show_start,
-        per_page: per_page,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
         max_pages: page_count
@@ -62,7 +61,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             <%= r["field"] %>
           </th>
         </tr>
-        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
+        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
           <%= with r <- Enum.zip( @aliases, resrow ) |> Enum.into(%{}) do %>
             <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
               <%= i + 1 %>
@@ -98,7 +97,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("set_page", params, socket) do
     #send(self(), {:set_detail_page, params["page"]})
-    socket = assign(socket, view_meta: %{ page: String.to_integer(params["page"]) })
+    socket = assign(socket, view_meta: %{ socket.assigns.view_meta | page: String.to_integer(params["page"]) })
 
     {:noreply, socket}
   end

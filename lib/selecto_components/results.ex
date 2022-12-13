@@ -23,7 +23,6 @@ defmodule SelectoComponents.Results do
               query_results={@query_results}
               view_meta={@view_meta}
               view_opts={@view_opts}
-
             />
         </div>
       </div>

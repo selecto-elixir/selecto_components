@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Views.Detail.Process do
 
   def param_to_state(params, _v) do
-    %{
+    %{  ## state is used to draw the form
       selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field"),
       per_page: params["per_page"]
@@ -25,7 +25,7 @@ defmodule SelectoComponents.Views.Detail.Process do
         String.to_integer(a["index"]) <= String.to_integer(b["index"])
       end)
 
-    ### Selecto Set for Detail View
+    ### Selecto Set for Detail View, view_meta for view data
     {%{
       columns: detail_columns,
       selected: detail_columns |> selected(columns),
@@ -34,9 +34,8 @@ defmodule SelectoComponents.Views.Detail.Process do
         |> order_by(columns),
       filtered: filtered,
       group_by: [],
-      groups: [],
-      per_page: String.to_integer(params["per_page"])
-    }, %{ page: 0 }}
+      groups: []
+    }, %{ page: 0, per_page: String.to_integer(params["per_page"]) }}
 
   end
 

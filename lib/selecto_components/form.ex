@@ -341,10 +341,8 @@ defmodule SelectoComponents.Form do
           {view_set, view_meta} = String.to_existing_atom("#{module}.Process").view(opt, params, columns, filtered, selecto)
 
           selecto = Map.put( selecto, :set, view_set )
-
           results = Selecto.execute(selecto)
-
-          ### TODO execute query and store results to prevent SQL query churning
+          view_meta = Map.merge(view_meta, %{ exe_id: UUID.uuid4() })
 
           assign(socket,
             selecto: selecto,
