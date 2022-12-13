@@ -321,7 +321,7 @@ defmodule SelectoComponents.Form do
 
 
       defp view_from_params(params, socket) do
-        try do
+        #try do
           #IO.inspect(params, label: "View From Params")
           #IO.puts("Build View")
 
@@ -352,11 +352,11 @@ defmodule SelectoComponents.Form do
             view_meta: view_meta,
             executed: true
           )
-        rescue
-          e ->
-            IO.inspect(e, label: "Error on view creation")
-            socket
-        end
+        # rescue
+        #   e ->
+        #     IO.inspect(e, label: "Error on view creation")
+        #     socket
+        # end
       end
 
       ### build view_config from URL

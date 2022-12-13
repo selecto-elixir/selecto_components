@@ -188,12 +188,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         <tr>
           <th :for={{_alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= case g do %>
-            <%= {:extract, _f, fmt} -> %>
-              <%= fmt %>: <%= def.name %>
-            <% {a, f} -> %>
-              <%= a %>: <%= f %>
-            <% f -> %>
-              <%= inspect(f) %>
+
+              <%= {d, {:extract, _f, fmt}} -> %>
+                <%= fmt %>: <%= def.name %>
+
+              <% {a, f} -> %>
+                <%= inspect(a) %>: <%= inspect(f) %>
+
+              <% f -> %>
+                <%= inspect(f) %>
+
             <% end %>
           </th>
 

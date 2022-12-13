@@ -19,10 +19,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
     aggregate =
       Map.get(params, "aggregate", %{})
-      |> SelectoComponents.Views.Aggregate.Process.aggregates(columns)
+      |> aggregates(columns)
 
     group_by =
-      group_by_params |> SelectoComponents.Views.Aggregate.Process.group_by(columns)
+      group_by_params |> group_by(columns)
 
     {%{
       groups: group_by,
