@@ -24,7 +24,6 @@ defmodule SelectoComponents.Views.Detail.Component do
           {f, assigns.selecto.config.columns[f]}
       end)
 
-    fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
     page = assigns.view_meta.page
     per_page = assigns.view_meta.per_page
     show_start = page * per_page
@@ -35,7 +34,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     assigns =
       assign(assigns,
         aliases: aliases,
-        fmap: fmap,
         show_start: show_start,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
@@ -72,27 +70,31 @@ defmodule SelectoComponents.Views.Detail.Component do
           </th>
         </tr>
 
-        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)} class="border-b dark:border-gray-700 bg-white even:bg-white dark:bg-gray-700 dark:even:bg-gray-800 last:border-none">
-          <%= with r <- Enum.zip( @column_uuids, resrow ) |> Enum.into(%{}) do %>
-            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+        <%!--  --%>
+        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)}
+          class="border-b dark:border-gray-700 bg-white even:bg-gray-100 dark:bg-gray-700 dark:even:bg-gray-800 last:border-none text-sm text-gray-500 dark:text-gray-400 align-top">
+          <%= with row_data <- Enum.zip( @column_uuids, resrow ) |> Enum.into(%{}) do %>
+            <td class="px-1 py-1">
               <%= i + 1 %>
             </td>
-            <td :for={ {alias, c}<- Enum.zip( @column_uuids, @columns )} class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-              <%= with def <- @selecto.config.columns[c["field"]] do %>
+            <%!--  --%>
+            <td :for={ {alias, col_conf}<- Enum.zip( @column_uuids, @columns )}
+              class="px-1 py-1">
+              <%= with def <- @selecto.config.columns[col_conf["field"]] do %>
                 <%= case def do %>
 
                   <%= %{format: :component} = def -> %>
-                    <%= def.component.(%{row: r[c["uuid"]], config: c}) %>
+                    <%= def.component.(%{row: row_data[col_conf["uuid"]], config: col_conf}) %>
 
                   <%= %{format: :link} = def -> %>
-                    <%= with {href, txt} <- def.link_parts.(r[c["uuid"]])  do %>
-                      <.link href={href}>
+                    <%= with {href, txt} <- def.link_parts.(row_data[col_conf["uuid"]])  do %>
+                      <.link href={href} class="underline font-bold text-blue-500">
                         <%= txt %>
                       </.link>
                     <% end %>
 
                   <% _ -> %>
-                    <%= r[c["uuid"]] %>
+                    <%= row_data[col_conf["uuid"]] %>
 
                 <%= end %>
               <%= end %>
