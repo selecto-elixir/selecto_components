@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Components.Common do
   use Phoenix.Component
 
-  def button(assigns) do
+  def sc_button(assigns) do
     attrs = assigns_to_attributes(assigns, [:label])
 
     assigns = assign(assigns, attrs: attrs)

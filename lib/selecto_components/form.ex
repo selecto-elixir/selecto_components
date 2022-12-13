@@ -28,9 +28,9 @@ defmodule SelectoComponents.Form do
       <div class="border-solid border rounded-md border-grey dark:border-black h-100 overflow-auto p-1">
         <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.button>
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.button>
-          <.button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.button>
+          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
+          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
+          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.sc_button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
             View Type
@@ -95,7 +95,7 @@ defmodule SelectoComponents.Form do
             collate and send to an email address in a column
           </div>
 
-          <.button>Submit</.button>
+          <.sc_button>Submit</.sc_button>
 
 
         </.form>
