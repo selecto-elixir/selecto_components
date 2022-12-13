@@ -24,7 +24,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     fmap = Enum.zip(aliases, selected) |> Enum.into(%{})
 
-    page = assigns.page
+    page = Map.get(assigns, :page, 0)
 
     per_page = String.to_integer(assigns.view_config.views.detail.per_page)
 
@@ -42,6 +42,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         fmap: fmap,
         show_start: show_start,
         per_page: per_page,
+        page: page,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
         max_pages: page_count
@@ -96,7 +97,8 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("set_page", params, socket) do
-    send(self(), {:set_detail_page, params["page"]})
+    #send(self(), {:set_detail_page, params["page"]})
+    socket = assign(socket, page: String.to_integer(params["page"]))
 
     {:noreply, socket}
   end

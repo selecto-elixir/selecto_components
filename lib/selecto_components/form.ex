@@ -242,11 +242,6 @@ defmodule SelectoComponents.Form do
       end
 
       @impl true
-      def handle_info({:set_detail_page, page}, socket) do
-        {:noreply, assign(socket, page: String.to_integer(page))}
-      end
-
-      @impl true
       def handle_info({:list_picker_remove, view, list, item}, socket) do
         view = String.to_atom(view)
         list = String.to_atom(list)
@@ -352,8 +347,7 @@ defmodule SelectoComponents.Form do
             selecto: selecto,
             used_params: params,
             applied_view: params["view_mode"],
-            executed: true,
-            page: 0
+            executed: true
           )
         rescue
           e ->
@@ -408,7 +402,6 @@ defmodule SelectoComponents.Form do
           executed: false,
           applied_view: nil,
           active_tab: "view",
-          page: 0,
           view_config: %{
             view_mode: "aggregate",
             views: view_configs,

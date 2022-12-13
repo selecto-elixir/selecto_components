@@ -19,7 +19,6 @@ defmodule SelectoComponents.Results do
               module={String.to_existing_atom("#{@module}.Component")}
               id="view_results"
               selecto={@selecto}
-              page={@page}
               view_opts={@view_opts}
               view_config={@view_config}
             />
