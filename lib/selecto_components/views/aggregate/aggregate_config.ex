@@ -16,21 +16,21 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
           <% x when x in [:integer, :id, :decimal] -> %>
             <%= @col.name %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
                 Enum.map(~w(count avg sum min max), fn o -> {o, o} end)
               }/>
             </label>
           <% x when x in [:float] -> %>
             <%= @col.name %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
                 Enum.map(~w(avg sum min max), fn o -> {o, o} end)
               }/>
             </label>
           <% x when x in [:string] -> %>
             <%= @col.name %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
                 Enum.map(~w(min max), fn o -> {o, o} end)
               }/>
             </label>

@@ -24,7 +24,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
             <%= @col.name %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
                 Enum.map(["Year", "Month", "Day", "Hour"], fn o -> {o, o} end)
               }/>
             </label>

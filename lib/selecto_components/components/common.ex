@@ -41,7 +41,7 @@ defmodule SelectoComponents.Components.Common do
     """
   end
 
-  def select_with_slot(assigns) do
+  def sc_select_with_slot(assigns) do
     attrs = assigns_to_attributes(assigns, [:label, :options, :value])
     assigns = assign(assigns, attrs: attrs)
 
@@ -52,7 +52,7 @@ defmodule SelectoComponents.Components.Common do
     """
   end
 
-  def select(assigns) do
+  def sc_select(assigns) do
     attrs = assigns_to_attributes(assigns, [:label, :options, :value])
     assigns = assign(assigns, attrs: attrs)
 
@@ -63,6 +63,4 @@ defmodule SelectoComponents.Components.Common do
     """
   end
 
-  def checkbox(assigns) do
-  end
 end

@@ -27,7 +27,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
 
           <% x when x in [:naive_datetime, :utc_datetime] -> %>
             <label>Format
-              <.select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
+              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
             </label>
 
           <% _ -> %>
