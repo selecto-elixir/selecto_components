@@ -14,31 +14,33 @@ defmodule SelectoComponents.Components.Common do
 
   def sc_up_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+    assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_up solid class="w-6 h-6 inline border border-2 border-black rounded-md" {attrs}/>
+      <Heroicons.arrow_up solid class="w-6 h-6 inline border border-2 border-black rounded-md" {@attrs}/>
     """
   end
 
   def sc_down_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+    assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_down solid class="w-6 h-6 inline border border-2 border-black rounded-md" {attrs}/>
+      <Heroicons.arrow_down solid class="w-6 h-6 inline border border-2 border-black rounded-md" {@attrs}/>
     """
   end
 
   def sc_x_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+    assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.x_mark solid class="w-6 h-6 text-red-800 inline border border-2 border-red-800 rounded-md" {attrs}/>
+      <Heroicons.x_mark solid class="w-6 h-6 text-red-800 inline border border-2 border-red-800 rounded-md" {@attrs}/>
     """
   end
 
   def sc_input(assigns) do
     attrs = assigns_to_attributes(assigns, [:label])
-
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
