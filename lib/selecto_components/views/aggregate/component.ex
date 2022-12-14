@@ -162,6 +162,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         {:field, {a, f} = agg, alias} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
+        {:field, f, alias} ->
+          {:agg, f, assigns.selecto.config.columns[f]}
+
         nil ->
           {:agg, nil, nil}
       end)

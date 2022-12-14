@@ -71,11 +71,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               case Map.get(col, :requires_select) do
                 x when is_list(x) -> {:row, col.requires_select, alias}
                 x when is_function(x) -> {:row, col.requires_select.(e), alias}
-                nil -> col.colid
+                nil -> {col.colid, alias}
               end
 
             _ ->
-              {col.colid, alias}
+              col.colid
+              #{{:field, col.colid}, alias}
           end
         end
 
@@ -96,7 +97,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           _ -> e["alias"]
         end
 
-      {:field,
+     {:field,
        {
          String.to_atom(
            case e["format"] do
