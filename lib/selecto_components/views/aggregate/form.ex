@@ -25,6 +25,8 @@ defmodule SelectoComponents.Views.Aggregate.Form do
               uuid={id}
               item={item}
               fieldname="group_by"
+              prefix={ "group_by[#{id}]" }
+
               config={config}/>
           </:item_form>
         </.live_component>
@@ -46,6 +48,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
               uuid={id}
               item={item}
               fieldname="aggregate"
+              prefix={ "aggregate[#{id}]" }
               config={config}/>
           </:item_form>
         </.live_component>

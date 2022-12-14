@@ -26,6 +26,8 @@ defmodule SelectoComponents.Views.Detail.Form do
               uuid={id}
               item={item}
               fieldname="selected"
+              prefix={ "selected[#{id}]" }
+
               config={config}/>
           </:item_form>
         </.live_component>
@@ -47,6 +49,8 @@ defmodule SelectoComponents.Views.Detail.Form do
               col={@selecto.config.columns[item]}
               item={item}
               fieldname="order_by"
+              prefix={ "order_by[#{id}]" }
+
               config={config}/>
           </:item_form>
         </.live_component>

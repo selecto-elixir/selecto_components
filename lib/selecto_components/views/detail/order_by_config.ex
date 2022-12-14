@@ -11,8 +11,8 @@ defmodule SelectoComponents.Views.Detail.OrderByConfig do
     ~H"""
       <div>
         <%= @col.name %>
-        <label><input name={"order_by[#{@id}][dir]"} type="radio" value="asc" checked={Map.get(@config, "dir", "asc")=="asc"}/>Ascending</label>
-        <label><input name={"order_by[#{@id}][dir]"} type="radio" value="desc" checked={Map.get(@config, "dir")=="desc"}/>Descending</label>
+        <label><input name={"#{@prefix}[dir]"} type="radio" value="asc" checked={Map.get(@config, "dir", "asc")=="asc"}/>Ascending</label>
+        <label><input name={"#{@prefix}[dir]"} type="radio" value="desc" checked={Map.get(@config, "dir")=="desc"}/>Descending</label>
       </div>
     """
   end
