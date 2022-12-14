@@ -10,26 +10,35 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
   def render(assigns) do
 
     ~H"""
-      <div>
-        <%= case @col.type do%>
-          <% x when x in [:int, :id, :decimal] -> %>
-            <%= @col.name %>
-          <% x when x in [:float] -> %>
-            <%= @col.name %> (ranges)
-          <% x when x in [:string] -> %>
-            <%= @col.name %>
-          <% :boolean -> %>
-            <%= @col.name %><!--:Y_N :1_0 :yes_no :check_blank -->
-          <% x when x in [:naive_datetime, :utc_datetime] -> %>
-            <%= @col.name %>
-            <label>Format
-              <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                Enum.map(["Year", "Month", "Day", "Hour"], fn o -> {o, o} end)
-              }/>
-            </label>
-          <% _ -> %>
-            <%= @col.name %>
-          <% end %>
+      <div class="relative">
+        <div>
+          <%= @col.name %>
+        </div>
+        <div class="pl-4">
+          <%= case @col.type do%>
+            <% x when x in [:int, :id, :decimal] -> %>
+
+            <% x when x in [:float] -> %>
+              (buckets / ranges?)
+            <% x when x in [:string] -> %>
+
+            <% :boolean -> %>
+              <!--:Y_N :1_0 :yes_no :check_blank -->
+            <% x when x in [:naive_datetime, :utc_datetime] -> %>
+              (buckets)
+              <label>Format
+                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                  Enum.map(["Year", "Month", "Day", "Hour"], fn o -> {o, o} end)
+                }/>
+              </label>
+            <% _ -> %>
+                  ???
+            <% end %>
+          </div>
+          <div class="absolute top-1 right-20">
+            <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
+          </div>
+
       </div>
 
 

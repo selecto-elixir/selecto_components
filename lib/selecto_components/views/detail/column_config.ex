@@ -11,10 +11,10 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
 
     ~H"""
       <div class="relative">
-        <div class="p-2">
+        <div class="">
           <%= @col.name %>
         </div>
-        <div class="p-2">
+        <div class="pl-4">
           <%= case @col.type do%>
             <% x when x in [:int, :id] -> %>
               <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
@@ -49,7 +49,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
               <% end %>
             <% end %>
           </div>
-        <div class="p-2 absolute top-1 right-20">
+        <div class="absolute top-1 right-20">
           <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
         </div>
 
