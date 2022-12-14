@@ -49,7 +49,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
               <% end %>
             <% end %>
           </div>
-        <div class="absolute top-1 right-20">
+        <div class="absolute top-0 right-20">
           <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
         </div>
 
