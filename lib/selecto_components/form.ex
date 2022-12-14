@@ -109,7 +109,7 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("set_active_tab", params, socket) do
-        {:noreply, assign(socket, active_tab: params["tab"] )}
+        {:noreply, assign(socket, active_tab: params["tab"])}
       end
 
       ## TODO REDO this
@@ -173,7 +173,9 @@ defmodule SelectoComponents.Form do
 
       def handle_event("agg_add_filters", params, socket) do
         selected_view = String.to_atom(socket.assigns.view_config.view_mode)
-        {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
+
+        {_, _, _, opt} =
+          Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
         new_view_mode = Map.get(opt, :drill_down, "detail")
 
@@ -220,14 +222,10 @@ defmodule SelectoComponents.Form do
         {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
-
-
       @impl true
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
       end
-
-
 
       @impl true
       def handle_info({:list_picker_remove, view, list, item}, socket) do
@@ -235,6 +233,7 @@ defmodule SelectoComponents.Form do
         list = String.to_atom(list)
 
         view_config = socket.assigns.view_config
+
         socket =
           assign(socket,
             view_config:
@@ -293,51 +292,58 @@ defmodule SelectoComponents.Form do
 
       defp view_filter_process(params, item_name) do
         Map.get(params, item_name, %{})
-
         |> Enum.sort(fn {_, %{"index" => index}}, {_, %{"index" => index2}} ->
           String.to_integer(index) <= String.to_integer(index2)
         end)
         |> Enum.reduce([], fn
-            {u, %{"conjunction"=>conj} = f}, acc -> acc ++ [{u, f["section"], conj}]
-            {u, f}, acc -> acc ++ [{u, f["section"], f}]
-          end)
-
+          {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, f["section"], conj}]
+          {u, f}, acc -> acc ++ [{u, f["section"], f}]
+        end)
       end
 
-
-
       defp view_from_params(params, socket) do
-        #try do
-          #IO.inspect(params, label: "View From Params")
-          #IO.puts("Build View")
+        # try do
+        # IO.inspect(params, label: "View From Params")
+        # IO.puts("Build View")
 
-          selecto = socket.assigns.selecto
-          columns = selecto.config.columns
+        selecto = socket.assigns.selecto
+        columns = selecto.config.columns
 
-          filters_by_section =
-            Map.values(Map.get(params, "filters", %{}))
-            |> Enum.reduce(%{}, fn f, acc ->
-              Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
-            end)
+        filters_by_section =
+          Map.values(Map.get(params, "filters", %{}))
+          |> Enum.reduce(%{}, fn f, acc ->
+            Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+          end)
 
-          filtered = filter_recurse( selecto, filters_by_section, "filters" )
+        filtered = filter_recurse(selecto, filters_by_section, "filters")
 
-          selected_view = String.to_atom(params["view_mode"])
-          {_, module, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-          {view_set, view_meta} = String.to_existing_atom("#{module}.Process").view(opt, params, columns, filtered, selecto)
+        selected_view = String.to_atom(params["view_mode"])
 
-          selecto = Map.put( selecto, :set, view_set )
-          results = Selecto.execute(selecto)
-          view_meta = Map.merge(view_meta, %{ exe_id: UUID.uuid4() })
+        {_, module, _, opt} =
+          Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-          assign(socket,
-            selecto: selecto,
-            query_results: results,
-            used_params: params,
-            applied_view: params["view_mode"],
-            view_meta: view_meta,
-            executed: true
+        {view_set, view_meta} =
+          String.to_existing_atom("#{module}.Process").view(
+            opt,
+            params,
+            columns,
+            filtered,
+            selecto
           )
+
+        selecto = Map.put(selecto, :set, view_set)
+        results = Selecto.execute(selecto)
+        view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
+
+        assign(socket,
+          selecto: selecto,
+          query_results: results,
+          used_params: params,
+          applied_view: params["view_mode"],
+          view_meta: view_meta,
+          executed: true
+        )
+
         # rescue
         #   e ->
         #     IO.inspect(e, label: "Error on view creation")
@@ -348,10 +354,11 @@ defmodule SelectoComponents.Form do
       ### build view_config from URL
       defp filter_params_to_state(params, socket) do
         filters = view_filter_process(params, "filters")
+
         assign(socket,
           view_config: %{
-            socket.assigns.view_config |
-            filters: filters,
+            socket.assigns.view_config
+            | filters: filters
           }
         )
       end
@@ -359,11 +366,14 @@ defmodule SelectoComponents.Form do
       ### build view_config from URL
       defp params_to_state(params, socket) do
         filters = view_filter_process(params, "filters")
-        view_configs = Enum.reduce(socket.assigns.views, %{},
-          fn {view, module, _name, opt}, acc ->
-            Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").param_to_state(params, opt) })
-          end
-        )
+
+        view_configs =
+          Enum.reduce(socket.assigns.views, %{}, fn {view, module, _name, opt}, acc ->
+            Map.merge(acc, %{
+              view => String.to_existing_atom("#{module}.Process").param_to_state(params, opt)
+            })
+          end)
+
         assign(socket,
           view_config: %{
             filters: filters,
@@ -381,11 +391,13 @@ defmodule SelectoComponents.Form do
 
       def get_initial_state(views, selecto) do
         view_configs =
-          view_configs = Enum.reduce(views, %{},
-          fn {view, module, name, opt}, acc ->
-            Map.merge(acc, %{ view => String.to_existing_atom("#{module}.Process").initial_state(selecto, opt) })
-          end
-        )
+          view_configs =
+          Enum.reduce(views, %{}, fn {view, module, name, opt}, acc ->
+            Map.merge(acc, %{
+              view => String.to_existing_atom("#{module}.Process").initial_state(selecto, opt)
+            })
+          end)
+
         [
           selecto: selecto,
           executed: false,
@@ -400,13 +412,11 @@ defmodule SelectoComponents.Form do
           view_meta: %{}
         ]
       end
-
-
-
-
     end
+
     ### quote do
   end
+
   ### __using___
 
   ### Reorg these to use in pickers

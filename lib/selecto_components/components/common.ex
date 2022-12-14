@@ -4,6 +4,7 @@ defmodule SelectoComponents.Components.Common do
   def sc_button(assigns) do
     attrs = assigns_to_attributes(assigns, [:label])
     assigns = assign(assigns, attrs: attrs)
+
     ~H"""
       <button {@attrs} class="text-sm leading-5 px-4 py-2 font-medium rounded-md inline-flex items-center justify-center border focus:outline-none transition duration-150 ease-in-out">
         <%= render_slot(@inner_block) %>
@@ -13,12 +14,15 @@ defmodule SelectoComponents.Components.Common do
 
   def sc_up_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+
     ~H"""
       <Heroicons.arrow_up solid class="w-6 h-6 inline border border-2 border-black rounded-md" {attrs}/>
     """
   end
+
   def sc_down_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+
     ~H"""
       <Heroicons.arrow_down solid class="w-6 h-6 inline border border-2 border-black rounded-md" {attrs}/>
     """
@@ -26,6 +30,7 @@ defmodule SelectoComponents.Components.Common do
 
   def sc_x_button(assigns) do
     attrs = assigns_to_attributes(assigns, [])
+
     ~H"""
       <Heroicons.x_mark solid class="w-6 h-6 text-red-800 inline border border-2 border-red-800 rounded-md" {attrs}/>
     """
@@ -62,5 +67,4 @@ defmodule SelectoComponents.Components.Common do
       </select>
     """
   end
-
 end

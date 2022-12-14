@@ -19,7 +19,6 @@ defmodule SelectoComponents.Components.ListPicker do
   slot(:item_form)
   # TODO fix the selected items spacing ...
   def render(assigns) do
-
     {view_id, _, _, _} = assigns.view
     assigns = assign(assigns, view_id: view_id)
 
@@ -71,7 +70,11 @@ defmodule SelectoComponents.Components.ListPicker do
   end
 
   def handle_event("move", params, socket) do
-    send(self(), {:list_picker_move, params["view"], params["list-id"], params["item"], params["direction"]})
+    send(
+      self(),
+      {:list_picker_move, params["view"], params["list-id"], params["item"], params["direction"]}
+    )
+
     {:noreply, socket}
   end
 end

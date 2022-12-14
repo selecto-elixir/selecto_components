@@ -14,7 +14,6 @@ defmodule SelectoComponents.Helpers do
     end)
   end
 
-
   def build_initial_state(list) do
     list
     |> Enum.map(fn
@@ -22,5 +21,4 @@ defmodule SelectoComponents.Helpers do
       {i, conf} -> {UUID.uuid4(), i, conf}
     end)
   end
-
 end

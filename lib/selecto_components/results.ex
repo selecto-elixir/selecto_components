@@ -2,15 +2,19 @@ defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
 
   def render(assigns) do
+    assigns =
+      case assigns.applied_view do
+        nil ->
+          assigns
 
-    assigns = case assigns.applied_view do
-      nil -> assigns
-      _ ->
-        selected_view = String.to_atom(assigns.applied_view)
-        {_, module, _, opt} = Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
-        assigns = assign(assigns, module: module, view_opts: opt)
-    end
+        _ ->
+          selected_view = String.to_atom(assigns.applied_view)
 
+          {_, module, _, opt} =
+            Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
+
+          assigns = assign(assigns, module: module, view_opts: opt)
+      end
 
     ~H"""
       <div>
@@ -28,5 +32,4 @@ defmodule SelectoComponents.Results do
       </div>
     """
   end
-
 end

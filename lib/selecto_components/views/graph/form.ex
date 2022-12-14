@@ -1,5 +1,4 @@
 defmodule SelectoComponents.Views.Graph.Form do
-
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
 
@@ -10,6 +9,4 @@ defmodule SelectoComponents.Views.Graph.Form do
       </div>
     """
   end
-
-
 end

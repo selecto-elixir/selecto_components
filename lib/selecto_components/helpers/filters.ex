@@ -23,7 +23,7 @@ defmodule SelectoComponents.Helpers.Filters do
   defp _make_string_filter(filter) do
     comp = filter["comp"]
     ## TODO
-    #ignore_case = filter["ignore_case"]
+    # ignore_case = filter["ignore_case"]
     value = filter["value"]
 
     case comp do
@@ -39,7 +39,7 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp _make_date_filter(filter) do
-    #comp = filter["comp"]
+    # comp = filter["comp"]
     ## TODO handle time zones...
     {:ok, value, _} = DateTime.from_iso8601(filter["value"] <> ":00Z")
     {:ok, value2, _} = DateTime.from_iso8601(filter["value2"] <> ":00Z")

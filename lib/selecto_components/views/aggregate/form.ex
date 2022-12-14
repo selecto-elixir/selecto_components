@@ -1,10 +1,8 @@
 defmodule SelectoComponents.Views.Aggregate.Form do
-
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
 
   def render(assigns) do
-
     ~H"""
       <div>
         Group By
@@ -54,7 +52,5 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         </.live_component>
       </div>
     """
-
   end
-
 end

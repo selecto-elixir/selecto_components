@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Views.Detail.Process do
-
   def param_to_state(params, _v) do
-    %{  ## state is used to draw the form
+    ## state is used to draw the form
+    %{
       selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field"),
       per_page: params["per_page"]
@@ -10,8 +10,12 @@ defmodule SelectoComponents.Views.Detail.Process do
 
   def initial_state(selecto, v) do
     %{
-      order_by: Map.get(selecto.domain, :default_order_by, []) |> SelectoComponents.Helpers.build_initial_state(),
-      selected: Map.get(selecto.domain, :default_selected, []) |> SelectoComponents.Helpers.build_initial_state(),
+      order_by:
+        Map.get(selecto.domain, :default_order_by, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
+      selected:
+        Map.get(selecto.domain, :default_selected, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
       per_page: "30"
     }
   end
@@ -27,16 +31,15 @@ defmodule SelectoComponents.Views.Detail.Process do
 
     ### Selecto Set for Detail View, view_meta for view data
     {%{
-      columns: detail_columns,
-      selected: detail_columns |> selected(columns),
-      order_by:
-        Map.get(params, "order_by", %{})
-        |> order_by(columns),
-      filtered: filtered,
-      group_by: [],
-      groups: []
-    }, %{ page: 0, per_page: String.to_integer(params["per_page"]) }}
-
+       columns: detail_columns,
+       selected: detail_columns |> selected(columns),
+       order_by:
+         Map.get(params, "order_by", %{})
+         |> order_by(columns),
+       filtered: filtered,
+       group_by: [],
+       groups: []
+     }, %{page: 0, per_page: String.to_integer(params["per_page"])}}
   end
 
   def order_by(order_by, _columns) do
@@ -58,11 +61,14 @@ defmodule SelectoComponents.Views.Detail.Process do
     |> Enum.map(fn e ->
       col = columns[e["field"]]
       uuid = e["uuid"]
-      alias = case e["alias"] do  #????
-        "" -> e["field"]
-        nil -> e["field"]
-        _ -> e["alias"]
-      end
+      # ????
+      alias =
+        case e["alias"] do
+          "" -> e["field"]
+          nil -> e["field"]
+          _ -> e["alias"]
+        end
+
       # move to a validation lib
       case col.type do
         x when x in [:naive_datetime, :utc_datetime] ->
@@ -81,5 +87,4 @@ defmodule SelectoComponents.Views.Detail.Process do
     end)
     |> List.flatten()
   end
-
 end

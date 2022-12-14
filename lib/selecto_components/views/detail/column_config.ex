@@ -8,7 +8,6 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
   # slog :config, :map
 
   def render(assigns) do
-
     ~H"""
       <div class="relative">
         <div class="">

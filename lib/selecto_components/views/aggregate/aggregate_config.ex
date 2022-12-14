@@ -8,7 +8,6 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
   # slot :config, :map
 
   def render(assigns) do
-
     ~H"""
       <div class="relative">
         <div>
@@ -35,7 +34,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 }/>
               </label>
             <% :boolean -> %>
-<!--:Y_N :1_0 :yes_no :check_blank -->
+    <!--:Y_N :1_0 :yes_no :check_blank -->
               <label>Format
                 #TODO
               </label>

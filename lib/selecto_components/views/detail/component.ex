@@ -9,9 +9,10 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
-    {results, fields, aliases} = assigns.query_results #|> IO.inspect()
-    #IO.puts("RENDER!")
-    #IO.inspect(assigns.view_meta, label: "VIEW META")
+    # |> IO.inspect()
+    {results, fields, aliases} = assigns.query_results
+    # IO.puts("RENDER!")
+    # IO.inspect(assigns.view_meta, label: "VIEW META")
 
     selected = Map.get(assigns.selecto.set, :columns, [])
 
@@ -37,7 +38,8 @@ defmodule SelectoComponents.Views.Detail.Component do
         show_start: show_start,
         results: results,
         columns: Map.get(assigns.selecto.set, :columns, []),
-        column_uuids: Map.get(assigns.selecto.set, :columns, []) |> Enum.map( fn c -> c["uuid"] end ),
+        column_uuids:
+          Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
         max_pages: page_count
       )
 
@@ -107,8 +109,11 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("set_page", params, socket) do
-    #send(self(), {:set_detail_page, params["page"]})
-    socket = assign(socket, view_meta: %{ socket.assigns.view_meta | page: String.to_integer(params["page"]) })
+    # send(self(), {:set_detail_page, params["page"]})
+    socket =
+      assign(socket,
+        view_meta: %{socket.assigns.view_meta | page: String.to_integer(params["page"])}
+      )
 
     {:noreply, socket}
   end

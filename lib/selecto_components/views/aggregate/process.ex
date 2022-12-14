@@ -1,5 +1,4 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
-
   def param_to_state(params, _v) do
     %{
       group_by: SelectoComponents.Helpers.view_param_process(params, "group_by", "field"),
@@ -9,8 +8,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   def initial_state(selecto, _v) do
     %{
-      aggregate: Map.get(selecto.domain, :default_aggregate, []) |> SelectoComponents.Helpers.build_initial_state(),
-      group_by: Map.get(selecto.domain, :default_group_by, []) |> SelectoComponents.Helpers.build_initial_state()
+      aggregate:
+        Map.get(selecto.domain, :default_aggregate, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
+      group_by:
+        Map.get(selecto.domain, :default_group_by, [])
+        |> SelectoComponents.Helpers.build_initial_state()
     }
   end
 
@@ -21,21 +24,20 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       Map.get(params, "aggregate", %{})
       |> aggregates(columns)
 
-    group_by =
-      group_by_params |> group_by(columns)
+    group_by = group_by_params |> group_by(columns)
 
     {%{
-      groups: group_by,
-      gb_params: group_by_params,
-      aggregates: aggregate,
-      selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
-      filtered: filtered,
-      group_by: [
-        {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
-      ],
-      ### when using rollup, we need to workaround postgres bug. Currently implemented in Selecto builder
-      order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
-    }, %{}}
+       groups: group_by,
+       gb_params: group_by_params,
+       aggregates: aggregate,
+       selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
+       filtered: filtered,
+       group_by: [
+         {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)}
+       ],
+       ### when using rollup, we need to workaround postgres bug. Currently implemented in Selecto builder
+       order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal, g} end)
+     }, %{}}
   end
 
   def group_by(group_by, columns) do
@@ -45,11 +47,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     |> Enum.map(fn e ->
       col = columns[e["field"]]
       uuid = e["uuid"]
-      alias = case e["alias"] do  #????
-        "" -> e["field"]
-        nil -> e["field"]
-        _ -> e["alias"]
-      end
+      # ????
+      alias =
+        case e["alias"] do
+          "" -> e["field"]
+          nil -> e["field"]
+          _ -> e["alias"]
+        end
+
       ### Group by filter, _select, format...
       sel =
         if Map.get(col, :group_by_filter_select) do
@@ -78,26 +83,29 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end)
   end
 
-
   def aggregates(aggregates, _columns) do
     aggregates
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn e ->
-      alias = case e["alias"] do  #????
-        "" -> e["field"]
-        nil -> e["field"]
-        _ -> e["alias"]
-      end
-      {:field, {
-        String.to_atom(
-         case e["format"] do
-           nil -> "count"
-           _ -> e["format"]
-         end
-       ), e["field"]}, alias
-      }
+      # ????
+      alias =
+        case e["alias"] do
+          "" -> e["field"]
+          nil -> e["field"]
+          _ -> e["alias"]
+        end
+
+      {:field,
+       {
+         String.to_atom(
+           case e["format"] do
+             nil -> "count"
+             _ -> e["format"]
+           end
+         ),
+         e["field"]
+       }, alias}
     end)
   end
-
 end
