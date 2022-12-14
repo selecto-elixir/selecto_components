@@ -57,7 +57,7 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <select {@attrs} class="border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:focus:border-primary-500   disabled:bg-gray-100 disabled:cursor-not-allowed pl-3 pr-10 py-2 text-base focus:outline-none sm:text-sm rounded-md dark:disabled:bg-gray-700 dark:focus:border-primary-500 dark:text-gray-300 dark:bg-gray-800" >
+      <select {@attrs} class="border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:focus:border-primary-500   disabled:bg-gray-100 disabled:cursor-not-allowed text-base focus:outline-none sm:text-sm rounded-md dark:disabled:bg-gray-700 dark:focus:border-primary-500 dark:text-gray-300 dark:bg-gray-800" >
         <option :for={{val, lab} <- @options} value={val} selected={val == @value}><%= lab %></option>
       </select>
     """
