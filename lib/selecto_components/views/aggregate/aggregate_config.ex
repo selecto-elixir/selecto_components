@@ -51,6 +51,9 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
 
           <% end %>
         </div>
+        <div class="absolute top-0 right-20">
+          <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
+        </div>
       </div>
 
 

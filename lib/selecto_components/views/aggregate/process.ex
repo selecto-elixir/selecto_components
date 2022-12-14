@@ -45,13 +45,17 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     |> Enum.map(fn e ->
       col = columns[e["field"]]
       uuid = e["uuid"]
-
+      alias = case e["alias"] do  #????
+        "" -> e["field"]
+        nil -> e["field"]
+        _ -> e["alias"]
+      end
       ### Group by filter, _select, format...
       sel =
         if Map.get(col, :group_by_filter_select) do
           case col.group_by_filter_select do
-            x when is_list(x) -> {:row, col.group_by_filter_select, uuid}
-            x when is_function(x) -> {:row, col.group_by_filter_select.(e), uuid}
+            x when is_list(x) -> {:row, col.group_by_filter_select, alias}
+            x when is_function(x) -> {:row, col.group_by_filter_select.(e), alias}
           end
         else
           case col.type do
@@ -60,13 +64,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
             :custom_column ->
               case Map.get(col, :requires_select) do
-                x when is_list(x) -> {:row, col.requires_select, uuid}
-                x when is_function(x) -> {:row, col.requires_select.(e), uuid}
+                x when is_list(x) -> {:row, col.requires_select, alias}
+                x when is_function(x) -> {:row, col.requires_select.(e), alias}
                 nil -> col.colid
               end
 
             _ ->
-              col.colid
+              {col.colid, alias}
           end
         end
 
@@ -80,12 +84,19 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn e ->
-      {String.to_atom(
+      alias = case e["alias"] do  #????
+        "" -> e["field"]
+        nil -> e["field"]
+        _ -> e["alias"]
+      end
+      {:field, {
+        String.to_atom(
          case e["format"] do
            nil -> "count"
            _ -> e["format"]
          end
-       ), e["field"]}
+       ), e["field"]}, alias
+      }
     end)
   end
 

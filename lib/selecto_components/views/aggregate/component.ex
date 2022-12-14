@@ -133,7 +133,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   def render(assigns) do
     {results, _fields, aliases} = assigns.query_results
-
+    IO.inspect(aliases)
 
     ### Will always be first X items
     group_by = assigns.selecto.set.groups
@@ -156,10 +156,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     aggregates =
       Enum.map(aggregates, fn
-        {:extract, f, fmt} = agg ->
+        {:field, {:extract, f, fmt} = agg, alias} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
-        {a, f} = agg ->
+        {:field, {a, f} = agg, alias} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
         nil ->
