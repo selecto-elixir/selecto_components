@@ -182,36 +182,21 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aliases: aliases,
         group_by: group_by,
         aggregate: aggregates
-      )
+      ) |> IO.inspect
 
     ~H"""
     <div>
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
 
         <tr>
-          <th :for={{_alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
-            <%= case g do %>
-
-              <%= {d, {:extract, _f, fmt}} -> %>
-                <%= fmt %>: <%= def.name %>
-
-              <% {a, f} -> %>
-                <%= inspect(a) %>: <%= inspect(f) %>
-
-              <% f -> %>
-                <%= inspect(f) %>
-
-            <% end %>
+          <th :for={{alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+            <%= alias %>
           </th>
 
-          <th :for={{alias, r} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
-            <%= case r do %>
-            <% {:agg, {a, f}, def} -> %>
-              <%= a %>: <%= f %>
-            <% f -> %>
-              <%= inspect(f) %>
-            <% end %>
+          <th :for={{alias, _r} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+            <%= alias %>
           </th>
+
         </tr>
         <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by} aggregate={@aggregate}/>
       </table>

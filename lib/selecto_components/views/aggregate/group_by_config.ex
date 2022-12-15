@@ -27,7 +27,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
               (buckets)
               <label>Format
                 <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  Enum.map(["Year", "Month", "Day", "Hour"], fn o -> {o, o} end)
+                  Enum.map(["Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"], fn o -> {o, o} end)
                 }/>
               </label>
             <% _ -> %>

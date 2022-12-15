@@ -75,8 +75,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               end
 
             _ ->
-              col.colid
-              #{{:field, col.colid}, alias}
+              #col.colid
+              {:field, col.colid, alias}
           end
         end
 
