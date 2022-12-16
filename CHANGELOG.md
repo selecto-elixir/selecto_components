@@ -6,7 +6,8 @@ V 0.2.5
 -------
 
 - refactor view selection system / modularize views
-- cleanup agg & detail view forms/proc/comp (DOING)
+- cleanup agg & detail view forms/proc/comp
+- add date filters to form from agg
 
 V 0.2.4
 -------
