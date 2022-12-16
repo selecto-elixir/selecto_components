@@ -151,6 +151,15 @@ defmodule SelectoComponents.Components.FilterForms do
     #|> IO.inspect(label: "Create Date Form")
     assigns = Map.put(assigns, :valmap, valmap)
 
+    ### TODO
+    # Support shortcuts: today, tomorrow, yesterday, this week, last week, next week, this cal month, last cal month, next cal month,
+    # this year, last year, trailing twelve cal months
+    # last 7 days, last 30 days, last 90 days,
+    # next 7 days, next 30 days, next 90 days,
+    # this quarter, next quarter, this quarter last year, last quarter last year
+    # YTD, YTD Last year
+    # ### How to configure default time zones?
+
     ~H"""
     <div>
       <label>
