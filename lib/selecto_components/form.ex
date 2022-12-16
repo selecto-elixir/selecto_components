@@ -190,14 +190,21 @@ defmodule SelectoComponents.Form do
               fn {f, v}, acc ->
                 newid = UUID.uuid4()
 
+                conf = socket.assigns.selecto.config.columns[f]
+                {v1, v2} = case conf.type do
+                  x when x in [:utc_datetime, :naive_datetime] ->
+                    Selecto.Helpers.Date.val_to_dates(%{"value"=>v, "value2"=>""})
+                  _ -> {v, ""}
+                end
+
                 Map.put(acc, newid, %{
                   "comp" => "=",
                   "filter" => f,
                   "index" => "0",
                   "section" => "filters",
                   "uuid" => newid,
-                  "value" => v,
-                  "value2" => ""
+                  "value" => v1,
+                  "value2" => v2
                 })
               end
             )
@@ -214,7 +221,15 @@ defmodule SelectoComponents.Form do
                     _ -> true
                   end) ++
                     Enum.map(params, fn {f, v} ->
-                      {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                      conf = socket.assigns.selecto.config.columns[f]
+                      case conf.type do
+                        x when x in [:utc_datetime, :naive_datetime] ->
+                          {v1, v2} = Selecto.Helpers.Date.val_to_dates(%{"value"=>v, "value2"=>""})
+                          {UUID.uuid4(), "filters", %{"filter" => f, "value" => v1, "value2"=> v2}}
+                        _ -> {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
+                      end
+
+
                     end)
             }
           )
@@ -303,7 +318,7 @@ defmodule SelectoComponents.Form do
 
       defp view_from_params(params, socket) do
         # try do
-        # IO.inspect(params, label: "View From Params")
+        IO.inspect(params, label: "View From Params")
         # IO.puts("Build View")
 
         selecto = socket.assigns.selecto
