@@ -65,7 +65,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         else
           case col.type do
             x when x in [:naive_datetime, :utc_datetime] ->
-              {:extract, col.colid, e["format"]}
+              {:field, datetime_gb_proc(col, e), alias}
 
             :custom_column ->
               case Map.get(col, :requires_select) do
@@ -82,6 +82,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
       {col, sel}
     end)
+  end
+
+
+  defp datetime_gb_proc(col, config) do
+    #"Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"
+    case config["format"] do
+     # x when x in ~w(Year Month Day) -> {:extract, col.colid, x}
+      x when x in ~w(YYYY-MM-DD YYYY-MM YYYY) -> {:to_char, {col.colid, x}}
+    end
   end
 
   def aggregates(aggregates, _columns) do

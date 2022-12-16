@@ -133,7 +133,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   def render(assigns) do
     {results, _fields, aliases} = assigns.query_results
-    IO.inspect(aliases)
 
     ### Will always be first X items
     group_by = assigns.selecto.set.groups
@@ -182,8 +181,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aliases: aliases,
         group_by: group_by,
         aggregate: aggregates
-      ) |> IO.inspect
-
+      )
     ~H"""
     <div>
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
