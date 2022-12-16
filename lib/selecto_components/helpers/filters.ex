@@ -84,7 +84,7 @@ defmodule SelectoComponents.Helpers.Filters do
 
             {:parameterized, _, _enum_conf} ->
               # TODO check selected against enum_conf.mappings!
-              acc ++ [{f["filter"], f["selected"]}]
+              acc ++ [{f["filter"], f["value"]}]
           end
         end
     end)

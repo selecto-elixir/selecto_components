@@ -203,11 +203,11 @@ defmodule SelectoComponents.Components.FilterForms do
       <div>
         <%= @def.name %>
         <label :for={{_a, v} <- @values}>
-          <input name={"filters[#{@uuid}][selected][]"}
-            id={"filters_#{@uuid}_selected_#{v}"}
+          <input name={"filters[#{@uuid}][value][]"}
+            id={"filters_#{@uuid}_value_#{v}"}
             type="checkbox"
             value={v}
-            checked={ Enum.member?(Map.get(@valmap, "selected", []), v) }/>
+            checked={ Enum.member?(Map.get(@valmap, "value", []) |> List.wrap(), v) }/>
           <%= v %>
         </label>
 
