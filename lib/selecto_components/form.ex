@@ -318,7 +318,7 @@ defmodule SelectoComponents.Form do
 
       defp view_from_params(params, socket) do
         # try do
-        IO.inspect(params, label: "View From Params")
+        #IO.inspect(params, label: "View From Params")
         # IO.puts("Build View")
 
         selecto = socket.assigns.selecto

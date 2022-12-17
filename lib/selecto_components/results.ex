@@ -18,7 +18,6 @@ defmodule SelectoComponents.Results do
 
     ~H"""
       <div>
-      <% IO.inspect(@executed, label: "Executed?") %>
         <div :if={@executed}>
             <.live_component
               module={String.to_existing_atom("#{@module}.Component")}
