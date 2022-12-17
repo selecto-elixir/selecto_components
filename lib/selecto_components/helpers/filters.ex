@@ -39,7 +39,6 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp _make_date_filter(filter) do
-    IO.inspect(filter)
     {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
     {:between, start, stop}
   end
