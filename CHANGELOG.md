@@ -2,6 +2,11 @@
 CHANGES
 =======
 
+V 0.2.6
+-------
+
+- Filter form features & fixes TODO
+
 V 0.2.5
 -------
 
