@@ -22,29 +22,34 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp _make_string_filter(filter) do
     comp = filter["comp"]
-    ignore_case = filter["ignore_case"]
 
-    {filpart, value} = if ignore_case == "Y" do
-      {
-        {:upper, filter["filter"]},
-        String.upcase( filter["value"] )}
-    else
-      {filter["filter"], filter["value"]}
+    case comp do
+      "null" -> {filter["filter"], nil}
+      "not_null" -> {filter["filter"], :not_null}
+      _ ->
+        ignore_case = filter["ignore_case"]
+
+        {filpart, value} = if ignore_case == "Y" do
+          {
+            {:upper, filter["filter"]},
+            String.upcase( filter["value"] )}
+        else
+          {filter["filter"], filter["value"]}
+        end
+
+        valpart = case comp do
+          "=" -> value
+          "null" -> nil
+          "not_null" -> :not_null
+          x when x in ~w( != <= >= < >) -> {x, value}
+          ### TODO sanitize like value
+          "starts" -> {:like, value <> "%"}
+          "ends" -> {:like, "%" <> value}
+          "contains" -> {:like, "%" <> value <> "%"}
+        end
+
+        {filpart, valpart}
     end
-
-    valpart = case comp do
-      "=" -> value
-      "null" -> nil
-      "not_null" -> :not_null
-      x when x in ~w( != <= >= < >) -> {x, value}
-      ### TODO sanitize like value
-      "starts" -> {:like, value <> "%"}
-      "ends" -> {:like, "%" <> value}
-      "contains" -> {:like, "%" <> value <> "%"}
-    end
-
-    {filpart, valpart} |> IO.inspect
-
   end
 
   defp _make_date_filter(filter) do
