@@ -22,11 +22,17 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp _make_string_filter(filter) do
     comp = filter["comp"]
-    ## TODO
-    # ignore_case = filter["ignore_case"]
-    value = filter["value"]
+    ignore_case = filter["ignore_case"]
 
-    case comp do
+    {filpart, value} = if ignore_case == "Y" do
+      {
+        {:upper, filter["filter"]},
+        String.upcase( filter["value"] )}
+    else
+      {filter["filter"], filter["value"]}
+    end
+
+    valpart = case comp do
       "=" -> value
       "null" -> nil
       "not_null" -> :not_null
@@ -36,6 +42,9 @@ defmodule SelectoComponents.Helpers.Filters do
       "ends" -> {:like, "%" <> value}
       "contains" -> {:like, "%" <> value <> "%"}
     end
+
+    {filpart, valpart} |> IO.inspect
+
   end
 
   defp _make_date_filter(filter) do
@@ -76,7 +85,7 @@ defmodule SelectoComponents.Helpers.Filters do
                 ]
 
             :string ->
-              acc ++ [{f["filter"], _make_string_filter(f)}]
+              acc ++ [ _make_string_filter(f) ]
 
             x when x in [:naive_datetime, :utc_datetime] ->
               acc ++ [{f["filter"], _make_date_filter(f)}]

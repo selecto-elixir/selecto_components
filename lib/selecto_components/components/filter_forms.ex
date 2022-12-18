@@ -45,7 +45,7 @@ defmodule SelectoComponents.Components.FilterForms do
             <option value="not_null" selected={Map.get(@valmap, "comp") == "not_null"}>Not Null</option>
           </.sc_select_with_slot>
           <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
-          <!-- <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} value="Y"/>Ignore Case</label> -->
+          <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} checked={Map.get(@valmap, "ignore_case") == "Y"} value="Y"/>Ignore Case</label>
         </label>
       </div>
     """
