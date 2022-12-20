@@ -1,6 +1,6 @@
 defmodule SelectoComponents.Helpers.Filters do
 
-  defp _make_num_filter(type, filter) when type in [:integer, :id] do
+  defp _make_num_filter(type, filter) when type in [:int, :id] do
     comp = filter["comp"]
     case comp do
       "=" ->
