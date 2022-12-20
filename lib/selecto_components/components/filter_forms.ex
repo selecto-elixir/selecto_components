@@ -26,6 +26,21 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
+  def render_form(%{type: :tsvector} = assigns) do
+    def = assigns.def
+    valmap = assigns.filter
+    assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def) |> Map.put(:comp, Map.get(valmap, "comp", "="))
+
+    ~H"""
+      <div>
+        <label>
+          <%= @def.name %>
+          <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
+        </label>
+      </div>
+    """
+  end
+
   def render_form(%{type: :string} = assigns) do
     def = assigns.def
     valmap = assigns.filter
