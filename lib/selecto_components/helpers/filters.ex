@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Helpers.Filters do
-  defp _make_num_filter(filter) do
-    comp = filter["comp"]
 
+  defp _make_num_filter(type, filter) when type in [:integer, :id] do
+    comp = filter["comp"]
     case comp do
       "=" ->
         String.to_integer(filter["value"])
@@ -19,6 +19,56 @@ defmodule SelectoComponents.Helpers.Filters do
         {x, String.to_integer(filter["value"])}
     end
   end
+
+  defp _make_num_filter(:float, filter) do
+    comp = filter["comp"]
+    case comp do
+      "=" ->
+        {v, _} = Float.parse(filter["value"])
+        v
+      "null" ->
+        nil
+
+      "not_null" ->
+        :not_null
+
+      "between" ->
+        {v1, _} = Float.parse(filter["value"])
+        {v2, _} = Float.parse(filter["value2"])
+
+        {:between, v1, v2}
+
+      x when x in ~w( != <= >= < >) ->
+        {v, _} = Float.parse(filter["value"])
+        {x, v}
+    end
+  end
+
+  defp _make_num_filter(:decimal, filter) do
+    comp = filter["comp"]
+    case comp do
+      "=" ->
+        {v, _} = Decimal.parse(filter["value"])
+        v
+      "null" ->
+        nil
+
+      "not_null" ->
+        :not_null
+
+      "between" ->
+        {v1, _} = Decimal.parse(filter["value"])
+        {v2, _} = Decimal.parse(filter["value2"])
+
+        {:between, v1, v2}
+
+      x when x in ~w( != <= >= < >) ->
+        {v, _} = Decimal.parse(filter["value"])
+        {x, v}
+    end
+  end
+
+
 
   defp _make_string_filter(filter) do
     comp = filter["comp"]
@@ -77,7 +127,7 @@ defmodule SelectoComponents.Helpers.Filters do
         else
           case selecto.config.columns[f["filter"]].type do
             x when x in [:id, :integer, :float, :decimal] ->
-              acc ++ [{f["filter"], _make_num_filter(f)}]
+              acc ++ [{f["filter"], _make_num_filter(x, f)}]
 
             :boolean ->
               acc ++
