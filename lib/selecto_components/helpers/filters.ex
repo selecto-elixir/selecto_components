@@ -1,10 +1,20 @@
 defmodule SelectoComponents.Helpers.Filters do
 
-  defp _make_num_filter(type, filter) when type in [:int, :id] do
+  import Ecto.Type ## For cast
+
+
+
+  defp parse_num(type, num) do
+    {:ok, v} = cast(type, num)
+    v
+  end
+
+
+  defp _make_num_filter(type, filter)  do
     comp = filter["comp"]
     case comp do
       "=" ->
-        String.to_integer(filter["value"])
+        parse_num(type, filter["value"])
 
       "null" ->
         nil
@@ -13,61 +23,12 @@ defmodule SelectoComponents.Helpers.Filters do
         :not_null
 
       "between" ->
-        {:between, String.to_integer(filter["value"]), String.to_integer(filter["value2"])}
+        {:between, parse_num(type, filter["value"]),parse_num(type, filter["value2"])}
 
       x when x in ~w( != <= >= < >) ->
-        {x, String.to_integer(filter["value"])}
+        {x, parse_num(type, filter["value"])}
     end
   end
-
-  defp _make_num_filter(:float, filter) do
-    comp = filter["comp"]
-    case comp do
-      "=" ->
-        {v, _} = Float.parse(filter["value"])
-        v
-      "null" ->
-        nil
-
-      "not_null" ->
-        :not_null
-
-      "between" ->
-        {v1, _} = Float.parse(filter["value"])
-        {v2, _} = Float.parse(filter["value2"])
-
-        {:between, v1, v2}
-
-      x when x in ~w( != <= >= < >) ->
-        {v, _} = Float.parse(filter["value"])
-        {x, v}
-    end
-  end
-
-  defp _make_num_filter(:decimal, filter) do
-    comp = filter["comp"]
-    case comp do
-      "=" ->
-        {v, _} = Decimal.parse(filter["value"])
-        v
-      "null" ->
-        nil
-
-      "not_null" ->
-        :not_null
-
-      "between" ->
-        {v1, _} = Decimal.parse(filter["value"])
-        {v2, _} = Decimal.parse(filter["value2"])
-
-        {:between, v1, v2}
-
-      x when x in ~w( != <= >= < >) ->
-        {v, _} = Decimal.parse(filter["value"])
-        {x, v}
-    end
-  end
-
 
 
   defp _make_string_filter(filter) do
