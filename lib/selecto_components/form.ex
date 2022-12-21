@@ -25,6 +25,7 @@ defmodule SelectoComponents.Form do
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
+          <.sc_button :if={@saved_views} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.sc_button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
@@ -73,9 +74,12 @@ defmodule SelectoComponents.Form do
               </:filter_form>
             </.live_component>
           </div>
-
+          <div :if={@saved_views} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
+            Save View Section <%= inspect(@saved_view_context) %>
+          </div>
           <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             EXPORT SECTION PLANNED
+
             export format: spreadsheet, text, csv, PDF?, JSON, XML
 
             download / send via email (add note)
