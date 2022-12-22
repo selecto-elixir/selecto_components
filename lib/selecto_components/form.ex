@@ -129,10 +129,9 @@ defmodule SelectoComponents.Form do
       @impl true
       ### TODO view-apply should call view_from_params, and also update URI to include params
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
-        IO.puts("SAVING #{params["save_as"]}")
-        socket.assigns.saved_views.save_view(params["save_as"], socket.assigns.saved_view_context, params)
-
-        {:noreply, state_to_url(params, socket)}
+        view = socket.assigns.saved_views.save_view(params["save_as"], socket.assigns.saved_view_context, params)
+        params = socket.assigns.saved_views.decode_view(view)
+        {:noreply, view_from_params(params, state_to_url(params, socket))}
       end
 
 
