@@ -76,6 +76,9 @@ defmodule SelectoComponents.Form do
           </div>
           <div :if={@saved_views} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             Save View Section <%= inspect(@saved_view_context) %>
+            HOw to ...
+            Save As: <.sc_input name="save_as"/>
+
           </div>
           <div class={if @active_tab == "export" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             EXPORT SECTION PLANNED
@@ -125,6 +128,14 @@ defmodule SelectoComponents.Form do
 
       @impl true
       ### TODO view-apply should call view_from_params, and also update URI to include params
+      def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
+        IO.puts("SAVING #{params["save_as"]}")
+        socket.assigns.saved_views.save_view(params["save_as"], socket.assigns.saved_view_context, params)
+
+        {:noreply, state_to_url(params, socket)}
+      end
+
+
       def handle_event("view-apply", params, socket) do
         {:noreply, view_from_params(params, state_to_url(params, socket))}
       end
