@@ -106,6 +106,7 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
+        ### TODO check name is safe
         view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
         socket = assign(socket, page_title: "View: #{view.name}")
         socket = params_to_state(view.params, socket)
