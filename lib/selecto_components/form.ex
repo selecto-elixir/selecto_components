@@ -106,7 +106,7 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
-        view = socket.assigns.saved_views.get_view(name, socket.assigns.saved_view_context)
+        view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
         socket = assign(socket, page_title: "View: #{view.name}")
         socket = params_to_state(view.params, socket)
         {:noreply, view_from_params(view.params, socket)}
@@ -135,7 +135,7 @@ defmodule SelectoComponents.Form do
 
       ### Save tab open. save view!
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
-        view = socket.assigns.saved_views.save_view(params["save_as"], socket.assigns.saved_view_context, params)
+        view = socket.assigns.saved_view_module.save_view(params["save_as"], socket.assigns.saved_view_context, params)
         params = %{"saved_view" => view.name }
         {:noreply, state_to_url(params, socket)}
       end
