@@ -2,6 +2,12 @@
 CHANGES
 =======
 
+V 0.2.6
+-------
+
+- Saved View Module support
+- Filter form features & fixes TODO
+
 V 0.2.5
 -------
 
