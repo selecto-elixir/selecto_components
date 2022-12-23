@@ -25,7 +25,7 @@ defmodule SelectoComponents.Form do
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
-          <.sc_button :if={@saved_views} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
+          <.sc_button :if={@saved_view_module} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.sc_button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
@@ -74,7 +74,7 @@ defmodule SelectoComponents.Form do
               </:filter_form>
             </.live_component>
           </div>
-          <div :if={@saved_views} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
+          <div :if={@saved_view_module} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             Save View Section <%= inspect(@saved_view_context) %>
             HOw to ...
             Save As: <.sc_input name="save_as"/>
@@ -106,7 +106,6 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
-        ### TODO check name is safe
         view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
         socket = assign(socket, page_title: "View: #{view.name}")
         socket = params_to_state(view.params, socket)
@@ -136,6 +135,7 @@ defmodule SelectoComponents.Form do
 
       ### Save tab open. save view!
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
+        Selecto.Helpers.check_safe_phrase(params["save_as"])
         view = socket.assigns.saved_view_module.save_view(params["save_as"], socket.assigns.saved_view_context, params)
         params = %{"saved_view" => view.name }
         {:noreply, state_to_url(params, socket)}
