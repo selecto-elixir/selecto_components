@@ -105,6 +105,13 @@ defmodule SelectoComponents.Form do
       import SelectoComponents.Helpers.Filters
 
       @impl true
+      def handle_params(%{"saved_view" => name} = params, _uri, socket) do
+        view = socket.assigns.saved_views.get_view(name, socket.assigns.saved_view_context)
+        socket = assign(socket, page_title: "View: #{view.name}")
+        socket = params_to_state(view.params, socket)
+        {:noreply, view_from_params(view.params, socket)}
+      end
+
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
@@ -126,14 +133,12 @@ defmodule SelectoComponents.Form do
         {:noreply, socket}
       end
 
-      @impl true
-      ### TODO view-apply should call view_from_params, and also update URI to include params
+      ### Save tab open. save view!
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
         view = socket.assigns.saved_views.save_view(params["save_as"], socket.assigns.saved_view_context, params)
-        params = socket.assigns.saved_views.decode_view(view)
-        {:noreply, view_from_params(params, state_to_url(params, socket))}
+        params = %{"saved_view" => view.name }
+        {:noreply, state_to_url(params, socket)}
       end
-
 
       def handle_event("view-apply", params, socket) do
         {:noreply, view_from_params(params, state_to_url(params, socket))}
