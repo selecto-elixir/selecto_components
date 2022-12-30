@@ -16,7 +16,8 @@ defmodule SelectoComponents.Form do
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
-        field_filters: build_filter_list(assigns.selecto)
+        field_filters: build_filter_list(assigns.selecto),
+        use_saved_views: Map.get(assigns, :saved_view_module, false)
       )
 
     ~H"""
@@ -25,7 +26,7 @@ defmodule SelectoComponents.Form do
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
-          <.sc_button :if={@saved_view_module} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
+          <.sc_button :if={@use_saved_views} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.sc_button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
@@ -74,7 +75,7 @@ defmodule SelectoComponents.Form do
               </:filter_form>
             </.live_component>
           </div>
-          <div :if={@saved_view_module} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
+          <div :if={@use_saved_views} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
             Save View Section <%= inspect(@saved_view_context) %>
             HOw to ...
             Save As: <.sc_input name="save_as"/>
