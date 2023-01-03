@@ -2,6 +2,11 @@
 CHANGES
 =======
 
+V 0.2.8
+-------
+
+- Fixes for saved views
+
 V 0.2.6
 -------
 

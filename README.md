@@ -3,15 +3,9 @@
 
 Tailwind based UI for selecto
 
-Provides main components: SelectoComponents.ViewSelector, SelectoComponents.AggregateTable and SelectoComponents.DetailTable
+See the live views in [selecto_test](https://github.com/selecto-elixir/selecto_test) for an example of how to setup. Documentaiton will be added once the API is stabilized.
 
-ViewSelector is a live component that creates a control panel to build a query.
-
-AggregateTable and DetailTable are live compoents to display the results of that query.
-
-See the live views in [selecto_test](https://github.com/seeken/selecto_test) for an example of how to setup. Documentaiton will be added once the API is stabilized.
-
-## Plans for '0.5.0'
+## Plans for '0.5.0' which will be first 'stable' release
 
 - Make gb rollup an option
 - finish various TODOs in the code
@@ -20,17 +14,19 @@ See the live views in [selecto_test](https://github.com/seeken/selecto_test) for
 - make it look nice
 - cleanup the event handlers
 - error handing on view form
+- results as XML, JSON, TXT, CSV, PDF, Excel.
+- Export results, email results, POST/PUT results
 - rename to Selecto.Phoenix
+- show generated SQL
+- Documentation
+- Tests
 
 ## Plans for later
 
 - better pagination in detail view, paginate by value, select All
 - ability to save view configuration
 - generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
-- Export results, email results, POST/PUT results
 - Use a column in the results as email address and send that email address all the rows they are in
-- results as XML, JSON, TXT, CSV, PDF, Excel...
-- show generated SQL and show Ecto command
 - Caching
 - Dashboard components - save or code a view and drop it into another page
 - graphing
@@ -48,7 +44,7 @@ by adding `selecto_components` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.2.6"}
+    {:selecto_components, "~> 0.2.8"}
   ]
 end
 ```
