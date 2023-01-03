@@ -7,9 +7,9 @@ defmodule SelectoComponents.SavedViews do
   @doc """
 
   """
-  @callback get_names( context :: any ) :: list
+  @callback get_view_names( context :: any ) :: list
   @callback get_view( name :: String, context :: any ) :: map
   @callback save_view( name :: String, context :: any, params :: map ) :: map
-  @callback update_view( name :: String, context :: any, params :: map ) :: map
+  @callback decode_view( view :: map ) :: map
 
 end

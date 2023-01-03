@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.2.6",
+      version: "0.2.8",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "LiveView Components for Selecto",
@@ -41,8 +41,8 @@ defmodule SelectoComponents.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/seeken/selecto_components"},
-      source_url: "https://github.com/seeken/selecto_components"
+      links: %{"GitHub" => "https://github.com/selecto-elixir/selecto_components"},
+      source_url: "https://github.com/selecto-elixir/selecto_components"
     ]
   end
 end
