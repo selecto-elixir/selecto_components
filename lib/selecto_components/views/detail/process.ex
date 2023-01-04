@@ -8,7 +8,7 @@ defmodule SelectoComponents.Views.Detail.Process do
     }
   end
 
-  def initial_state(selecto, v) do
+  def initial_state(selecto, _v) do
     %{
       order_by:
         Map.get(selecto.domain, :default_order_by, [])
@@ -21,7 +21,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   ### Process incoming params to build Selecto.set for view
-  def view(opt, params, columns, filtered, selecto) do
+  def view(_opt, params, columns, filtered, _selecto) do
     detail_columns =
       Map.get(params, "selected", %{})
       |> Map.values()
@@ -60,8 +60,7 @@ defmodule SelectoComponents.Views.Detail.Process do
     detail_selected
     |> Enum.map(fn e ->
       col = columns[e["field"]]
-      uuid = e["uuid"]
-      # ????
+
       alias =
         case e["alias"] do
           "" -> e["field"]

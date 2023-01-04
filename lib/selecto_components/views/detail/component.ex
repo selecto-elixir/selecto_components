@@ -10,20 +10,9 @@ defmodule SelectoComponents.Views.Detail.Component do
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
     # |> IO.inspect()
-    {results, fields, aliases} = assigns.query_results
+    {results, _fields, aliases} = assigns.query_results
     # IO.puts("RENDER!")
     # IO.inspect(assigns.view_meta, label: "VIEW META")
-
-    selected = Map.get(assigns.selecto.set, :columns, [])
-
-    selected =
-      Enum.map(selected, fn
-        {a, f} = sel ->
-          {sel, assigns.selecto.config.columns[f]}
-
-        f ->
-          {f, assigns.selecto.config.columns[f]}
-      end)
 
     page = assigns.view_meta.page
     per_page = assigns.view_meta.per_page
@@ -80,15 +69,15 @@ defmodule SelectoComponents.Views.Detail.Component do
               <%= i + 1 %>
             </td>
             <%!--  --%>
-            <td :for={ {alias, col_conf}<- Enum.zip( @column_uuids, @columns )}
+            <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
               class="px-1 py-1">
               <%= with def <- @selecto.config.columns[col_conf["field"]] do %>
                 <%= case def do %>
 
-                  <%= %{format: :component} = def -> %>
+                  <% %{format: :component} = def -> %>
                     <%= def.component.(%{row: row_data[col_conf["uuid"]], config: col_conf}) %>
 
-                  <%= %{format: :link} = def -> %>
+                  <% %{format: :link} = def -> %>
                     <%= with {href, txt} <- def.link_parts.(row_data[col_conf["uuid"]])  do %>
                       <.link href={href} class="underline font-bold text-blue-500">
                         <%= txt %>
@@ -98,8 +87,8 @@ defmodule SelectoComponents.Views.Detail.Component do
                   <% _ -> %>
                     <%= row_data[col_conf["uuid"]] %>
 
-                <%= end %>
-              <%= end %>
+                <% end %>
+              <% end %>
             </td>
           <% end %>
         </tr>
