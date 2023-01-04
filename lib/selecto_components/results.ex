@@ -13,7 +13,7 @@ defmodule SelectoComponents.Results do
           {_, module, _, opt} =
             Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-          assigns = assign(assigns, module: module, view_opts: opt)
+          assign(assigns, module: module, view_opts: opt)
       end
 
     ~H"""

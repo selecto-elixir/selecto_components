@@ -2,13 +2,13 @@ defmodule SelectoComponents.Views.Detail.Process do
   def param_to_state(params, _v) do
     ## state is used to draw the form
     %{
-      selected: SelectoComponents.Helpers.view_param_process(params, "selected", "field"),
-      order_by: SelectoComponents.Helpers.view_param_process(params, "order_by", "field"),
+      selected: SelectoComponents.Views.view_param_process(params, "selected", "field"),
+      order_by: SelectoComponents.Views.view_param_process(params, "order_by", "field"),
       per_page: params["per_page"]
     }
   end
 
-  def initial_state(selecto, v) do
+  def initial_state(selecto, _v) do
     %{
       order_by:
         Map.get(selecto.domain, :default_order_by, [])
@@ -21,7 +21,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   ### Process incoming params to build Selecto.set for view
-  def view(opt, params, columns, filtered, selecto) do
+  def view(_opt, params, columns, filtered, _selecto) do
     detail_columns =
       Map.get(params, "selected", %{})
       |> Map.values()
@@ -42,7 +42,7 @@ defmodule SelectoComponents.Views.Detail.Process do
      }, %{page: 0, per_page: String.to_integer(params["per_page"])}}
   end
 
-  def order_by(order_by, _columns) do
+  defp order_by(order_by, _columns) do
     order_by
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
@@ -54,14 +54,13 @@ defmodule SelectoComponents.Views.Detail.Process do
     end)
   end
 
-  def selected(detail_selected, columns) do
+  defp selected(detail_selected, columns) do
     date_formats = SelectoComponents.Helpers.date_formats()
 
     detail_selected
     |> Enum.map(fn e ->
       col = columns[e["field"]]
-      uuid = e["uuid"]
-      # ????
+
       alias =
         case e["alias"] do
           "" -> e["field"]

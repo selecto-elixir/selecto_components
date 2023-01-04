@@ -65,12 +65,12 @@ defmodule SelectoComponents.Components.TreeBuilder do
         <div class="p-2 pl-6 border-solid border  border-black dark:border-grey relative"
           :for={ {s, index} <-
             Enum.filter( @filters, fn
-            {{_uuid,section,_conf}, _i} = f -> section == @section
+            {{_uuid,section,_conf}, _i} -> section == @section
             end )
           } %>
 
           <%= case s do %>
-            <% {uuid, section, conjunction} when is_binary(conjunction) -> %>
+            <% {uuid, _section, conjunction} when is_binary(conjunction) -> %>
               <input name={"filters[#{uuid}][uuid]"} type="hidden" value={uuid}/>
               <input name={"filters[#{uuid}][section]"} type="hidden" value={@section}/>
               <input name={"filters[#{uuid}][index]"} type="hidden" value={@index}/>

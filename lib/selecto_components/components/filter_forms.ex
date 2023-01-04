@@ -162,17 +162,8 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
-  defp reformat_date(date) when is_binary(date) do
-    date = String.replace(date, ~r/Z/, "")
-  end
-
-  defp reformat_date(date) do
-    date
-  end
-
 
   def render_form(%{type: type} = assigns) when type in [:naive_datetime, :utc_datetime] do
-    def = assigns.def
     valmap = assigns.filter
     #|> IO.inspect(label: "Create Date Form")
     assigns = Map.put(assigns, :valmap, valmap)
@@ -240,4 +231,13 @@ defmodule SelectoComponents.Components.FilterForms do
       </div>
     """
   end
+
+  defp reformat_date(date) when is_binary(date) do
+    String.replace(date, ~r/Z/, "")
+  end
+
+  defp reformat_date(date) do
+    date
+  end
+
 end

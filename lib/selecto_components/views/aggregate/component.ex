@@ -10,7 +10,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     descend(results, group_by)
   end
 
-  defp descend(results, [g | t]) do
+  defp descend(results, [_ | t]) do
     #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
     Enum.chunk_by(
       results,
@@ -22,7 +22,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       # we have to strip out the first item of each subarray. Is there a better way?
       {
         List.first(List.first(z)),
-        descend(Enum.map(z, fn [lh | lt] -> lt end), t)
+        descend(Enum.map(z, fn [_ | lt] -> lt end), t)
       }
     end)
   end
@@ -47,7 +47,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     """
   end
 
-  defp tree_table(%{subs: {subs, _i}} = assigns) do
+  defp tree_table(%{subs: {subs, _}} = assigns) do
     aggs = Enum.zip(subs, assigns.aggregate)
 
     level =
@@ -65,7 +65,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       assigns.payload
       |> Enum.reduce(
         [],
-        fn {i, {_id, {:group_by, _col, coldef}}, v, ind}, acc ->
+        fn {i, {_, {:group_by, _, coldef}}, v, _}, acc ->
           # IO.inspect(v)
           ### make this use a with!
           ### Filters from previous payload
@@ -79,13 +79,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
           newfil =
             case v do
-              {view, filt} ->
+              {_, filt} ->
                 %{
                   "phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" =>
                     filt
                 }
 
-              val ->
+              _ ->
                 %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
             end
 
@@ -94,7 +94,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         end
       )
 
-    assigns = Map.put(assigns, :aggs, aggs) |> Map.put(:level, level) |> Map.put(:subs, subs)
+    assigns = Map.put(assigns, :aggs, aggs) |> Map.put(:level, level) |> Map.put(:subs, subs) |> Map.put(:ttgroups, groups)
+
 
     ~H"""
       <tr class={ case @level do
@@ -106,7 +107,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         _ -> "bg-slate-50 text-left text-black"
         end
       } >
-        <th :for={{{_i, coldef, v, filters}, c} <- Enum.with_index(groups) }  >
+        <th :for={{{_i, coldef, v, filters}, c} <- Enum.with_index(@ttgroups) }  >
 
 
           <div :if={ @level - 1 == c } phx-click="agg_add_filters" { filters } >
@@ -155,13 +156,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     aggregates =
       Enum.map(aggregates, fn
-        {:field, {:extract, f, fmt} = agg, alias} ->
+        {:field, {:extract, f, _fmt} = agg, _} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
-        {:field, {a, f} = agg, alias} ->
+        {:field, {_a, f} = agg, _} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
-        {:field, f, alias} ->
+        {:field, f, _} ->
           {:agg, f, assigns.selecto.config.columns[f]}
 
         nil ->
@@ -187,11 +188,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
 
         <tr>
-          <th :for={{alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{alias, _} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= alias %>
           </th>
 
-          <th :for={{alias, _r} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{alias, _} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= alias %>
           </th>
 
