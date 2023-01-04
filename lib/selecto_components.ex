@@ -3,16 +3,6 @@ defmodule SelectoComponents do
   Documentation for `SelectoComponents`.
   """
 
-  @doc """
-  Hello world.
 
-  ## Examples
 
-      iex> SelectoComponents.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end
