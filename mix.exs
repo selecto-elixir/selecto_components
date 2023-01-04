@@ -27,7 +27,7 @@ defmodule SelectoComponents.MixProject do
       {:phoenix_live_view, "~> 0.18"},
       {:selecto, "~> 0.1.2"},
       {:uuid, "~> 1.1"},
-      {:ex_doc, "~> 0.27", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.29.1", only: :dev, runtime: false},
       {:heroicons, "~> 0.5.0"},
       {:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},

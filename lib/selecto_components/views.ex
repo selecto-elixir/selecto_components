@@ -1,6 +1,26 @@
 defmodule SelectoComponents.Views do
 @moduledoc """
 
+Define a view for Selecto Components.
+
+In addition to the built in views such as Aggregate and Detail, you can create custom views.
+
+When mounting your Selecto Liveview, you configure the views to use in a list, and pass that to get_initial_state and as an assign.
+
+```elixir
+
+    views = [
+      {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{drill_down: :detail}},
+      {:detail, SelectoComponents.Views.Detail, "Detail View", %{}}
+      # {:graph, SelectoComponents.Views.Graph, "Graph View", %{}},
+    ]
+
+    state = get_initial_state(views, selecto)
+    socket = assign(socket, views: views)
+
+```
+
+
 interface:
 
 - component - the display LiveComponent

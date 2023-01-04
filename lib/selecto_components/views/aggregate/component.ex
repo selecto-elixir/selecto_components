@@ -155,13 +155,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     aggregates =
       Enum.map(aggregates, fn
-        {:field, {:extract, f, fmt} = agg, alias} ->
+        {:field, {:extract, f, _fmt} = agg, _} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
-        {:field, {a, f} = agg, alias} ->
+        {:field, {_a, f} = agg, _} ->
           {:agg, agg, assigns.selecto.config.columns[f]}
 
-        {:field, f, alias} ->
+        {:field, f, _} ->
           {:agg, f, assigns.selecto.config.columns[f]}
 
         nil ->
@@ -187,11 +187,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
 
         <tr>
-          <th :for={{alias, {:group_by, g, def}} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{alias, _} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= alias %>
           </th>
 
-          <th :for={{alias, _r} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th :for={{alias, _} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
             <%= alias %>
           </th>
 

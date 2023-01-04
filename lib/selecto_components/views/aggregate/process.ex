@@ -17,7 +17,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     }
   end
 
-  def view(opt, params, columns, filtered, selecto) do
+  def view(_opt, params, columns, filtered, _selecto) do
     group_by_params = Map.get(params, "group_by", %{})
 
     aggregate =
@@ -46,7 +46,6 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn e ->
       col = columns[e["field"]]
-      uuid = e["uuid"]
       # ????
       alias =
         case e["alias"] do
