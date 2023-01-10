@@ -343,7 +343,7 @@ defmodule SelectoComponents.Form do
         # IO.puts("Build View")
 
         selecto = socket.assigns.selecto
-        columns = selecto.config.columns
+        columns = Selecto.columns(selecto)
 
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
