@@ -11,10 +11,10 @@ defmodule SelectoComponents.Views.Detail.Process do
   def initial_state(selecto, _v) do
     %{
       order_by:
-        Map.get(selecto.domain, :default_order_by, [])
+        Map.get(Selecto.domain(selecto), :default_order_by, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       selected:
-        Map.get(selecto.domain, :default_selected, [])
+        Map.get(Selecto.domain(selecto), :default_selected, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: "30"
     }

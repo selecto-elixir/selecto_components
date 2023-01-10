@@ -9,10 +9,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   def initial_state(selecto, _v) do
     %{
       aggregate:
-        Map.get(selecto.domain, :default_aggregate, [])
+        Map.get(Selecto.domain(selecto), :default_aggregate, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       group_by:
-        Map.get(selecto.domain, :default_group_by, [])
+        Map.get(Selecto.domain(selecto), :default_group_by, [])
         |> SelectoComponents.Helpers.build_initial_state()
     }
   end
