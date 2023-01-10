@@ -157,13 +157,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     aggregates =
       Enum.map(aggregates, fn
         {:field, {:extract, f, _fmt} = agg, _} ->
-          {:agg, agg, assigns.selecto.config.columns[f]}
+          {:agg, agg, Selecto.field(assigns.selecto, f)}
 
         {:field, {_a, f} = agg, _} ->
-          {:agg, agg, assigns.selecto.config.columns[f]}
+          {:agg, agg, Selecto.field(assigns.selecto, f)}
 
         {:field, f, _} ->
-          {:agg, f, assigns.selecto.config.columns[f]}
+          {:agg, f, Selecto.field(assigns.selecto, f)}
 
         nil ->
           {:agg, nil, nil}

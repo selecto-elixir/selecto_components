@@ -70,7 +70,7 @@ defmodule SelectoComponents.Form do
                   index={index}
                   filter={fv}
                   columns={Selecto.columns(@selecto)}
-                  custom_filters={@selecto.config.filters}
+                  custom_filters={Selecto.filters(@selecto)}
                 />
               </:filter_form>
             </.live_component>
