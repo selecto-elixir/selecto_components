@@ -19,7 +19,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             <.live_component
               module={SelectoComponents.Views.Aggregate.GroupByConfig}
               id={id}
-              col={@selecto.config.columns[item]}
+              col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
               fieldname="group_by"
@@ -42,7 +42,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             <.live_component
               module={SelectoComponents.Views.Aggregate.Aggregate.Config}
               id={id}
-              col={@selecto.config.columns[item]}
+              col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
               fieldname="aggregate"

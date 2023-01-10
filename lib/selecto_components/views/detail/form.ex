@@ -20,7 +20,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             <.live_component
               module={SelectoComponents.Views.Detail.ColumnConfig}
               id={id}
-              col={@selecto.config.columns[item]}
+              col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
               fieldname="selected"
@@ -44,7 +44,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             <.live_component
               module={SelectoComponents.Views.Detail.OrderByConfig}
               id={id}
-              col={@selecto.config.columns[item]}
+              col={Selecto.field(@selecto, item)}
               item={item}
               fieldname="order_by"
               prefix={ "order_by[#{id}]" }

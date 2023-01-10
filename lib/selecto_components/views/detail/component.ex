@@ -71,7 +71,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             <%!--  --%>
             <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
               class="px-1 py-1">
-              <%= with def <- @selecto.config.columns[col_conf["field"]] do %>
+              <%= with def <- Selecto.columns(@selecto)[col_conf["field"]] do %>
                 <%= case def do %>
 
                   <% %{format: :component} = def -> %>

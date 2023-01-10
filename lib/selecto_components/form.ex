@@ -69,7 +69,7 @@ defmodule SelectoComponents.Form do
                   section={section}
                   index={index}
                   filter={fv}
-                  columns={@selecto.config.columns}
+                  columns={Selecto.columns(@selecto)}
                   custom_filters={@selecto.config.filters}
                 />
               </:filter_form>
@@ -211,7 +211,7 @@ defmodule SelectoComponents.Form do
               fn {f, v}, acc ->
                 newid = UUID.uuid4()
 
-                conf = socket.assigns.selecto.config.columns[f]
+                conf = Selecto.field(socket.assigns.selecto, f)
                 {v1, v2} = case conf.type do
                   x when x in [:utc_datetime, :naive_datetime] ->
                     Selecto.Helpers.Date.val_to_dates(%{"value"=>v, "value2"=>""})
@@ -242,7 +242,7 @@ defmodule SelectoComponents.Form do
                     _ -> true
                   end) ++
                     Enum.map(params, fn {f, v} ->
-                      conf = socket.assigns.selecto.config.columns[f]
+                      conf = Selecto.field(socket.assigns.selecto, f)
                       case conf.type do
                         x when x in [:utc_datetime, :naive_datetime] ->
                           {v1, v2} = Selecto.Helpers.Date.val_to_dates(%{"value"=>v, "value2"=>""})
@@ -457,8 +457,8 @@ defmodule SelectoComponents.Form do
 
   ### Reorg these to use in pickers
   defp build_filter_list(selecto) do
-    (Map.values(selecto.config.filters) ++
-       [Map.values(selecto.config.columns) |> Enum.filter(fn c -> c.type != :custom_column end)])
+    (Map.values(Selecto.filters(selecto)) ++
+       [Map.values(Selecto.columns(selecto)) |> Enum.filter(fn c -> c.type != :custom_column end)])
     |> List.flatten()
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn
@@ -468,7 +468,7 @@ defmodule SelectoComponents.Form do
   end
 
   defp build_column_list(selecto) do
-    Map.values(selecto.config.columns)
+    Map.values(Selecto.columns(selecto))
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
   end
