@@ -23,13 +23,13 @@ defmodule SelectoComponents.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:phoenix, "~> 1.6"},
+      {:phoenix, "~> 1.7"},
       {:phoenix_live_view, "~> 0.18"},
       {:selecto, "~> 0.2.6"},
       {:uuid, "~> 1.1"},
       {:ex_doc, "~> 0.29.1", only: :dev, runtime: false},
       {:heroicons, "~> 0.5.0"},
-      {:vega_lite, "~> 0.1.6"},
+      #{:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
 
 
