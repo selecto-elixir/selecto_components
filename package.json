@@ -1,0 +1,9 @@
+{
+    "name": "selecto_components",
+    "version": "1.0.1",
+    "description": "JS hooks for SelectoComponents",
+    "main": "priv/static/selecto_components.min.js",
+    "repository": "git@github.com:elixir-selecto/selecto_components.git",
+    "author": "Chris Rohlfs <seeken@gmail.com>",
+    "license": "MIT"
+  }

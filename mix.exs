@@ -8,6 +8,7 @@ defmodule SelectoComponents.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "LiveView Components for Selecto",
+      aliases: aliases(),
       package: package(),
       deps: deps()
     ]
@@ -31,6 +32,7 @@ defmodule SelectoComponents.MixProject do
       {:heroicons, "~> 0.5.0"},
       #{:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
+      {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},
 
 
       # {:dep_from_hexpm, "~> 0.3.0"},
@@ -42,7 +44,15 @@ defmodule SelectoComponents.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/selecto-elixir/selecto_components"},
-      source_url: "https://github.com/selecto-elixir/selecto_components"
+      source_url: "https://github.com/selecto-elixir/selecto_components",
+      files: ~w(mix.exs lib/selecto_components** package.json priv/static/selecto_components.min.js)
     ]
   end
+
+  defp aliases do
+    [
+      "assets.package": ["esbuild package"],
+    ]
+  end
+
 end
