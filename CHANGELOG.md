@@ -2,6 +2,11 @@
 CHANGES
 =======
 
+NEXT
+----
+
+- Build JS file for hooks like liveview does
+
 V 0.2.8
 -------
 
