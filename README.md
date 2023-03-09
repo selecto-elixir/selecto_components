@@ -53,17 +53,17 @@ Additionally:
 
 You will need to add alpinejs and Tailwind to your app, and configure tailwind to look at *ex files in selecto_components.
 
-You will need to include a Hook in your app.js for the drag and drop
+You will need to include a Hook in your app.js for the drag and drop- merge the selecto_components object into your hooks object and pass it into your LiveSocket
 
 ```javascript
-const PushEventHook = {
-  mounted() {
-    window.PushEventHook = this
-  },
-  destroyed() {
-    window.PushEventHook = null
-  }
-};
+
+import selecto_components from "selecto_components"
+let hooks = {
+    //Other hooks
+    ...selecto_components
+}
+let liveSocket = new LiveSocket("/live", Socket, { params: {_csrf_token: csrfToken}, hooks })
+
 ```
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
