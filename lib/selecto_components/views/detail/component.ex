@@ -52,18 +52,18 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 dark:ring-0 divide-gray-200 rounded-sm table-auto dark:divide-y-0 dark:divide-gray-800 sm:rounded">
+      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
         <tr>
-          <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">#</th>
-          <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 dark:bg-gray-600 dark:text-gray-300">
+          <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">#</th>
+          <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
             <%= r %>
           </th>
         </tr>
 
         <%!--  --%>
         <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)}
-          class="border-b dark:border-gray-700 bg-white even:bg-gray-100 dark:bg-gray-700 dark:even:bg-gray-800 last:border-none text-sm text-gray-500 dark:text-gray-400 align-top">
+          class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top">
           <%= with row_data <- Enum.zip( @column_uuids, resrow ) |> Enum.into(%{}) do %>
             <td class="px-1 py-1">
               <%= i + 1 %>
