@@ -39,9 +39,9 @@ defmodule SelectoComponents.Form do
               options={@views}
               >
 
-                <:section let={{id, module, _, _} = view}>
+                <:section :let={{id, mod, _, _} = view}>
                   <.live_component
-                    module={ String.to_existing_atom("#{module}.Form") }
+                    module={ String.to_existing_atom("#{mod}.Form") }
                     id={"view_#{id}_form"}
                     columns={@columns}
                     view_config={@view_config}
