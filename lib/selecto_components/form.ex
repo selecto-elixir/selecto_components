@@ -2,7 +2,9 @@ defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
-
+  import Phoenix.HTML
+  import Phoenix.HTML.Form
+  use PhoenixHTMLHelpers
   @doc """
   Form for configuing Selecto View
 
@@ -22,7 +24,7 @@ defmodule SelectoComponents.Form do
 
     ~H"""
       <div class="border-solid border border-2 rounded-md border-black dark:border-black h-100 overflow-auto p-1">
-        <.form for={:view} phx-change="view-validate" phx-submit="view-apply">
+        <.form phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
@@ -39,9 +41,9 @@ defmodule SelectoComponents.Form do
               options={@views}
               >
 
-                <:section let={{id, module, _, _} = view}>
+                <:section :let={{id, mod, _, _} = view}>
                   <.live_component
-                    module={ String.to_existing_atom("#{module}.Form") }
+                    module={ String.to_existing_atom("#{mod}.Form") }
                     id={"view_#{id}_form"}
                     columns={@columns}
                     view_config={@view_config}

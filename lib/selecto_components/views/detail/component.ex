@@ -5,7 +5,6 @@ defmodule SelectoComponents.Views.Detail.Component do
   """
   import SelectoComponents.Components.Common
   use Phoenix.LiveComponent
-  use Phoenix.HTML
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
