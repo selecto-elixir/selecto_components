@@ -2,9 +2,8 @@ defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
-  import Phoenix.HTML
-  import Phoenix.HTML.Form
-  use PhoenixHTMLHelpers
+  use Phoenix.HTML
+
   @doc """
   Form for configuing Selecto View
 
