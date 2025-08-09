@@ -18,12 +18,13 @@ defmodule SelectoComponents.Form do
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto),
-        use_saved_views: Map.get(assigns, :saved_view_module, false)
+        use_saved_views: Map.get(assigns, :saved_view_module, false),
+        form: Ecto.Changeset.cast(%{}, assigns.view_config, []) |> to_form()
       )
 
     ~H"""
       <div class="border-solid border border-2 rounded-md border-black dark:border-black h-100 overflow-auto p-1">
-        <.form phx-change="view-validate" phx-submit="view-apply">
+        <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
