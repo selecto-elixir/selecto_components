@@ -19,7 +19,7 @@ defmodule SelectoComponents.Form do
         columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
-        form: Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form()
+        form: Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form(as: "view_config")
       )
 
     ~H"""
