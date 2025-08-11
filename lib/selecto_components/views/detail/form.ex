@@ -1,6 +1,5 @@
 defmodule SelectoComponents.Views.Detail.Form do
   use Phoenix.LiveComponent
-  import SelectoComponents.Components.Common
 
   def render(assigns) do
     ~H"""
