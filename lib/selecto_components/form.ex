@@ -19,7 +19,7 @@ defmodule SelectoComponents.Form do
         columns: build_column_list(assigns.selecto),
         field_filters: build_filter_list(assigns.selecto),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
-        form: Ecto.Changeset.cast(%{}, assigns.view_config, []) |> to_form()
+        form: Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form()
       )
 
     ~H"""
@@ -370,7 +370,14 @@ defmodule SelectoComponents.Form do
           )
 
         selecto = Map.put(selecto, :set, view_set)
-        results = Selecto.execute(selecto)
+        
+        # Handle the new Selecto API that returns {:ok, {rows, columns, aliases}} 
+        results = case Selecto.execute(selecto) do
+          {:ok, result_tuple} -> result_tuple
+          {:error, error} -> throw({:selecto_error, error})
+          result_tuple -> result_tuple  # Fallback for old format
+        end
+        
         view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
         assign(socket,
