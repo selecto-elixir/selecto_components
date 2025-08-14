@@ -25,7 +25,7 @@ defmodule SelectoComponents.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8.0"},
-      {:phoenix_live_view, "~> 1.0.0"},
+      {:phoenix_live_view, "~> 1.1.4"},
       #{:phoenix_html_helpers, "~> 1.0"},
       {:selecto, path: "../selecto"},
       {:uuid, "~> 1.1"},
