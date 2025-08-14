@@ -85,7 +85,7 @@ defmodule SelectoComponents.Helpers.Filters do
           ]
 
       f, acc ->
-        if get_in(Selecto.filters(selecto), [:filters, f["filter"], :apply]) do
+        if get_in(Selecto.filters(selecto), [f["filter"], :apply]) do
           ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO???
 
           acc ++ [Selecto.filters(selecto)[f["filter"]].apply.(selecto, f)]
