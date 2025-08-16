@@ -25,6 +25,34 @@ defmodule SelectoComponents.Form do
     ~H"""
       <div class="border-solid border border-2 rounded-md border-black dark:border-black h-100 overflow-auto p-1">
         <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
+          <!-- Error Display -->
+          <div :if={Map.get(assigns, :execution_error)} class="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">
+                  Query Execution Failed
+                </h3>
+                <div class="mt-2 text-sm text-red-700">
+                  <%= Selecto.Error.to_display_message(Map.get(assigns, :execution_error)) %>
+                </div>
+                <div :if={Map.get(assigns, :execution_error) && Map.get(assigns, :execution_error).query} class="mt-2">
+                  <details class="text-xs text-red-600">
+                    <summary class="cursor-pointer">Show query details</summary>
+                    <pre class="mt-1 whitespace-pre-wrap"><%= Map.get(assigns, :execution_error).query %></pre>
+                    <div :if={Map.get(assigns, :execution_error).params && length(Map.get(assigns, :execution_error).params) > 0}>
+                      <strong>Parameters:</strong> <%= inspect(Map.get(assigns, :execution_error).params) %>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
           <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
@@ -371,23 +399,31 @@ defmodule SelectoComponents.Form do
 
         selecto = Map.put(selecto, :set, view_set)
         
-        # Handle the new Selecto API that returns {:ok, {rows, columns, aliases}} 
-        results = case Selecto.execute(selecto) do
-          {:ok, result_tuple} -> result_tuple
-          {:error, error} -> throw({:selecto_error, error})
-          result_tuple -> result_tuple  # Fallback for old format
+        # Execute query using standardized safe API
+        case Selecto.execute(selecto) do
+          {:ok, {rows, columns, aliases}} ->
+            view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
+            
+            assign(socket,
+              selecto: selecto,
+              query_results: {rows, columns, aliases},
+              used_params: params,
+              applied_view: params["view_mode"],
+              view_meta: view_meta,
+              executed: true,
+              execution_error: nil
+            )
+            
+          {:error, %Selecto.Error{} = error} ->
+            assign(socket,
+              selecto: selecto,
+              query_results: nil,
+              used_params: params,
+              applied_view: params["view_mode"],
+              executed: false,
+              execution_error: error
+            )
         end
-        
-        view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
-
-        assign(socket,
-          selecto: selecto,
-          query_results: results,
-          used_params: params,
-          applied_view: params["view_mode"],
-          view_meta: view_meta,
-          executed: true
-        )
 
         # rescue
         #   e ->
