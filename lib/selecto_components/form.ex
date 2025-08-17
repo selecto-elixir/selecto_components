@@ -502,8 +502,7 @@ defmodule SelectoComponents.Form do
 
   ### Reorg these to use in pickers
   defp build_filter_list(selecto) do
-    (Map.values(Selecto.filters(selecto)) ++
-       [Map.values(Selecto.columns(selecto)) |> Enum.filter(fn c -> c.type != :custom_column end)])
+    (Map.values(Selecto.filters(selecto)) ++ Map.values(Selecto.columns(selecto)))
     |> List.flatten()
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn
