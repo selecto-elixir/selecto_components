@@ -127,6 +127,17 @@ defmodule SelectoComponents.Router do
       # Apply filters and configuration to selecto
       filtered_selecto = apply_filters(selecto, view_config.filters)
       
+      # Log query details before execution
+      try do
+        {query, aliases, sql_params} = Selecto.gen_sql(filtered_selecto, [])
+        require Logger
+        Logger.info("SelectoComponents Router Query Execution\nSQL: #{query}\nParams: #{inspect(sql_params)}\nAliases: #{inspect(aliases)}")
+      rescue
+        e -> 
+          require Logger
+          Logger.warn("Failed to generate SQL for logging in router: #{inspect(e)}")
+      end
+      
       # Execute the query
       case Selecto.execute(filtered_selecto) do
         {:ok, results} -> {:ok, results, filtered_selecto}

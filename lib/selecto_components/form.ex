@@ -157,10 +157,13 @@ defmodule SelectoComponents.Form do
         {:noreply, assign(socket, active_tab: params["tab"])}
       end
 
-      ## TODO REDO this
       @impl true
       def handle_event("view-validate", params, socket) do
-        socket = filter_params_to_state(params, socket)
+        # Process all parameters including view-specific configs (aggregates, group_by, etc.)
+        socket = params_to_state(params, socket)
+        
+        # Don't execute view on validation - only on submit
+        # This allows users to configure aggregates without immediate updates
         {:noreply, socket}
       end
 
@@ -309,6 +312,7 @@ defmodule SelectoComponents.Form do
               )
           )
 
+        # Don't execute view - wait for submit
         {:noreply, socket}
       end
 
@@ -332,6 +336,7 @@ defmodule SelectoComponents.Form do
           )
 
         socket = assign(socket, view_config: put_in(view_config.views[view][list], item_list))
+        # Don't execute view - wait for submit
         {:noreply, socket}
       end
 
@@ -353,7 +358,58 @@ defmodule SelectoComponents.Form do
               )
           )
 
+        # Don't execute view - wait for submit
         {:noreply, socket}
+      end
+
+      # Helper function to execute view from current state
+      defp execute_view_from_current_state(socket) do
+        params = view_config_to_params(socket.assigns.view_config)
+        view_from_params(params, socket)
+      end
+
+      # Convert view_config back to params format for view execution
+      defp view_config_to_params(view_config) do
+        params = %{
+          "view_mode" => view_config.view_mode,
+          "filters" => filters_to_params(view_config.filters)
+        }
+
+        # Add view-specific parameters
+        view_params = case view_config.views[String.to_atom(view_config.view_mode)] do
+          nil -> %{}
+          view_data ->
+            # Convert each list (group_by, aggregate, etc.) to params format
+            Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
+              items_params = 
+                items
+                |> Enum.with_index()
+                |> Enum.reduce(%{}, fn {{id, field, config}, index}, item_acc ->
+                  Map.put(item_acc, id, Map.merge(config, %{
+                    "field" => field,
+                    "index" => to_string(index)
+                  }))
+                end)
+              Map.put(acc, to_string(list_name), items_params)
+            end)
+        end
+
+        Map.merge(params, view_params)
+      end
+
+      # Convert filters back to params format
+      defp filters_to_params(filters) do
+        filters
+        |> Enum.with_index()
+        |> Enum.reduce(%{}, fn {{uuid, section, filter_data}, index}, acc ->
+          filter_params = case filter_data do
+            conj when is_binary(conj) ->
+              %{"conjunction" => conj, "section" => section, "index" => to_string(index)}
+            filter_map when is_map(filter_map) ->
+              Map.merge(filter_map, %{"section" => section, "index" => to_string(index)})
+          end
+          Map.put(acc, uuid, filter_params)
+        end)
       end
 
       defp view_filter_process(params, item_name) do
@@ -372,7 +428,17 @@ defmodule SelectoComponents.Form do
         #IO.inspect(params, label: "View From Params")
         # IO.puts("Build View")
 
-        selecto = socket.assigns.selecto
+        # First, clear any existing query results to prevent stale data display
+        socket = assign(socket,
+          query_results: nil,
+          executed: false,
+          execution_error: nil
+        )
+
+        # Create a fresh Selecto structure instead of reusing the cached one
+        # This ensures any internal state is properly reset for the new view
+        old_selecto = socket.assigns.selecto
+        selecto = Selecto.configure(old_selecto.domain, old_selecto.postgrex_opts)
         columns = Selecto.columns(selecto)
 
         filters_by_section =
@@ -398,6 +464,17 @@ defmodule SelectoComponents.Form do
           )
 
         selecto = Map.put(selecto, :set, view_set)
+        
+        # Log query details before execution
+        try do
+          {query, aliases, sql_params} = Selecto.gen_sql(selecto, [])
+          require Logger
+          Logger.info("SelectoComponents Query Execution - View: #{params["view_mode"]}\nSQL: #{query}\nParams: #{inspect(sql_params)}\nAliases: #{inspect(aliases)}")
+        rescue
+          e -> 
+            require Logger
+            Logger.warn("Failed to generate SQL for logging: #{inspect(e)}")
+        end
         
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
@@ -462,6 +539,58 @@ defmodule SelectoComponents.Form do
             view_mode: Map.get(params, "view_mode", "aggregate")
           }
         )
+      end
+
+      ### Check if view parameters have changed significantly
+      defp view_params_changed?(params, socket) do
+        used_params = socket.assigns[:used_params] || %{}
+        
+        # Key parameters that should trigger a view reset
+        significant_changes = [
+          # View mode change (aggregate vs detail vs graph)
+          params["view_mode"] != used_params["view_mode"],
+          
+          # Group by changes in aggregate view
+          view_specific_params_changed?(params, used_params, "group_by"),
+          
+          # Aggregate fields changes in aggregate view  
+          view_specific_params_changed?(params, used_params, "aggregate"),
+          
+          # Column selection changes in detail view
+          view_specific_params_changed?(params, used_params, "columns"),
+          
+          # Order by changes
+          view_specific_params_changed?(params, used_params, "order_by"),
+          
+          # Filter changes that affect the query structure
+          filter_structure_changed?(params, used_params)
+        ]
+        
+        Enum.any?(significant_changes)
+      end
+      
+      ### Check if view-specific parameters changed
+      defp view_specific_params_changed?(params, used_params, param_key) do
+        current = normalize_param_map(Map.get(params, param_key, %{}))
+        previous = normalize_param_map(Map.get(used_params, param_key, %{}))
+        current != previous
+      end
+      
+      ### Normalize parameter maps for comparison
+      defp normalize_param_map(param_map) when is_map(param_map) do
+        param_map
+        |> Enum.map(fn {k, v} -> 
+          {k, Map.take(v, ["field", "format", "alias", "index"])} 
+        end)
+        |> Enum.sort()
+      end
+      defp normalize_param_map(_), do: []
+      
+      ### Check if filter structure changed (not just values)
+      defp filter_structure_changed?(params, used_params) do
+        current_filters = Map.get(params, "filters", %{}) |> Map.keys() |> Enum.sort()
+        previous_filters = Map.get(used_params, "filters", %{}) |> Map.keys() |> Enum.sort()
+        current_filters != previous_filters
       end
 
       ### Update the URL to include the configured View

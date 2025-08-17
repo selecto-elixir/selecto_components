@@ -3,6 +3,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
+  
+  def update(assigns, socket) do
+    require Logger
+    Logger.info("=== AGGREGATE COMPONENT UPDATE ===\nComponent ID: #{inspect(assigns[:id])}\nExecuted?: #{inspect(assigns[:executed])}\nQuery results present?: #{inspect(assigns[:query_results] != nil)}")
+    {:ok, assign(socket, assigns)}
+  end
 
   ### TODO when a level has 1 and it's child has 1, combine them
 
@@ -48,7 +54,57 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp tree_table(%{subs: {subs, _}} = assigns) do
-    aggs = Enum.zip(subs, assigns.aggregate)
+    # Debug the data structure issue
+    require Logger
+    
+    # subs should be a list containing the aggregate values for this row
+    # If it's a single row of data, it should be a list like [film_count, language_count]
+    # If it's multiple rows, each item would be such a list
+    
+    # Handle both single row and multiple row cases
+    actual_subs = cond do
+      # If subs is a list of lists (multiple rows), take the first row for now
+      is_list(subs) and length(subs) > 0 and is_list(List.first(subs)) ->
+        Logger.info("Multiple rows detected, taking first row: #{inspect(List.first(subs))}")
+        List.first(subs)
+      
+      # If subs is a single list of values (single row) 
+      is_list(subs) ->
+        Logger.info("Single row detected: #{inspect(subs)}")
+        subs
+        
+      # Fallback - convert to list
+      true ->
+        Logger.warn("Unexpected subs format, converting: #{inspect(subs)}")
+        [subs]
+    end
+    
+    Logger.info("tree_table Debug:\nActual subs (data): #{inspect(actual_subs)}\nAggregates config: #{inspect(assigns.aggregate)}\nSubs length: #{length(actual_subs)}\nAggregates length: #{length(assigns.aggregate)}")
+    
+    # Ensure we have the same number of data values as aggregate configurations
+    aggs = cond do
+      length(actual_subs) == length(assigns.aggregate) ->
+        Enum.zip(actual_subs, assigns.aggregate)
+      
+      length(actual_subs) > length(assigns.aggregate) ->
+        # More data than expected - take only what we need
+        truncated_subs = Enum.take(actual_subs, length(assigns.aggregate))
+        Logger.warn("Truncating subs data: had #{length(actual_subs)}, need #{length(assigns.aggregate)}")
+        Enum.zip(truncated_subs, assigns.aggregate)
+        
+      true ->
+        # Less data than expected - pad with nils
+        padded_subs = actual_subs ++ List.duplicate(nil, length(assigns.aggregate) - length(actual_subs))
+        Logger.warn("Padding subs data: had #{length(actual_subs)}, need #{length(assigns.aggregate)}")
+        Enum.zip(padded_subs, assigns.aggregate)
+    end
+    
+    Logger.info("Final zipped aggs: #{inspect(aggs)}")
+    
+    # Log each agg structure for template debugging
+    Enum.each(aggs, fn {col, {alias, {:agg, sel, coldef}}} ->
+      Logger.info("Agg for template: col=#{inspect(col)}, alias=#{inspect(alias)}, sel=#{inspect(sel)}, coldef=#{inspect(coldef)}")
+    end)
 
     level =
       Enum.count(assigns.payload) -
@@ -119,7 +175,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <% end %>
           </div>
         </th>
-        <td :for={ {col, {_id, {:agg, _sel, coldef}}} <- @aggs }>
+        <td :for={ {col, {_alias, {:agg, _sel, coldef}}} <- @aggs }>
           <%= case coldef do %>
             <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
               <%= fmt_fun.(col) %>
@@ -133,12 +189,77 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   def render(assigns) do
+    # Force fresh data extraction on every render - no caching
     {results, _fields, aliases} = assigns.query_results
-
-    ### Will always be first X items
-    group_by = assigns.selecto.set.groups
-    aggregates = assigns.selecto.set.aggregates
-
+    
+    require Logger
+    Logger.info("=== SIMPLE AGGREGATE RENDER ===\nAliases: #{inspect(aliases)}\nFirst 3 results: #{inspect(Enum.take(results, 3))}")
+    
+    # Simple approach: Just use the first row to determine how many columns are aggregates
+    first_row = List.first(results) || []
+    
+    # The first N-1 columns are group_by, the last columns are aggregates
+    # Based on aliases length vs first row length
+    total_cols = length(aliases)
+    group_by_count = total_cols - length(assigns.selecto.set.aggregates)
+    
+    # Split aliases into group_by and aggregate sections
+    {group_by_aliases, agg_aliases} = Enum.split(aliases, group_by_count)
+    
+    Logger.info("Group by aliases: #{inspect(group_by_aliases)}\nAggregate aliases: #{inspect(agg_aliases)}")
+    
+    # Build simple table structure
+    ~H"""
+    <div>
+      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+        <tr>
+          <th :for={alias <- group_by_aliases} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+            <%= alias %>
+          </th>
+          <th :for={alias <- agg_aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+            <%= alias %>
+          </th>
+        </tr>
+        <tr :for={row <- results}>
+          <td :for={value <- row} class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <%= value %>
+          </td>
+        </tr>
+      </table>
+    </div>
+    """
+  end
+  
+  defp render_aggregate_view(assigns, results, aliases, group_by, aggregates) do
+    # Double-check synchronization at render time
+    expected_field_count = Enum.count(group_by) + Enum.count(aggregates)
+    aliases_count = Enum.count(aliases)
+    
+    # If still mismatched at render time, return loading state
+    if aliases_count != expected_field_count do
+      assigns = assign(assigns,
+        results: [],
+        results_tree: [],
+        aliases: [],
+        group_by: [],
+        aggregate: []
+      )
+      
+      ~H"""
+      <div>
+        <div class="text-gray-500 italic p-4">Synchronizing view state...</div>
+      </div>
+      """
+    else
+      render_synchronized_view(assigns, results, aliases, group_by, aggregates)
+    end
+  end
+  
+  defp render_synchronized_view(assigns, results, aliases, group_by, aggregates) do
+    # Add logging to track field mapping
+    require Logger
+    Logger.info("Starting render_synchronized_view with:\nGroup By: #{inspect(group_by)}\nAggregates: #{inspect(aggregates)}\nAliases: #{inspect(aliases)}")
+    
     group_by =
       Enum.map(
         group_by,
@@ -169,9 +290,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           {:agg, nil, nil}
       end)
 
-    fmap = Enum.zip(aliases, group_by ++ aggregates)
+    # Now we know aliases and structure match exactly
+    current_fields = group_by ++ aggregates
+    fmap = Enum.zip(aliases, current_fields)
+    
+    Logger.info("Field mapping: #{inspect(fmap)}")
+    
     group_by = Enum.take(fmap, Enum.count(group_by))
     aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
+    
+    Logger.info("Final mapping - Group By: #{inspect(group_by)}\nAggregates: #{inspect(aggregates)}")
 
     result_tree = result_tree(results, group_by)
 
@@ -183,6 +311,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         group_by: group_by,
         aggregate: aggregates
       )
+      
     ~H"""
     <div>
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
