@@ -2,6 +2,7 @@ defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
+  alias Phoenix.LiveView.JS
 
 
   @doc """
@@ -53,11 +54,11 @@ defmodule SelectoComponents.Form do
             </div>
           </div>
           
-          <!--TODO use LiveView.JS? --> <!-- Make tabs component?-->
-          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="view">View Tab</.sc_button>
-          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="filter">Filter Tab</.sc_button>
-          <.sc_button :if={@use_saved_views} type="button" phx-click="set_active_tab" phx-value-tab="save">Save View</.sc_button>
-          <.sc_button type="button" phx-click="set_active_tab" phx-value-tab="export">Export Tab</.sc_button>
+          <!-- Tab navigation using LiveView.JS for better client-side performance -->
+          <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "view"})}>View Tab</.sc_button>
+          <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}>Filter Tab</.sc_button>
+          <.sc_button :if={@use_saved_views} type="button" phx-click={JS.push("set_active_tab", value: %{tab: "save"})}>Save View</.sc_button>
+          <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "export"})}>Export Tab</.sc_button>
 
           <div class={if @active_tab == "view" or @active_tab == nil do "border-solid border rounded-md border-grey dark:border-black h-90 p-1" else "hidden" end}>
             View Type
@@ -106,7 +107,7 @@ defmodule SelectoComponents.Form do
             </.live_component>
           </div>
           <div :if={@use_saved_views} class={if @active_tab == "save" do "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1" else "hidden" end}>
-            Save View Section <%= inspect(@saved_view_context) %>
+            Save View Section
             HOw to ...
             Save As: <.sc_input name="save_as"/>
 
@@ -424,9 +425,6 @@ defmodule SelectoComponents.Form do
       end
 
       defp view_from_params(params, socket) do
-        # try do
-        #IO.inspect(params, label: "View From Params")
-        # IO.puts("Build View")
 
         # First, clear any existing query results to prevent stale data display
         socket = assign(socket,
@@ -465,16 +463,6 @@ defmodule SelectoComponents.Form do
 
         selecto = Map.put(selecto, :set, view_set)
         
-        # Log query details before execution
-        try do
-          {query, aliases, sql_params} = Selecto.gen_sql(selecto, [])
-          require Logger
-          Logger.info("SelectoComponents Query Execution - View: #{params["view_mode"]}\nSQL: #{query}\nParams: #{inspect(sql_params)}\nAliases: #{inspect(aliases)}")
-        rescue
-          e -> 
-            require Logger
-            Logger.warn("Failed to generate SQL for logging: #{inspect(e)}")
-        end
         
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
@@ -502,11 +490,6 @@ defmodule SelectoComponents.Form do
             )
         end
 
-        # rescue
-        #   e ->
-        #     IO.inspect(e, label: "Error on view creation")
-        #     socket
-        # end
       end
 
       ### build view_config from URL
@@ -631,7 +614,16 @@ defmodule SelectoComponents.Form do
 
   ### Reorg these to use in pickers
   defp build_filter_list(selecto) do
-    (Map.values(Selecto.filters(selecto)) ++ Map.values(Selecto.columns(selecto)))
+    # Include explicit filters and only columns that are marked as filterable
+    filterable_columns = Map.values(Selecto.columns(selecto))
+    |> Enum.filter(fn column ->
+      # Only include columns that are explicitly marked as filterable
+      # or don't have component formatting (which indicates they're display-only)
+      Map.get(column, :make_filter, false) or 
+      (not Map.has_key?(column, :format) and not Map.has_key?(column, :component))
+    end)
+    
+    (Map.values(Selecto.filters(selecto)) ++ filterable_columns)
     |> List.flatten()
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn

@@ -19,7 +19,16 @@ defmodule SelectoComponents.UI do
   Builds the filter list for UI display from a selecto structure.
   """
   def build_filter_list(selecto) do
-    (Map.values(Selecto.filters(selecto)) ++ Map.values(Selecto.columns(selecto)))
+    # Include explicit filters and only columns that are marked as filterable
+    filterable_columns = Map.values(Selecto.columns(selecto))
+    |> Enum.filter(fn column ->
+      # Only include columns that are explicitly marked as filterable
+      # or don't have component formatting (which indicates they're display-only)
+      Map.get(column, :make_filter, false) or 
+      (not Map.has_key?(column, :format) and not Map.has_key?(column, :component))
+    end)
+    
+    (Map.values(Selecto.filters(selecto)) ++ filterable_columns)
     |> List.flatten()
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn

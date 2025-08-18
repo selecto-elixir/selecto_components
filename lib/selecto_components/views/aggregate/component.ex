@@ -5,9 +5,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   use Phoenix.LiveComponent
   
   def update(assigns, socket) do
-    require Logger
-    Logger.info("=== AGGREGATE COMPONENT UPDATE ===\nComponent ID: #{inspect(assigns[:id])}\nExecuted?: #{inspect(assigns[:executed])}\nQuery results present?: #{inspect(assigns[:query_results] != nil)}")
-    
     # Force a complete re-assignment to ensure LiveView recognizes data changes
     socket = assign(socket, assigns)
     
@@ -75,9 +72,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp tree_table(%{subs: {subs, _}} = assigns) do
-    # Debug the data structure issue
-    require Logger
-    
     # subs should be a list containing the aggregate values for this row
     # If it's a single row of data, it should be a list like [film_count, language_count]
     # If it's multiple rows, each item would be such a list
@@ -86,21 +80,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     actual_subs = cond do
       # If subs is a list of lists (multiple rows), take the first row for now
       is_list(subs) and length(subs) > 0 and is_list(List.first(subs)) ->
-        Logger.info("Multiple rows detected, taking first row: #{inspect(List.first(subs))}")
         List.first(subs)
       
       # If subs is a single list of values (single row) 
       is_list(subs) ->
-        Logger.info("Single row detected: #{inspect(subs)}")
         subs
         
       # Fallback - convert to list
       true ->
-        Logger.warn("Unexpected subs format, converting: #{inspect(subs)}")
         [subs]
     end
-    
-    Logger.info("tree_table Debug:\nActual subs (data): #{inspect(actual_subs)}\nAggregates config: #{inspect(assigns.aggregate)}\nSubs length: #{length(actual_subs)}\nAggregates length: #{length(assigns.aggregate)}")
     
     # Ensure we have the same number of data values as aggregate configurations
     aggs = cond do
@@ -110,22 +99,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       length(actual_subs) > length(assigns.aggregate) ->
         # More data than expected - take only what we need
         truncated_subs = Enum.take(actual_subs, length(assigns.aggregate))
-        Logger.warn("Truncating subs data: had #{length(actual_subs)}, need #{length(assigns.aggregate)}")
         Enum.zip(truncated_subs, assigns.aggregate)
         
       true ->
         # Less data than expected - pad with nils
         padded_subs = actual_subs ++ List.duplicate(nil, length(assigns.aggregate) - length(actual_subs))
-        Logger.warn("Padding subs data: had #{length(actual_subs)}, need #{length(assigns.aggregate)}")
         Enum.zip(padded_subs, assigns.aggregate)
     end
-    
-    Logger.info("Final zipped aggs: #{inspect(aggs)}")
-    
-    # Log each agg structure for template debugging
-    Enum.each(aggs, fn {col, {alias, {:agg, sel, coldef}}} ->
-      Logger.info("Agg for template: col=#{inspect(col)}, alias=#{inspect(alias)}, sel=#{inspect(sel)}, coldef=#{inspect(coldef)}")
-    end)
 
     level =
       Enum.count(assigns.payload) -
@@ -135,15 +115,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
          end)
          |> Enum.count())
 
-    # IO.inspect(subs)
-    ## <th :for={{{i, {_id, {:group_by, _col, coldef}}, v, ind}, c} <- Enum.with_index(@payload) }  >
-
     groups =
       assigns.payload
       |> Enum.reduce(
         [],
         fn {i, {_, {:group_by, _, coldef}}, v, _}, acc ->
-          # IO.inspect(v)
           ### make this use a with!
           ### Filters from previous payload
           prefil =
