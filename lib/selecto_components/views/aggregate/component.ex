@@ -7,7 +7,28 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   def update(assigns, socket) do
     require Logger
     Logger.info("=== AGGREGATE COMPONENT UPDATE ===\nComponent ID: #{inspect(assigns[:id])}\nExecuted?: #{inspect(assigns[:executed])}\nQuery results present?: #{inspect(assigns[:query_results] != nil)}")
-    {:ok, assign(socket, assigns)}
+    
+    # Force a complete re-assignment to ensure LiveView recognizes data changes
+    socket = assign(socket, assigns)
+    
+    # Add a timestamp to force re-rendering if data changed
+    socket = assign(socket, :last_update, System.system_time(:microsecond))
+    
+    {:ok, socket}
+  end
+  
+  # Helper function to determine styling level based on group values
+  defp determine_level(group_values) do
+    # Count non-nil values to determine hierarchy level
+    non_nil_count = Enum.count(group_values, fn val -> val != nil end)
+    
+    case non_nil_count do
+      0 -> 0  # Total row (all group values are nil)
+      1 -> 1  # First level grouping
+      2 -> 2  # Second level grouping
+      3 -> 3  # Third level grouping
+      _ -> 4  # Deeper levels
+    end
   end
 
   ### TODO when a level has 1 and it's child has 1, combine them
@@ -133,16 +154,25 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             end)
             |> List.first()
 
+          # Handle rollup rows where coldef is :rollup atom instead of a map
           newfil =
-            case v do
-              {_, filt} ->
+            case {coldef, v} do
+              {:rollup, _} ->
+                # For rollup rows, don't create filters
+                %{}
+                
+              {coldef, {_, filt}} when is_map(coldef) ->
                 %{
                   "phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" =>
                     filt
                 }
 
-              _ ->
+              {coldef, _} when is_map(coldef) ->
                 %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
+                
+              _ ->
+                # Fallback for unexpected cases
+                %{}
             end
 
           acc ++
@@ -168,10 +198,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
           <div :if={ @level - 1 == c } phx-click="agg_add_filters" { filters } >
             <%= case coldef do %>
+              <% :rollup -> %>
+                <%= case v do
+                  {display_value, _id} -> display_value
+                  tuple when is_tuple(tuple) -> elem(tuple, 0)
+                  _ -> v
+                end %>
               <% %{group_by_format: comp} -> %>
                 <%= comp.(v, coldef) %>
               <% _ -> %>
-                <%= v %>
+                <%= case v do
+                  {display_value, _id} -> display_value
+                  tuple when is_tuple(tuple) -> elem(tuple, 0)
+                  _ -> v
+                end %>
             <% end %>
           </div>
         </th>
@@ -180,7 +220,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
               <%= fmt_fun.(col) %>
             <% _ -> %>
-              <%= col %>
+              <%= case col do
+                {display_value, _id} -> display_value
+                tuple when is_tuple(tuple) -> elem(tuple, 0)
+                _ -> col
+              end %>
           <% end %>
         </td>
       </tr>
@@ -189,119 +233,200 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   def render(assigns) do
-    # Force fresh data extraction on every render - no caching
-    {results, _fields, aliases} = assigns.query_results
-    
     require Logger
-    Logger.info("=== SIMPLE AGGREGATE RENDER ===\nAliases: #{inspect(aliases)}\nFirst 3 results: #{inspect(Enum.take(results, 3))}")
+    Logger.info("=== AGGREGATE RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
     
-    # Simple approach: Just use the first row to determine how many columns are aggregates
-    first_row = List.first(results) || []
-    
-    # The first N-1 columns are group_by, the last columns are aggregates
-    # Based on aliases length vs first row length
-    total_cols = length(aliases)
-    group_by_count = total_cols - length(assigns.selecto.set.aggregates)
-    
-    # Split aliases into group_by and aggregate sections
-    {group_by_aliases, agg_aliases} = Enum.split(aliases, group_by_count)
-    
-    Logger.info("Group by aliases: #{inspect(group_by_aliases)}\nAggregate aliases: #{inspect(agg_aliases)}")
-    
-    # Build simple table structure
-    ~H"""
-    <div>
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
-        <tr>
-          <th :for={alias <- group_by_aliases} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
-            <%= alias %>
-          </th>
-          <th :for={alias <- agg_aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
-            <%= alias %>
-          </th>
-        </tr>
-        <tr :for={row <- results}>
-          <td :for={value <- row} class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <%= value %>
-          </td>
-        </tr>
-      </table>
-    </div>
-    """
-  end
-  
-  defp render_aggregate_view(assigns, results, aliases, group_by, aggregates) do
-    # Double-check synchronization at render time
-    expected_field_count = Enum.count(group_by) + Enum.count(aggregates)
-    aliases_count = Enum.count(aliases)
-    
-    # If still mismatched at render time, return loading state
-    if aliases_count != expected_field_count do
-      assigns = assign(assigns,
-        results: [],
-        results_tree: [],
-        aliases: [],
-        group_by: [],
-        aggregate: []
-      )
-      
-      ~H"""
-      <div>
-        <div class="text-gray-500 italic p-4">Synchronizing view state...</div>
-      </div>
-      """
-    else
-      render_synchronized_view(assigns, results, aliases, group_by, aggregates)
+    # Check if we have valid query results and execution state
+    case {assigns[:executed], assigns.query_results} do
+      {false, _} ->
+        # Query is being executed or hasn't been executed yet
+        ~H"""
+        <div>
+          <div class="text-blue-500 italic p-4">Loading view...</div>
+        </div>
+        """
+        
+      {true, nil} ->
+        # Executed but no results - this is an error state
+        ~H"""
+        <div>
+          <div class="text-red-500 p-4">
+            <div class="font-semibold">No Results</div>
+            <div class="text-sm mt-1">Query executed but returned no results.</div>
+          </div>
+        </div>
+        """
+        
+      {true, {results, _fields, aliases}} ->
+        # Valid execution with results - proceed with normal rendering
+        Logger.info("Processing valid results - Aliases: #{inspect(aliases)}, First 3 results: #{inspect(Enum.take(results, 3))}")
+        
+        # Extract the actual selected fields from the selecto configuration  
+        # Note: assigns.selecto.set.group_by contains ROLLUP config, not actual fields
+        # The actual fields are in assigns.selecto.set.selected
+        selected_fields = assigns.selecto.set.selected || []
+        
+        # Also get the original group_by and aggregates for processing
+        rollup_group_by = assigns.selecto.set.group_by || []
+        aggregates = assigns.selecto.set.aggregates || []
+        
+        # Use the rollup rendering logic instead of simple flat rendering
+        render_aggregate_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates)
+        
+      _ ->
+        # Fallback for unexpected states
+        ~H"""
+        <div>
+          <div class="text-yellow-500 p-4">
+            <div class="font-semibold">Unknown State</div>
+            <div class="text-sm mt-1">
+              Executed: <%= inspect(assigns[:executed]) %><br/>
+              Query Results: <%= inspect(assigns.query_results != nil) %>
+            </div>
+          </div>
+        </div>
+        """
     end
   end
   
-  defp render_synchronized_view(assigns, results, aliases, group_by, aggregates) do
+  defp render_aggregate_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates) do
+    # Use the actual selected fields for counting instead of group_by + aggregates
+    # because ROLLUP can add extra fields to the query result
+    expected_field_count = Enum.count(selected_fields)
+    aliases_count = Enum.count(aliases)
+    
+    require Logger
+    Logger.info("Render sync check: expected=#{expected_field_count}, aliases=#{aliases_count}, query_results_present=#{assigns.query_results != nil}, executed=#{assigns[:executed]}")
+    Logger.info("Selected fields: #{inspect(selected_fields)}")
+    Logger.info("Rollup group by: #{inspect(rollup_group_by)}")
+    Logger.info("Aggregates details: #{inspect(aggregates)}")
+    Logger.info("Aliases from query: #{inspect(aliases)}")
+    
+    # If still mismatched at render time, check if we should show loading or error state
+    if aliases_count != expected_field_count do
+      # If we have no query results or they're stale, show loading
+      # If executed is false, we're waiting for a new query
+      cond do
+        not assigns[:executed] ->
+          ~H"""
+          <div>
+            <div class="text-blue-500 italic p-4">Loading view...</div>
+          </div>
+          """
+        
+        assigns.query_results == nil ->
+          ~H"""
+          <div>
+            <div class="text-blue-500 italic p-4">Loading view...</div>
+          </div>
+          """
+          
+        true ->
+          # We have results but they don't match - this suggests a configuration issue
+          assigns = assign(assigns,
+            expected_field_count: expected_field_count,
+            aliases_count: aliases_count,
+            selected_fields_count: Enum.count(selected_fields),
+            aggregates_count: Enum.count(aggregates),
+            aliases_debug: inspect(aliases)
+          )
+          
+          ~H"""
+          <div>
+            <div class="text-red-500 p-4">
+              <div class="font-semibold">View Configuration Error</div>
+              <div class="text-sm mt-1">
+                Expected <%= @expected_field_count %> fields but got <%= @aliases_count %> from query.
+                This usually indicates a mismatch between the view configuration and query results.
+              </div>
+              <details class="mt-2 text-xs">
+                <summary class="cursor-pointer">Debug Info</summary>
+                <div>Selected Fields: <%= @selected_fields_count %></div>
+                <div>Aggregate Fields: <%= @aggregates_count %></div>
+                <div>Query Aliases: <%= @aliases_debug %></div>
+              </details>
+            </div>
+          </div>
+          """
+      end
+    else
+      render_synchronized_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates)
+    end
+  end
+  
+  defp render_synchronized_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates) do
     # Add logging to track field mapping
     require Logger
-    Logger.info("Starting render_synchronized_view with:\nGroup By: #{inspect(group_by)}\nAggregates: #{inspect(aggregates)}\nAliases: #{inspect(aliases)}")
+    Logger.info("Starting render_synchronized_view with:\nSelected Fields: #{inspect(selected_fields)}\nRollup Group By: #{inspect(rollup_group_by)}\nAggregates: #{inspect(aggregates)}\nAliases: #{inspect(aliases)}")
     
-    group_by =
-      Enum.map(
-        group_by,
-        fn
-          {col, {:extract, _f, _fmt}} = g ->
-            {:group_by, g, col}
-
-          {col, {_a, _f}} = g ->
-            {:group_by, g, col}
-
-          {col, g} ->
-            {:group_by, g, col}
+    # Process the selected fields to match the aliases
+    # The selected fields should match 1:1 with the aliases from the query
+    field_mappings = Enum.zip(aliases, selected_fields)
+    
+    Logger.info("Field mapping (aliases -> selected): #{inspect(field_mappings)}")
+    
+    # Split the mappings back into group_by and aggregate sections
+    # We need to determine which selected fields are group by vs aggregates
+    # Look at the rollup_group_by to determine how many group by fields we have
+    
+    # Count the actual group by fields (not the ROLLUP wrapper)
+    num_group_by = case rollup_group_by do
+      [{:rollup, positions}] when is_list(positions) -> Enum.count(positions)
+      _ -> 0
+    end
+    
+    num_aggregates = Enum.count(selected_fields) - num_group_by
+    
+    group_by_mappings = Enum.take(field_mappings, num_group_by)
+    aggregate_mappings = Enum.drop(field_mappings, num_group_by)
+    
+    Logger.info("Field split debug:\\nNum group by: #{num_group_by}\\nNum aggregates: #{num_aggregates}\\nGroup by mappings: #{inspect(group_by_mappings)}\\nAggregate mappings: #{inspect(aggregate_mappings)}")
+    
+    # Convert to the format expected by the template
+    group_by = 
+      group_by_mappings
+      |> Enum.map(fn {alias, field} ->
+        # Get the proper column definition from selecto based on the field
+        coldef = case field do
+          {:field, field_id, _alias} when is_atom(field_id) ->
+            Selecto.field(assigns.selecto, field_id)
+          {:field, {_extract_type, field_id, _format}, _alias} when is_atom(field_id) ->
+            Selecto.field(assigns.selecto, field_id)
+          {:row, _selector, _alias} ->
+            # For row selectors, use a basic column definition
+            %{name: alias, format: nil}
+          _ ->
+            # Fallback to basic definition
+            %{name: alias, format: nil}
         end
-      )
-
-    aggregates =
-      Enum.map(aggregates, fn
-        {:field, {:extract, f, _fmt} = agg, _} ->
-          {:agg, agg, Selecto.field(assigns.selecto, f)}
-
-        {:field, {_a, f} = agg, _} ->
-          {:agg, agg, Selecto.field(assigns.selecto, f)}
-
-        {:field, f, _} ->
-          {:agg, f, Selecto.field(assigns.selecto, f)}
-
-        nil ->
-          {:agg, nil, nil}
+        {alias, {:group_by, field, coldef}}
       end)
+      
+    aggregates_processed =
+      Enum.zip(aggregate_mappings, aggregates)
+      |> Enum.map(fn {{alias, field}, agg} ->
+        # Get the proper column definition from selecto
+        coldef = case agg do
+          {:field, {_func, field_id}, _alias} when is_atom(field_id) ->
+            Selecto.field(assigns.selecto, field_id)
+          {:field, field_id, _alias} when is_atom(field_id) ->
+            Selecto.field(assigns.selecto, field_id)
+          _ ->
+            # Fallback to empty map for unknown aggregate types
+            %{}
+        end
+        {alias, {:agg, agg, coldef}}
+      end)
+    
+    Logger.info("Processed Group By: #{inspect(group_by)}\nProcessed Aggregates: #{inspect(aggregates_processed)}")
 
-    # Now we know aliases and structure match exactly
-    current_fields = group_by ++ aggregates
-    fmap = Enum.zip(aliases, current_fields)
+    # The result_tree function expects just the group by field definitions, not the full tuple
+    # Extract just the field definitions from the group_by tuples
+    group_by_fields = Enum.map(group_by, fn {_alias, {:group_by, field, _coldef}} -> field end)
     
-    Logger.info("Field mapping: #{inspect(fmap)}")
+    Logger.info("Group by fields for result_tree: #{inspect(group_by_fields)}")
     
-    group_by = Enum.take(fmap, Enum.count(group_by))
-    aggregates = Enum.take(fmap, Enum.count(aggregates) * -1)
-    
-    Logger.info("Final mapping - Group By: #{inspect(group_by)}\nAggregates: #{inspect(aggregates)}")
-
-    result_tree = result_tree(results, group_by)
+    result_tree = result_tree(results, group_by_fields)
 
     assigns =
       assign(assigns,
@@ -309,7 +434,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         results_tree: result_tree,
         aliases: aliases,
         group_by: group_by,
-        aggregate: aggregates
+        aggregate: aggregates_processed
       )
       
     ~H"""

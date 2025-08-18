@@ -18,14 +18,15 @@ defmodule SelectoComponents.Results do
 
     ~H"""
       <div>
-        <div :if={@executed}>
+        <div :if={@applied_view}>
             <.live_component
               module={String.to_existing_atom("#{@module}.Component")}
-              id="view_results"
+              id={"view_results_#{@applied_view}_#{Map.get(@view_meta, :exe_id, "default")}"}
               selecto={@selecto}
               query_results={@query_results}
               view_meta={@view_meta}
               view_opts={@view_opts}
+              executed={@executed}
             />
         </div>
       </div>
