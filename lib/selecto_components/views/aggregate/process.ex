@@ -74,7 +74,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               end
 
             _ ->
-              #col.colid
+              # col.colid
               {:field, col.colid, alias}
           end
         end
@@ -83,11 +83,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end)
   end
 
-
   defp datetime_gb_proc(col, config) do
-    #"Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"
+    # "Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"
     case config["format"] do
-     # x when x in ~w(Year Month Day) -> {:extract, col.colid, x}
+      # x when x in ~w(Year Month Day) -> {:extract, col.colid, x}
       x when x in ~w(YYYY-MM-DD YYYY-MM YYYY) -> {:to_char, {col.colid, x}}
     end
   end
@@ -105,7 +104,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           _ -> e["alias"]
         end
 
-     {:field,
+      {:field,
        {
          String.to_atom(
            case e["format"] do
