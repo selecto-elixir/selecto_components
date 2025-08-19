@@ -1,5 +1,12 @@
 ## Plans for '0.5.0' which will be first 'stable' release
 
+### ✅ Completed in Recent Updates
+- ✅ **LiveView.js migration** - Updated to modern Phoenix LiveView 1.1+ patterns
+- ✅ **Colocated hooks** - Migrated from standalone JS to colocated hooks
+- ✅ **Improved error handling** - Better error display and handling
+- ✅ **Advanced SQL function support** - Full integration with new Selecto function library
+
+### 🚧 In Progress 
 - Make gb rollup an option
 - finish various TODOs in the code
 - Forms - line forms & column forms
@@ -7,6 +14,8 @@
 - make it look nice
 - cleanup the event handlers
 - error handing on view form
+
+### 📋 Planned Features
 - results as XML, JSON, TXT, CSV, PDF, Excel.
 - Export results, email results, POST/PUT results
 - rename to Selecto.Phoenix
