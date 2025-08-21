@@ -742,7 +742,8 @@ defmodule SelectoComponents.Form do
         # Only include columns that are explicitly marked as filterable
         # or don't have component formatting (which indicates they're display-only)
         Map.get(column, :make_filter, false) or
-          (not Map.has_key?(column, :format) and not Map.has_key?(column, :component))
+          ((not Map.has_key?(column, :format) or Map.get(column, :format) == nil) and
+             not Map.has_key?(column, :component))
       end)
 
     (Map.values(Selecto.filters(selecto)) ++ filterable_columns)
