@@ -298,38 +298,45 @@ defmodule SelectoComponents.Form do
               ### TODO remove existing section=filters uses of this filter
               Map.get(socket.assigns.used_params, "filters", %{}),
               fn {f, v}, acc ->
-                # Skip empty or invalid field names
-                if f == "" or f == nil do
-                  acc
-                else
-                  newid = UUID.uuid4()
+                newid = UUID.uuid4()
 
-                  conf = Selecto.field(socket.assigns.selecto, f)
-
-                  # Skip if field configuration is not found
-                  if conf == nil do
-                    acc
-                  else
-                    {v1, v2} =
-                      case conf.type do
-                        x when x in [:utc_datetime, :naive_datetime] ->
-                          Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
-
-                        _ ->
-                          {v, ""}
-                      end
-
-                    Map.put(acc, newid, %{
-                      "comp" => "=",
-                      "filter" => f,
-                      "index" => "0",
-                      "section" => "filters",
-                      "uuid" => newid,
-                      "value" => v1,
-                      "value2" => v2
-                    })
+                # Handle empty field names by trying to find the appropriate field
+                # This happens when aggregate components don't properly set filter keys
+                field_name = if f == "" or f == nil do
+                  # Try to find a suitable field from current group_by configuration
+                  current_group_by = socket.assigns.view_config.group_by || []
+                  case current_group_by do
+                    [first_group | _] -> first_group
+                    [] -> "id"  # Fallback to a basic field
                   end
+                else
+                  f
                 end
+
+                conf = Selecto.field(socket.assigns.selecto, field_name)
+
+                {v1, v2} = if conf != nil do
+                  case conf.type do
+                    x when x in [:utc_datetime, :naive_datetime] ->
+                      Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
+
+                    _ ->
+                      {v, ""}
+                  end
+                else
+                  # If no field configuration found, default to string handling
+                  {v, ""}
+                end
+
+                Map.put(acc, newid, %{
+                  "comp" => "=",
+                  "filter" => field_name,
+                  "index" => "0",
+                  "section" => "filters",
+                  "uuid" => newid,
+                  "value" => v1,
+                  "value2" => v2
+                })
               end
             )
           )
@@ -344,31 +351,39 @@ defmodule SelectoComponents.Form do
                     {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
                     _ -> true
                   end) ++
-                    Enum.flat_map(params, fn {f, v} ->
-                      # Skip empty or invalid field names
-                      if f == "" or f == nil do
-                        []
-                      else
-                        conf = Selecto.field(socket.assigns.selecto, f)
-
-                        # Skip if field configuration is not found
-                        if conf == nil do
-                          []
-                        else
-                          result = case conf.type do
-                            x when x in [:utc_datetime, :naive_datetime] ->
-                              {v1, v2} =
-                                Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
-
-                              {UUID.uuid4(), "filters",
-                               %{"filter" => f, "value" => v1, "value2" => v2}}
-
-                            _ ->
-                              {UUID.uuid4(), "filters", %{"filter" => f, "value" => v}}
-                          end
-                          [result]
+                    Enum.map(params, fn {f, v} ->
+                      # Handle empty field names by trying to find the appropriate field
+                      field_name = if f == "" or f == nil do
+                        # Try to find a suitable field from current group_by configuration
+                        current_group_by = socket.assigns.view_config.group_by || []
+                        case current_group_by do
+                          [first_group | _] -> first_group
+                          [] -> "id"  # Fallback to a basic field
                         end
+                      else
+                        f
                       end
+
+                      conf = Selecto.field(socket.assigns.selecto, field_name)
+
+                      result = if conf != nil do
+                        case conf.type do
+                          x when x in [:utc_datetime, :naive_datetime] ->
+                            {v1, v2} =
+                              Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
+
+                            {UUID.uuid4(), "filters",
+                             %{"filter" => field_name, "value" => v1, "value2" => v2}}
+
+                          _ ->
+                            {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
+                        end
+                      else
+                        # Default handling if no configuration found
+                        {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
+                      end
+                      
+                      result
                     end)
             }
           )
