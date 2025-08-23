@@ -144,7 +144,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 }
 
               {coldef, _} when is_map(coldef) ->
-                %{"phx-value-#{Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))}" => v}
+                filter_key = Map.get(coldef, :group_by_filter, Map.get(coldef, :colid))
+                if filter_key != nil do
+                  %{"phx-value-#{filter_key}" => v}
+                else
+                  %{}
+                end
                 
               _ ->
                 # Fallback for unexpected cases
