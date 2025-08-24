@@ -11,6 +11,7 @@
 - finish various TODOs in the code
 - Forms - line forms & column forms
 - cleanup liveviews / refactor
+- graph view
 - make it look nice
 - cleanup the event handlers
 - error handing on view form
