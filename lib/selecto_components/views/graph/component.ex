@@ -16,8 +16,6 @@ defmodule SelectoComponents.Views.Graph.Component do
   end
 
   def render(assigns) do
-    Logger.debug("=== GRAPH RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
-
     # Check if we have valid query results and execution state
     case {assigns[:executed], assigns.query_results} do
       {false, _} ->
@@ -30,7 +28,6 @@ defmodule SelectoComponents.Views.Graph.Component do
 
       {true, {results, _fields, aliases}} ->
         # Valid execution with results - proceed with chart rendering
-        Logger.debug("Processing valid results for chart - Aliases: #{inspect(aliases)}, First 3 results: #{inspect(Enum.take(results, 3))}")
         render_chart(assigns, results, aliases)
 
       _ ->

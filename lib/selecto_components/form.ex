@@ -535,9 +535,6 @@ defmodule SelectoComponents.Form do
       end
 
       defp view_from_params(params, socket) do
-        require Logger
-        Logger.debug("=== view_from_params called ===\nParams: #{inspect(params)}")
-
         # First, clear any existing query results to prevent stale data display
         socket =
           assign(socket,
@@ -599,13 +596,8 @@ defmodule SelectoComponents.Form do
         selecto = Map.put(selecto, :set, view_set)
 
         # Execute query using standardized safe API
-        Logger.debug("=== Executing query ===")
-
         case Selecto.execute(selecto) do
           {:ok, {rows, columns, aliases}} ->
-            Logger.debug(
-              "=== Query SUCCESS ===\nRows: #{Enum.count(rows)}, Columns: #{Enum.count(columns)}, Aliases: #{inspect(aliases)}"
-            )
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
@@ -622,8 +614,6 @@ defmodule SelectoComponents.Form do
             )
 
           {:error, %Selecto.Error{} = error} ->
-            Logger.debug("=== Query ERROR ===\nError: #{inspect(error)}")
-
             assign(socket,
               selecto: selecto,
               columns: columns_list,
