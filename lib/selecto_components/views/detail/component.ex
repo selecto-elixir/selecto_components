@@ -11,7 +11,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     # |> IO.inspect()
     
     require Logger
-    Logger.info("=== DETAIL RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
+    Logger.debug("=== DETAIL RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
     
     # Check if we have valid query results and execution state
     case {assigns[:executed], assigns.query_results} do

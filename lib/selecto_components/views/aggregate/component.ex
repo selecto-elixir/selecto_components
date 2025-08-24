@@ -117,7 +117,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     groups =
       assigns.payload
-      |> IO.inspect(label: "Current Payload for Groups")
       |> Enum.reduce(
         [],
         fn {i, {_, {:group_by, _, coldef}}, v, _}, acc ->
@@ -130,9 +129,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               {_i, _c, _v, fil} -> fil
             end)
             |> List.first()
-          IO.inspect(prefil, label: "Previous Filters")
-          IO.inspect(coldef, label: "Column Definition")
-          IO.inspect(v, label: "Current Value")
           # Handle rollup rows where coldef is :rollup atom instead of a map
           newfil =
             case {coldef, v} do
@@ -141,9 +137,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 %{}
 
               {coldef, {_, filt}} when is_map(coldef) ->
-                IO.inspect(coldef, label: "Column Definition for Rollup Row")
                 filter_key = Map.get(coldef, :group_by_filter, Map.get(coldef, :colid, Map.get(coldef, :name)))
-                IO.puts("Filter key for rollup row: #{inspect(filter_key)}")
                 if filter_key != nil do
                   %{"phx-value-#{filter_key}" => filt}
                 else
@@ -152,7 +146,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               {coldef, _} when is_map(coldef) ->
                 filter_key = Map.get(coldef, :group_by_filter, Map.get(coldef, :colid, Map.get(coldef, :name)))
-                IO.puts("Filter key for regular row: #{inspect(filter_key)}")
                 if filter_key != nil do
                   %{"phx-value-#{filter_key}" => v}
                 else
@@ -223,7 +216,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   def render(assigns) do
     require Logger
-    Logger.info("=== AGGREGATE RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
+    Logger.debug("=== AGGREGATE RENDER ===\nExecuted: #{inspect(assigns[:executed])}\nQuery results present: #{inspect(assigns.query_results != nil)}")
 
     # Check if we have valid query results and execution state
     case {assigns[:executed], assigns.query_results} do
@@ -248,7 +241,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       {true, {results, _fields, aliases}} ->
         # Valid execution with results - proceed with normal rendering
-        Logger.info("Processing valid results - Aliases: #{inspect(aliases)}, First 3 results: #{inspect(Enum.take(results, 3))}")
+        Logger.debug("Processing valid results - Aliases: #{inspect(aliases)}, First 3 results: #{inspect(Enum.take(results, 3))}")
 
         # Extract the actual selected fields from the selecto configuration
         # Note: assigns.selecto.set.group_by contains ROLLUP config, not actual fields
@@ -285,11 +278,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     aliases_count = Enum.count(aliases)
 
     require Logger
-    Logger.info("Render sync check: expected=#{expected_field_count}, aliases=#{aliases_count}, query_results_present=#{assigns.query_results != nil}, executed=#{assigns[:executed]}")
-    Logger.info("Selected fields: #{inspect(selected_fields)}")
-    Logger.info("Rollup group by: #{inspect(rollup_group_by)}")
-    Logger.info("Aggregates details: #{inspect(aggregates)}")
-    Logger.info("Aliases from query: #{inspect(aliases)}")
+    Logger.debug("Render sync check: expected=#{expected_field_count}, aliases=#{aliases_count}, query_results_present=#{assigns.query_results != nil}, executed=#{assigns[:executed]}")
+    Logger.debug("Selected fields: #{inspect(selected_fields)}")
+    Logger.debug("Rollup group by: #{inspect(rollup_group_by)}")
+    Logger.debug("Aggregates details: #{inspect(aggregates)}")
+    Logger.debug("Aliases from query: #{inspect(aliases)}")
 
     # If still mismatched at render time, check if we should show loading or error state
     if aliases_count != expected_field_count do
@@ -346,13 +339,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp render_synchronized_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates) do
     # Add logging to track field mapping
     require Logger
-    Logger.info("Starting render_synchronized_view with:\nSelected Fields: #{inspect(selected_fields)}\nRollup Group By: #{inspect(rollup_group_by)}\nAggregates: #{inspect(aggregates)}\nAliases: #{inspect(aliases)}")
+    Logger.debug("Starting render_synchronized_view with:\nSelected Fields: #{inspect(selected_fields)}\nRollup Group By: #{inspect(rollup_group_by)}\nAggregates: #{inspect(aggregates)}\nAliases: #{inspect(aliases)}")
 
     # Process the selected fields to match the aliases
     # The selected fields should match 1:1 with the aliases from the query
     field_mappings = Enum.zip(aliases, selected_fields)
 
-    Logger.info("Field mapping (aliases -> selected): #{inspect(field_mappings)}")
+    Logger.debug("Field mapping (aliases -> selected): #{inspect(field_mappings)}")
 
     # Split the mappings back into group_by and aggregate sections
     # We need to determine which selected fields are group by vs aggregates
@@ -369,7 +362,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     group_by_mappings = Enum.take(field_mappings, num_group_by)
     aggregate_mappings = Enum.drop(field_mappings, num_group_by)
 
-    Logger.info("Field split debug:\\nNum group by: #{num_group_by}\\nNum aggregates: #{num_aggregates}\\nGroup by mappings: #{inspect(group_by_mappings)}\\nAggregate mappings: #{inspect(aggregate_mappings)}")
+    Logger.debug("Field split debug:\\nNum group by: #{num_group_by}\\nNum aggregates: #{num_aggregates}\\nGroup by mappings: #{inspect(group_by_mappings)}\\nAggregate mappings: #{inspect(aggregate_mappings)}")
 
     # Convert to the format expected by the template
     group_by =
@@ -407,13 +400,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         {alias, {:agg, agg, coldef}}
       end)
 
-    Logger.info("Processed Group By: #{inspect(group_by)}\nProcessed Aggregates: #{inspect(aggregates_processed)}")
+    Logger.debug("Processed Group By: #{inspect(group_by)}\nProcessed Aggregates: #{inspect(aggregates_processed)}")
 
     # The result_tree function expects just the group by field definitions, not the full tuple
     # Extract just the field definitions from the group_by tuples
     group_by_fields = Enum.map(group_by, fn {_alias, {:group_by, field, _coldef}} -> field end)
 
-    Logger.info("Group by fields for result_tree: #{inspect(group_by_fields)}")
+    Logger.debug("Group by fields for result_tree: #{inspect(group_by_fields)}")
 
     result_tree = result_tree(results, group_by_fields)
 
