@@ -10,7 +10,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
   def render(assigns) do
     ~H"""
       <div class="">
-        <div phx-hook=".TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
+        <div phx-hook="TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
           <div>Available Filter Columns. Double Click or Drag to build area.
             <.sc_input x-model="filter" placeholder="Filter Available Items"/>
@@ -48,17 +48,6 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           </div>
         </div>
-        
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".TreeBuilderHook">
-          export default {
-            mounted() {
-              window.PushEventHook = this
-            },
-            destroyed() {
-              window.PushEventHook = null
-            }
-          }
-        </script>
       </div>
     """
   end
