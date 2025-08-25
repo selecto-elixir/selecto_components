@@ -61,28 +61,24 @@ module.exports = {
 }
 ```
 
-### 4. Update Your `app.js`
+### 4. JavaScript Integration (Phoenix LiveView 1.1+)
 
-Include the necessary JavaScript hooks from `selecto_components` in your `app.js` file.
+SelectoComponents now uses **colocated hooks** (Phoenix LiveView 1.1+), which means all JavaScript functionality is embedded directly in the components. No additional JavaScript imports or hook registration is required.
+
+Simply ensure you're using Phoenix LiveView 1.1 or higher and the hooks will be automatically extracted during compilation.
 
 ```javascript
-// assets/js/app.js
+// assets/js/app.js - No additional SelectoComponents imports needed
 
 import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
-import selecto_components from "selecto_components"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
-let hooks = {
-    ...selecto_components
-}
-
 let liveSocket = new LiveSocket("/live", Socket, {
-    params: {_csrf_token: csrfToken},
-    hooks
+    params: {_csrf_token: csrfToken}
 })
 
 // Show progress bar on live navigation and form submits
