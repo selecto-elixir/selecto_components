@@ -9,6 +9,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
   def render(assigns) do
     ~H"""
+    <div class="tree-builder-component">
       <div class="">
         <div phx-hook="TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
@@ -49,6 +50,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
           </div>
         </div>
       </div>
+    </div>
     """
   end
 

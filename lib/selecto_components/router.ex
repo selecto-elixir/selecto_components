@@ -27,7 +27,6 @@ defmodule SelectoComponents.Router do
     # Handle save view logic
     case handle_save_view(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
     end
   end
 
@@ -52,14 +51,12 @@ defmodule SelectoComponents.Router do
   def handle_event("treedrop", params, state) do
     case handle_tree_drop(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
     end
   end
 
   def handle_event("filter_remove", params, state) do
     case handle_filter_remove(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
     end
   end
 
