@@ -1,13 +1,374 @@
 defmodule SelectoComponents.Views.Graph.Component do
-  alias VegaLite, as: Vl
-
+  @doc """
+  Display results as interactive charts using Chart.js
+  """
   use Phoenix.LiveComponent
-  import SelectoComponents.Components.Common
+  require Logger
+
+  def update(assigns, socket) do
+    # Force a complete re-assignment to ensure LiveView recognizes data changes
+    socket = assign(socket, assigns)
+
+    # Add a timestamp to force re-rendering if data changed
+    socket = assign(socket, :last_update, System.system_time(:microsecond))
+
+    {:ok, socket}
+  end
 
   def render(assigns) do
-    ~H"""
-      <div> GRAPH </div>
+    # Check if we have valid query results and execution state
+    case {assigns[:executed], assigns.query_results} do
+      {false, _} ->
+        # Query is being executed or hasn't been executed yet
+        render_loading_state(assigns)
 
+      {true, nil} ->
+        # Executed but no results - this is an error state
+        render_no_results_state(assigns)
+
+      {true, {results, _fields, aliases}} ->
+        # Valid execution with results - proceed with chart rendering
+        render_chart(assigns, results, aliases)
+
+      _ ->
+        # Fallback for unexpected states
+        render_unknown_state(assigns)
+    end
+  end
+
+  defp render_loading_state(assigns) do
+    ~H"""
+    <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <div class="text-blue-500 italic">Loading chart...</div>
+      </div>
+    </div>
     """
+  end
+
+  defp render_no_results_state(assigns) do
+    ~H"""
+    <div class="flex items-center justify-center h-64 bg-red-50 rounded-lg border border-red-200">
+      <div class="text-center text-red-500">
+        <div class="text-4xl mb-2">📊</div>
+        <div class="font-semibold">No Data Available</div>
+        <div class="text-sm mt-1">Query executed but returned no results for the chart.</div>
+      </div>
+    </div>
+    """
+  end
+
+  defp render_unknown_state(assigns) do
+    ~H"""
+    <div class="flex items-center justify-center h-64 bg-yellow-50 rounded-lg border border-yellow-200">
+      <div class="text-center text-yellow-600">
+        <div class="font-semibold">Unknown Chart State</div>
+        <div class="text-sm mt-1">
+          Executed: <%= inspect(assigns[:executed]) %><br/>
+          Query Results: <%= inspect(assigns.query_results != nil) %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp render_chart(assigns, results, aliases) do
+    # Transform query results into chart data
+    chart_data = prepare_chart_data(assigns, results, aliases)
+    chart_options = prepare_chart_options(assigns)
+    chart_type = get_chart_type(assigns)
+
+    # Generate unique ID for this chart instance
+    chart_id = "graph-#{assigns[:id] || :rand.uniform(10000)}"
+
+    assigns = assign(assigns,
+      chart_data: chart_data,
+      chart_options: chart_options,
+      chart_type: chart_type,
+      chart_id: chart_id
+    )
+
+    ~H"""
+    <div class="graph-component">
+      <div class="bg-white rounded-lg border border-gray-200 p-6">
+      <!-- Chart Header with Title and Controls -->
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-gray-800">
+            <%= get_in(@chart_options, [:title]) %>
+          </h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            data-export
+            class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            📥 Export
+          </button>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div
+        id={@chart_id}
+        phx-hook="GraphHook"
+        phx-update="ignore"
+        data-chart-type={@chart_type}
+        data-chart-data={Jason.encode!(@chart_data)}
+        data-chart-options={Jason.encode!(@chart_options)}
+        class="relative"
+        style="height: 400px;">
+        <canvas id={"#{@chart_id}-canvas"}></canvas>
+      </div>
+
+      <!-- Chart Legend/Summary -->
+      <div class="mt-4 text-sm text-gray-600">
+        <div class="flex items-center justify-between">
+          <span>
+            <%= chart_summary(@chart_data, @chart_type) %>
+          </span>
+          <span class="text-xs text-gray-400">
+            Click data points to drill down
+          </span>
+        </div>
+      </div>
+
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Transform query results into Chart.js compatible data format
+  """
+  def prepare_chart_data(assigns, results, aliases) do
+    chart_type = get_chart_type(assigns)
+
+    # Get the selecto configuration to understand the data structure
+    selecto_set = assigns.selecto.set
+    x_axis_groups = selecto_set[:x_axis_groups] || []
+    y_axis_aggregates = selecto_set[:aggregates] || []
+    series_groups = selecto_set[:series_groups] || []
+
+    case chart_type do
+      type when type in ["pie", "doughnut"] ->
+        prepare_pie_data(results, aliases, x_axis_groups, y_axis_aggregates)
+
+      type when type in ["line", "area"] ->
+        prepare_line_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+
+      "scatter" ->
+        prepare_scatter_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+
+      _ -> # Default to bar chart
+        prepare_bar_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+    end
+  end
+
+  defp prepare_bar_data(results, _aliases, _x_axis_groups, y_axis_aggregates, series_groups) do
+    num_x_fields = 1  # Simplified for now
+    num_series_fields = Enum.count(series_groups)
+
+    # Simple case: single X-axis, single or multiple Y-axis, no series
+    if num_series_fields == 0 do
+      labels = results |> Enum.map(fn row -> format_chart_label(Enum.at(row, 0)) end)
+
+      datasets = y_axis_aggregates
+      |> Enum.with_index()
+      |> Enum.map(fn {y_agg, index} ->
+        data = results |> Enum.map(fn row ->
+          value = Enum.at(row, num_x_fields + index)
+          format_numeric_value(value)
+        end)
+
+        %{
+          label: format_aggregate_label(y_agg),
+          data: data,
+          backgroundColor: generate_color(index, 0.7),
+          borderColor: generate_color(index, 1.0),
+          borderWidth: 1
+        }
+      end)
+
+      %{labels: labels, datasets: datasets}
+    else
+      # More complex cases would be handled here
+      %{labels: ["No Data"], datasets: [%{data: [0]}]}
+    end
+  end
+
+  defp prepare_line_data(results, _aliases, _x_axis_groups, _y_axis_aggregates, _series_groups) do
+    # Simplified line data preparation
+    labels = results |> Enum.with_index() |> Enum.map(fn {_, i} -> "Point #{i + 1}" end)
+    data = results |> Enum.map(fn row -> format_numeric_value(Enum.at(row, 1)) end)
+
+    %{
+      labels: labels,
+      datasets: [%{
+        label: "Line Data",
+        data: data,
+        borderColor: generate_color(0, 1.0),
+        backgroundColor: generate_color(0, 0.1),
+        borderWidth: 2,
+        fill: false
+      }]
+    }
+  end
+
+  defp prepare_pie_data(results, _aliases, _x_axis_groups, _y_axis_aggregates) do
+    labels = results |> Enum.map(fn row -> format_chart_label(Enum.at(row, 0)) end)
+    data = results |> Enum.map(fn row -> format_numeric_value(Enum.at(row, 1)) end)
+
+    %{
+      labels: labels,
+      datasets: [%{
+        data: data,
+        backgroundColor: Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 0.8) end),
+        borderColor: Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 1.0) end),
+        borderWidth: 1
+      }]
+    }
+  end
+
+  defp prepare_scatter_data(_results, _aliases, _x_axis_groups, _y_axis_aggregates, _series_groups) do
+    # Simplified scatter data
+    %{
+      datasets: [%{
+        label: "Scatter Data",
+        data: [%{x: 0, y: 0}],
+        backgroundColor: generate_color(0, 0.7),
+        borderColor: generate_color(0, 1.0)
+      }]
+    }
+  end
+
+  @doc """
+  Prepare Chart.js options from view configuration
+  """
+  def prepare_chart_options(assigns) do
+    %{
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: %{
+        legend: %{position: get_legend_position(assigns)},
+        tooltip: %{mode: "index", intersect: false}
+      },
+      scales: %{
+        x: %{
+          title: %{display: true, text: get_x_axis_label(assigns)},
+          beginAtZero: false,
+          grid: %{display: get_show_grid(assigns)}
+        },
+        y: %{
+          title: %{display: true, text: get_y_axis_label(assigns)},
+          beginAtZero: true,
+          grid: %{display: get_show_grid(assigns)}
+        }
+      }
+    }
+  end
+
+  defp get_chart_type(assigns) do
+    assigns[:chart_type] || "bar"
+  end
+
+  defp get_legend_position(_assigns), do: "bottom"
+  defp get_show_grid(_assigns), do: true
+  defp get_x_axis_label(_assigns), do: ""
+  defp get_y_axis_label(_assigns), do: ""
+
+  defp format_aggregate_label(aggregate) do
+    case aggregate do
+      {:field, {:count, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        "Count of #{display_name}"
+      {:field, {:count, field_name}, _} when is_binary(field_name) ->
+        "Count of #{field_name}"
+      {:field, {:sum, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        "Sum of #{display_name}"
+      {:field, {:sum, field_name}, _} when is_binary(field_name) ->
+        "Sum of #{field_name}"
+      {:field, {:avg, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        "Average of #{display_name}"
+      {:field, {:avg, field_name}, _} when is_binary(field_name) ->
+        "Average of #{field_name}"
+      {:field, {:min, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        "Minimum of #{display_name}"
+      {:field, {:min, field_name}, _} when is_binary(field_name) ->
+        "Minimum of #{field_name}"
+      {:field, {:max, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        "Maximum of #{display_name}"
+      {:field, {:max, field_name}, _} when is_binary(field_name) ->
+        "Maximum of #{field_name}"
+      {:field, _field_spec, field_name} when is_binary(field_name) ->
+        field_name
+      {:field, _field_spec} ->
+        "Field"
+      {:count, field_name} when is_binary(field_name) ->
+        "Count of #{field_name}"
+      {:count, _} ->
+        "Count"
+      {:sum, field_name} when is_binary(field_name) ->
+        "Sum of #{field_name}"
+      {:sum, _} ->
+        "Sum"
+      {:avg, field_name} when is_binary(field_name) ->
+        "Average of #{field_name}"
+      {:avg, _} ->
+        "Average"
+      {:min, field_name} when is_binary(field_name) ->
+        "Minimum of #{field_name}"
+      {:min, _} ->
+        "Minimum"
+      {:max, field_name} when is_binary(field_name) ->
+        "Maximum of #{field_name}"
+      {:max, _} ->
+        "Maximum"
+      _ ->
+        to_string(aggregate)
+    end
+  end
+
+  defp format_chart_label(value) when is_nil(value), do: "N/A"
+  defp format_chart_label(value) when is_tuple(value) do
+    case value do
+      {:field, {:count, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+        display_name
+      {:field, {:count, field_name}, _} when is_binary(field_name) ->
+        field_name
+      {:field, _field_spec, field_name} when is_binary(field_name) ->
+        field_name
+      {:field, _field_spec} ->
+        "Field"
+      _ ->
+        to_string(value)
+    end
+  end
+  defp format_chart_label(value), do: to_string(value)
+
+  defp format_numeric_value(value) when is_number(value), do: value
+  defp format_numeric_value(_), do: 0
+
+  defp generate_color(index, alpha) do
+    colors = [
+      "59, 130, 246",   # blue
+      "16, 185, 129",   # green
+      "245, 101, 101",  # red
+      "251, 191, 36",   # yellow
+      "139, 92, 246",   # purple
+      "236, 72, 153",   # pink
+      "6, 182, 212",    # cyan
+      "251, 146, 60",   # orange
+      "34, 197, 94",    # lime
+      "168, 85, 247"    # violet
+    ]
+
+    color = Enum.at(colors, rem(index, length(colors)))
+    "rgba(#{color}, #{alpha})"
+  end
+
+  defp chart_summary(chart_data, _chart_type) do
+    dataset_count = length(chart_data[:datasets] || [])
+    label_count = length(chart_data[:labels] || [])
+    "#{dataset_count} series, #{label_count} data points"
   end
 end

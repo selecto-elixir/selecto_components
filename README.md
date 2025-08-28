@@ -1,45 +1,12 @@
-
 # SelectoComponents
 
-Tailwind based UI for selecto
-
-See the live views in [selecto_test](https://github.com/selecto-elixir/selecto_test) for an example of how to setup. Documentaiton will be added once the API is stabilized.
-
-## Plans for '0.5.0' which will be first 'stable' release
-
-- Make gb rollup an option
-- finish various TODOs in the code
-- Forms - line forms & column forms
-- cleanup liveviews / refactor
-- make it look nice
-- cleanup the event handlers
-- error handing on view form
-- results as XML, JSON, TXT, CSV, PDF, Excel.
-- Export results, email results, POST/PUT results
-- rename to Selecto.Phoenix
-- show generated SQL
-- Documentation
-- Tests
-
-## Plans for later
-
-- better pagination in detail view, paginate by value, select All
-- ability to save view configuration
-- generate a token that can be used to generate a specific view, optionally allowing the token holder to access the forms
-- Use a column in the results as email address and send that email address all the rows they are in
-- Caching
-- Dashboard components - save or code a view and drop it into another page
-- graphing
-- pub sub to trigger updating view
-- infinite scroll
-- update to work with improved planned selecto interface
-
-This system is inspired by a system I wrote starting in 2004 and currently has all the features listed above except pub-sub and infinite scroll.
+Tailwind-based UI components for `selecto`. This library provides a pre-built LiveView interface for querying and displaying data.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `selecto_components` to your list of dependencies in `mix.exs`:
+### 1. Add Dependencies
+
+Add `selecto_components` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -49,23 +16,134 @@ def deps do
 end
 ```
 
-Additionally:
+### 2. Configure Your Router
 
-You will need to add alpinejs and Tailwind to your app, and configure tailwind to look at *ex files in selecto_components.
+In your `router.ex` file, import the `SelectoComponents.Router` and add the `selecto_live` routes to your desired scope.
 
-You will need to include a Hook in your app.js for the drag and drop- merge the selecto_components object into your hooks object and pass it into your LiveSocket
+```elixir
+# lib/my_app_web/router.ex
 
-```javascript
+defmodule MyAppWeb.Router do
+  use MyAppWeb, :router
+  import SelectoComponents.Router
+  ...
 
-import selecto_components from "selecto_components"
-let hooks = {
-    //Other hooks
-    ...selecto_components
-}
-let liveSocket = new LiveSocket("/live", Socket, { params: {_csrf_token: csrfToken}, hooks })
+  scope "/", MyAppWeb do
+    pipe_through :browser
 
+    # Add this line to mount the Selecto UI
+    selecto_live "/selecto"
+  end
+end
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/selecto_components>.
+This will mount the component at `/selecto`.
+
+### 3. Configure Tailwind CSS
+
+Ensure Tailwind CSS is configured to scan the `selecto_components` library for classes. Update the `content` path in your `tailwind.config.js`:
+
+```javascript
+// assets/tailwind.config.js
+
+module.exports = {
+  content: [
+    './js/**/*.js',
+    '../lib/my_app_web/live/**/*.ex',
+    '../lib/my_app_web/templates/**/*.eex',
+    // Add this line to include selecto_components
+    '../deps/selecto_components/lib/selecto_components/**/*.ex'
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: []
+}
+```
+
+### 4. JavaScript Integration (Phoenix LiveView 1.1+)
+
+SelectoComponents now uses **colocated hooks** (Phoenix LiveView 1.1+), which means all JavaScript functionality is embedded directly in the components. No additional JavaScript imports or hook registration is required.
+
+Simply ensure you're using Phoenix LiveView 1.1 or higher and the hooks will be automatically extracted during compilation.
+
+```javascript
+// assets/js/app.js - No additional SelectoComponents imports needed
+
+import "phoenix_html"
+import {Socket} from "phoenix"
+import {LiveSocket} from "phoenix_live_view"
+import topbar from "../vendor/topbar"
+
+let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+let liveSocket = new LiveSocket("/live", Socket, {
+    params: {_csrf_token: csrfToken}
+})
+
+// Show progress bar on live navigation and form submits
+topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
+window.addEventListener("phx:page-loading-start", info => topbar.show())
+window.addEventListener("phx:page-loading-stop", info => topbar.hide())
+
+// connect if there are any LiveViews on the page
+liveSocket.connect()
+
+// expose liveSocket on window for web console debug logs and latency simulation:
+// >> liveSocket.enableDebug()
+// >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
+// >> liveSocket.disableLatencySim()
+window.liveSocket = liveSocket
+```
+
+## Usage
+
+To use the component, you need a "queryable" module that implements the `Selecto.Queryable` behaviour. This module defines the Ecto schema and the fields that can be used for querying.
+
+**Example Queryable:**
+
+```elixir
+# lib/my_app/accounts/user.ex
+
+defmodule MyApp.Accounts.User do
+  use Ecto.Schema
+  import Ecto.Changeset
+  alias MyApp.Repo
+
+  @behaviour Selecto.Queryable
+
+  schema "users" do
+    field :name, :string
+    field :email, :string
+    field :inserted_at, :naive_datetime
+  end
+
+  @impl true
+  def query do
+    __MODULE__
+  end
+
+  @impl true
+  def fields do
+    %{
+      name: %{type: :string, label: "Name"},
+      email: %{type: :string, label: "Email"},
+      inserted_at: %{type: :datetime, label: "Created At"}
+    }
+  end
+end
+```
+
+Once you have a queryable module, you can render the component in any of your LiveViews:
+
+```heex
+# lib/my_app_web/live/user_live/index.html.heex
+
+<.live_component
+  module={SelectoComponents.View}
+  id="user-view"
+  queryable={MyApp.Accounts.User}
+/>
+```
+
+Now, when you navigate to the page containing this LiveView, you will see the Selecto UI for your `User` schema.

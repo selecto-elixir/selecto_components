@@ -165,7 +165,6 @@ defmodule SelectoComponents.Components.FilterForms do
 
   def render_form(%{type: type} = assigns) when type in [:naive_datetime, :utc_datetime] do
     valmap = assigns.filter
-    #|> IO.inspect(label: "Create Date Form")
     assigns = Map.put(assigns, :valmap, valmap)
 
     ### TODO
@@ -210,6 +209,81 @@ defmodule SelectoComponents.Components.FilterForms do
     """
   end
 
+  def render_form(%{type: :select_options} = assigns) do
+    def = assigns.def
+    valmap = assigns.filter
+    
+    # Load options from the option provider
+    {options, error_message} = case load_select_options(def) do
+      {:ok, opts} -> {opts, nil}
+      {:error, :no_provider} -> {[], "No option provider configured"}
+      {:error, :provider_error} -> {[], "Error loading options"}
+      {:error, reason} -> {[], "Error: #{inspect(reason)}"}
+    end
+    
+    multiple = Map.get(def, :multiple, false)
+    searchable = Map.get(def, :searchable, true) and length(options) > 10
+    
+    assigns = assigns
+    |> Map.put(:valmap, valmap)
+    |> Map.put(:def, def)
+    |> Map.put(:options, options)
+    |> Map.put(:error_message, error_message)
+    |> Map.put(:multiple, multiple)
+    |> Map.put(:searchable, searchable)
+
+    if multiple do
+      ~H"""
+        <div>
+          <%= @def.name %>
+          <%= if @error_message do %>
+            <div class="text-red-600 text-sm mb-2 p-2 bg-red-50 border border-red-200 rounded">
+              <%= @error_message %>
+            </div>
+          <% end %>
+          <%= if @searchable do %>
+            <input type="text" placeholder="Search options..." 
+                   phx-keyup="search_options" 
+                   phx-target={@myself}
+                   class="block w-full rounded-md border-gray-300 mb-2"/>
+          <% end %>
+          <div class="space-y-1 max-h-48 overflow-y-auto">
+            <label :for={{value, display} <- @options} class="flex items-center">
+              <input name={"filters[#{@uuid}][value][]"}
+                id={"filters_#{@uuid}_value_#{value}"}
+                type="checkbox"
+                value={value}
+                checked={Enum.member?(Map.get(@valmap, "value", []) |> List.wrap(), value)}
+                class="rounded border-gray-300 mr-2"/>
+              <%= display %>
+            </label>
+          </div>
+        </div>
+      """
+    else
+      ~H"""
+        <div>
+          <label>
+            <%= @def.name %>
+            <%= if @error_message do %>
+              <div class="text-red-600 text-sm mb-2 p-2 bg-red-50 border border-red-200 rounded">
+                <%= @error_message %>
+              </div>
+            <% end %>
+            <.sc_select_with_slot name={"filters[#{@uuid}][value]"}>
+              <option value="">-- Select --</option>
+              <option :for={{value, display} <- @options} 
+                      value={value} 
+                      selected={@valmap["value"] == value}>
+                <%= display %>
+              </option>
+            </.sc_select_with_slot>
+          </label>
+        </div>
+      """
+    end
+  end
+
   def render_form(%{type: {:parameterized, Ecto.Enum, typemap}} = assigns) do
     assigns = Map.put(assigns, :values, typemap.mappings)
     valmap = assigns.filter
@@ -239,5 +313,15 @@ defmodule SelectoComponents.Components.FilterForms do
   defp reformat_date(date) do
     date
   end
+
+  # Load options for select filters
+  defp load_select_options(%{option_provider: provider}) do
+    try do
+      Selecto.OptionProvider.load_options(provider)
+    rescue
+      _error -> {:error, :provider_error}
+    end
+  end
+  defp load_select_options(_def), do: {:error, :no_provider}
 
 end

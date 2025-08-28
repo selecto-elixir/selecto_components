@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.2.8",
+      version: "0.3.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "LiveView Components for Selecto",
@@ -24,16 +24,25 @@ defmodule SelectoComponents.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:phoenix, "~> 1.7.7"},
-      {:phoenix_live_view, "~> 0.20"},
+      {:phoenix, "~> 1.8.0"},
+      {:phoenix_live_view, "~> 1.1.4"},
       #{:phoenix_html_helpers, "~> 1.0"},
-      {:selecto, "~> 0.2.6"},
+      {:selecto, path: "../selecto"},
       {:uuid, "~> 1.1"},
       {:ex_doc, "~> 0.29.1", only: :dev, runtime: false},
-      {:heroicons, "~> 0.5.0"},
+      {:heroicons,
+       github: "tailwindlabs/heroicons",
+       tag: "v2.2.0",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1,
+       override: true},
       #{:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
       {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},
+      {:ecto, "~> 3.11"},
+      {:ecto_sql, "~> 3.11"},
 
 
       # {:dep_from_hexpm, "~> 0.3.0"},

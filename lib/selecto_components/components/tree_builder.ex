@@ -6,10 +6,12 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
   import SelectoComponents.Components.Common
 
+
   def render(assigns) do
     ~H"""
+    <div class="tree-builder-component">
       <div class="">
-        <div phx-hook="PushEventHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
+        <div phx-hook="TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
           <div>Available Filter Columns. Double Click or Drag to build area.
             <.sc_input x-model="filter" placeholder="Filter Available Items"/>
@@ -43,11 +45,12 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey  overflow-auto p-1">
-            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: 'AND', filter_form: @filter_form }) %>
+            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form }) %>
 
           </div>
         </div>
       </div>
+    </div>
     """
   end
 

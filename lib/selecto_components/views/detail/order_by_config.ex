@@ -1,7 +1,5 @@
 defmodule SelectoComponents.Views.Detail.OrderByConfig do
   use Phoenix.LiveComponent
-
-  import SelectoComponents.Components.Common
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string

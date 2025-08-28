@@ -9,7 +9,36 @@ defmodule SelectoComponents.Views.Detail.Component do
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
     # |> IO.inspect()
-    {results, _fields, aliases} = assigns.query_results
+    
+    # Check if we have valid query results and execution state
+    case {assigns[:executed], assigns.query_results} do
+      {false, _} ->
+        # Query is being executed or hasn't been executed yet
+        ~H"""
+        <div>
+          <div class="text-blue-500 italic p-4">Loading view...</div>
+        </div>
+        """
+        
+      {true, nil} ->
+        # Executed but no results - this is an error state
+        ~H"""
+        <div>
+          <div class="text-red-500 p-4">
+            <div class="font-semibold">No Results</div>
+            <div class="text-sm mt-1">Query executed but returned no results.</div>
+          </div>
+        </div>
+        """
+      
+      {true, {results, _fields, aliases}} ->
+        # Valid results - proceed with normal rendering
+        render_detail_view(assign(assigns, :processed_results, {results, aliases}))
+    end
+  end
+
+  defp render_detail_view(assigns) do
+    {results, aliases} = assigns.processed_results
     # IO.puts("RENDER!")
     # IO.inspect(assigns.view_meta, label: "VIEW META")
 
