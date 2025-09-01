@@ -11,7 +11,7 @@ defmodule SelectoComponents.PerformanceMonitor do
   - EXPLAIN plan viewer
   """
   
-  use SelectoComponents.Web, :live_component
+  use Phoenix.LiveComponent
   
   alias Selecto.Performance.{MetricsCollector, QueryAnalyzer, QueryCache, Optimizer}
   
