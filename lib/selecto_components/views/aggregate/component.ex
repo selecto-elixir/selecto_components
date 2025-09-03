@@ -14,19 +14,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     {:ok, socket}
   end
 
-  # Helper function to determine styling level based on group values
-  defp determine_level(group_values) do
-    # Count non-nil values to determine hierarchy level
-    non_nil_count = Enum.count(group_values, fn val -> val != nil end)
+  # # Helper function to determine styling level based on group values
+  # defp determine_level(group_values) do
+  #   # Count non-nil values to determine hierarchy level
+  #   non_nil_count = Enum.count(group_values, fn val -> val != nil end)
 
-    case non_nil_count do
-      0 -> 0  # Total row (all group values are nil)
-      1 -> 1  # First level grouping
-      2 -> 2  # Second level grouping
-      3 -> 3  # Third level grouping
-      _ -> 4  # Deeper levels
-    end
-  end
+  #   case non_nil_count do
+  #     0 -> 0  # Total row (all group values are nil)
+  #     1 -> 1  # First level grouping
+  #     2 -> 2  # Second level grouping
+  #     3 -> 3  # Third level grouping
+  #     _ -> 4  # Deeper levels
+  #   end
+  # end
 
   ### TODO when a level has 1 and it's child has 1, combine them
 
