@@ -391,6 +391,87 @@ defmodule SelectoComponents.Form do
         {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
+      def handle_event("graph_drill_down", params, socket) do
+        # Convert graph_drill_down params to chart_click format
+        # The graph component sends slightly different parameter names
+        handle_event("chart_click", params, socket)
+      end
+
+      def handle_event("chart_click", params, socket) do
+        # Extract the label/value from the clicked chart element
+        label = params["label"]
+        _value = params["value"]
+        
+        # Get current view mode and graph configuration
+        current_view_mode = socket.assigns.view_config.view_mode
+        graph_config = socket.assigns.view_config.views[:graph] || %{}
+        
+        # Determine which field was clicked based on current graph x_axis configuration
+        x_axis = graph_config[:x_axis] || []
+        field_name = case x_axis do
+          [{_id, field, _config} | _] -> 
+            # Extract the actual field name from the tuple
+            field
+          _ -> 
+            # If no x_axis configured, try to extract from label context
+            "id"
+        end
+        
+        # Create a new filter based on the clicked value
+        new_filter_id = UUID.uuid4()
+        new_filter_map = %{
+          "filter" => field_name, 
+          "value" => to_string(label),
+          "comp" => "=",  # Set comparison operator for exact match
+          "section" => "filters"  # Ensure section is set
+        }
+        new_filter = {new_filter_id, "filters", new_filter_map}
+        
+        # Add the filter to existing filters
+        updated_filters = socket.assigns.view_config.filters ++ [new_filter]
+        
+        # Switch to detail view (or configured drill_down view)
+        selected_view = String.to_atom(current_view_mode)
+        {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end) || {:detail, nil, nil, %{}}
+        new_view_mode = Map.get(opt, :drill_down, :detail)
+        
+        # Build the complete filter params map including section
+        filters_map = Enum.reduce(updated_filters, %{}, fn
+          {id, "filters", filter_map}, acc ->
+            # Ensure section and comp are set for each filter
+            filter_with_defaults = filter_map
+              |> Map.put_new("section", "filters")
+              |> Map.put_new("comp", "=")
+            Map.put(acc, id, filter_with_defaults)
+          _, acc ->
+            acc
+        end)
+        
+        # Get current params or initialize with empty maps
+        current_params = socket.assigns[:used_params] || %{}
+        
+        # Build complete params structure that view_from_params expects
+        # Include view-specific configurations
+        view_params = 
+          current_params
+          |> Map.put("view_mode", Atom.to_string(new_view_mode))
+          |> Map.put("filters", filters_map)
+          |> Map.put_new("aggregate", %{})  # Ensure aggregate config exists
+          |> Map.put_new("detail", %{})     # Ensure detail config exists
+          |> Map.put_new("graph", %{})      # Ensure graph config exists
+        
+        # Update the view configuration
+        socket = assign(socket,
+          view_config: %{
+            socket.assigns.view_config
+            | view_mode: Atom.to_string(new_view_mode),
+              filters: updated_filters
+          }
+        )
+        
+        {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+      end
+
       @impl true
       def handle_info({:view_set, view}, socket) do
         {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
