@@ -391,6 +391,12 @@ defmodule SelectoComponents.Form do
         {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
       end
 
+      def handle_event("graph_drill_down", params, socket) do
+        # Convert graph_drill_down params to chart_click format
+        # The graph component sends slightly different parameter names
+        handle_event("chart_click", params, socket)
+      end
+
       def handle_event("chart_click", params, socket) do
         # Extract the label/value from the clicked chart element
         label = params["label"]
