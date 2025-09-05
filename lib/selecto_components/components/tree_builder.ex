@@ -13,21 +13,21 @@ defmodule SelectoComponents.Components.TreeBuilder do
       <div class="">
         <div phx-hook="TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
 
-          <div>Available Filter Columns. Double Click or Drag to build area.
+          <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
             <.sc_input x-model="filter" placeholder="Filter Available Items"/>
             <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
           </div>
-          <div>Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
+          <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="flex flex-col gap-1 border-solid border rounded-md border-grey  overflow-auto p-1">
+          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100">
 
 
 
-            <div class="max-w-100 bg-slate-100  border-solid border rounded-md border-grey-900  p-1 hover:bg-slate-200  min-h-10"
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
               x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
               x-transition
               draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__AND__">AND group</div>
-            <div class="max-w-100 bg-slate-100  border-solid border rounded-md border-grey-900  p-1 hover:bg-slate-200  min-h-10"
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
               x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
               x-transition
               draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__OR__">OR group</div>
@@ -38,13 +38,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
                 x-on:dblclick="PushEventHook.pushEvent('treedrop', {target: 'filters', element: event.srcElement.id});"
                 x-transition
-                class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900  p-1 hover:bg-slate-200  min-h-10"
+                class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
                 draggable="true" x-on:drag=" dragging = event.srcElement.id; "
                 id={id}><%= name %></div>
             </div>
 
           </div>
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-grey  overflow-auto p-1">
+          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100">
             <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form }) %>
 
           </div>
@@ -58,14 +58,14 @@ defmodule SelectoComponents.Components.TreeBuilder do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
 
     ~H"""
-      <div class="border-solid border border-4 rounded-xl border-black   p-1 pb-8"
+      <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100"
       x-on:drop=" event.preventDefault();
         PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
         event.stopPropagation()"
       id={@section}>
 
-        <%= @conjunction %>
-        <div class="p-2 pl-6 border-solid border  border-black  relative"
+        <span class="text-base-content font-medium"><%= @conjunction %></span>
+        <div class="p-2 pl-6 border-solid border border-base-300 bg-base-100 text-base-content relative"
           :for={ {s, index} <-
             Enum.filter( @filters, fn
             {{_uuid,section,_conf}, _i} -> section == @section
@@ -85,7 +85,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               </div>
 
             <% {uuid, section, fv} -> %>
-              <div class="p-2 pl-6 border-solid border rounded-md border-grey ">
+              <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
               <div class="absolute top-1 right-1">
