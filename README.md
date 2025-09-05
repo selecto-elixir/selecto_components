@@ -8,201 +8,152 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - **Query Builder**: Drag-and-drop interface for building complex filter queries
 - **Data Views**: Multiple visualization options (Detail, Aggregate, Graph)
-- **Colocated JavaScript**: Modern Phoenix LiveView 1.1+ colocated hooks for interactive functionality
+- **Colocated JavaScript**: Phoenix LiveView 1.1+ colocated hooks for drag-and-drop and charts
 - **Tailwind CSS**: Pre-styled components using Tailwind CSS
 
 ## Requirements
 
+- Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.14
-- Phoenix ~> 1.8.0
-- Phoenix LiveView ~> 1.1.4
-- Ecto ~> 3.11
-- Selecto (core library)
+- Selecto ~> 0.3.0 (core library)
+- selecto_mix ~> 0.3.0 (for code generation and integration tasks)
 
 ## Installation
 
-### 1. Add Dependency
+### 1. Add Dependencies
 
-Add `selecto_components` to your dependencies in `mix.exs`:
+In your `mix.exs`:
 
 ```elixir
 def deps do
   [
     {:selecto_components, "~> 0.3.0"},
-    {:selecto, "~> 0.3.0"}  # Core selecto library
+    {:selecto, "~> 0.3.0"},
+    {:selecto_mix, "~> 0.3.0"}  # For generators and integration
   ]
 end
 ```
 
-### 2. Configure Tailwind CSS
-
-Update your `tailwind.config.js` to include SelectoComponents classes:
-
-```javascript
-module.exports = {
-  content: [
-    './js/**/*.js',
-    '../lib/**/*.{ex,heex}',
-    // Add this line for SelectoComponents
-    '../deps/selecto_components/lib/**/*.{ex,heex}'
-  ],
-  // ... rest of config
-}
+Then install:
+```bash
+mix deps.get
 ```
 
-### 3. Configure Colocated Hooks (Phoenix LiveView 1.1+)
-
-SelectoComponents uses Phoenix LiveView's colocated hooks feature for JavaScript functionality.
-
-#### Step 1: Ensure Phoenix LiveView compiler is enabled
-
-In `mix.exs`:
-
-```elixir
-def project do
-  [
-    # ... other config ...
-    compilers: [:phoenix_live_view] ++ Mix.compilers(),
-    # ... other config ...
-  ]
-end
-```
-
-#### Step 2: Configure esbuild with NODE_PATH
-
-In `config/config.exs`:
-
-```elixir
-config :esbuild,
-  version: "0.25.4",
-  default: [
-    args: ~w(
-      js/app.js 
-      --bundle 
-      --target=es2022 
-      --outdir=../priv/static/assets
-    ),
-    cd: Path.expand("../assets", __DIR__),
-    env: %{
-      "NODE_PATH" => [
-        Path.expand("../deps", __DIR__),
-        Mix.Project.build_path()  # Required for colocated hooks
-      ]
-    }
-  ]
-```
-
-#### Step 3: Import colocated hooks in app.js
-
-In `assets/js/app.js`:
-
-```javascript
-import "phoenix_html"
-import {Socket} from "phoenix"
-import {LiveSocket} from "phoenix_live_view"
-import topbar from "../vendor/topbar"
-
-// Import SelectoComponents colocated hooks
-import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
-
-const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-
-const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken},
-  hooks: {
-    ...selectoHooks  // Include SelectoComponents hooks
-  }
-})
-
-// ... rest of your app.js configuration
-```
-
-#### Step 4: Compile to extract hooks
+### 2. Quick Setup (Recommended)
 
 ```bash
-mix compile --force
+# Automatically integrate hooks and styles
+mix selecto.components.integrate
+
+# Build assets
+mix assets.build
+```
+
+That's it! The integration task automatically:
+- Adds SelectoComponents hooks to your app.js
+- Adds Tailwind @source directive to your app.css
+
+### 3. Manual Setup (Alternative)
+
+If you prefer to configure manually or the integration task doesn't work:
+
+#### In `assets/css/app.css`:
+```css
+/* Add this @source directive for SelectoComponents styles */
+@source "../../deps/selecto_components/lib/**/*.{ex,heex}";
+```
+
+#### In `assets/js/app.js`:
+```javascript
+// Add this import at the top
+import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
+
+// In your LiveSocket configuration, spread the hooks:
+const liveSocket = new LiveSocket("/live", Socket, {
+  params: {_csrf_token: csrfToken},
+  hooks: {
+    ...selectoHooks,  // Add this line
+    // your other hooks...
+  }
+})
+```
+
+Then build assets:
+```bash
 mix assets.build
 ```
 
 ## Usage
 
-### Basic Setup
+### Step 1: Generate a Domain
 
-1. **Generate a Selecto Domain**
-
-First, generate a domain from your Ecto schema:
+Use `selecto_mix` to generate a domain from your Ecto schema:
 
 ```bash
+# Generate domain configuration only
 mix selecto.gen.domain MyApp.Catalog.Product
+
+# Generate with LiveView (recommended - includes integration)
+mix selecto.gen.domain MyApp.Catalog.Product --live
+
+# Generate with saved views support
+mix selecto.gen.domain MyApp.Catalog.Product --live --saved-views
 ```
 
-This creates a domain module that defines your data structure:
+This creates:
+- `lib/my_app/selecto_domains/product_domain.ex` - Domain configuration
+- `lib/my_app_web/live/product_live.ex` - LiveView with SelectoComponents (if --live)
+- Automatically runs `mix selecto.components.integrate` (if --live)
 
-```elixir
-defmodule MyApp.SelectoDomains.ProductDomain do
-  @moduledoc """
-  Selecto domain configuration for MyApp.Catalog.Product.
-  """
+### Step 2: Use in LiveView
 
-  def domain do
-    %{
-      source: %{
-        source_table: "products",
-        primary_key: :id,
-        fields: [:id, :name, :price, :in_stock, :category_id, :inserted_at, :updated_at],
-        columns: %{
-          id: %{type: :integer},
-          name: %{type: :string},
-          price: %{type: :decimal},
-          in_stock: %{type: :boolean},
-          category_id: %{type: :integer},
-          inserted_at: %{type: :datetime},
-          updated_at: %{type: :datetime}
-        }
-      },
-      name: "Product Domain",
-      default_selected: ["id", "name", "price", "in_stock"],
-      filters: %{
-        "in_stock" => %{name: "In Stock", type: :boolean},
-        "category_id" => %{name: "Category", type: :integer}
-      }
-    }
-  end
-
-  def new(repo, opts \\ []) do
-    Selecto.configure(domain(), repo, opts)
-  end
-end
-```
-
-2. **Use Components in LiveView**
+If you generated with `--live`, a LiveView is created for you. Otherwise, create one:
 
 ```elixir
 defmodule MyAppWeb.ProductLive do
   use MyAppWeb, :live_view
+  use SelectoComponents.Form  # Adds form handling utilities
   
   alias MyApp.SelectoDomains.ProductDomain
   alias MyApp.Repo
   
+  @impl true
   def mount(_params, _session, socket) do
-    # Configure Selecto with the domain
+    # Initialize domain and selecto
     selecto = ProductDomain.new(Repo)
+    domain = ProductDomain.domain()
     
-    {:ok, 
-     socket
-     |> assign(:selecto, selecto)
-     |> assign(:domain, ProductDomain.domain())}
+    # Configure available views
+    views = [
+      {:detail, SelectoComponents.Views.Detail, "Table View", %{}},
+      {:aggregate, SelectoComponents.Views.Aggregate, "Summary", %{}},
+      {:graph, SelectoComponents.Views.Graph, "Charts", %{}}
+    ]
+    
+    # Initialize state (from SelectoComponents.Form)
+    state = get_initial_state(views, selecto)
+    
+    {:ok, assign(socket, state)}
   end
   
+  @impl true
   def render(assigns) do
     ~H"""
-    <.live_component
-      module={SelectoComponents.Views}
-      id="product-query"
-      selecto={@selecto}
-      domain={@domain}
-    />
+    <div class="p-4">
+      <h1 class="text-2xl mb-4">Product Explorer</h1>
+      
+      <.live_component
+        module={SelectoComponents.Form}
+        id="product-form"
+        {assigns}
+      />
+      
+      <.live_component
+        module={SelectoComponents.Results}
+        id="product-results"
+        {assigns}
+      />
+    </div>
     """
   end
 end
@@ -233,40 +184,55 @@ end
 
 ## JavaScript Hooks
 
-SelectoComponents includes two main colocated JavaScript hooks:
+SelectoComponents uses Phoenix LiveView's colocated JavaScript feature. The hooks are embedded directly in the components and extracted during compilation:
 
-1. **`.TreeBuilder`** - Enables drag-and-drop functionality in the query builder
-2. **`.GraphComponent`** - Provides interactive charting capabilities
+1. **`.TreeBuilder`** - Drag-and-drop functionality for the query builder
+2. **`.GraphComponent`** - Interactive charting with Chart.js
 
-These hooks are automatically registered when you import the colocated hooks in your app.js.
+These hooks are automatically available after running `mix selecto.components.integrate` or manually adding the import to your app.js.
 
 ## Troubleshooting
 
 ### Hooks Not Working
 
-1. **Verify Phoenix LiveView version**:
+1. **Run the integration task**:
 ```bash
-mix deps | grep phoenix_live_view
-# Should be 1.1.0 or higher
+mix selecto.components.integrate --check  # Check if integrated
+mix selecto.components.integrate          # Apply integration
 ```
 
-2. **Check hook extraction**:
-```bash
-ls -la _build/dev/phoenix-colocated/selecto_components/
-# Should show extracted JavaScript files
-```
-
-3. **Enable debug logging** (in browser console):
+2. **Verify app.js has the import**:
 ```javascript
-window.liveSocket.enableDebug()
+import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
+// ...
+hooks: { ...selectoHooks }
 ```
 
-### Styles Not Applied
-
-Ensure your Tailwind configuration includes the SelectoComponents path and rebuild:
+3. **Rebuild assets**:
 ```bash
 mix assets.build
 ```
+
+4. **Check browser console** for JavaScript errors
+
+### Styles Not Applied
+
+1. **Verify app.css has the @source directive**:
+```css
+@source "../../deps/selecto_components/lib/**/*.{ex,heex}";
+```
+
+2. **Rebuild Tailwind**:
+```bash
+mix assets.build
+```
+
+### Integration Task Issues
+
+If `mix selecto.components.integrate` fails:
+- Check that `assets/js/app.js` and `assets/css/app.css` exist
+- Use `--force` to re-apply integration: `mix selecto.components.integrate --force`
+- Follow the manual setup steps above
 
 ## Development
 

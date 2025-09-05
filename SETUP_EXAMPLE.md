@@ -4,10 +4,11 @@ A complete, working example of setting up SelectoComponents in a Phoenix LiveVie
 
 ## Prerequisites
 
+- Phoenix 1.7+ (includes everything needed for colocated hooks)
 - Elixir 1.14+
-- Phoenix 1.7+ (uses @source directives in CSS)
-- Phoenix LiveView 1.1+ (required for colocated hooks)
 - Node.js (for asset compilation)
+
+**Note:** Phoenix 1.7+ apps already have Phoenix LiveView compiler and esbuild NODE_PATH configured by default!
 
 ## Step 1: Update Dependencies
 
@@ -40,30 +41,7 @@ defmodule MyApp.MixProject do
 end
 ```
 
-## Step 2: Configure Asset Pipeline
-
-### `config/config.exs`
-
-```elixir
-# Configure esbuild with NODE_PATH for colocated hooks
-config :esbuild,
-  version: "0.25.4",
-  my_app: [
-    args: ~w(
-      js/app.js 
-      --bundle 
-      --target=es2022 
-      --outdir=../priv/static/assets/js
-    ),
-    cd: Path.expand("../assets", __DIR__),
-    env: %{
-      "NODE_PATH" => [
-        Path.expand("../deps", __DIR__),
-        Mix.Project.build_path()  # Critical for colocated hooks
-      ]
-    }
-  ]
-```
+## Step 2: Configure Styles
 
 ### `assets/css/app.css`
 
@@ -99,40 +77,24 @@ module.exports = {
 }
 ```
 
-## Step 3: Configure JavaScript
+## Step 3: Add SelectoComponents Hooks
 
 ### `assets/js/app.js`
 
-```javascript
-import "phoenix_html"
-import {Socket} from "phoenix"
-import {LiveSocket} from "phoenix_live_view"
-import topbar from "../vendor/topbar"
+Just add two lines to your existing app.js:
 
-// Import SelectoComponents colocated hooks
+```javascript
+// Add this import at the top with your other imports
 import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
 
-// Setup CSRF token
-const csrfToken = document.querySelector("meta[name='csrf-token']")
-  .getAttribute("content")
-
-// Configure LiveSocket with SelectoComponents hooks
+// Then in your existing liveSocket configuration, add the hooks:
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
   hooks: {
-    ...selectoHooks  // Spread SelectoComponents hooks
+    ...selectoHooks,  // Add this line
+    // any other hooks you already have
   }
 })
-
-// Progress bar configuration
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
-
-// Connect and expose for debugging
-liveSocket.connect()
-window.liveSocket = liveSocket
 ```
 
 ## Step 4: Create Your Ecto Schema and Generate Domain
@@ -391,20 +353,16 @@ end
 ## Step 7: Build and Run
 
 ```bash
-# 1. Install dependencies
+# Install dependencies
 mix deps.get
 
-# 2. Create and migrate database
-mix ecto.create
-mix ecto.migrate
+# Setup database
+mix ecto.setup
 
-# 3. Compile with hook extraction
-mix compile --force
-
-# 4. Build assets
+# Build assets (this automatically extracts and bundles hooks)
 mix assets.build
 
-# 5. Start the server
+# Start the server
 mix phx.server
 ```
 
@@ -428,15 +386,14 @@ mix phx.server
 
 ### Hooks Not Loading
 
-```bash
-# Check if hooks were extracted
-ls -la _build/dev/phoenix-colocated/selecto_components/
-
-# Force recompilation
-mix clean
-mix compile --force
-mix assets.build
+Check that you've added the import and hooks to your app.js:
+```javascript
+import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
+// ...
+hooks: { ...selectoHooks }
 ```
+
+Then rebuild: `mix assets.build`
 
 ### Styles Not Applied
 
