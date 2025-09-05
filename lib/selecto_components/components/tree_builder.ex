@@ -11,7 +11,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook="TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: ''}">
+        <div phx-hook="SelectoComponents.Components.TreeBuilder.TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: '', dragging: null }">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
             <.sc_input x-model="filter" placeholder="Filter Available Items"/>
@@ -36,7 +36,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
             <div :for={{id, name} <- @available}>
               <div
                 x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
-                x-on:dblclick="PushEventHook.pushEvent('treedrop', {target: 'filters', element: event.srcElement.id});"
+                x-on:dblclick="window.treeBuilderHook && window.treeBuilderHook.pushEvent('treedrop', {target: 'filters', element: event.srcElement.id});"
                 x-transition
                 class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
                 draggable="true" x-on:drag=" dragging = event.srcElement.id; "
@@ -50,6 +50,37 @@ defmodule SelectoComponents.Components.TreeBuilder do
           </div>
         </div>
       </div>
+      
+      <script type="Phoenix.LiveView.ColocatedHook" name="TreeBuilderHook" runtime>
+      {
+        mounted() {
+          console.log('TreeBuilderHook mounted');
+          const hook = this;
+          
+          // Make the hook available globally for Alpine.js event handlers
+          window.treeBuilderHook = hook;
+          
+          // Set up drag and drop functionality
+          this.el.addEventListener('dragover', function(event) {
+            event.preventDefault();
+          });
+          
+          this.el.addEventListener('drop', function(event) {
+            event.preventDefault();
+          });
+        },
+        
+        updated() {
+          console.log('TreeBuilderHook updated');
+        },
+        
+        destroyed() {
+          console.log('TreeBuilderHook destroyed');
+          // Clean up global reference
+          delete window.treeBuilderHook;
+        }
+      }
+      </script>
     </div>
     """
   end
@@ -60,7 +91,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
       <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100"
       x-on:drop=" event.preventDefault();
-        PushEventHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
+        window.treeBuilderHook && window.treeBuilderHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
         event.stopPropagation()"
       id={@section}>
 
