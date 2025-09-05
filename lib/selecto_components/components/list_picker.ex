@@ -24,16 +24,22 @@ defmodule SelectoComponents.Components.ListPicker do
 
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
-        <div>Avialable
-          <.sc_input x-model="filter" placeholder="Filter Available Items"/>
-          <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
+        <div class="text-base-content">Available
+          <div class="flex items-center gap-1">
+            <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
+            <button x-on:click="filter = ''" x-show="filter != ''" class="btn btn-sm btn-square btn-outline" type="button">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div>Selected</div>
+        <div class="text-base-content">Selected</div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-grey  h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900  relative p-1 hover:bg-slate-200  h-10"
+            class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 relative p-1 hover:bg-base-300 h-10 text-base-content cursor-pointer"
             x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
             x-transition
             >
@@ -41,9 +47,9 @@ defmodule SelectoComponents.Components.ListPicker do
           </div>
         </div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-grey  h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900  relative p-1 hover:bg-slate-200  min-h-10 ">
+            class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 relative p-1 hover:bg-base-300 min-h-10 text-base-content ">
 
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 

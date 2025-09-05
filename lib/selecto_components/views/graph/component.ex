@@ -106,7 +106,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       <!-- Chart Container -->
       <div
         id={@chart_id}
-        phx-hook="SelectoComponents.Views.Graph.Component.GraphHook"
+        phx-hook=".GraphComponent"
         phx-update="ignore"
         data-chart-type={@chart_type}
         data-chart-data={Jason.encode!(@chart_data)}
@@ -117,21 +117,10 @@ defmodule SelectoComponents.Views.Graph.Component do
         <canvas id={"#{@chart_id}-canvas"}></canvas>
       </div>
 
-      <!-- Chart Legend/Summary -->
-      <div class="mt-4 text-sm text-gray-600">
-        <div class="flex items-center justify-between">
-          <span>
-            <%= chart_summary(@chart_data, @chart_type) %>
-          </span>
-          <span class="text-xs text-gray-400">
-            Click data points to drill down
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <script type="Phoenix.LiveView.ColocatedHook" name="GraphHook" runtime>
-    {
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".GraphComponent">
+      export default {
+        chart: null,
+        
         mounted() {
           console.log('GraphHook mounted');
           this.initializeChart();
@@ -151,17 +140,37 @@ defmodule SelectoComponents.Views.Graph.Component do
 
         initializeChart() {
           const canvas = this.el.querySelector('canvas');
-          if (!canvas) return;
+          if (!canvas) {
+            console.error('Canvas not found for chart');
+            return;
+          }
+
+          if (!window.Chart) {
+            console.error('Chart.js not loaded. Please ensure Chart.js is included before this hook.');
+            // Show an error message in the chart container
+            this.el.innerHTML = `
+              <div class="flex items-center justify-center h-64 bg-red-50 rounded-lg border border-red-200">
+                <div class="text-center text-red-500">
+                  <div class="text-4xl mb-2">⚠️</div>
+                  <div class="font-semibold">Chart.js Not Loaded</div>
+                  <div class="text-sm mt-1">Chart.js library is required to display charts.</div>
+                </div>
+              </div>
+            `;
+            return;
+          }
 
           const chartData = JSON.parse(this.el.dataset.chartData || '{}');
           const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
           const chartType = this.el.dataset.chartType || 'bar';
 
+          console.log('Initializing chart with:', { chartType, chartData, chartOptions });
+
           const pushEvent = (event, payload) => {
             this.pushEvent(event, payload);
           };
 
-          if (window.Chart) {
+          try {
             this.chart = new Chart(canvas, {
               type: chartType,
               data: chartData,
@@ -190,6 +199,9 @@ defmodule SelectoComponents.Views.Graph.Component do
                 }
               }
             });
+            console.log('Chart initialized successfully');
+          } catch (error) {
+            console.error('Error initializing chart:', error);
           }
         },
 
@@ -201,12 +213,27 @@ defmodule SelectoComponents.Views.Graph.Component do
             this.chart.data = chartData;
             this.chart.options = chartOptions;
             this.chart.update();
+            console.log('Chart updated');
           } else {
+            console.log('No chart to update, initializing...');
             this.initializeChart();
           }
         }
       }
-    </script>
+      </script>
+
+      <!-- Chart Legend/Summary -->
+      <div class="mt-4 text-sm text-gray-600">
+        <div class="flex items-center justify-between">
+          <span>
+            <%= chart_summary(@chart_data, @chart_type) %>
+          </span>
+          <span class="text-xs text-gray-400">
+            Click data points to drill down
+          </span>
+        </div>
+      </div>
+    </div>
     """
   end
 

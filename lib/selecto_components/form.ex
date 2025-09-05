@@ -24,7 +24,7 @@ defmodule SelectoComponents.Form do
       )
 
     ~H"""
-    <div class="border-solid border border-2 rounded-md border-black dark:border-black h-100 overflow-auto p-1">
+    <div class="border-solid border border-2 rounded-md border-gray-300 p-1 bg-base-100 text-base-content">
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
         <!-- Error Display -->
         <div
@@ -87,12 +87,12 @@ defmodule SelectoComponents.Form do
 
         <div class={
           if @active_tab == "view" or @active_tab == nil do
-            "border-solid border rounded-md border-grey dark:border-black h-90 p-1"
+            "border-solid border rounded-md border-gray-300 p-1 bg-base-100 text-base-content"
           else
             "hidden"
           end
         }>
-          View Type
+          <span class="text-base-content font-medium">View Type</span>
           <.live_component
             module={SelectoComponents.Components.RadioTabs}
             id="view_mode"

@@ -33,7 +33,7 @@ defmodule SelectoComponents.Components.FilterForms do
 
     ~H"""
       <div>
-        <label>
+        <label class="text-base-content">
           <%= @def.name %>
           <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
         </label>
@@ -48,7 +48,7 @@ defmodule SelectoComponents.Components.FilterForms do
 
     ~H"""
       <div>
-        <label>
+        <label class="text-base-content">
           <%= @def.name %>
           <.sc_select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={@comp == "="}>Equals</option>
@@ -61,7 +61,7 @@ defmodule SelectoComponents.Components.FilterForms do
           </.sc_select_with_slot>
           <%= if @comp in ~w(= != starts ends contains) do %>
             <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
-              <label><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} checked={Map.get(@valmap, "ignore_case") == "Y"} value="Y"/>Ignore Case</label>
+              <label class="text-base-content flex items-center gap-1"><input type="checkbox" name={"filters[#{@uuid}][ignore_case]"} checked={Map.get(@valmap, "ignore_case") == "Y"} value="Y" class="checkbox checkbox-sm"/>Ignore Case</label>
           <% end %>
         </label>
       </div>
@@ -74,7 +74,7 @@ defmodule SelectoComponents.Components.FilterForms do
     assigns = Map.put(assigns, :valmap, valmap) |> Map.put(:def, def) |> Map.put(:comp, Map.get(valmap, "comp", "="))
     ~H"""
       <div>
-        <label>
+        <label class="text-base-content">
           <%= @def.name %>
           <.sc_select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={@comp == "="}>Equals</option>
@@ -92,7 +92,7 @@ defmodule SelectoComponents.Components.FilterForms do
         <%= if @comp in ~w(= != < > <= >= between) do %>
           <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <%= if @comp == "between" do %>
-            and <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+            <span class="text-base-content">and</span> <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
           <% end %>
         <% end %>
       </div>
@@ -107,7 +107,7 @@ defmodule SelectoComponents.Components.FilterForms do
 
     ~H"""
       <div>
-        <label>
+        <label class="text-base-content">
           <%= @def.name %>
           <.sc_select_with_slot name={"filters[#{@uuid}][comp]"}>
             <option value="=" selected={@comp == "="}>Equals</option>
@@ -125,7 +125,7 @@ defmodule SelectoComponents.Components.FilterForms do
         <%= if @comp in ~w(= != < > <= >= between) do %>
           <.sc_input name={"filters[#{@uuid}][value]"} value={@valmap["value"]}/>
           <%= if @comp == "between" do %>
-            and <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
+            <span class="text-base-content">and</span> <.sc_input name={"filters[#{@uuid}][value2]"} value={@valmap["value2"]}/>
           <% end %>
         <% end %>
 
@@ -151,11 +151,11 @@ defmodule SelectoComponents.Components.FilterForms do
 
     ~H"""
       <div>
-        <%= @type %> <%= @def.name %>
-        <label>Y
+        <span class="text-base-content"><%= @type %> <%= @def.name %></span>
+        <label class="text-base-content flex items-center gap-1">Y
           <.sc_input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] == "true"} value="true"/>
         </label>
-        <label>N
+        <label class="text-base-content flex items-center gap-1">N
           <.sc_input type="radio" name={"filters[#{@uuid}][value]"} checked={@valmap["value"] != "true"} value="false"/>
         </label>
       </div>
@@ -178,13 +178,13 @@ defmodule SelectoComponents.Components.FilterForms do
 
     ~H"""
     <div>
-      <label>
+      <label class="text-base-content">
         <%= @def.name %>
-        After:
+        <span class="text-base-content">After:</span>
         <.sc_input type="datetime-local" step="1" name={"filters[#{@uuid}][value]"} value={reformat_date( @valmap["value"] )}/>
       </label>
-      <label>
-        Before:
+      <label class="text-base-content">
+        <span class="text-base-content">Before:</span>
         <.sc_input type="datetime-local" step="1" name={"filters[#{@uuid}][value2]"} value={reformat_date( @valmap["value2"] )}/>
       </label>
     </div>

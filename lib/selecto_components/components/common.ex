@@ -6,7 +6,7 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <button {@attrs} class="text-sm leading-5 px-4 py-2 font-medium rounded-md inline-flex items-center justify-center border focus:outline-none transition duration-150 ease-in-out">
+      <button {@attrs} class="btn btn-outline btn-sm">
         <%= render_slot(@inner_block) %>
       </button>
     """
@@ -17,7 +17,9 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_up solid class="w-6 h-6 inline border border-2 border-black rounded-md" {@attrs}/>
+      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+      </svg>
     """
   end
 
@@ -26,7 +28,9 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_down solid class="w-6 h-6 inline border border-2 border-black rounded-md" {@attrs}/>
+      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+      </svg>
     """
   end
 
@@ -35,16 +39,30 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.x_mark solid class="w-6 h-6 text-red-800 inline border border-2 border-red-800 rounded-md" {@attrs}/>
+      <svg class="w-8 h-8 btn btn-outline btn-xs btn-error" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    """
+  end
+
+  def sc_x_button_small(assigns) do
+    attrs = assigns_to_attributes(assigns, [])
+    assigns = assign(assigns, attrs: attrs)
+
+    ~H"""
+      <svg class="w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
     """
   end
 
   def sc_input(assigns) do
-    attrs = assigns_to_attributes(assigns, [:label])
-    assigns = assign(assigns, attrs: attrs)
+    attrs = assigns_to_attributes(assigns, [:label, :class])
+    custom_class = assigns[:class] || ""
+    assigns = assign(assigns, attrs: attrs, custom_class: custom_class)
 
     ~H"""
-      <input {@attrs} class="border focus:border-gray-500 focus:ring-gray-500   sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed shadow-sm rounded-md    focus:outline-none focus:ring-gray-500 focus:border-gray-500"/>
+      <input {@attrs} class={["input input-bordered input-sm w-full", @custom_class]}/>
     """
   end
 
@@ -53,7 +71,7 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <select {@attrs} class="border-gray-300 focus:border-primary-500 focus:ring-primary-500     disabled:bg-gray-100 disabled:cursor-not-allowed pl-3 pr-10 py-2 text-base focus:outline-none sm:text-sm rounded-md    " >
+      <select {@attrs} class="select select-bordered select-sm w-full" >
         <%= render_slot(@inner_block) %>
       </select>
     """
@@ -64,7 +82,7 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <select {@attrs} class="border-gray-300 focus:border-primary-500 focus:ring-primary-500     disabled:bg-gray-100 disabled:cursor-not-allowed text-base focus:outline-none sm:text-sm rounded-md    " >
+      <select {@attrs} class="select select-bordered select-sm w-full" >
         <option :for={{val, lab} <- @options} value={val} selected={val == @value}><%= lab %></option>
       </select>
     """
