@@ -1,149 +1,279 @@
 # SelectoComponents
 
-Tailwind-based UI components for `selecto`. This library provides a pre-built LiveView interface for querying and displaying data.
+Phoenix LiveView components for building interactive data query interfaces with [Selecto](https://github.com/selecto-elixir/selecto).
+
+## Overview
+
+SelectoComponents provides a suite of Phoenix LiveView components that enable users to build complex queries, visualize data, and interact with Ecto-based schemas through a visual interface. The library includes:
+
+- **Query Builder**: Drag-and-drop interface for building complex filter queries
+- **Data Views**: Multiple visualization options (Detail, Aggregate, Graph)
+- **Colocated JavaScript**: Modern Phoenix LiveView 1.1+ colocated hooks for interactive functionality
+- **Tailwind CSS**: Pre-styled components using Tailwind CSS
+
+## Requirements
+
+- Elixir ~> 1.14
+- Phoenix ~> 1.8.0
+- Phoenix LiveView ~> 1.1.4
+- Ecto ~> 3.11
+- Selecto (core library)
 
 ## Installation
 
-### 1. Add Dependencies
+### 1. Add Dependency
 
-Add `selecto_components` to your list of dependencies in `mix.exs`:
+Add `selecto_components` to your dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.2.8"}
+    {:selecto_components, "~> 0.3.0"},
+    {:selecto, "~> 0.3.0"}  # Core selecto library
   ]
 end
 ```
 
-### 2. Configure Your Router
+### 2. Configure Tailwind CSS
 
-In your `router.ex` file, import the `SelectoComponents.Router` and add the `selecto_live` routes to your desired scope.
-
-```elixir
-# lib/my_app_web/router.ex
-
-defmodule MyAppWeb.Router do
-  use MyAppWeb, :router
-  import SelectoComponents.Router
-  ...
-
-  scope "/", MyAppWeb do
-    pipe_through :browser
-
-    # Add this line to mount the Selecto UI
-    selecto_live "/selecto"
-  end
-end
-```
-
-This will mount the component at `/selecto`.
-
-### 3. Configure Tailwind CSS
-
-Ensure Tailwind CSS is configured to scan the `selecto_components` library for classes. Update the `content` path in your `tailwind.config.js`:
+Update your `tailwind.config.js` to include SelectoComponents classes:
 
 ```javascript
-// assets/tailwind.config.js
-
 module.exports = {
   content: [
     './js/**/*.js',
-    '../lib/my_app_web/live/**/*.ex',
-    '../lib/my_app_web/templates/**/*.eex',
-    // Add this line to include selecto_components
-    '../deps/selecto_components/lib/selecto_components/**/*.ex'
+    '../lib/**/*.{ex,heex}',
+    // Add this line for SelectoComponents
+    '../deps/selecto_components/lib/**/*.{ex,heex}'
   ],
-  theme: {
-    extend: {},
-  },
-  plugins: []
+  // ... rest of config
 }
 ```
 
-### 4. JavaScript Integration (Phoenix LiveView 1.1+)
+### 3. Configure Colocated Hooks (Phoenix LiveView 1.1+)
 
-SelectoComponents now uses **colocated hooks** (Phoenix LiveView 1.1+), which means all JavaScript functionality is embedded directly in the components. No additional JavaScript imports or hook registration is required.
+SelectoComponents uses Phoenix LiveView's colocated hooks feature for JavaScript functionality.
 
-Simply ensure you're using Phoenix LiveView 1.1 or higher and the hooks will be automatically extracted during compilation.
+#### Step 1: Ensure Phoenix LiveView compiler is enabled
+
+In `mix.exs`:
+
+```elixir
+def project do
+  [
+    # ... other config ...
+    compilers: [:phoenix_live_view] ++ Mix.compilers(),
+    # ... other config ...
+  ]
+end
+```
+
+#### Step 2: Configure esbuild with NODE_PATH
+
+In `config/config.exs`:
+
+```elixir
+config :esbuild,
+  version: "0.25.4",
+  default: [
+    args: ~w(
+      js/app.js 
+      --bundle 
+      --target=es2022 
+      --outdir=../priv/static/assets
+    ),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{
+      "NODE_PATH" => [
+        Path.expand("../deps", __DIR__),
+        Mix.Project.build_path()  # Required for colocated hooks
+      ]
+    }
+  ]
+```
+
+#### Step 3: Import colocated hooks in app.js
+
+In `assets/js/app.js`:
 
 ```javascript
-// assets/js/app.js - No additional SelectoComponents imports needed
-
 import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
-let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// Import SelectoComponents colocated hooks
+import {hooks as selectoHooks} from "phoenix-colocated/selecto_components"
 
-let liveSocket = new LiveSocket("/live", Socket, {
-    params: {_csrf_token: csrfToken}
+const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+const liveSocket = new LiveSocket("/live", Socket, {
+  longPollFallbackMs: 2500,
+  params: {_csrf_token: csrfToken},
+  hooks: {
+    ...selectoHooks  // Include SelectoComponents hooks
+  }
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", info => topbar.show())
-window.addEventListener("phx:page-loading-stop", info => topbar.hide())
+// ... rest of your app.js configuration
+```
 
-// connect if there are any LiveViews on the page
-liveSocket.connect()
+#### Step 4: Compile to extract hooks
 
-// expose liveSocket on window for web console debug logs and latency simulation:
-// >> liveSocket.enableDebug()
-// >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
-// >> liveSocket.disableLatencySim()
-window.liveSocket = liveSocket
+```bash
+mix compile --force
+mix assets.build
 ```
 
 ## Usage
 
-To use the component, you need a "queryable" module that implements the `Selecto.Queryable` behaviour. This module defines the Ecto schema and the fields that can be used for querying.
+### Basic Setup
 
-**Example Queryable:**
+1. **Generate a Selecto Domain**
+
+First, generate a domain from your Ecto schema:
+
+```bash
+mix selecto.gen.domain MyApp.Catalog.Product
+```
+
+This creates a domain module that defines your data structure:
 
 ```elixir
-# lib/my_app/accounts/user.ex
+defmodule MyApp.SelectoDomains.ProductDomain do
+  @moduledoc """
+  Selecto domain configuration for MyApp.Catalog.Product.
+  """
 
-defmodule MyApp.Accounts.User do
-  use Ecto.Schema
-  import Ecto.Changeset
-  alias MyApp.Repo
-
-  @behaviour Selecto.Queryable
-
-  schema "users" do
-    field :name, :string
-    field :email, :string
-    field :inserted_at, :naive_datetime
-  end
-
-  @impl true
-  def query do
-    __MODULE__
-  end
-
-  @impl true
-  def fields do
+  def domain do
     %{
-      name: %{type: :string, label: "Name"},
-      email: %{type: :string, label: "Email"},
-      inserted_at: %{type: :datetime, label: "Created At"}
+      source: %{
+        source_table: "products",
+        primary_key: :id,
+        fields: [:id, :name, :price, :in_stock, :category_id, :inserted_at, :updated_at],
+        columns: %{
+          id: %{type: :integer},
+          name: %{type: :string},
+          price: %{type: :decimal},
+          in_stock: %{type: :boolean},
+          category_id: %{type: :integer},
+          inserted_at: %{type: :datetime},
+          updated_at: %{type: :datetime}
+        }
+      },
+      name: "Product Domain",
+      default_selected: ["id", "name", "price", "in_stock"],
+      filters: %{
+        "in_stock" => %{name: "In Stock", type: :boolean},
+        "category_id" => %{name: "Category", type: :integer}
+      }
     }
+  end
+
+  def new(repo, opts \\ []) do
+    Selecto.configure(domain(), repo, opts)
   end
 end
 ```
 
-Once you have a queryable module, you can render the component in any of your LiveViews:
+2. **Use Components in LiveView**
 
-```heex
-# lib/my_app_web/live/user_live/index.html.heex
-
-<.live_component
-  module={SelectoComponents.View}
-  id="user-view"
-  queryable={MyApp.Accounts.User}
-/>
+```elixir
+defmodule MyAppWeb.ProductLive do
+  use MyAppWeb, :live_view
+  
+  alias MyApp.SelectoDomains.ProductDomain
+  alias MyApp.Repo
+  
+  def mount(_params, _session, socket) do
+    # Configure Selecto with the domain
+    selecto = ProductDomain.new(Repo)
+    
+    {:ok, 
+     socket
+     |> assign(:selecto, selecto)
+     |> assign(:domain, ProductDomain.domain())}
+  end
+  
+  def render(assigns) do
+    ~H"""
+    <.live_component
+      module={SelectoComponents.Views}
+      id="product-query"
+      selecto={@selecto}
+      domain={@domain}
+    />
+    """
+  end
+end
 ```
 
-Now, when you navigate to the page containing this LiveView, you will see the Selecto UI for your `User` schema.
+## Available Components
+
+### Views Module
+- `SelectoComponents.Views` - Main component that provides tabbed interface for different view types
+
+### View Types
+- `SelectoComponents.Views.Detail` - Table view with sortable columns and pagination
+- `SelectoComponents.Views.Aggregate` - Aggregated data view with grouping capabilities
+- `SelectoComponents.Views.Graph` - Chart visualization using Chart.js
+
+### Core Components
+- `SelectoComponents.Components.TreeBuilder` - Drag-and-drop query builder with colocated JavaScript hook
+- `SelectoComponents.Components.FilterForms` - Dynamic filter forms for different field types
+- `SelectoComponents.Components.ListPicker` - Reorderable list selection component
+- `SelectoComponents.Components.Tabs` - Tab navigation component
+- `SelectoComponents.Components.RadioTabs` - Radio-style tab selection
+
+### Support Modules
+- `SelectoComponents.State` - State management for components
+- `SelectoComponents.Router` - Event routing and business logic
+- `SelectoComponents.Form` - Form handling utilities
+- `SelectoComponents.Results` - Result processing and formatting
+
+## JavaScript Hooks
+
+SelectoComponents includes two main colocated JavaScript hooks:
+
+1. **`.TreeBuilder`** - Enables drag-and-drop functionality in the query builder
+2. **`.GraphComponent`** - Provides interactive charting capabilities
+
+These hooks are automatically registered when you import the colocated hooks in your app.js.
+
+## Troubleshooting
+
+### Hooks Not Working
+
+1. **Verify Phoenix LiveView version**:
+```bash
+mix deps | grep phoenix_live_view
+# Should be 1.1.0 or higher
+```
+
+2. **Check hook extraction**:
+```bash
+ls -la _build/dev/phoenix-colocated/selecto_components/
+# Should show extracted JavaScript files
+```
+
+3. **Enable debug logging** (in browser console):
+```javascript
+window.liveSocket.enableDebug()
+```
+
+### Styles Not Applied
+
+Ensure your Tailwind configuration includes the SelectoComponents path and rebuild:
+```bash
+mix assets.build
+```
+
+## Development
+
+This library is part of the Selecto ecosystem and is typically developed alongside:
+- [selecto](https://github.com/selecto-elixir/selecto) - Core query building library
+- [selecto_mix](https://github.com/selecto-elixir/selecto_mix) - Mix tasks and generators
+
+## License
+
+MIT License - see LICENSE file for details.
