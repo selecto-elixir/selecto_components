@@ -9,17 +9,18 @@ defmodule SelectoComponents.Components.RadioTabs do
     ~H"""
       <div>
         <div :for={{id, module, name, opt} <- @options}>
-          <label>
+          <label class="text-gray-900 dark:text-gray-100 cursor-pointer">
             <input
               type="radio"
               name={@fieldname}
               value={id}
               checked={@view_mode == Atom.to_string(id)}
               phx-click="view_set"
-              phx-target={@myself}/>
+              phx-target={@myself}
+              class="mr-2 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"/>
             <%= name %>
           </label>
-          <div class={if @view_mode == Atom.to_string(id) do " pl-16" else "hidden" end}>
+          <div class={if @view_mode == Atom.to_string(id) do "pl-16 text-gray-900 dark:text-gray-100" else "hidden" end}>
             <%= name %>
             <%= render_slot(@section, {id, module, name, opt}) %>
           </div>

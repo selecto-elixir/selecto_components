@@ -96,7 +96,7 @@ defmodule SelectoComponents.UI do
   """
   def tab_class(active_tab, tab_name) do
     if active_tab == tab_name or (active_tab == nil and tab_name == "view") do
-      "border-solid border rounded-md border-grey dark:border-black h-90 p-1"
+      "border-solid border rounded-md border-gray-300 min-h-96 max-h-screen overflow-auto p-1 bg-base-100 text-base-content"
     else
       "hidden"
     end

@@ -24,16 +24,16 @@ defmodule SelectoComponents.Components.ListPicker do
 
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
-        <div>Avialable
+        <div class="text-gray-900 dark:text-gray-100">Avialable
           <.sc_input x-model="filter" placeholder="Filter Available Items"/>
           <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
         </div>
 
-        <div>Selected</div>
+        <div class="text-gray-900 dark:text-gray-100">Selected</div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-grey  h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-grey dark:border-gray-600 h-60 overflow-auto p-1 bg-white dark:bg-gray-800">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900  relative p-1 hover:bg-slate-200  h-10"
+            class="max-w-100 bg-slate-100 dark:bg-gray-700 border-solid border rounded-md border-grey-900 dark:border-gray-600 relative p-1 hover:bg-slate-200 dark:hover:bg-gray-600 h-10 text-gray-900 dark:text-gray-100"
             x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
             x-transition
             >
@@ -41,9 +41,9 @@ defmodule SelectoComponents.Components.ListPicker do
           </div>
         </div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-grey  h-60 overflow-auto p-1">
+        <div class="flex flex-col gap-1 border rounded-md border-grey dark:border-gray-600 h-60 overflow-auto p-1 bg-white dark:bg-gray-800">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="max-w-100 bg-slate-100	 border-solid border rounded-md border-grey-900  relative p-1 hover:bg-slate-200  min-h-10 ">
+            class="max-w-100 bg-slate-100 dark:bg-gray-700 border-solid border rounded-md border-grey-900 dark:border-gray-600 relative p-1 hover:bg-slate-200 dark:hover:bg-gray-600 min-h-10 text-gray-900 dark:text-gray-100 ">
 
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
