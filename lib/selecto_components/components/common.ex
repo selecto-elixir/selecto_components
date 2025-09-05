@@ -17,7 +17,9 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_up solid class="w-6 h-6 inline btn btn-outline btn-xs text-base-content" {@attrs}/>
+      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+      </svg>
     """
   end
 
@@ -26,7 +28,9 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.arrow_down solid class="w-6 h-6 inline btn btn-outline btn-xs text-base-content" {@attrs}/>
+      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+      </svg>
     """
   end
 
@@ -35,16 +39,30 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <Heroicons.x_mark solid class="w-6 h-6 btn btn-outline btn-xs btn-error" {@attrs}/>
+      <svg class="w-8 h-8 btn btn-outline btn-xs btn-error" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    """
+  end
+
+  def sc_x_button_small(assigns) do
+    attrs = assigns_to_attributes(assigns, [])
+    assigns = assign(assigns, attrs: attrs)
+
+    ~H"""
+      <svg class="w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
     """
   end
 
   def sc_input(assigns) do
-    attrs = assigns_to_attributes(assigns, [:label])
-    assigns = assign(assigns, attrs: attrs)
+    attrs = assigns_to_attributes(assigns, [:label, :class])
+    custom_class = assigns[:class] || ""
+    assigns = assign(assigns, attrs: attrs, custom_class: custom_class)
 
     ~H"""
-      <input {@attrs} class="input input-bordered input-sm w-full"/>
+      <input {@attrs} class={["input input-bordered input-sm w-full", @custom_class]}/>
     """
   end
 

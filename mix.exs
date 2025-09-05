@@ -30,7 +30,6 @@ defmodule SelectoComponents.MixProject do
       {:selecto, path: "../selecto"},
       {:uuid, "~> 1.1"},
       {:ex_doc, "~> 0.29.1", only: :dev, runtime: false},
-      {:heroicons, "~> 0.5"},
       #{:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
       {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},

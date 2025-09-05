@@ -106,7 +106,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       <!-- Chart Container -->
       <div
         id={@chart_id}
-        phx-hook="SelectoComponents.Views.Graph.Component.GraphHook"
+        phx-hook="SelectoComponents.Views.Graph.Component"
         phx-update="ignore"
         data-chart-type={@chart_type}
         data-chart-data={Jason.encode!(@chart_data)}
