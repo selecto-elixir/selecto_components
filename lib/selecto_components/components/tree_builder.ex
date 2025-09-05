@@ -11,76 +11,38 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook="SelectoComponents.Components.TreeBuilder.TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: '', dragging: null }">
+        <div phx-hook="SelectoComponents.Components.TreeBuilder.TreeBuilderHook" id="relay" class="grid grid-cols-2 gap-1 h-80" data-filter="">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
-            <.sc_input x-model="filter" placeholder="Filter Available Items"/>
-            <.sc_x_button x-on:click="filter = ''" x-show="filter != ''"/>
+            <input type="text" id="filter-input" placeholder="Filter Available Items" class="sc-input" />
+            <button id="clear-filter" class="sc-x-button hidden">×</button>
           </div>
           <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100">
+          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100" id="available-items">
 
 
 
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-              x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
-              x-transition
-              draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__AND__">AND group</div>
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-              x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
-              x-transition
-              draggable="true" x-on:drag=" dragging = event.srcElement.id; " id="__OR__">OR group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              draggable="true" data-item-id="__AND__" id="__AND__">AND group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              draggable="true" data-item-id="__OR__" id="__OR__">OR group</div>
 
 
             <div :for={{id, name} <- @available}>
               <div
-                x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
-                x-on:dblclick="window.treeBuilderHook && window.treeBuilderHook.pushEvent('treedrop', {target: 'filters', element: event.srcElement.id});"
-                x-transition
-                class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-                draggable="true" x-on:drag=" dragging = event.srcElement.id; "
+                class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+                draggable="true" data-item-id={id}
                 id={id}><%= name %></div>
             </div>
 
           </div>
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100">
+          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
             <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form }) %>
 
           </div>
         </div>
       </div>
-      
-      <script type="Phoenix.LiveView.ColocatedHook" name="TreeBuilderHook" runtime>
-      {
-        mounted() {
-          console.log('TreeBuilderHook mounted');
-          const hook = this;
-          
-          // Make the hook available globally for Alpine.js event handlers
-          window.treeBuilderHook = hook;
-          
-          // Set up drag and drop functionality
-          this.el.addEventListener('dragover', function(event) {
-            event.preventDefault();
-          });
-          
-          this.el.addEventListener('drop', function(event) {
-            event.preventDefault();
-          });
-        },
-        
-        updated() {
-          console.log('TreeBuilderHook updated');
-        },
-        
-        destroyed() {
-          console.log('TreeBuilderHook destroyed');
-          // Clean up global reference
-          delete window.treeBuilderHook;
-        }
-      }
-      </script>
     </div>
     """
   end
@@ -89,10 +51,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
 
     ~H"""
-      <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100"
-      x-on:drop=" event.preventDefault();
-        window.treeBuilderHook && window.treeBuilderHook.pushEvent('treedrop', {target: event.target.id, element: dragging});
-        event.stopPropagation()"
+      <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100 drop-zone"
+      data-drop-zone={@section}
       id={@section}>
 
         <span class="text-base-content font-medium"><%= @conjunction %></span>
