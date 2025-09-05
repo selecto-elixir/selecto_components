@@ -26,7 +26,7 @@ defmodule SelectoComponents.Components.ListPicker do
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
         <div class="text-base-content">Available
           <div class="flex items-center gap-1">
-            <input x-model="filter" placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
+            <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
             <button x-on:click="filter = ''" x-show="filter != ''" class="btn btn-sm btn-square btn-outline" type="button">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
