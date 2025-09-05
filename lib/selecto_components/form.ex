@@ -24,7 +24,7 @@ defmodule SelectoComponents.Form do
       )
 
     ~H"""
-    <div class="border-solid border border-2 rounded-md border-gray-300 min-h-96 max-h-screen overflow-auto p-1 bg-base-100 text-base-content">
+    <div class="border-solid border border-2 rounded-md border-gray-300 p-1 bg-base-100 text-base-content">
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
         <!-- Error Display -->
         <div
@@ -87,7 +87,7 @@ defmodule SelectoComponents.Form do
 
         <div class={
           if @active_tab == "view" or @active_tab == nil do
-            "border-solid border rounded-md border-gray-300 min-h-96 max-h-screen overflow-auto p-1 bg-base-100 text-base-content"
+            "border-solid border rounded-md border-gray-300 p-1 bg-base-100 text-base-content"
           else
             "hidden"
           end

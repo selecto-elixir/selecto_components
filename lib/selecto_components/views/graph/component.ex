@@ -106,7 +106,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       <!-- Chart Container -->
       <div
         id={@chart_id}
-        phx-hook="SelectoComponents.Views.Graph.Component"
+        phx-hook=".GraphComponent"
         phx-update="ignore"
         data-chart-type={@chart_type}
         data-chart-data={Jason.encode!(@chart_data)}
@@ -116,6 +116,111 @@ defmodule SelectoComponents.Views.Graph.Component do
         style="height: 400px;">
         <canvas id={"#{@chart_id}-canvas"}></canvas>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".GraphComponent">
+      export default {
+        chart: null,
+        
+        mounted() {
+          console.log('GraphHook mounted');
+          this.initializeChart();
+        },
+
+        updated() {
+          console.log('GraphHook updated');
+          this.updateChart();
+        },
+
+        destroyed() {
+          console.log('GraphHook destroyed');
+          if (this.chart) {
+            this.chart.destroy();
+          }
+        },
+
+        initializeChart() {
+          const canvas = this.el.querySelector('canvas');
+          if (!canvas) {
+            console.error('Canvas not found for chart');
+            return;
+          }
+
+          if (!window.Chart) {
+            console.error('Chart.js not loaded. Please ensure Chart.js is included before this hook.');
+            // Show an error message in the chart container
+            this.el.innerHTML = `
+              <div class="flex items-center justify-center h-64 bg-red-50 rounded-lg border border-red-200">
+                <div class="text-center text-red-500">
+                  <div class="text-4xl mb-2">⚠️</div>
+                  <div class="font-semibold">Chart.js Not Loaded</div>
+                  <div class="text-sm mt-1">Chart.js library is required to display charts.</div>
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          const chartData = JSON.parse(this.el.dataset.chartData || '{}');
+          const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
+          const chartType = this.el.dataset.chartType || 'bar';
+
+          console.log('Initializing chart with:', { chartType, chartData, chartOptions });
+
+          const pushEvent = (event, payload) => {
+            this.pushEvent(event, payload);
+          };
+
+          try {
+            this.chart = new Chart(canvas, {
+              type: chartType,
+              data: chartData,
+              options: {
+                ...chartOptions,
+                onClick: (event, elements) => {
+                  if (elements.length > 0) {
+                    const element = elements[0];
+                    const datasetIndex = element.datasetIndex;
+                    const index = element.index;
+                    const dataset = chartData.datasets[datasetIndex];
+                    const value = dataset.data[index];
+                    const label = chartData.labels[index];
+
+                    const xFieldName = this.el.dataset.xAxis;
+                    const yFieldName = dataset.label;
+
+                    pushEvent('chart_click', {
+                      label: label,
+                      value: value,
+                      dataset_label: dataset.label,
+                      x_field: xFieldName,
+                      y_field: yFieldName
+                    });
+                  }
+                }
+              }
+            });
+            console.log('Chart initialized successfully');
+          } catch (error) {
+            console.error('Error initializing chart:', error);
+          }
+        },
+
+        updateChart() {
+          if (this.chart) {
+            const chartData = JSON.parse(this.el.dataset.chartData || '{}');
+            const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
+
+            this.chart.data = chartData;
+            this.chart.options = chartOptions;
+            this.chart.update();
+            console.log('Chart updated');
+          } else {
+            console.log('No chart to update, initializing...');
+            this.initializeChart();
+          }
+        }
+      }
+      </script>
 
       <!-- Chart Legend/Summary -->
       <div class="mt-4 text-sm text-gray-600">

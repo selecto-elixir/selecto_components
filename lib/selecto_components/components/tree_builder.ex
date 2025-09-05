@@ -11,7 +11,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook="SelectoComponents.Components.TreeBuilder" id="relay" class="grid grid-cols-2 gap-1 h-80" data-filter="">
+        <div phx-hook=".TreeBuilder" id="relay" class="grid grid-cols-2 gap-1 h-80" data-filter="">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
             <input type="text" id="filter-input" placeholder="Filter Available Items" class="sc-input" />
@@ -44,65 +44,74 @@ defmodule SelectoComponents.Components.TreeBuilder do
         </div>
       </div>
       
-      <script type="Phoenix.LiveView.ColocatedHook">
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".TreeBuilder">
       export default {
         draggedElement: null,
+        initialized: false,
         
         initializeDragDrop() {
+          // Avoid double initialization
+          if (this.initialized) {
+            return;
+          }
+          
           const hook = this;
           console.log('Initializing drag and drop');
           
-          // Drag and drop functionality
-          const draggables = this.el.querySelectorAll('[draggable="true"]');
-          const dropZones = this.el.querySelectorAll('.drop-zone, [data-drop-zone]');
-          
-          console.log(`Found ${draggables.length} draggables and ${dropZones.length} drop zones`);
-          
-          draggables.forEach(draggable => {
-            draggable.addEventListener('dragstart', (e) => {
+          // Use event delegation to handle dynamically added elements
+          this.el.addEventListener('dragstart', (e) => {
+            if (e.target.getAttribute('draggable') === 'true') {
               hook.draggedElement = e.target.getAttribute('data-item-id') || e.target.id;
               console.log('Dragging:', hook.draggedElement);
               e.dataTransfer.effectAllowed = 'move';
               e.dataTransfer.setData('text/plain', hook.draggedElement);
               e.target.style.opacity = '0.5';
-            });
-            
-            draggable.addEventListener('dragend', (e) => {
+            }
+          });
+          
+          this.el.addEventListener('dragend', (e) => {
+            if (e.target.getAttribute('draggable') === 'true') {
               e.target.style.opacity = '';
               console.log('Drag ended');
-            });
-            
-            draggable.addEventListener('dblclick', (e) => {
+            }
+          });
+          
+          this.el.addEventListener('dblclick', (e) => {
+            if (e.target.getAttribute('draggable') === 'true') {
               const elementId = e.target.getAttribute('data-item-id') || e.target.id;
               console.log('Double click on:', elementId);
               hook.pushEvent('treedrop', {
                 target: 'filters',
                 element: elementId
               });
-            });
+            }
           });
           
-          dropZones.forEach(zone => {
-            zone.addEventListener('dragover', (e) => {
+          this.el.addEventListener('dragover', (e) => {
+            if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
-              zone.classList.add('bg-blue-50');
-            });
-            
-            zone.addEventListener('dragleave', (e) => {
+              e.target.classList.add('bg-blue-50');
+            }
+          });
+          
+          this.el.addEventListener('dragleave', (e) => {
+            if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
               // Only remove highlight if we're leaving the drop zone entirely
-              if (!zone.contains(e.relatedTarget)) {
-                zone.classList.remove('bg-blue-50');
+              if (!e.target.contains(e.relatedTarget)) {
+                e.target.classList.remove('bg-blue-50');
               }
-            });
-            
-            zone.addEventListener('drop', (e) => {
+            }
+          });
+          
+          this.el.addEventListener('drop', (e) => {
+            if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
               e.preventDefault();
               e.stopPropagation();
-              zone.classList.remove('bg-blue-50');
+              e.target.classList.remove('bg-blue-50');
               
               const draggedId = e.dataTransfer.getData('text/plain') || hook.draggedElement;
-              const targetId = zone.getAttribute('data-drop-zone') || zone.id;
+              const targetId = e.target.getAttribute('data-drop-zone') || e.target.id;
               
               console.log('Drop event - dragged:', draggedId, 'target:', targetId);
               
@@ -114,8 +123,10 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 });
               }
               hook.draggedElement = null;
-            });
+            }
           });
+          
+          this.initialized = true;
         },
         
         initializeFilter() {
@@ -154,13 +165,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
         
         updated() {
           console.log('TreeBuilderHook updated');
-          // Re-initialize drag and drop after DOM updates
-          this.initializeDragDrop();
+          // No need to re-initialize since we're using event delegation
         },
         
         destroyed() {
           console.log('TreeBuilderHook destroyed');
           this.draggedElement = null;
+          this.initialized = false;
         }
       }
       </script>
