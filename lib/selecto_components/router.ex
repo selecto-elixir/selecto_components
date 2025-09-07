@@ -61,10 +61,8 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_event("agg_add_filters", params, state) do
-    case handle_agg_add_filters(params, state) do
-      {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
-    end
+    {:ok, updated_state} = handle_agg_add_filters(params, state)
+    {:ok, updated_state}
   end
 
   def handle_event(event, params, state) do
@@ -83,34 +81,28 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_info({:list_picker_remove, view, list, item}, state) do
-    case handle_list_picker_remove(view, list, item, state) do
-      {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
-    end
+    {:ok, updated_state} = handle_list_picker_remove(view, list, item, state)
+    {:ok, updated_state}
   end
 
   def handle_info({:list_picker_move, view, list, uuid, direction}, state) do
-    case handle_list_picker_move(view, list, uuid, direction, state) do
-      {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
-    end
+    {:ok, updated_state} = handle_list_picker_move(view, list, uuid, direction, state)
+    {:ok, updated_state}
   end
 
   def handle_info({:list_picker_add, view, list, item}, state) do
-    case handle_list_picker_add(view, list, item, state) do
-      {:ok, updated_state} -> {:ok, updated_state}
-      {:error, reason} -> {:error, State.set_execution_error(state, reason)}
-    end
+    {:ok, updated_state} = handle_list_picker_add(view, list, item, state)
+    {:ok, updated_state}
   end
 
-  def handle_info(message, state) do
+  def handle_info(_message, state) do
     # Fallback for unhandled messages
     {:ok, state}
   end
 
   # Private helper functions for business logic
 
-  defp handle_save_view(params, state) do
+  defp handle_save_view(_params, state) do
     # TODO: Implement save view logic
     {:ok, state}
   end
@@ -135,37 +127,37 @@ defmodule SelectoComponents.Router do
     end
   end
 
-  defp handle_tree_drop(params, state) do
+  defp handle_tree_drop(_params, state) do
     # TODO: Implement tree drop logic
     {:ok, state}
   end
 
-  defp handle_filter_remove(params, state) do
+  defp handle_filter_remove(_params, state) do
     # TODO: Implement filter remove logic
     {:ok, state}
   end
 
-  defp handle_agg_add_filters(params, state) do
+  defp handle_agg_add_filters(_params, state) do
     # TODO: Implement aggregate add filters logic
     {:ok, state}
   end
 
-  defp handle_list_picker_remove(view, list, item, state) do
+  defp handle_list_picker_remove(_view, _list, _item, state) do
     # TODO: Implement list picker remove logic
     {:ok, state}
   end
 
-  defp handle_list_picker_move(view, list, uuid, direction, state) do
+  defp handle_list_picker_move(_view, _list, _uuid, _direction, state) do
     # TODO: Implement list picker move logic
     {:ok, state}
   end
 
-  defp handle_list_picker_add(view, list, item, state) do
+  defp handle_list_picker_add(_view, _list, _item, state) do
     # TODO: Implement list picker add logic
     {:ok, state}
   end
 
-  defp apply_filters(selecto, filters) do
+  defp apply_filters(selecto, _filters) do
     # TODO: Implement filter application logic
     selecto
   end
