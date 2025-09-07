@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Router do
   @moduledoc """
   Event routing and business logic for SelectoComponents.
-  
+
   Handles event processing, query execution, and business logic
   without concern for UI rendering or direct state manipulation.
   """
@@ -33,15 +33,15 @@ defmodule SelectoComponents.Router do
   def handle_event("view-apply", params, state) do
     case execute_query(params, state) do
       {:ok, results, updated_selecto} ->
-        updated_state = 
+        updated_state =
           state
           |> State.update_view_config(params)
           |> State.update_selecto(updated_selecto)
           |> State.set_query_results(results)
           |> State.clear_execution_error()
-        
+
         {:ok, updated_state}
-      
+
       {:error, error} ->
         updated_state = State.set_execution_error(state, error)
         {:error, updated_state}
@@ -65,7 +65,7 @@ defmodule SelectoComponents.Router do
     {:ok, updated_state}
   end
 
-  def handle_event(event, params, state) do
+  def handle_event(event, _params, state) do
     # Fallback for unhandled events
     {:error, State.set_execution_error(state, "Unknown event: #{event}")}
   end
@@ -75,7 +75,7 @@ defmodule SelectoComponents.Router do
   """
   def handle_info(message, state)
 
-  def handle_info({:view_set, view}, state) do
+  def handle_info({:view_set, _view}, state) do
     # Handle view change logic
     {:ok, state}
   end
@@ -112,11 +112,11 @@ defmodule SelectoComponents.Router do
       # Process view configuration
       view_config = State.update_view_config(state, params).view_config
       selecto = state.selecto
-      
+
       # Apply filters and configuration to selecto
       filtered_selecto = apply_filters(selecto, view_config.filters)
-      
-      
+
+
       # Execute the query
       case Selecto.execute(filtered_selecto) do
         {:ok, results} -> {:ok, results, filtered_selecto}

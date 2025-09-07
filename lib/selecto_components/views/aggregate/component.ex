@@ -341,7 +341,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       _ -> 0
     end
 
-    num_aggregates = Enum.count(selected_fields) - num_group_by
+    #num_aggregates = Enum.count(selected_fields) - num_group_by
 
     group_by_mappings = Enum.take(field_mappings, num_group_by)
     aggregate_mappings = Enum.drop(field_mappings, num_group_by)
@@ -368,7 +368,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     aggregates_processed =
       Enum.zip(aggregate_mappings, aggregates)
-      |> Enum.map(fn {{alias, field}, agg} ->
+      |> Enum.map(fn {{alias, _field}, agg} ->
         # Get the proper column definition from selecto
         coldef = case agg do
           {:field, {_func, field_id}, _alias} when is_atom(field_id) ->
