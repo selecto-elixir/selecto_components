@@ -17,13 +17,13 @@ defmodule SelectoComponents.Views.Graph.Process do
   """
   def initial_state(selecto, _view) do
     domain = Selecto.domain(selecto)
-    
+
     %{
-      x_axis: Map.get(domain, :default_graph_x_axis, []) 
+      x_axis: Map.get(domain, :default_graph_x_axis, [])
               |> SelectoComponents.Helpers.build_initial_state(),
-      y_axis: Map.get(domain, :default_graph_y_axis, []) 
+      y_axis: Map.get(domain, :default_graph_y_axis, [])
               |> SelectoComponents.Helpers.build_initial_state(),
-      series: Map.get(domain, :default_graph_series, []) 
+      series: Map.get(domain, :default_graph_series, [])
               |> SelectoComponents.Helpers.build_initial_state(),
       chart_type: Map.get(domain, :default_chart_type, "bar"),
       options: Map.get(domain, :default_chart_options, %{})
@@ -41,16 +41,16 @@ defmodule SelectoComponents.Views.Graph.Process do
 
     # Process X-axis (grouping fields)
     x_axis_fields = x_axis_params |> group_by_fields(columns)
-    
-    # Process Y-axis (aggregate fields)  
+
+    # Process Y-axis (aggregate fields)
     y_axis_fields = y_axis_params |> aggregate_fields(columns)
-    
+
     # Process Series (optional secondary grouping)
     series_fields = series_params |> group_by_fields(columns)
 
     # Combine all grouping fields (x_axis + series)
     all_group_by = x_axis_fields ++ series_fields
-    
+
     # Build selected fields for query
     selected_fields = Enum.map(all_group_by, fn {_col, sel} -> sel end) ++ y_axis_fields
 
@@ -84,7 +84,7 @@ defmodule SelectoComponents.Views.Graph.Process do
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn field_config ->
       col = columns[field_config["field"]]
-      
+
       # Generate alias
       alias_name = case field_config["alias"] do
         "" -> field_config["field"]
@@ -96,14 +96,14 @@ defmodule SelectoComponents.Views.Graph.Process do
       field_selector = case col.type do
         x when x in [:naive_datetime, :utc_datetime] ->
           {:field, datetime_group_by_processor(col, field_config), alias_name}
-        
+
         :custom_column ->
           case Map.get(col, :requires_select) do
             x when is_list(x) -> {:row, col.requires_select, alias_name}
             x when is_function(x) -> {:row, col.requires_select.(field_config), alias_name}
             nil -> {col.colid, alias_name}
           end
-        
+
         _ ->
           {:field, col.colid, alias_name}
       end
@@ -140,16 +140,14 @@ defmodule SelectoComponents.Views.Graph.Process do
     end)
   end
 
-  @doc """
-  Process datetime fields for grouping (Year, Month, Day, etc.)
-  """
+  #Process datetime fields for grouping (Year, Month, Day, etc.)
   defp datetime_group_by_processor(col, config) do
     case config["format"] do
-      format when format in ~w(YYYY-MM-DD YYYY-MM YYYY) -> 
+      format when format in ~w(YYYY-MM-DD YYYY-MM YYYY) ->
         {:to_char, {col.colid, format}}
       format when format in ~w(Year Month Day Hour) ->
         {:extract, col.colid, String.downcase(format)}
-      _ -> 
+      _ ->
         col.colid
     end
   end
