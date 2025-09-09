@@ -184,7 +184,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
       id={@section}>
 
         <span class="text-base-content font-medium"><%= @conjunction %></span>
-        <div class="p-2 pl-6 border-solid border border-base-300 bg-base-100 text-base-content relative"
+        <div class="p-2 pl-6 pr-10 border-solid border border-base-300 bg-base-100 text-base-content relative"
           :for={ {s, index} <-
             Enum.filter( @filters, fn
             {{_uuid,section,_conf}, _i} -> section == @section
@@ -199,7 +199,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
               <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
               <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
-              <div class="absolute top-1 right-1">
+              <div class="absolute top-1 right-1 flex">
                 <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 
@@ -207,7 +207,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
-              <div class="absolute top-1 right-1">
+              <div class="absolute top-1 right-1 flex">
                 <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
               </div>
 

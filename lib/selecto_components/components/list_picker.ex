@@ -49,11 +49,11 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 relative p-1 hover:bg-base-300 min-h-10 text-base-content ">
+            class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 relative p-1 pr-28 hover:bg-base-300 min-h-10 text-base-content ">
 
             <%= render_slot(@item_form, {id, item, conf, index}) %>
 
-            <div class="absolute top-1 right-1">
+            <div class="absolute top-1 right-1 flex gap-1">
               <.sc_up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
               <.sc_down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
               <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
