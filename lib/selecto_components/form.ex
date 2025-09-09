@@ -36,34 +36,107 @@ defmodule SelectoComponents.Form do
           errors={Map.get(assigns, :component_errors, [])}
         />
         
-    <!-- Tab navigation using LiveView.JS for better client-side performance -->
-        <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "view"})}>
-          View Tab
-        </.sc_button>
-        <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}>
-          Filter Tab
-        </.sc_button>
-        <.sc_button
-          :if={@use_saved_views}
-          type="button"
-          phx-click={JS.push("set_active_tab", value: %{tab: "save"})}
-        >
-          Save View
-        </.sc_button>
-        <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "export"})}>
-          Export Tab
-        </.sc_button>
+        <!-- Main Navigation Tabs -->
+        <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
+          <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={@active_tab == "view" or @active_tab == nil}
+              aria-controls="main-tabpanel-view"
+              id="main-tab-view"
+              phx-click={JS.push("set_active_tab", value: %{tab: "view"})}
+              class={[
+                "px-4 py-2 text-sm font-medium transition-all duration-200",
+                "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+                if @active_tab == "view" or @active_tab == nil do
+                  "border-primary text-primary bg-primary/5"
+                else
+                  "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200"
+                end
+              ]}
+            >
+              View
+            </button>
+            
+            <button
+              type="button"
+              role="tab"
+              aria-selected={@active_tab == "filter"}
+              aria-controls="main-tabpanel-filter"
+              id="main-tab-filter"
+              phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}
+              class={[
+                "px-4 py-2 text-sm font-medium transition-all duration-200",
+                "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+                if @active_tab == "filter" do
+                  "border-primary text-primary bg-primary/5"
+                else
+                  "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200"
+                end
+              ]}
+            >
+              Filters
+            </button>
+            
+            <button
+              :if={@use_saved_views}
+              type="button"
+              role="tab"
+              aria-selected={@active_tab == "save"}
+              aria-controls="main-tabpanel-save"
+              id="main-tab-save"
+              phx-click={JS.push("set_active_tab", value: %{tab: "save"})}
+              class={[
+                "px-4 py-2 text-sm font-medium transition-all duration-200",
+                "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+                if @active_tab == "save" do
+                  "border-primary text-primary bg-primary/5"
+                else
+                  "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200"
+                end
+              ]}
+            >
+              Save View
+            </button>
+            
+            <button
+              type="button"
+              role="tab"
+              aria-selected={@active_tab == "export"}
+              aria-controls="main-tabpanel-export"
+              id="main-tab-export"
+              phx-click={JS.push("set_active_tab", value: %{tab: "export"})}
+              class={[
+                "px-4 py-2 text-sm font-medium transition-all duration-200",
+                "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+                if @active_tab == "export" do
+                  "border-primary text-primary bg-primary/5"
+                else
+                  "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200"
+                end
+              ]}
+            >
+              Export
+            </button>
+          </div>
+        </div>
 
-        <div class={
-          if @active_tab == "view" or @active_tab == nil do
-            "border-solid border rounded-md border-gray-300 p-1 bg-base-100 text-base-content"
-          else
-            "hidden"
-          end
-        }>
-          <span class="text-base-content font-medium">View Type</span>
+        <!-- Tab Content Panels -->
+        <div 
+          role="tabpanel"
+          id="main-tabpanel-view"
+          aria-labelledby="main-tab-view"
+          class={
+            if @active_tab == "view" or @active_tab == nil do
+              "border-solid border rounded-md border-gray-300 p-3 bg-base-100 text-base-content"
+            else
+              "hidden"
+            end
+          }
+        >
           <.live_component
-            module={SelectoComponents.Components.RadioTabs}
+            module={SelectoComponents.Components.Tabs}
             id="view_mode"
             fieldname="view_mode"
             view_mode={@view_config.view_mode}
@@ -82,14 +155,19 @@ defmodule SelectoComponents.Form do
           </.live_component>
         </div>
 
-        <div class={
-          if @active_tab == "filter" do
-            "border-solid border rounded-md border-grey dark:border-black h-90  p-1"
-          else
-            "hidden"
-          end
-        }>
-          FILTER SECTION
+        <div 
+          role="tabpanel"
+          id="main-tabpanel-filter"
+          aria-labelledby="main-tab-filter"
+          class={
+            if @active_tab == "filter" do
+              "border-solid border rounded-md border-gray-300 p-3 bg-base-100 text-base-content"
+            else
+              "hidden"
+            end
+          }
+        >
+          <h3 class="text-base-content font-medium mb-2">Filter Configuration</h3>
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
             id="filter_tree"
@@ -110,34 +188,56 @@ defmodule SelectoComponents.Form do
             </:filter_form>
           </.live_component>
         </div>
+        
         <div
           :if={@use_saved_views}
+          role="tabpanel"
+          id="main-tabpanel-save"
+          aria-labelledby="main-tab-save"
           class={
             if @active_tab == "save" do
-              "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1"
+              "border-solid border rounded-md border-gray-300 p-3 bg-base-100 text-base-content"
             else
               "hidden"
             end
           }
         >
-          Save View Section
-          HOw to ...
-          Save As: <.sc_input name="save_as" />
+          <h3 class="text-base-content font-medium mb-2">Save View Configuration</h3>
+          <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Save your current view configuration for later use.
+            </p>
+            <div class="flex items-center gap-2">
+              <label for="save_as" class="text-sm font-medium">Save As:</label>
+              <.sc_input name="save_as" id="save_as" placeholder="Enter view name..." class="flex-1" />
+            </div>
+          </div>
         </div>
-        <div class={
-          if @active_tab == "export" do
-            "border-solid border rounded-md border-grey dark:border-black h-90 overflow-auto p-1"
-          else
-            "hidden"
-          end
-        }>
-          EXPORT SECTION PLANNED
-
-          export format: spreadsheet, text, csv, PDF?, JSON, XML
-
-          download / send via email (add note)
-
-          collate and send to an email address in a column
+        
+        <div 
+          role="tabpanel"
+          id="main-tabpanel-export"
+          aria-labelledby="main-tab-export"
+          class={
+            if @active_tab == "export" do
+              "border-solid border rounded-md border-gray-300 p-3 bg-base-100 text-base-content"
+            else
+              "hidden"
+            end
+          }
+        >
+          <h3 class="text-base-content font-medium mb-2">Export Options</h3>
+          <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Export your data in various formats. Features coming soon:
+            </p>
+            <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <li>Export formats: Spreadsheet, CSV, JSON, XML, PDF</li>
+              <li>Download directly or send via email</li>
+              <li>Batch export with custom templates</li>
+              <li>Schedule automated exports</li>
+            </ul>
+          </div>
         </div>
 
         <.sc_button>Submit</.sc_button>
