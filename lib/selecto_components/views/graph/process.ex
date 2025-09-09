@@ -85,15 +85,19 @@ defmodule SelectoComponents.Views.Graph.Process do
     |> Enum.map(fn field_config ->
       col = columns[field_config["field"]]
 
-      # Generate alias
-      alias_name = case field_config["alias"] do
-        "" -> field_config["field"]
-        nil -> field_config["field"]
-        custom_alias -> custom_alias
-      end
+      # Skip if column not found
+      if col == nil do
+        nil
+      else
+        # Generate alias
+        alias_name = case field_config["alias"] do
+          "" -> field_config["field"]
+          nil -> field_config["field"]
+          custom_alias -> custom_alias
+        end
 
-      # Build field selector based on column type
-      field_selector = case col.type do
+        # Build field selector based on column type
+        field_selector = case col.type do
         x when x in [:naive_datetime, :utc_datetime] ->
           {:field, datetime_group_by_processor(col, field_config), alias_name}
 
@@ -106,10 +110,12 @@ defmodule SelectoComponents.Views.Graph.Process do
 
         _ ->
           {:field, col.colid, alias_name}
-      end
+        end
 
-      {col, field_selector}
+        {col, field_selector}
+      end
     end)
+    |> Enum.reject(&is_nil/1)
   end
 
   @doc """

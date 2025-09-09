@@ -61,9 +61,14 @@ defmodule SelectoComponents.Views.Detail.Process do
       subselect_configs = Enum.map(denorm_groups, fn {path, cols} ->
         config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
         # Add the actual columns to the config for later use
-        Map.put(config, :columns, Enum.map(cols, fn col -> 
+        config = Map.put(config, :columns, Enum.map(cols, fn col -> 
           {UUID.uuid4(), col, %{}}
         end))
+        
+        IO.puts("[DENORM DEBUG] Generated subselect config: #{inspect(config)}")
+        IO.puts("[DENORM DEBUG] Config key: #{config.key}, path: #{path}")
+        
+        config
       end)
       
       {normal_detail_columns, subselect_configs, denorm_groups}

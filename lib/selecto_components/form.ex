@@ -198,13 +198,32 @@ defmodule SelectoComponents.Form do
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
         view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
         socket = assign(socket, page_title: "View: #{view.name}")
+        # Normalize any existing query results before processing
+        socket = normalize_query_results(socket)
         socket = params_to_state(view.params, socket)
         {:noreply, view_from_params(view.params, socket)}
       end
 
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
+        # Normalize any existing query results before processing
+        socket = normalize_query_results(socket)
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
+      end
+      
+      defp normalize_query_results(socket) do
+        case socket.assigns[:query_results] do
+          {rows, columns, aliases} when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
+            # Results are in list format, convert to maps
+            normalized_rows = Enum.map(rows, fn row ->
+              Enum.zip(columns, row) |> Map.new()
+            end)
+            assign(socket, query_results: {normalized_rows, columns, aliases})
+          
+          _ ->
+            # Results are already normalized or empty
+            socket
+        end
       end
 
       ### accept default config
@@ -694,25 +713,106 @@ defmodule SelectoComponents.Form do
         selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
           denorm_groups = selecto.set.denorm_groups
           
+          IO.puts("[SUBSELECT DEBUG] Applying subselects for denorm_groups: #{inspect(denorm_groups)}")
+          
           # The selecto already has the selected columns set, we just need to add subselects
           # Use SubselectBuilder to add subselects for denormalizing columns
           try do
             # Add subselects for each denormalizing group
-            Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
+            result = Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
+              IO.puts("[SUBSELECT DEBUG] Adding subselect for #{relationship_path} with columns: #{inspect(columns)}")
               SelectoComponents.SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
             end)
+            
+            IO.puts("[SUBSELECT DEBUG] Subselects added successfully. Subselected field: #{inspect(Map.get(result.set, :subselected, []))}")
+            result
           rescue
             e ->
-              # Silently fall back to original selecto if subselects fail
+              IO.puts("[SUBSELECT ERROR] Failed to apply subselects: #{inspect(e)}")
+              IO.puts("[SUBSELECT ERROR] Stacktrace: #{inspect(__STACKTRACE__)}")
+              # Fall back to original selecto if subselects fail
               selecto
           end
         else
+          IO.puts("[SUBSELECT DEBUG] No denorm_groups to process")
           selecto
         end
 
+        # Generate SQL for debugging
+        try do
+          {sql, sql_params} = Selecto.to_sql(selecto)
+          IO.puts("[SUBSELECT SQL] Generated SQL: #{sql}")
+          IO.puts("[SUBSELECT SQL] Parameters: #{inspect(sql_params)}")
+        rescue
+          e ->
+            IO.puts("[SUBSELECT SQL ERROR] Failed to generate SQL: #{inspect(e)}")
+        end
+        
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
           {:ok, {rows, columns, aliases}} ->
+            
+            # Convert rows to maps if they're lists (happens with subselects)
+            # But only for detail views - aggregate views need list format
+            normalized_rows = if socket.assigns.view_config.view_mode == "detail" and 
+                                length(rows) > 0 and is_list(hd(rows)) do
+              IO.puts("[SUBSELECT NORMALIZE] Converting list rows to maps for detail view")
+              Enum.map(rows, fn row ->
+                Enum.zip(columns, row) |> Map.new()
+              end)
+            else
+              rows
+            end
+            
+            IO.puts("[SUBSELECT RESULT] Query executed successfully")
+            IO.puts("[SUBSELECT RESULT] Number of rows: #{length(normalized_rows)}")
+            IO.puts("[SUBSELECT RESULT] Columns: #{inspect(columns)}")
+            
+            # Check if any rows have subselect data
+            if length(normalized_rows) > 0 do
+              first_row = hd(normalized_rows)
+              
+              # Handle both map and list formats
+              cond do
+                is_map(first_row) ->
+                  IO.puts("[SUBSELECT RESULT] First row keys (map): #{inspect(Map.keys(first_row))}")
+                  
+                  # Check for any keys that might be subselect results
+                  Enum.each(Map.keys(first_row), fn key ->
+                    value = Map.get(first_row, key)
+                    cond do
+                      # Already decoded list of maps (subselect data)
+                      is_list(value) and length(value) > 0 and is_map(hd(value)) ->
+                        IO.puts("[SUBSELECT RESULT] Found decoded subselect data in column '#{key}': #{length(value)} items")
+                      
+                      # JSON string that needs decoding
+                      is_binary(value) ->
+                        case Jason.decode(value) do
+                          {:ok, decoded} when is_list(decoded) ->
+                            IO.puts("[SUBSELECT RESULT] Found JSON array in column '#{key}': #{length(decoded)} items")
+                          _ ->
+                            :ok
+                        end
+                      
+                      true ->
+                        :ok
+                    end
+                  end)
+                  
+                is_list(first_row) ->
+                  IO.puts("[SUBSELECT RESULT] First row (list format): #{length(first_row)} columns")
+                  IO.puts("[SUBSELECT RESULT] Column values: #{inspect(Enum.take(first_row, 3))}")
+                  
+                  # Check if last element might be subselect data
+                  last_elem = List.last(first_row)
+                  if is_list(last_elem) and length(last_elem) > 0 and is_map(hd(last_elem)) do
+                    IO.puts("[SUBSELECT RESULT] Found subselect data with #{length(last_elem)} items")
+                  end
+                  
+                true ->
+                  IO.puts("[SUBSELECT RESULT] Unexpected row format: #{inspect(first_row)}")
+              end
+            end
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
@@ -720,7 +820,7 @@ defmodule SelectoComponents.Form do
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
-              query_results: {rows, columns, aliases},
+              query_results: {normalized_rows, columns, aliases},
               used_params: params,
               applied_view: Map.get(params, "view_mode"),
               view_meta: view_meta,

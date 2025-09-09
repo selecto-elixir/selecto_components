@@ -80,8 +80,14 @@ defmodule SelectoComponents.SubselectBuilder do
       alias: relationship_path  # Use the relationship path as the alias
     }
     
+    IO.puts("[SUBSELECT BUILD] Config being passed to Selecto.subselect: #{inspect(config)}")
+    
     # Apply a single subselect for all fields of this relationship
-    Selecto.subselect(selecto, [config])
+    result = Selecto.subselect(selecto, [config])
+    
+    IO.puts("[SUBSELECT BUILD] After Selecto.subselect, subselected: #{inspect(Map.get(result.set, :subselected, []))}")
+    
+    result
   end
 
   defp build_subselect_alias(relationship_path) do
