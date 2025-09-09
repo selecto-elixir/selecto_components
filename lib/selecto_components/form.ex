@@ -1227,11 +1227,12 @@ defmodule SelectoComponents.Form do
     updated_set = Map.put(selecto.set, :pivot_config, pivot_config)
     
     # Also set a pivot_state for compatibility
+    # Use CTE strategy for better performance and cleaner SQL
     pivot_state = %{
       target_schema: target_table,
       join_path: join_path,
       preserve_filters: true,
-      subquery_strategy: :in
+      subquery_strategy: :cte
     }
     
     updated_set = Map.put(updated_set, :pivot_state, pivot_state)
