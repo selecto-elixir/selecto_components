@@ -113,62 +113,93 @@ defmodule SelectoComponents.Views.Detail.Component do
           <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
             <%= r %>
           </th>
+          <%!-- Add headers for subselect columns --%>
+          <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+            <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+              <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+                <%= Map.get(config, :title, config.key) %>
+              </th>
+            <% end %>
+          <% end %>
         </tr>
 
         <%!--  --%>
-        <%= for {resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) do %>
+        <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
+          <% # Process row data once at the beginning of the iteration %>
+          <% resrow_list = if is_tuple(resrow), do: Tuple.to_list(resrow), else: List.wrap(resrow) %>
+          <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
+          <% # Also create a map by column name for subselects %>
+          <% {_results, columns_from_query, _aliases} = @query_results %>
+          <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+          
           <tr class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top">
-            <% resrow_list = if is_tuple(resrow), do: Tuple.to_list(resrow), else: List.wrap(resrow) %>
-            <%= with row_data <- Enum.zip( @column_uuids, resrow_list ) |> Enum.into(%{}) do %>
-              <td class="px-1 py-1">
-                <%= i + 1 %>
-              </td>
-              <%!--  --%>
-              <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
-                class="px-1 py-1">
-                <%= with def <- Selecto.columns(@selecto)[col_conf["field"]] do %>
-                  <%= case def do %>
+            <td class="px-1 py-1">
+              <%= actual_idx + 1 %>
+            </td>
+            <%!-- Display regular columns --%>
+            <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
+              class="px-1 py-1 align-top">
+              <%= with def <- Selecto.columns(@selecto)[col_conf["field"]] do %>
+                <%= case def do %>
 
-                    <% %{format: :component} = def -> %>
-                      <%= def.component.(%{row: row_data[col_conf["uuid"]], config: col_conf}) %>
+                  <% %{format: :component} = def -> %>
+                    <%= def.component.(%{row: row_data_by_uuid[col_conf["uuid"]], config: col_conf}) %>
 
-                    <% %{format: :link} = def -> %>
-                      <%= with {href, txt} <- def.link_parts.(row_data[col_conf["uuid"]])  do %>
-                        <.link href={href} class="underline font-bold text-blue-500">
-                          <%= txt %>
-                        </.link>
-                      <% end %>
+                  <% %{format: :link} = def -> %>
+                    <%= with {href, txt} <- def.link_parts.(row_data_by_uuid[col_conf["uuid"]])  do %>
+                      <.link href={href} class="underline font-bold text-blue-500">
+                        <%= txt %>
+                      </.link>
+                    <% end %>
 
-                    <% _ -> %>
-                      <%= row_data[col_conf["uuid"]] %>
+                  <% _ -> %>
+                    <%= row_data_by_uuid[col_conf["uuid"]] %>
 
-                  <% end %>
                 <% end %>
-              </td>
+              <% end %>
+            </td>
+            
+            <%!-- Add subselect columns inline --%>
+            <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+              <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+                <% data = Map.get(row_data_by_column, config.key, []) %>
+                <% # Use actual_idx to ensure unique IDs %>
+                <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
+                <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
+                  <% # Parse the data here to ensure it's fresh %>
+                  <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data) %>
+                  <div id={"nested_#{unique_id}"}>
+                    <%= if length(parsed_data) > 0 do %>
+                      <table class="min-w-full border border-gray-300 rounded">
+                        <thead>
+                          <tr class="bg-gray-100">
+                            <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                              <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                                <%= SelectoComponents.Components.NestedTable.humanize_key(key) %>
+                              </th>
+                            <% end %>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
+                            <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+                              <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                <td class="px-2 py-1 text-xs text-gray-700">
+                                  <%= SelectoComponents.Components.NestedTable.format_value(Map.get(item, key, "")) %>
+                                </td>
+                              <% end %>
+                            </tr>
+                          <% end %>
+                        </tbody>
+                      </table>
+                    <% else %>
+                      <div class="text-xs text-gray-500 italic">No data</div>
+                    <% end %>
+                  </div>
+                </td>
+              <% end %>
             <% end %>
           </tr>
-          <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
-            <tr class="border-b bg-gray-50">
-              <td colspan={length(@aliases) + 1} class="p-2">
-                <% # We need to find which position in resrow_list contains the subselect data %>
-                <% # The subselect data should be in the position corresponding to the "film" column %>
-                <% {_results, columns_from_query, _aliases} = @query_results %>
-                <% row_map = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
-                
-                <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-                  <% # The data should be under the key that matches the subselect alias %>
-                  <% data = Map.get(row_map, config.key, []) %>
-                  
-                  <.nested_table
-                    data={data}
-                    config={config}
-                    row_id={"row_#{i}_#{config.key}"}
-                    expanded={false}
-                  />
-                <% end %>
-              </td>
-            </tr>
-          <% end %>
         <% end %>
       </table>
     </div>
@@ -177,9 +208,11 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("set_page", params, socket) do
     # send(self(), {:set_detail_page, params["page"]})
+    new_page = String.to_integer(params["page"])
+    
     socket =
       assign(socket,
-        view_meta: %{socket.assigns.view_meta | page: String.to_integer(params["page"])}
+        view_meta: %{socket.assigns.view_meta | page: new_page}
       )
 
     {:noreply, socket}

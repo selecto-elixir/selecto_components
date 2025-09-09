@@ -689,27 +689,21 @@ defmodule SelectoComponents.Form do
         # Apply automatic pivot if needed
         selecto = SelectoComponents.Form.maybe_auto_pivot(selecto, params)
         
-        IO.puts("[PIVOT DEBUG] About to execute query")
-        IO.puts("[PIVOT DEBUG] Selecto set after pivot: #{inspect(Map.get(selecto, :set))}")
-        IO.puts("[PIVOT DEBUG] Selecto domain: #{inspect(Map.keys(selecto.domain))}")
 
         # Apply subselects if denorm_groups were configured
         selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
           denorm_groups = selecto.set.denorm_groups
-          IO.puts("[SUBSELECT DEBUG] Found denorm groups: #{inspect(denorm_groups)}")
           
           # The selecto already has the selected columns set, we just need to add subselects
           # Use SubselectBuilder to add subselects for denormalizing columns
           try do
             # Add subselects for each denormalizing group
             Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-              IO.puts("[SUBSELECT DEBUG] Adding subselect for #{relationship_path} with columns: #{inspect(columns)}")
               SelectoComponents.SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
             end)
           rescue
             e ->
-              IO.puts("[SUBSELECT ERROR] Failed to add subselects: #{inspect(e)}")
-              IO.inspect(e, label: "Full error")
+              # Silently fall back to original selecto if subselects fail
               selecto
           end
         else
@@ -719,7 +713,6 @@ defmodule SelectoComponents.Form do
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
           {:ok, {rows, columns, aliases}} ->
-            IO.puts("[PIVOT DEBUG] Query executed successfully")
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
@@ -942,37 +935,27 @@ defmodule SelectoComponents.Form do
     # Check if automatic pivot is needed based on selected columns
     selected_columns = get_selected_columns_from_params(params)
     
-    IO.puts("[PIVOT DEBUG] Selected columns from params: #{inspect(selected_columns)}")
-    IO.puts("[PIVOT DEBUG] View mode: #{Map.get(params, "view_mode")}")
     
     if should_auto_pivot?(selecto, selected_columns) do
-      IO.puts("[PIVOT DEBUG] Should auto-pivot: true")
       target_table = find_pivot_target(selecto, selected_columns)
-      IO.puts("[PIVOT DEBUG] Target table found: #{inspect(target_table)}")
       
       if target_table do
         # Apply custom pivot for PagilaDomain structure
-        IO.puts("[PIVOT DEBUG] Applying custom pivot to: #{target_table}")
         
         # Find the join path to the target table
         join_path = find_join_path_to_target(selecto.domain, target_table)
-        IO.puts("[PIVOT DEBUG] Join path to target: #{inspect(join_path)}")
         
         if join_path do
           # Apply the custom pivot transformation
           pivoted = apply_custom_pivot(selecto, target_table, join_path)
-          IO.puts("[PIVOT DEBUG] Custom pivot applied successfully")
           pivoted
         else
-          IO.puts("[PIVOT DEBUG] Could not find join path to target table")
           selecto
         end
       else
-        IO.puts("[PIVOT DEBUG] No target table found, not pivoting")
         selecto
       end
     else
-      IO.puts("[PIVOT DEBUG] Should auto-pivot: false")
       selecto
     end
   end
@@ -1012,17 +995,14 @@ defmodule SelectoComponents.Form do
     # Check if selected columns justify a pivot
     source_columns = get_source_columns(selecto)
     source_column_strs = Enum.map(source_columns, &to_string/1)
-    IO.puts("[PIVOT DEBUG] Source columns: #{inspect(source_columns)}")
     
     # Categorize columns
     {source_cols, qualified_cols_by_table} = Enum.reduce(selected_columns, {[], %{}}, fn col, {src, qualified} ->
       col_str = to_string(col)
-      IO.puts("[PIVOT DEBUG] Checking column: #{col_str}")
       
       if String.contains?(col_str, ".") do
         # It's a qualified column
         parts = String.split(col_str, ".", parts: 2)
-        IO.puts("[PIVOT DEBUG] Qualified column parts: #{inspect(parts)}")
         [table_name, _column_name] = parts
         
         if table_name == "selecto_root" || table_name == "" do
@@ -1036,17 +1016,14 @@ defmodule SelectoComponents.Form do
       else
         # Unqualified column - check if it's from source
         if column_exists_in_source?(col, source_columns) do
-          IO.puts("[PIVOT DEBUG] Unqualified column #{col} is from source")
           {[col_str | src], qualified}
         else
-          IO.puts("[PIVOT DEBUG] Unqualified column #{col} NOT from source")
           # It's not from source, we can't pivot without knowing where it's from
           {src, qualified}
         end
       end
     end)
     
-    IO.puts("[PIVOT DEBUG] Source columns selected: #{inspect(source_cols)}")
     IO.puts("[PIVOT DEBUG] Qualified columns by table: #{inspect(qualified_cols_by_table)}")
     
     # Only pivot if:

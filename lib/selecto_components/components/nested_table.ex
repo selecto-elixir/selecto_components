@@ -112,18 +112,18 @@ defmodule SelectoComponents.Components.NestedTable do
     """
   end
 
-  # Private functions
+  # Helper functions (made public for inline rendering)
 
-  defp parse_subselect_data(nil), do: []
-  defp parse_subselect_data(data) when is_list(data), do: data
-  defp parse_subselect_data(data) when is_binary(data) do
+  def parse_subselect_data(nil), do: []
+  def parse_subselect_data(data) when is_list(data), do: data
+  def parse_subselect_data(data) when is_binary(data) do
     # Try to parse JSON string
     case Jason.decode(data) do
       {:ok, parsed} when is_list(parsed) -> parsed
       _ -> []
     end
   end
-  defp parse_subselect_data(_), do: []
+  def parse_subselect_data(_), do: []
 
   defp get_nested_value(item, field) do
     # Extract value from nested data
@@ -164,19 +164,19 @@ defmodule SelectoComponents.Components.NestedTable do
     end
   end
 
-  defp get_data_keys(parsed_data) do
+  def get_data_keys(parsed_data) do
     case parsed_data do
       [first | _] when is_map(first) -> Map.keys(first)
       _ -> []
     end
   end
 
-  defp humanize_key(key) when is_binary(key) do
+  def humanize_key(key) when is_binary(key) do
     key
     |> String.replace("_", " ")
     |> String.capitalize()
   end
-  defp humanize_key(key), do: to_string(key)
+  def humanize_key(key), do: to_string(key)
 
   defp extract_field_name(field) when is_binary(field) do
     case String.split(field, ".", parts: 2) do
@@ -185,10 +185,54 @@ defmodule SelectoComponents.Components.NestedTable do
     end
   end
 
-  defp format_value(value) when is_binary(value), do: value
-  defp format_value(value) when is_number(value), do: to_string(value)
-  defp format_value(nil), do: ""
-  defp format_value(value), do: inspect(value)
+  def format_value(value) when is_binary(value), do: value
+  def format_value(value) when is_number(value), do: to_string(value)
+  def format_value(nil), do: ""
+  def format_value(value), do: inspect(value)
+
+  @doc """
+  Renders an inline nested table for subselect results.
+  Designed to appear as part of the parent table column.
+  """
+  attr :data, :any, required: true
+  attr :config, :map, required: true
+  attr :row_id, :string, required: true
+
+  def inline_nested_table(assigns) do
+    assigns = assigns
+      |> Map.put(:parsed_data, parse_subselect_data(assigns.data))
+    
+    ~H"""
+    <div class="inline-nested-table">
+      <%= if length(@parsed_data) > 0 do %>
+        <table class="min-w-full border border-gray-300 rounded">
+          <thead>
+            <tr class="bg-gray-100">
+              <%= for key <- get_data_keys(@parsed_data) do %>
+                <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                  <%= humanize_key(key) %>
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for {item, _idx} <- Enum.with_index(@parsed_data) do %>
+              <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+                <%= for key <- get_data_keys(@parsed_data) do %>
+                  <td class="px-2 py-1 text-xs text-gray-700">
+                    <%= format_value(Map.get(item, key, "")) %>
+                  </td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="text-xs text-gray-500 italic">No data</div>
+      <% end %>
+    </div>
+    """
+  end
 
   @doc """
   Generates JavaScript hooks for nested table interactions
