@@ -43,15 +43,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   def group_by(group_by, columns) do
     group_by
     |> Map.values()
-    |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
+    |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
     |> Enum.map(fn e ->
-      col = columns[e["field"]]
+      col = columns[Map.get(e, "field")]
       # ????
       alias =
-        case e["alias"] do
-          "" -> e["field"]
-          nil -> e["field"]
-          _ -> e["alias"]
+        case Map.get(e, "alias") do
+          "" -> Map.get(e, "field")
+          nil -> Map.get(e, "field")
+          _ -> Map.get(e, "alias")
         end
 
       ### Group by filter, _select, format...
@@ -85,7 +85,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp datetime_gb_proc(col, config) do
     # "Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"
-    case config["format"] do
+    case Map.get(config, "format") do
       # x when x in ~w(Year Month Day) -> {:extract, col.colid, x}
       x when x in ~w(YYYY-MM-DD YYYY-MM YYYY) -> {:to_char, {col.colid, x}}
     end
@@ -94,25 +94,25 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   def aggregates(aggregates, _columns) do
     aggregates
     |> Map.values()
-    |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
+    |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
     |> Enum.map(fn e ->
       # ????
       alias =
-        case e["alias"] do
-          "" -> e["field"]
-          nil -> e["field"]
-          _ -> e["alias"]
+        case Map.get(e, "alias") do
+          "" -> Map.get(e, "field")
+          nil -> Map.get(e, "field")
+          _ -> Map.get(e, "alias")
         end
 
       {:field,
        {
          String.to_atom(
-           case e["format"] do
+           case Map.get(e, "format") do
              nil -> "count"
-             _ -> e["format"]
+             _ -> Map.get(e, "format")
            end
          ),
-         e["field"]
+         Map.get(e, "field")
        }, alias}
     end)
   end

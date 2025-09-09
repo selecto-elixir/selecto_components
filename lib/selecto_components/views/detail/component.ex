@@ -10,30 +10,43 @@ defmodule SelectoComponents.Views.Detail.Component do
     ### Todo Deal with page changes without executing again.......
     # |> IO.inspect()
     
-    # Check if we have valid query results and execution state
-    case {assigns[:executed], assigns.query_results} do
-      {false, _} ->
-        # Query is being executed or hasn't been executed yet
-        ~H"""
-        <div>
-          <div class="text-blue-500 italic p-4">Loading view...</div>
+    # Check for execution error first
+    if Map.get(assigns, :execution_error) do
+      # Error is already displayed by the form component wrapper
+      # Just show a message that view cannot be rendered
+      ~H"""
+      <div>
+        <div class="text-gray-500 italic p-4">
+          View cannot be displayed due to query error. Please check the error message above.
         </div>
-        """
-        
-      {true, nil} ->
-        # Executed but no results - this is an error state
-        ~H"""
-        <div>
-          <div class="text-red-500 p-4">
-            <div class="font-semibold">No Results</div>
-            <div class="text-sm mt-1">Query executed but returned no results.</div>
+      </div>
+      """
+    else
+      # Check if we have valid query results and execution state
+      case {assigns[:executed], assigns.query_results} do
+        {false, _} ->
+          # Query is being executed or hasn't been executed yet
+          ~H"""
+          <div>
+            <div class="text-blue-500 italic p-4">Loading view...</div>
           </div>
-        </div>
-        """
-      
-      {true, {results, _fields, aliases}} ->
-        # Valid results - proceed with normal rendering
-        render_detail_view(assign(assigns, :processed_results, {results, aliases}))
+          """
+          
+        {true, nil} ->
+          # Executed but no results - this is an error state
+          ~H"""
+          <div>
+            <div class="text-red-500 p-4">
+              <div class="font-semibold">No Results</div>
+              <div class="text-sm mt-1">Query executed but returned no results.</div>
+            </div>
+          </div>
+          """
+        
+        {true, {results, _fields, aliases}} ->
+          # Valid results - proceed with normal rendering
+          render_detail_view(assign(assigns, :processed_results, {results, aliases}))
+      end
     end
   end
 

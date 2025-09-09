@@ -49,17 +49,24 @@ defmodule SelectoComponents.Form do
                 {Selecto.Error.to_display_message(Map.get(assigns, :execution_error))}
               </div>
               <div
-                :if={Map.get(assigns, :execution_error) && Map.get(assigns, :execution_error).query}
+                :if={dev_mode?() && Map.get(assigns, :execution_error) && (Map.get(assigns, :execution_error).query || Map.get(assigns, :execution_error).details != %{})}
                 class="mt-2"
               >
                 <details class="text-xs text-red-600">
-                  <summary class="cursor-pointer">Show query details</summary>
-                  <pre class="mt-1 whitespace-pre-wrap"><%= Map.get(assigns, :execution_error).query %></pre>
+                  <summary class="cursor-pointer">Show error details (Dev Mode)</summary>
+                  <div :if={Map.get(assigns, :execution_error).query} class="mt-1">
+                    <strong>Query:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap"><%= Map.get(assigns, :execution_error).query %></pre>
+                  </div>
                   <div :if={
                     Map.get(assigns, :execution_error).params &&
                       length(Map.get(assigns, :execution_error).params) > 0
                   }>
                     <strong>Parameters:</strong> {inspect(Map.get(assigns, :execution_error).params)}
+                  </div>
+                  <div :if={Map.get(assigns, :execution_error).details && map_size(Map.get(assigns, :execution_error).details) > 0}>
+                    <strong>Details:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap"><%= inspect(Map.get(assigns, :execution_error).details, pretty: true) %></pre>
                   </div>
                 </details>
               </div>
@@ -180,6 +187,9 @@ defmodule SelectoComponents.Form do
   defmacro __using__(_opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
+      
+      # Import error handling helpers
+      import SelectoComponents.Form, only: [dev_mode?: 0, sanitize_error_for_environment: 1]
 
       import SelectoComponents.Helpers
       import SelectoComponents.Helpers.Filters
@@ -203,7 +213,7 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("set_active_tab", params, socket) do
-        {:noreply, assign(socket, active_tab: params["tab"])}
+        {:noreply, assign(socket, active_tab: Map.get(params, "tab"))}
       end
 
       @impl true
@@ -218,11 +228,11 @@ defmodule SelectoComponents.Form do
 
       ### Save tab open. save view!
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
-        Selecto.Helpers.check_safe_phrase(params["save_as"])
+        Selecto.Helpers.check_safe_phrase(Map.get(params, "save_as"))
 
         view =
           socket.assigns.saved_view_module.save_view(
-            params["save_as"],
+            Map.get(params, "save_as"),
             socket.assigns.saved_view_context,
             params
           )
@@ -237,8 +247,8 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_event("treedrop", par, socket) do
-        new_filter = par["element"]
-        target = par["target"]
+        new_filter = Map.get(par, "element")
+        target = Map.get(par, "target")
 
         socket =
           assign(socket,
@@ -273,7 +283,7 @@ defmodule SelectoComponents.Form do
               | filters:
                   socket.assigns.view_config.filters
                   |> Enum.filter(fn
-                    {u, s, _c} -> u != params["uuid"] && s != params["uuid"]
+                    {u, s, _c} -> u != Map.get(params, "uuid") && s != Map.get(params, "uuid")
                   end)
             }
           )
@@ -348,7 +358,7 @@ defmodule SelectoComponents.Form do
               | view_mode: new_view_mode,
                 filters:
                   Enum.filter(socket.assigns.view_config.filters, fn
-                    {_id, "filters", %{} = f} -> !Map.has_key?(params, f["filter"])
+                    {_id, "filters", %{} = f} -> !Map.has_key?(params, Map.get(f, "filter"))
                     _ -> true
                   end) ++
                     Enum.map(params, fn {f, v} ->
@@ -399,8 +409,8 @@ defmodule SelectoComponents.Form do
 
       def handle_event("chart_click", params, socket) do
         # Extract the label/value from the clicked chart element
-        label = params["label"]
-        _value = params["value"]
+        label = Map.get(params, "label")
+        _value = Map.get(params, "value")
         
         # Get current view mode and graph configuration
         current_view_mode = socket.assigns.view_config.view_mode
@@ -606,12 +616,12 @@ defmodule SelectoComponents.Form do
 
       defp view_filter_process(params, item_name) do
         Map.get(params, item_name, %{})
-        |> Enum.sort(fn {_, %{"index" => index}}, {_, %{"index" => index2}} ->
-          String.to_integer(index) <= String.to_integer(index2)
+        |> Enum.sort(fn {_, f1}, {_, f2} ->
+          String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
         end)
         |> Enum.reduce([], fn
-          {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, f["section"], conj}]
-          {u, f}, acc -> acc ++ [{u, f["section"], f}]
+          {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
+          {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
         end)
       end
 
@@ -655,12 +665,12 @@ defmodule SelectoComponents.Form do
         filters_by_section =
           Map.values(Map.get(params, "filters", %{}))
           |> Enum.reduce(%{}, fn f, acc ->
-            Map.put(acc, f["section"], Map.get(acc, f["section"], []) ++ [f])
+            Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
           end)
 
         filtered = filter_recurse(selecto, filters_by_section, "filters")
 
-        selected_view = String.to_atom(params["view_mode"])
+        selected_view = String.to_atom(Map.get(params, "view_mode"))
 
         {_, module, _, opt} =
           Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
@@ -676,9 +686,17 @@ defmodule SelectoComponents.Form do
 
         selecto = Map.put(selecto, :set, view_set)
 
+        # Apply automatic pivot if needed
+        selecto = SelectoComponents.Form.maybe_auto_pivot(selecto, params)
+        
+        IO.puts("[PIVOT DEBUG] About to execute query")
+        IO.puts("[PIVOT DEBUG] Selecto set after pivot: #{inspect(Map.get(selecto, :set))}")
+        IO.puts("[PIVOT DEBUG] Selecto domain: #{inspect(Map.keys(selecto.domain))}")
+
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
           {:ok, {rows, columns, aliases}} ->
+            IO.puts("[PIVOT DEBUG] Query executed successfully")
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
@@ -688,22 +706,49 @@ defmodule SelectoComponents.Form do
               field_filters: Selecto.filters(selecto),
               query_results: {rows, columns, aliases},
               used_params: params,
-              applied_view: params["view_mode"],
+              applied_view: Map.get(params, "view_mode"),
               view_meta: view_meta,
               executed: true,
               execution_error: nil
             )
 
           {:error, %Selecto.Error{} = error} ->
+            sanitized_error = sanitize_error_for_environment(error)
+            if dev_mode?() do
+              IO.puts("[QUERY ERROR] Selecto.Error: #{inspect(error)}")
+            end
+            
             assign(socket,
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
               query_results: nil,
               used_params: params,
-              applied_view: params["view_mode"],
+              applied_view: Map.get(params, "view_mode"),
               executed: false,
-              execution_error: error
+              execution_error: sanitized_error
+            )
+            
+          {:error, error} ->
+            sanitized_error = sanitize_error_for_environment(%Selecto.Error{
+              type: :query_error, 
+              message: inspect(error),
+              details: %{original_error: error}
+            })
+            
+            if dev_mode?() do
+              IO.puts("[QUERY ERROR] Generic error: #{inspect(error)}")
+            end
+            
+            assign(socket,
+              selecto: selecto,
+              columns: columns_list,
+              field_filters: Selecto.filters(selecto),
+              query_results: nil,
+              used_params: params,
+              applied_view: Map.get(params, "view_mode"),
+              executed: false,
+              execution_error: sanitized_error
             )
         end
       end
@@ -747,7 +792,7 @@ defmodule SelectoComponents.Form do
         # Key parameters that should trigger a view reset
         significant_changes = [
           # View mode change (aggregate vs detail vs graph)
-          params["view_mode"] != used_params["view_mode"],
+          Map.get(params, "view_mode") != Map.get(used_params, "view_mode"),
 
           # Group by changes in aggregate view
           view_specific_params_changed?(params, used_params, "group_by"),
@@ -866,5 +911,385 @@ defmodule SelectoComponents.Form do
     Map.values(Selecto.columns(selecto))
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
+  end
+
+  # Auto-pivot detection and application
+  # These functions are used within the macro expansion
+  def maybe_auto_pivot(selecto, params) do
+    # Check if automatic pivot is needed based on selected columns
+    selected_columns = get_selected_columns_from_params(params)
+    
+    IO.puts("[PIVOT DEBUG] Selected columns from params: #{inspect(selected_columns)}")
+    IO.puts("[PIVOT DEBUG] View mode: #{Map.get(params, "view_mode")}")
+    
+    if should_auto_pivot?(selecto, selected_columns) do
+      IO.puts("[PIVOT DEBUG] Should auto-pivot: true")
+      target_table = find_pivot_target(selecto, selected_columns)
+      IO.puts("[PIVOT DEBUG] Target table found: #{inspect(target_table)}")
+      
+      if target_table do
+        # Apply custom pivot for PagilaDomain structure
+        IO.puts("[PIVOT DEBUG] Applying custom pivot to: #{target_table}")
+        
+        # Find the join path to the target table
+        join_path = find_join_path_to_target(selecto.domain, target_table)
+        IO.puts("[PIVOT DEBUG] Join path to target: #{inspect(join_path)}")
+        
+        if join_path do
+          # Apply the custom pivot transformation
+          pivoted = apply_custom_pivot(selecto, target_table, join_path)
+          IO.puts("[PIVOT DEBUG] Custom pivot applied successfully")
+          pivoted
+        else
+          IO.puts("[PIVOT DEBUG] Could not find join path to target table")
+          selecto
+        end
+      else
+        IO.puts("[PIVOT DEBUG] No target table found, not pivoting")
+        selecto
+      end
+    else
+      IO.puts("[PIVOT DEBUG] Should auto-pivot: false")
+      selecto
+    end
+  end
+
+  def get_selected_columns_from_params(params) do
+    view_mode = Map.get(params, "view_mode", "")
+    
+    case view_mode do
+      "aggregate" ->
+        group_by_cols = Map.get(params, "group_by", %{}) 
+                       |> Map.values() 
+                       |> Enum.map(fn item -> Map.get(item, "field") end)
+        
+        aggregate_cols = Map.get(params, "aggregate", %{})
+                        |> Map.values()
+                        |> Enum.map(fn item -> Map.get(item, "field") end)
+        
+        group_by_cols ++ aggregate_cols
+        
+      "detail" ->
+        # Handle the selected map structure from the UI
+        selected_map = Map.get(params, "selected", %{})
+        
+        # Extract field names from the selected map
+        Map.values(selected_map)
+        |> Enum.map(fn item ->
+          Map.get(item, "field")
+        end)
+        |> Enum.filter(&(&1 != nil))
+        
+      _ ->
+        []
+    end
+  end
+
+  def should_auto_pivot?(selecto, selected_columns) do
+    # Check if selected columns justify a pivot
+    source_columns = get_source_columns(selecto)
+    source_column_strs = Enum.map(source_columns, &to_string/1)
+    IO.puts("[PIVOT DEBUG] Source columns: #{inspect(source_columns)}")
+    
+    # Categorize columns
+    {source_cols, qualified_cols_by_table} = Enum.reduce(selected_columns, {[], %{}}, fn col, {src, qualified} ->
+      col_str = to_string(col)
+      IO.puts("[PIVOT DEBUG] Checking column: #{col_str}")
+      
+      if String.contains?(col_str, ".") do
+        # It's a qualified column
+        parts = String.split(col_str, ".", parts: 2)
+        IO.puts("[PIVOT DEBUG] Qualified column parts: #{inspect(parts)}")
+        [table_name, _column_name] = parts
+        
+        if table_name == "selecto_root" || table_name == "" do
+          # It's actually a source column with qualification
+          {[col_str | src], qualified}
+        else
+          # Group by table name
+          current = Map.get(qualified, table_name, [])
+          {src, Map.put(qualified, table_name, [col_str | current])}
+        end
+      else
+        # Unqualified column - check if it's from source
+        if column_exists_in_source?(col, source_columns) do
+          IO.puts("[PIVOT DEBUG] Unqualified column #{col} is from source")
+          {[col_str | src], qualified}
+        else
+          IO.puts("[PIVOT DEBUG] Unqualified column #{col} NOT from source")
+          # It's not from source, we can't pivot without knowing where it's from
+          {src, qualified}
+        end
+      end
+    end)
+    
+    IO.puts("[PIVOT DEBUG] Source columns selected: #{inspect(source_cols)}")
+    IO.puts("[PIVOT DEBUG] Qualified columns by table: #{inspect(qualified_cols_by_table)}")
+    
+    # Only pivot if:
+    # 1. There are qualified columns from other tables
+    # 2. NO source columns are selected (they wouldn't be available after pivot)
+    # 3. All qualified columns are from tables accessible from a single pivot target
+    
+    result = case Map.keys(qualified_cols_by_table) do
+      [] ->
+        # No qualified columns from other tables
+        IO.puts("[PIVOT DEBUG] No qualified columns from other tables - no pivot")
+        false
+      table_names ->
+        if source_cols != [] do
+          IO.puts("[PIVOT DEBUG] Source columns selected: #{inspect(source_cols)} - NO PIVOT")
+          false
+        else
+          # Check if we can find a pivot target that gives access to all tables
+          # For now, use a simple heuristic: pivot to the first/root table in the list
+          # In PagilaDomain: film can access language, but language can't access film
+          # So if we have [film, language], we can pivot to film
+          
+          # Simple approach: try to pivot to the first table and assume it has access to others
+          # More sophisticated would be to check the actual join hierarchy
+          pivot_target = hd(table_names)
+          IO.puts("[PIVOT DEBUG] Multiple tables #{inspect(table_names)}, attempting pivot to #{pivot_target}")
+          IO.puts("[PIVOT DEBUG] TODO: Should verify #{pivot_target} has access to other tables")
+          
+          # For now, allow pivot to the first table
+          # This works for film -> language case
+          true
+        end
+    end
+    
+    IO.puts("[PIVOT DEBUG] Final should_auto_pivot result: #{result}")
+    result
+  end
+
+  def get_source_columns(selecto) do
+    # Get columns from the source table
+    source_config = selecto.domain.source
+    Map.keys(source_config.columns || %{})
+  end
+
+  def column_exists_in_source?(column_name, source_columns) do
+    # Check if column exists in source (handle string/atom conversion)
+    col_atom = if is_binary(column_name), do: String.to_atom(column_name), else: column_name
+    col_string = if is_atom(column_name), do: Atom.to_string(column_name), else: column_name
+    
+    Enum.any?(source_columns, fn source_col ->
+      source_col == col_atom or source_col == col_string or 
+      Atom.to_string(source_col) == col_string
+    end)
+  end
+
+  def find_pivot_target(selecto, selected_columns) do
+    # Find the target table from qualified column names
+    
+    IO.puts("[PIVOT DEBUG] Finding pivot target for columns: #{inspect(selected_columns)}")
+    
+    # Extract table names from qualified columns
+    table_targets = 
+      selected_columns
+      |> Enum.map(fn col ->
+        col_str = to_string(col)
+        if String.contains?(col_str, ".") do
+          [table_name, _] = String.split(col_str, ".", parts: 2)
+          result = String.to_atom(table_name)
+          IO.puts("[PIVOT DEBUG] Extracted table #{result} from #{col_str}")
+          result
+        else
+          nil
+        end
+      end)
+      |> Enum.filter(&(&1 != nil))
+      |> Enum.uniq()
+    
+    IO.puts("[PIVOT DEBUG] Table targets: #{inspect(table_targets)}")
+    
+    # If we have explicit table references, determine the best pivot target
+    if length(table_targets) > 0 do
+      # When there are multiple tables, we need to find the "root" table
+      # that provides access to all the others
+      target = if length(table_targets) > 1 do
+        # Multiple tables - need to pick the one that can access the others
+        # In the hierarchy: actor -> film_actors -> film -> language
+        # If we have [language, film], we should pivot to film (not language)
+        # because film can access language, but language can't access film
+        
+        # Simple heuristic: prefer tables that appear earlier in the join chain
+        # film comes before language in the hierarchy
+        priority_order = [:film, :film_actors, :language, :category, :inventory, :rental, :customer]
+        
+        sorted_targets = Enum.sort_by(table_targets, fn target ->
+          # Find index in priority order, or put at end if not found
+          Enum.find_index(priority_order, &(&1 == target)) || 999
+        end)
+        
+        selected_target = hd(sorted_targets)
+        IO.puts("[PIVOT DEBUG] Multiple table targets: #{inspect(table_targets)}, sorted: #{inspect(sorted_targets)}, using: #{selected_target}")
+        selected_target
+      else
+        target = hd(table_targets)
+        IO.puts("[PIVOT DEBUG] Using single table target: #{target}")
+        target
+      end
+      
+      target
+    else
+      # Fall back to checking schemas for simple column names
+      schemas = Map.get(selecto.domain, :schemas, %{})
+      IO.puts("[PIVOT DEBUG] Checking schemas: #{inspect(Map.keys(schemas))}")
+      
+      result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
+        schema_columns = Map.keys(schema_config.columns || %{})
+        
+        if has_all_columns?(selected_columns, schema_columns) do
+          IO.puts("[PIVOT DEBUG] Schema #{schema_name} has all columns")
+          schema_name
+        else
+          nil
+        end
+      end)
+      
+      IO.puts("[PIVOT DEBUG] Schema search result: #{inspect(result)}") 
+      result
+    end
+  end
+
+  def has_all_columns?(selected_columns, schema_columns) do
+    # Check if schema has all selected columns
+    # Handle both simple and qualified column names
+    Enum.all?(selected_columns, fn col ->
+      col_str = to_string(col)
+      
+      # If it's a qualified column name, extract just the column part
+      col_name = 
+        if String.contains?(col_str, ".") do
+          [_, column_name] = String.split(col_str, ".", parts: 2)
+          column_name
+        else
+          col_str
+        end
+      
+      col_atom = if is_binary(col_name), do: String.to_atom(col_name), else: col_name
+      
+      Enum.any?(schema_columns, fn schema_col ->
+        schema_col == col_atom or 
+        Atom.to_string(schema_col) == col_name
+      end)
+    end)
+  end
+
+  # Find the join path from source to target table in PagilaDomain structure
+  def find_join_path_to_target(domain, target_table) do
+    target_str = Atom.to_string(target_table)
+    
+    # Search through the joins hierarchy
+    case Map.get(domain, :joins) do
+      nil -> 
+        nil
+      joins ->
+        search_joins_recursive(joins, target_str, [])
+    end
+  end
+
+  defp search_joins_recursive(joins, target, path) when is_map(joins) do
+    Enum.find_value(joins, fn {join_name, join_config} ->
+      join_name_str = Atom.to_string(join_name)
+      
+      # Check if this is the target
+      if join_name_str == target do
+        path ++ [join_name]
+      else
+        # Check nested joins
+        case Map.get(join_config, :joins) do
+          nil -> nil
+          nested_joins ->
+            search_joins_recursive(nested_joins, target, path ++ [join_name])
+        end
+      end
+    end)
+  end
+
+  defp search_joins_recursive(_, _, _), do: nil
+
+  # Apply custom pivot transformation
+  def apply_custom_pivot(selecto, target_table, join_path) do
+    IO.puts("[PIVOT DEBUG] Applying custom pivot with path: #{inspect(join_path)}")
+    
+    # Store the pivot configuration in the selecto set
+    pivot_config = %{
+      target_table: target_table,
+      join_path: join_path,
+      original_source: :actor,  # The original source table
+      original_filters: Map.get(selecto.set, :filtered, [])
+    }
+    
+    # Update the selecto set with pivot information
+    # This will be used by Selecto's query builder to restructure the query
+    updated_set = Map.put(selecto.set, :pivot_config, pivot_config)
+    
+    # Also set a pivot_state for compatibility
+    # Use CTE strategy for better performance and cleaner SQL
+    pivot_state = %{
+      target_schema: target_table,
+      join_path: join_path,
+      preserve_filters: true,
+      subquery_strategy: :cte
+    }
+    
+    updated_set = Map.put(updated_set, :pivot_state, pivot_state)
+    
+    IO.puts("[PIVOT DEBUG] Updated set with pivot config: #{inspect(updated_set)}")
+    
+    Map.put(selecto, :set, updated_set)
+  end
+  
+  # Environment detection helpers
+  def dev_mode? do
+    # Check if we're in dev or test environment
+    # You can also use Mix.env() if available, or Application.get_env
+    case Application.get_env(:selecto_components, :environment) do
+      nil ->
+        # Fall back to checking common indicators
+        System.get_env("MIX_ENV") in ["dev", "test", nil]
+      :prod ->
+        false
+      :production ->
+        false
+      _ ->
+        true
+    end
+  end
+  
+  def sanitize_error_for_environment(error) do
+    if dev_mode?() do
+      # In dev mode, return the full error with all details
+      error
+    else
+      # In production, sanitize the error to remove sensitive information
+      %Selecto.Error{
+        type: error.type,
+        message: get_safe_error_message(error),
+        details: %{},  # Remove all details in production
+        query: nil,     # Never expose queries in production
+        params: []      # Never expose params in production
+      }
+    end
+  end
+  
+  defp get_safe_error_message(%Selecto.Error{type: type}) do
+    # Return user-friendly messages based on error type
+    case type do
+      :connection_error ->
+        "Unable to connect to the database. Please try again later."
+      :query_error ->
+        "An error occurred while processing your request. Please try again."
+      :timeout_error ->
+        "The request took too long to complete. Please try again with a simpler query."
+      :permission_error ->
+        "You don't have permission to access this data."
+      :validation_error ->
+        "The request contains invalid parameters. Please check your inputs."
+      _ ->
+        "An unexpected error occurred. Please try again or contact support if the problem persists."
+    end
   end
 end
