@@ -3,6 +3,7 @@ defmodule SelectoComponents.Form do
 
   import SelectoComponents.Components.Common
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.ErrorHandling.ErrorDisplay
 
   @doc """
   Form for configuing Selecto View
@@ -26,53 +27,14 @@ defmodule SelectoComponents.Form do
     ~H"""
     <div class="border-solid border border-2 rounded-md border-gray-300 p-1 bg-base-100 text-base-content">
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
-        <!-- Error Display -->
-        <div
-          :if={Map.get(assigns, :execution_error)}
-          class="bg-red-50 border border-red-200 rounded-md p-4 mb-4"
-        >
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">
-                Query Execution Failed
-              </h3>
-              <div class="mt-2 text-sm text-red-700">
-                {Selecto.Error.to_display_message(Map.get(assigns, :execution_error))}
-              </div>
-              <div
-                :if={dev_mode?() && Map.get(assigns, :execution_error) && (Map.get(assigns, :execution_error).query || Map.get(assigns, :execution_error).details != %{})}
-                class="mt-2"
-              >
-                <details class="text-xs text-red-600">
-                  <summary class="cursor-pointer">Show error details (Dev Mode)</summary>
-                  <div :if={Map.get(assigns, :execution_error).query} class="mt-1">
-                    <strong>Query:</strong>
-                    <pre class="mt-1 whitespace-pre-wrap"><%= Map.get(assigns, :execution_error).query %></pre>
-                  </div>
-                  <div :if={
-                    Map.get(assigns, :execution_error).params &&
-                      length(Map.get(assigns, :execution_error).params) > 0
-                  }>
-                    <strong>Parameters:</strong> {inspect(Map.get(assigns, :execution_error).params)}
-                  </div>
-                  <div :if={Map.get(assigns, :execution_error).details && map_size(Map.get(assigns, :execution_error).details) > 0}>
-                    <strong>Details:</strong>
-                    <pre class="mt-1 whitespace-pre-wrap"><%= inspect(Map.get(assigns, :execution_error).details, pretty: true) %></pre>
-                  </div>
-                </details>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Comprehensive Error Display Component -->
+        <.live_component
+          :if={Map.get(assigns, :execution_error) || Map.get(assigns, :component_errors, [])}
+          module={ErrorDisplay}
+          id="error_display"
+          error={Map.get(assigns, :execution_error)}
+          errors={Map.get(assigns, :component_errors, [])}
+        />
         
     <!-- Tab navigation using LiveView.JS for better client-side performance -->
         <.sc_button type="button" phx-click={JS.push("set_active_tab", value: %{tab: "view"})}>
@@ -193,6 +155,48 @@ defmodule SelectoComponents.Form do
 
       import SelectoComponents.Helpers
       import SelectoComponents.Helpers.Filters
+      alias SelectoComponents.ErrorHandling.ErrorCategorizer
+
+      # Error handling wrapper for handle_event callbacks
+      defp with_error_handling(socket, operation_name, fun) do
+        try do
+          fun.()
+        rescue
+          e in RuntimeError ->
+            handle_component_error(socket, e, operation_name, :runtime_error)
+          
+          e in ArgumentError ->
+            handle_component_error(socket, e, operation_name, :argument_error)
+            
+          e in KeyError ->
+            handle_component_error(socket, e, operation_name, :key_error)
+            
+          e ->
+            handle_component_error(socket, e, operation_name, :unknown_error)
+        catch
+          :exit, reason ->
+            handle_component_error(socket, {:exit, reason}, operation_name, :exit)
+            
+          kind, reason ->
+            handle_component_error(socket, {kind, reason}, operation_name, :catch)
+        end
+      end
+
+      defp handle_component_error(socket, error, operation_name, error_type) do
+        categorized = ErrorCategorizer.categorize(error)
+        
+        if dev_mode?() do
+          IO.puts("[COMPONENT ERROR - #{operation_name}] Type: #{error_type}")
+          IO.puts("[COMPONENT ERROR] Details: #{inspect(error)}")
+          IO.puts("[COMPONENT ERROR] Categorized: #{inspect(categorized)}")
+        end
+        
+        # Add error to component_errors list
+        existing_errors = Map.get(socket.assigns, :component_errors, [])
+        new_errors = [Map.put(categorized, :operation, operation_name) | existing_errors] |> Enum.take(5)
+        
+        {:noreply, assign(socket, component_errors: new_errors)}
+      end
 
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
@@ -237,12 +241,14 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_event("view-validate", params, socket) do
-        # Process all parameters including view-specific configs (aggregates, group_by, etc.)
-        socket = params_to_state(params, socket)
+        with_error_handling(socket, "view-validate", fn ->
+          # Process all parameters including view-specific configs (aggregates, group_by, etc.)
+          socket = params_to_state(params, socket)
 
-        # Don't execute view on validation - only on submit
-        # This allows users to configure aggregates without immediate updates
-        {:noreply, socket}
+          # Don't execute view on validation - only on submit
+          # This allows users to configure aggregates without immediate updates
+          {:noreply, socket}
+        end)
       end
 
       ### Save tab open. save view!
@@ -261,7 +267,9 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("view-apply", params, socket) do
-        {:noreply, view_from_params(params, state_to_url(params, socket))}
+        with_error_handling(socket, "view-apply", fn ->
+          {:noreply, view_from_params(params, state_to_url(params, socket))}
+        end)
       end
 
       @impl true
