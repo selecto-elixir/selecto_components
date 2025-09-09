@@ -693,6 +693,29 @@ defmodule SelectoComponents.Form do
         IO.puts("[PIVOT DEBUG] Selecto set after pivot: #{inspect(Map.get(selecto, :set))}")
         IO.puts("[PIVOT DEBUG] Selecto domain: #{inspect(Map.keys(selecto.domain))}")
 
+        # Apply subselects if denorm_groups were configured
+        selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
+          denorm_groups = selecto.set.denorm_groups
+          IO.puts("[SUBSELECT DEBUG] Found denorm groups: #{inspect(denorm_groups)}")
+          
+          # The selecto already has the selected columns set, we just need to add subselects
+          # Use SubselectBuilder to add subselects for denormalizing columns
+          try do
+            # Add subselects for each denormalizing group
+            Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
+              IO.puts("[SUBSELECT DEBUG] Adding subselect for #{relationship_path} with columns: #{inspect(columns)}")
+              SelectoComponents.SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
+            end)
+          rescue
+            e ->
+              IO.puts("[SUBSELECT ERROR] Failed to add subselects: #{inspect(e)}")
+              IO.inspect(e, label: "Full error")
+              selecto
+          end
+        else
+          selecto
+        end
+
         # Execute query using standardized safe API
         case Selecto.execute(selecto) do
           {:ok, {rows, columns, aliases}} ->

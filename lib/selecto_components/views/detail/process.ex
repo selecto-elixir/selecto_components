@@ -4,7 +4,9 @@ defmodule SelectoComponents.Views.Detail.Process do
     %{
       selected: SelectoComponents.Views.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Views.view_param_process(params, "order_by", "field"),
-      per_page: params["per_page"]
+      per_page: params["per_page"],
+      prevent_denormalization: params["prevent_denormalization"] in ["on", "true"] || 
+                              (params["prevent_denormalization"] == nil && params["selected"] == nil)
     }
   end
 
@@ -16,12 +18,13 @@ defmodule SelectoComponents.Views.Detail.Process do
       selected:
         Map.get(Selecto.domain(selecto), :default_selected, [])
         |> SelectoComponents.Helpers.build_initial_state(),
-      per_page: "30"
+      per_page: "30",
+      prevent_denormalization: true
     }
   end
 
   ### Process incoming params to build Selecto.set for view
-  def view(_opt, params, columns, filtered, _selecto) do
+  def view(_opt, params, columns, filtered, selecto) do
     detail_columns =
       Map.get(params, "selected", %{})
       |> Map.values()
@@ -29,17 +32,64 @@ defmodule SelectoComponents.Views.Detail.Process do
         String.to_integer(a["index"]) <= String.to_integer(b["index"])
       end)
 
+    # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
+    prevent_denorm = params["prevent_denormalization"] in ["on", "true"] || 
+                    (params["prevent_denormalization"] == nil && params["selected"] == nil)
+    
+    # Process columns for denormalization if enabled
+    {selected_columns, subselect_configs, denorm_groups} = if prevent_denorm do
+      column_names = Enum.map(detail_columns, & &1["field"])
+      
+      # Debug logging
+      IO.puts("[DENORM DEBUG] Prevent denorm enabled: #{prevent_denorm}")
+      IO.puts("[DENORM DEBUG] Column names: #{inspect(column_names)}")
+      
+      {normal_cols, denorm_groups} = SelectoComponents.DenormalizationDetector.detect_and_group_columns(
+        selecto,
+        column_names
+      )
+      
+      IO.puts("[DENORM DEBUG] Normal columns: #{inspect(normal_cols)}")
+      IO.puts("[DENORM DEBUG] Denorm groups: #{inspect(denorm_groups)}")
+      
+      # Filter detail_columns to only include normal columns
+      normal_detail_columns = Enum.filter(detail_columns, fn col ->
+        col["field"] in normal_cols
+      end)
+      
+      # Generate subselect configurations for UI display
+      subselect_configs = Enum.map(denorm_groups, fn {path, cols} ->
+        config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
+        # Add the actual columns to the config for later use
+        Map.put(config, :columns, Enum.map(cols, fn col -> 
+          {UUID.uuid4(), col, %{}}
+        end))
+      end)
+      
+      {normal_detail_columns, subselect_configs, denorm_groups}
+    else
+      {detail_columns, [], %{}}
+    end
+
     ### Selecto Set for Detail View, view_meta for view data
     {%{
-       columns: detail_columns,
-       selected: detail_columns |> selected(columns),
+       columns: selected_columns,
+       selected: selected_columns |> selected(columns),
        order_by:
          Map.get(params, "order_by", %{})
          |> order_by(columns),
        filtered: filtered,
        group_by: [],
-       groups: []
-     }, %{page: 0, per_page: String.to_integer(params["per_page"])}}
+       groups: [],
+       subselects: subselect_configs,
+       denorm_groups: denorm_groups,  # Store the groups for building actual subselects
+       denormalizing_columns: if(prevent_denorm, do: detail_columns -- selected_columns, else: [])
+     }, %{
+       page: 0, 
+       per_page: String.to_integer(params["per_page"]),
+       prevent_denormalization: prevent_denorm,
+       subselect_configs: subselect_configs
+     }}
   end
 
   defp order_by(order_by, _columns) do
