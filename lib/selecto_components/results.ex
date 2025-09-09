@@ -27,6 +27,7 @@ defmodule SelectoComponents.Results do
               view_meta={@view_meta}
               view_opts={@view_opts}
               executed={@executed}
+              execution_error={Map.get(assigns, :execution_error)}
             />
         </div>
       </div>
