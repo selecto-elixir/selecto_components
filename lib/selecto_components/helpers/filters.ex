@@ -91,7 +91,32 @@ defmodule SelectoComponents.Helpers.Filters do
           acc ++ [Selecto.filters(selecto)[Map.get(f, "filter")].apply.(selecto, f)]
 
         else
-          case Selecto.columns(selecto)[Map.get(f, "filter")].type do
+          # Check if column exists before accessing its type
+          # Try to find the column - it might be under an alias or original name
+          filter_key = Map.get(f, "filter")
+          column = Selecto.columns(selecto)[filter_key]
+          
+          # If not found by direct key, try to find by matching colid or name
+          column = if column == nil do
+            Selecto.columns(selecto)
+            |> Enum.find(fn {_key, col} -> 
+              col.colid == filter_key || col.name == filter_key
+            end)
+            |> case do
+              {_key, col} -> col
+              nil -> nil
+            end
+          else
+            column
+          end
+          
+          if column == nil do
+            # Skip this filter if column not found
+            IO.puts("[FILTER WARNING] Column not found for filter: #{inspect(filter_key)}")
+            IO.puts("[FILTER WARNING] Available columns: #{inspect(Map.keys(Selecto.columns(selecto)))}")
+            acc
+          else
+            case column.type do
             x when x in [:id, :integer, :float, :decimal] ->
               acc ++ [{Map.get(f, "filter"), _make_num_filter(x, f)}]
 
@@ -117,6 +142,7 @@ defmodule SelectoComponents.Helpers.Filters do
             {:parameterized, _, _enum_conf} ->
               # TODO check selected against enum_conf.mappings!
               acc ++ [{Map.get(f, "filter"), Map.get(f, "value")}]
+            end
           end
         end
     end)

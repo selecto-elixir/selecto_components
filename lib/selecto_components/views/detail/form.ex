@@ -56,6 +56,18 @@ defmodule SelectoComponents.Views.Detail.Form do
         <select name="per_page">
           <option :for={i <- [30, 60, 100]} selected={@view_config.views.detail.per_page == i} value={i}><%= i %></option>
         </select>
+        
+        <div class="mt-4">
+          <label class="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              name="prevent_denormalization"
+              checked={Map.get(@view_config.views.detail, :prevent_denormalization, true)}
+              class="rounded border-gray-300"
+            />
+            <span class="text-sm">Prevent Denormalization (show related data in nested tables)</span>
+          </label>
+        </div>
       </div>
 
 

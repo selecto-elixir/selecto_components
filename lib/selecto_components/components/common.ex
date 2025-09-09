@@ -17,9 +17,11 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-      </svg>
+      <button type="button" class="btn btn-outline btn-xs text-base-content p-1" {@attrs}>
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+        </svg>
+      </button>
     """
   end
 
@@ -28,9 +30,11 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <svg class="w-8 h-8 inline btn btn-outline btn-xs text-base-content" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
-      </svg>
+      <button type="button" class="btn btn-outline btn-xs text-base-content p-1" {@attrs}>
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+        </svg>
+      </button>
     """
   end
 
@@ -39,9 +43,11 @@ defmodule SelectoComponents.Components.Common do
     assigns = assign(assigns, attrs: attrs)
 
     ~H"""
-      <svg class="w-8 h-8 btn btn-outline btn-xs btn-error" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-      </svg>
+      <button type="button" class="btn btn-outline btn-xs btn-error p-1" {@attrs}>
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     """
   end
 

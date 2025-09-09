@@ -4,6 +4,8 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.Common
+  import SelectoComponents.Components.NestedTable
+  import SelectoComponents.Components.SqlDebug
   use Phoenix.LiveComponent
 
   def render(assigns) do
@@ -54,11 +56,21 @@ defmodule SelectoComponents.Views.Detail.Component do
     {results, aliases} = assigns.processed_results
     # IO.puts("RENDER!")
     # IO.inspect(assigns.view_meta, label: "VIEW META")
+    
+    # Ensure results are normalized to maps if they're lists
+    normalized_results = if length(results) > 0 and is_list(hd(results)) do
+      {_results, columns, _aliases} = assigns.query_results
+      Enum.map(results, fn row ->
+        Enum.zip(columns, row) |> Map.new()
+      end)
+    else
+      results
+    end
 
     page = assigns.view_meta.page
     per_page = assigns.view_meta.per_page
     show_start = page * per_page
-    page_count = Float.ceil(Enum.count(results) / per_page)
+    page_count = Float.ceil(Enum.count(normalized_results) / per_page)
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
@@ -66,7 +78,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       assign(assigns,
         aliases: aliases,
         show_start: show_start,
-        results: results,
+        results: normalized_results,
         columns: Map.get(assigns.selecto.set, :columns, []),
         column_uuids:
           Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
@@ -75,6 +87,13 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     ~H"""
     <div>
+      <.sql_debug 
+        :if={Map.get(assigns, :sql)}
+        sql={Map.get(assigns, :sql)}
+        params={Map.get(assigns, :sql_params, [])}
+        execution_time={Map.get(assigns, :execution_time)}
+      />
+      
       <div class="flex justify-center">
         <div class="inline-block w-36">
           <.sc_button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>
@@ -104,39 +123,107 @@ defmodule SelectoComponents.Views.Detail.Component do
           <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
             <%= r %>
           </th>
+          <%!-- Add headers for subselect columns --%>
+          <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+            <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+              <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+                <%= Map.get(config, :title, config.key) %>
+              </th>
+            <% end %>
+          <% end %>
         </tr>
 
         <%!--  --%>
-        <tr :for={{resrow, i} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page)}
-          class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top">
-          <%= with row_data <- Enum.zip( @column_uuids, resrow ) |> Enum.into(%{}) do %>
+        <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
+          <% # Process row data once at the beginning of the iteration %>
+          <% resrow_list = cond do
+            is_tuple(resrow) -> Tuple.to_list(resrow)
+            is_list(resrow) -> resrow
+            is_map(resrow) -> 
+              # If it's already a map, extract values in column order
+              {_results, columns_from_query, _aliases} = @query_results
+              Enum.map(columns_from_query, fn col -> Map.get(resrow, col) end)
+            true -> [resrow]
+          end %>
+          <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
+          <% # Also create a map by column name for subselects %>
+          <% {_results, columns_from_query, _aliases} = @query_results %>
+          <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+          
+          <tr class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top">
             <td class="px-1 py-1">
-              <%= i + 1 %>
+              <%= actual_idx + 1 %>
             </td>
-            <%!--  --%>
+            <%!-- Display regular columns --%>
             <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
-              class="px-1 py-1">
+              class="px-1 py-1 align-top">
               <%= with def <- Selecto.columns(@selecto)[col_conf["field"]] do %>
                 <%= case def do %>
 
                   <% %{format: :component} = def -> %>
-                    <%= def.component.(%{row: row_data[col_conf["uuid"]], config: col_conf}) %>
+                    <%= def.component.(%{row: row_data_by_uuid[col_conf["uuid"]], config: col_conf}) %>
 
                   <% %{format: :link} = def -> %>
-                    <%= with {href, txt} <- def.link_parts.(row_data[col_conf["uuid"]])  do %>
+                    <%= with {href, txt} <- def.link_parts.(row_data_by_uuid[col_conf["uuid"]])  do %>
                       <.link href={href} class="underline font-bold text-blue-500">
                         <%= txt %>
                       </.link>
                     <% end %>
 
                   <% _ -> %>
-                    <%= row_data[col_conf["uuid"]] %>
+                    <%= row_data_by_uuid[col_conf["uuid"]] %>
 
                 <% end %>
               <% end %>
             </td>
-          <% end %>
-        </tr>
+            
+            <%!-- Add subselect columns inline --%>
+            <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+              <% IO.puts("[NESTED TABLE DEBUG] Subselect configs found: #{inspect(Map.get(@view_meta, :subselect_configs, []))}") %>
+              <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+                <% IO.puts("[NESTED TABLE DEBUG] Processing config for key: #{config.key}") %>
+                <% IO.puts("[NESTED TABLE DEBUG] Available columns in row: #{inspect(Map.keys(row_data_by_column))}") %>
+                <% data = Map.get(row_data_by_column, config.key, []) %>
+                <% IO.puts("[NESTED TABLE DEBUG] Raw data for #{config.key}: #{inspect(data)}") %>
+                <% # Use actual_idx to ensure unique IDs %>
+                <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
+                <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
+                  <% # Parse the data here to ensure it's fresh %>
+                  <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data) %>
+                  <% IO.puts("[NESTED TABLE DEBUG] Parsed data for #{config.key}: #{inspect(parsed_data)}") %>
+                  <div id={"nested_#{unique_id}"}>
+                    <%= if length(parsed_data) > 0 do %>
+                      <table class="min-w-full border border-gray-300 rounded">
+                        <thead>
+                          <tr class="bg-gray-100">
+                            <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                              <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                                <%= SelectoComponents.Components.NestedTable.humanize_key(key) %>
+                              </th>
+                            <% end %>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
+                            <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+                              <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                <td class="px-2 py-1 text-xs text-gray-700">
+                                  <%= SelectoComponents.Components.NestedTable.format_value(Map.get(item, key, "")) %>
+                                </td>
+                              <% end %>
+                            </tr>
+                          <% end %>
+                        </tbody>
+                      </table>
+                    <% else %>
+                      <div class="text-xs text-gray-500 italic">No data</div>
+                    <% end %>
+                  </div>
+                </td>
+              <% end %>
+            <% end %>
+          </tr>
+        <% end %>
       </table>
     </div>
     """
@@ -144,9 +231,11 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("set_page", params, socket) do
     # send(self(), {:set_detail_page, params["page"]})
+    new_page = String.to_integer(params["page"])
+    
     socket =
       assign(socket,
-        view_meta: %{socket.assigns.view_meta | page: String.to_integer(params["page"])}
+        view_meta: %{socket.assigns.view_meta | page: new_page}
       )
 
     {:noreply, socket}
