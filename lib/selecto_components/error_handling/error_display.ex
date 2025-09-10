@@ -6,6 +6,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
 
   use Phoenix.LiveComponent
   alias SelectoComponents.ErrorHandling.ErrorCategorizer
+  alias SelectoComponents.ErrorHandling.ErrorSanitizer
 
   def render(assigns) do
     ~H"""
@@ -22,9 +23,17 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
   end
 
   def error_card(assigns) do
+    # Sanitize error info for production
+    sanitized_error_info = if ErrorSanitizer.production_env?() and not assigns[:dev_mode] do
+      sanitize_error_info(assigns.error_info)
+    else
+      assigns.error_info
+    end
+    
     assigns = assign(assigns, 
-      severity_class: severity_to_class(assigns.error_info.severity),
-      icon: severity_to_icon(assigns.error_info.severity)
+      error_info: sanitized_error_info,
+      severity_class: severity_to_class(sanitized_error_info.severity),
+      icon: severity_to_icon(sanitized_error_info.severity)
     )
     
     ~H"""
@@ -42,16 +51,25 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
           </h3>
           
           <div class={"mt-2 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
-            <%= ErrorCategorizer.format_message(@error_info) %>
+            <%= if ErrorSanitizer.production_env?() and not @dev_mode do %>
+              <%= ErrorSanitizer.user_friendly_message(@error_info.category) %>
+            <% else %>
+              <%= ErrorCategorizer.format_message(@error_info) %>
+            <% end %>
           </div>
           
-          <%= if suggestion = ErrorCategorizer.recovery_suggestion(@error_info) do %>
-            <div class={"mt-2 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
-              <strong>Suggestion:</strong> <%= suggestion %>
+          <%= if @error_info[:suggestions] && length(@error_info[:suggestions]) > 0 do %>
+            <div class={"mt-3 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
+              <strong>Suggestions:</strong>
+              <ul class="mt-1 list-disc list-inside">
+                <%= for suggestion <- @error_info[:suggestions] do %>
+                  <li><%= suggestion %></li>
+                <% end %>
+              </ul>
             </div>
           <% end %>
           
-          <%= if @dev_mode do %>
+          <%= if @dev_mode and not ErrorSanitizer.production_env?() do %>
             <.error_details error_info={@error_info} />
           <% end %>
         </div>
@@ -86,36 +104,45 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
   end
 
   def selecto_error_details(assigns) do
-    ~H"""
-    <div class="space-y-1">
-      <%= if @error.query do %>
-        <div>
-          <strong>Query:</strong>
-          <pre class="mt-1 whitespace-pre-wrap text-xs bg-gray-100 p-2 rounded">
-            <%= @error.query %>
-          </pre>
-        </div>
-      <% end %>
-      
-      <%= if @error.params && length(@error.params) > 0 do %>
-        <div>
-          <strong>Parameters:</strong>
-          <pre class="mt-1 text-xs">
-            <%= inspect(@error.params, pretty: true) %>
-          </pre>
-        </div>
-      <% end %>
-      
-      <%= if @error.details && map_size(@error.details) > 0 do %>
-        <div>
-          <strong>Details:</strong>
-          <pre class="mt-1 whitespace-pre-wrap text-xs">
-            <%= inspect(@error.details, pretty: true) %>
-          </pre>
-        </div>
-      <% end %>
-    </div>
-    """
+    # Never show sensitive details in production, even if dev_mode is somehow enabled
+    if ErrorSanitizer.production_env?() do
+      ~H"""
+      <div class="text-xs text-gray-500 italic">
+        Detailed error information is not available in production for security reasons.
+      </div>
+      """
+    else
+      ~H"""
+      <div class="space-y-1">
+        <%= if @error.query do %>
+          <div>
+            <strong>Query:</strong>
+            <pre class="mt-1 whitespace-pre-wrap text-xs bg-gray-100 p-2 rounded">
+              <%= @error.query %>
+            </pre>
+          </div>
+        <% end %>
+        
+        <%= if @error.params && length(@error.params) > 0 do %>
+          <div>
+            <strong>Parameters:</strong>
+            <pre class="mt-1 text-xs">
+              <%= inspect(@error.params, pretty: true) %>
+            </pre>
+          </div>
+        <% end %>
+        
+        <%= if @error.details && map_size(@error.details) > 0 do %>
+          <div>
+            <strong>Details:</strong>
+            <pre class="mt-1 whitespace-pre-wrap text-xs">
+              <%= inspect(@error.details, pretty: true) %>
+            </pre>
+          </div>
+        <% end %>
+      </div>
+      """
+    end
   end
 
   def mount(socket) do
@@ -220,9 +247,25 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
   defp category_title(:runtime), do: "Runtime Error"
   defp category_title(_), do: "Error"
 
+  defp sanitize_error_info(error_info) do
+    %{
+      category: error_info.category,
+      severity: error_info.severity,
+      recoverable: error_info.recoverable,
+      source: "application",  # Hide actual source
+      suggestions: ErrorSanitizer.safe_suggestions(error_info.category),
+      error: nil  # Remove raw error data
+    }
+  end
+
   defp dev_mode? do
-    Application.get_env(:selecto_components, :dev_mode, false) ||
-      Application.get_env(:selecto_components, :env) == :dev ||
-      System.get_env("DEV_MODE") == "true"
+    # In production, never enable dev_mode regardless of configuration
+    if ErrorSanitizer.production_env?() do
+      false
+    else
+      Application.get_env(:selecto_components, :dev_mode, false) ||
+        Application.get_env(:selecto_components, :env) == :dev ||
+        System.get_env("DEV_MODE") == "true"
+    end
   end
 end
