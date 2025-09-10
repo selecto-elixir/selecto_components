@@ -51,9 +51,11 @@ defmodule SelectoComponents.Results do
   end
 
   defp should_show_debug?(assigns) do
-    # Try to get params and session from the socket
-    params = get_in(assigns, [:socket, :assigns, :params]) || %{}
-    session = get_in(assigns, [:socket, :assigns, :session]) || %{}
+    # Try to get params and session from the socket if it exists
+    # Since this is a LiveComponent, we might not have direct access to socket
+    # The parent LiveView should pass these through assigns if needed
+    params = assigns[:params] || %{}
+    session = assigns[:session] || %{}
     
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)

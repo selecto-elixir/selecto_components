@@ -8,7 +8,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def render(assigns) do
     ~H"""
-    <div class="selecto-debug-panel" id={"debug-panel-#{@id}"} phx-hook="ClipboardHook">
+    <div class="selecto-debug-panel" id={"debug-panel-#{@id}"} phx-hook=".DebugClipboard">
       <div :if={@show_debug} class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
@@ -160,6 +160,88 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           </div>
       <% end %>
     </div>
+    
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".DebugClipboard">
+      export default {
+        mounted() {
+          // Listen for clipboard copy events from the server
+          this.handleEvent("copy-to-clipboard", ({ text }) => {
+            this.copyToClipboard(text);
+          });
+        },
+
+        copyToClipboard(text) {
+          // Modern clipboard API with fallback
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text)
+              .then(() => {
+                this.showCopyFeedback(true);
+              })
+              .catch((err) => {
+                console.error('Failed to copy text: ', err);
+                this.fallbackCopy(text);
+              });
+          } else {
+            this.fallbackCopy(text);
+          }
+        },
+
+        fallbackCopy(text) {
+          // Fallback for older browsers
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+          textArea.style.position = "fixed";
+          textArea.style.top = "-9999px";
+          textArea.style.left = "-9999px";
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+
+          try {
+            const successful = document.execCommand('copy');
+            this.showCopyFeedback(successful);
+          } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            this.showCopyFeedback(false);
+          }
+
+          document.body.removeChild(textArea);
+        },
+
+        showCopyFeedback(success) {
+          // Find the copy button and show feedback
+          const button = this.el.querySelector('[phx-click="copy_sql"]');
+          if (button) {
+            const originalHTML = button.innerHTML;
+            const originalClasses = button.className;
+            
+            if (success) {
+              button.innerHTML = `
+                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              `;
+              button.className = button.className.replace('bg-blue-500', 'bg-green-500').replace('hover:bg-blue-600', 'hover:bg-green-600');
+            } else {
+              button.innerHTML = `
+                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Failed
+              `;
+              button.className = button.className.replace('bg-blue-500', 'bg-red-500').replace('hover:bg-blue-600', 'hover:bg-red-600');
+            }
+
+            // Reset after 2 seconds
+            setTimeout(() => {
+              button.innerHTML = originalHTML;
+              button.className = originalClasses;
+            }, 2000);
+          }
+        }
+      }
+    </script>
     """
   end
 
