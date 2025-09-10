@@ -7,6 +7,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
   use Phoenix.LiveComponent
   alias SelectoComponents.ErrorHandling.ErrorCategorizer
   alias SelectoComponents.ErrorHandling.ErrorSanitizer
+  alias SelectoComponents.ErrorHandling.ErrorRecovery
 
   def render(assigns) do
     ~H"""
@@ -66,6 +67,17 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
                   <li><%= suggestion %></li>
                 <% end %>
               </ul>
+            </div>
+          <% end %>
+          
+          <%!-- Retry button for retryable errors --%>
+          <%= if ErrorRecovery.retryable_error?(@error_info.error) do %>
+            <div class="mt-3">
+              <ErrorRecovery.retry_button 
+                retryable={true}
+                operation="last_operation"
+                retry_in_progress={Map.get(assigns, :retry_in_progress, false)}
+              />
             </div>
           <% end %>
           
