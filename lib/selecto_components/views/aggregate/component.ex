@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
+  alias SelectoComponents.EnhancedTable.Sorting
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
@@ -12,6 +13,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     socket = assign(socket, :last_update, System.system_time(:microsecond))
 
     {:ok, socket}
+  end
+  
+  def handle_event("sort_column", %{"column" => column} = params, socket) do
+    multi = Map.get(params, "multi", "false") == "true"
+    socket = Sorting.handle_sort_click(column, socket, multi)
+    
+    # Trigger re-execution with new sort
+    send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
+    
+    {:noreply, socket}
   end
 
   # # Helper function to determine styling level based on group values
@@ -415,13 +426,40 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
         <tr>
-          <th :for={{alias, _} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
-            <%= alias %>
-          </th>
+          <%!-- Sortable headers for group by columns --%>
+          <%= for {alias, {:group_by, field, _coldef}} <- @group_by do %>
+            <% column_field = case field do
+              {:field, field_id, _alias} when is_atom(field_id) -> Atom.to_string(field_id)
+              {:field, {_extract_type, field_id, _format}, _alias} when is_atom(field_id) -> Atom.to_string(field_id)
+              _ -> alias
+            end %>
+            <Sorting.sortable_header 
+              column={column_field}
+              label={alias}
+              sort_by={assigns[:sort_by] || []}
+              multi={false}
+              target={@myself}
+            />
+          <% end %>
 
-          <th :for={{alias, _} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
-            <%= alias %>
-          </th>
+          <%!-- Sortable headers for aggregate columns --%>
+          <%= for {alias, {:agg, agg, _coldef}} <- @aggregate do %>
+            <% column_field = case agg do
+              {:field, {func, field_id}, _alias} when is_atom(field_id) -> 
+                "#{func}_#{field_id}"
+              {:field, field_id, _alias} when is_atom(field_id) -> 
+                Atom.to_string(field_id)
+              _ -> 
+                alias
+            end %>
+            <Sorting.sortable_header 
+              column={column_field}
+              label={alias}
+              sort_by={assigns[:sort_by] || []}
+              multi={false}
+              target={@myself}
+            />
+          <% end %>
 
         </tr>
         <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by} aggregate={@aggregate}/>
