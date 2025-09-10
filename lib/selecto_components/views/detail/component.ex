@@ -6,6 +6,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   import SelectoComponents.Components.Common
   import SelectoComponents.Components.NestedTable
   import SelectoComponents.Components.SqlDebug
+  alias SelectoComponents.EnhancedTable.Sorting
   use Phoenix.LiveComponent
 
   def render(assigns) do
@@ -120,9 +121,16 @@ defmodule SelectoComponents.Views.Detail.Component do
 
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">#</th>
-          <th :for={ r <- @aliases} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
-            <%= r %>
-          </th>
+          <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
+            <% column_field = Enum.at(@columns, idx)["field"] %>
+            <Sorting.sortable_header 
+              column={column_field}
+              label={alias}
+              sort_by={assigns[:sort_by] || []}
+              multi={false}
+              target={@myself}
+            />
+          <% end %>
           <%!-- Add headers for subselect columns --%>
           <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
             <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
@@ -229,6 +237,16 @@ defmodule SelectoComponents.Views.Detail.Component do
     """
   end
 
+  def handle_event("sort_column", %{"column" => column} = params, socket) do
+    multi = Map.get(params, "multi", "false") == "true"
+    socket = Sorting.handle_sort_click(column, socket, multi)
+    
+    # Trigger re-execution with new sort
+    send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
+    
+    {:noreply, socket}
+  end
+  
   def handle_event("set_page", params, socket) do
     # send(self(), {:set_detail_page, params["page"]})
     new_page = String.to_integer(params["page"])

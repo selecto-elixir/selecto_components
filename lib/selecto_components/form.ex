@@ -683,6 +683,20 @@ defmodule SelectoComponents.Form do
         # Don't execute view - wait for submit
         {:noreply, socket}
       end
+      
+      @impl true
+      def handle_info({:rerun_query_with_sort, sort_by}, socket) do
+        with_error_handling(socket, "rerun_query_with_sort", fn ->
+          # Get current parameters or use saved params
+          params = socket.assigns[:used_params] || view_config_to_params(socket.assigns.view_config)
+          
+          # Store sort configuration in socket
+          socket = assign(socket, sort_by: sort_by)
+          
+          # Re-execute the view with current parameters and sorting
+          view_from_params_with_sort(params, socket, sort_by)
+        end)
+      end
 
       # Helper function to execute view from current state
       defp execute_view_from_current_state(socket) do
@@ -754,6 +768,13 @@ defmodule SelectoComponents.Form do
           {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
           {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
         end)
+      end
+      
+      # Version of view_from_params that applies sorting
+      defp view_from_params_with_sort(params, socket, sort_by) do
+        # Store the sort_by in socket so the modified view_from_params can use it
+        socket = assign(socket, sort_by: sort_by)
+        {:noreply, view_from_params(params, socket)}
       end
 
       defp view_from_params(params, socket) do
@@ -853,6 +874,14 @@ defmodule SelectoComponents.Form do
           end
         else
           IO.puts("[SUBSELECT DEBUG] No denorm_groups to process")
+          selecto
+        end
+        
+        # Apply sorting if provided
+        selecto = if socket.assigns[:sort_by] do
+          alias SelectoComponents.EnhancedTable.Sorting
+          Sorting.apply_sort_to_query(selecto, socket.assigns.sort_by)
+        else
           selecto
         end
 
