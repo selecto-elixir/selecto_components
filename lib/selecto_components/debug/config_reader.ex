@@ -115,10 +115,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
   def format_sql(sql, config) do
     if Map.get(config, :format_sql, true) do
       sql
-      |> String.replace(~r/\s+/, " ")
-      |> String.replace(~r/,\s*/, ", ")
-      |> String.replace(~r/\(\s+/, "(")
-      |> String.replace(~r/\s+\)/, ")")
+      |> prettify_sql()
       |> format_sql_keywords()
     else
       sql
@@ -198,6 +195,20 @@ defmodule SelectoComponents.Debug.ConfigReader do
     end)
   end
 
+  defp prettify_sql(sql) do
+    sql
+    # Add line breaks before major clauses  
+    |> String.replace(~r/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET)\b/i, "\n\\1")
+    # Add line breaks before JOIN clauses
+    |> String.replace(~r/\s+(INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL OUTER JOIN|FULL JOIN|CROSS JOIN|JOIN)\b/i, "\n\\1")
+    # Add line breaks for AND/OR in WHERE clauses (with indentation)
+    |> String.replace(~r/\s+(AND|OR)\s+/i, "\n  \\1 ")
+    # Clean up multiple spaces
+    |> String.replace(~r/[ \t]+/, " ")
+    # Remove leading/trailing whitespace
+    |> String.trim()
+  end
+
   defp format_sql_keywords(sql) do
     keywords = ~w[
       SELECT FROM WHERE GROUP BY ORDER BY HAVING LIMIT OFFSET
@@ -205,6 +216,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
       AS WITH DISTINCT COUNT SUM AVG MIN MAX CASE WHEN THEN ELSE END
       INSERT UPDATE DELETE INTO VALUES SET CREATE ALTER DROP TABLE
       INDEX PRIMARY KEY FOREIGN REFERENCES CASCADE RESTRICT
+      UNION ALL ANY BETWEEN LIKE ILIKE IS NULL ASC DESC
     ]
     
     Enum.reduce(keywords, sql, fn keyword, acc ->

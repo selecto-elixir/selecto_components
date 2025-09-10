@@ -8,26 +8,33 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def render(assigns) do
     ~H"""
-    <div :if={@show_debug} class="selecto-debug-panel">
-      <div class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
+    <div class="selecto-debug-panel">
+      <div :if={@show_debug} class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
         <div class="flex items-center justify-between mb-2">
-          <h4 class="font-semibold text-gray-700">Debug Information</h4>
-          <button 
-            type="button"
-            phx-click="toggle_debug_details" 
-            phx-target={@myself}
-            class="text-gray-500 hover:text-gray-700"
-          >
-            <%= if @expanded do %>
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            <% else %>
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            <% end %>
-          </button>
+          <div class="flex items-center gap-2">
+            <h4 class="font-semibold text-gray-700">Debug Information</h4>
+            <button 
+              type="button"
+              phx-click="toggle_debug_details" 
+              phx-target={@myself}
+              class="inline-flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+            >
+              <%= if @expanded do %>
+                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+                Hide Details
+              <% else %>
+                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                Show Details
+              <% end %>
+            </button>
+          </div>
+          <div class="text-gray-600">
+            <%= summary_text(@debug_info) %>
+          </div>
         </div>
         
         <div :if={@expanded} class="space-y-2">
@@ -68,10 +75,6 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           
           <.debug_metadata metadata={@metadata} />
         </div>
-        
-        <div :if={!@expanded} class="text-gray-600">
-          <%= summary_text(@debug_info) %>
-        </div>
       </div>
     </div>
     """
@@ -83,8 +86,8 @@ defmodule SelectoComponents.Debug.DebugDisplay do
       <h5 class="font-medium text-gray-600 mb-1"><%= @title %></h5>
       <%= case @type do %>
         <% "code" -> %>
-          <pre class="bg-white p-2 rounded border border-gray-200 overflow-x-auto">
-            <code class="text-xs"><%= @content %></code>
+          <pre class="bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
+            <code class="text-xs font-mono text-gray-800"><%= @content %></code>
           </pre>
         <% "list" -> %>
           <ul class="bg-white p-2 rounded border border-gray-200">
@@ -119,7 +122,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
   end
 
   def mount(socket) do
-    {:ok, assign(socket, expanded: false, show_debug: false, debug_info: %{}, metadata: %{})}
+    {:ok, assign(socket, expanded: true, show_debug: false, debug_info: %{}, metadata: %{})}
   end
 
   def update(assigns, socket) do
@@ -130,7 +133,12 @@ defmodule SelectoComponents.Debug.DebugDisplay do
     show_debug = ConfigReader.debug_enabled?(domain_module, view_type)
     
     debug_info = if show_debug && assigns[:debug_data] do
-      ConfigReader.build_debug_info(assigns.debug_data, config)
+      result = ConfigReader.build_debug_info(assigns.debug_data, config)
+      if Application.get_env(:selecto_components, :env, :dev) == :dev do
+        IO.puts("[DEBUG] DebugDisplay.update - debug_info received: #{inspect(result, limit: :infinity)}")
+        IO.puts("[DEBUG] DebugDisplay.update - has query? #{Map.has_key?(result, :query)}")
+      end
+      result
     else
       %{}
     end

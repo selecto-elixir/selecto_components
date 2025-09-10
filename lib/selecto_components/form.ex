@@ -860,9 +860,26 @@ defmodule SelectoComponents.Form do
             IO.puts("[SUBSELECT SQL ERROR] Failed to generate SQL: #{inspect(e)}")
         end
         
-        # Execute query using standardized safe API
-        case Selecto.execute(selecto) do
-          {:ok, {rows, columns, aliases}} ->
+        # Execute query using the new metadata-returning function
+        # This handles errors gracefully and won't crash the LiveView
+        query_result = try do
+          Selecto.execute_with_metadata(selecto)
+        rescue
+          error ->
+            # Catch any errors during execution to prevent LiveView crashes
+            {:error, Selecto.Error.from_reason(error)}
+        catch
+          :exit, reason ->
+            # Catch exits (like connection failures) to prevent LiveView crashes
+            {:error, Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
+        end
+        
+        case query_result do
+          {:ok, {rows, columns, aliases}, metadata} ->
+            # Extract metadata from the new execute function
+            query_sql = Map.get(metadata, :sql)
+            query_params = Map.get(metadata, :params, [])
+            execution_time = Map.get(metadata, :execution_time, 0)
             
             # Convert rows to maps if they're lists (happens with subselects)
             # But only for detail views - aggregate views need list format
@@ -937,13 +954,28 @@ defmodule SelectoComponents.Form do
               applied_view: Map.get(params, "view_mode"),
               view_meta: view_meta,
               executed: true,
-              execution_error: nil
+              execution_error: nil,
+              last_query_info: %{
+                sql: query_sql,
+                params: query_params,
+                timing: execution_time
+              }
             )
 
           {:error, %Selecto.Error{} = error} ->
             sanitized_error = sanitize_error_for_environment(error)
             if dev_mode?() do
               IO.puts("[QUERY ERROR] Selecto.Error: #{inspect(error)}")
+            end
+            
+            # Try to extract SQL even in error case for debugging
+            {error_sql, error_params} = try do
+              case Selecto.to_sql(selecto) do
+                {sql, params} -> {sql, params}
+                _ -> {nil, []}
+              end
+            rescue
+              _ -> {nil, []}
             end
             
             assign(socket,
@@ -953,8 +985,14 @@ defmodule SelectoComponents.Form do
               query_results: nil,
               used_params: params,
               applied_view: Map.get(params, "view_mode"),
+              view_meta: view_meta,
               executed: false,
-              execution_error: sanitized_error
+              execution_error: sanitized_error,
+              last_query_info: %{
+                sql: error_sql,
+                params: error_params,
+                timing: nil
+              }
             )
             
           {:error, error} ->
@@ -968,6 +1006,16 @@ defmodule SelectoComponents.Form do
               IO.puts("[QUERY ERROR] Generic error: #{inspect(error)}")
             end
             
+            # Try to extract SQL even in error case for debugging
+            {error_sql, error_params} = try do
+              case Selecto.to_sql(selecto) do
+                {sql, params} -> {sql, params}
+                _ -> {nil, []}
+              end
+            rescue
+              _ -> {nil, []}
+            end
+            
             assign(socket,
               selecto: selecto,
               columns: columns_list,
@@ -975,8 +1023,14 @@ defmodule SelectoComponents.Form do
               query_results: nil,
               used_params: params,
               applied_view: Map.get(params, "view_mode"),
+              view_meta: view_meta,
               executed: false,
-              execution_error: sanitized_error
+              execution_error: sanitized_error,
+              last_query_info: %{
+                sql: error_sql,
+                params: error_params,
+                timing: nil
+              }
             )
         end
       end
@@ -1503,5 +1557,35 @@ defmodule SelectoComponents.Form do
       _ ->
         "An unexpected error occurred. Please try again or contact support if the problem persists."
     end
+  end
+
+  @doc false
+  def build_debug_data(assigns) do
+    query_data = Map.get(assigns, :last_query_info, %{})
+    
+    # Extract row count from query_results
+    row_count = case Map.get(assigns, :query_results) do
+      {rows, _columns, _aliases} when is_list(rows) ->
+        length(rows)
+      [] ->
+        # Initial state has empty list
+        0
+      nil ->
+        0
+      other ->
+        # Try to handle other formats
+        case other do
+          list when is_list(list) -> length(list)
+          _ -> 0
+        end
+    end
+    
+    %{
+      query: Map.get(query_data, :sql),
+      params: Map.get(query_data, :params, []),
+      timing: Map.get(query_data, :timing),
+      row_count: row_count,
+      execution_plan: Map.get(query_data, :execution_plan)
+    }
   end
 end
