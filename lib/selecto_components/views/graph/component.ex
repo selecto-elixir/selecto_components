@@ -49,17 +49,31 @@ defmodule SelectoComponents.Views.Graph.Component do
             <div class="text-red-600 mb-2"><%= @error.message %></div>
           <% end %>
           
-          <%= if @error.details[:exception] && @error.details.exception[:postgres] && @error.details.exception.postgres[:message] do %>
-            <div class="bg-red-100 rounded p-3 mt-3 text-left">
-              <div class="font-mono text-sm text-red-700">
-                <%= @error.details.exception.postgres.message %>
-              </div>
-              <%= if @error.details.exception.postgres[:position] do %>
-                <div class="text-xs text-red-600 mt-1">
-                  Position: <%= @error.details.exception.postgres.position %>
+          <%= if @error.details[:exception] do %>
+            <%= case @error.details.exception do %>
+              <% %Postgrex.Error{postgres: postgres} when is_map(postgres) -> %>
+                <div class="bg-red-100 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-red-700">
+                    <%= Map.get(postgres, :message, "Database error occurred") %>
+                  </div>
+                  <%= if Map.get(postgres, :position) do %>
+                    <div class="text-xs text-red-600 mt-1">
+                      Position: <%= postgres.position %>
+                    </div>
+                  <% end %>
+                  <%= if Map.get(postgres, :code) do %>
+                    <div class="text-xs text-red-600 mt-1">
+                      Error Code: <%= postgres.code %>
+                    </div>
+                  <% end %>
                 </div>
-              <% end %>
-            </div>
+              <% _ -> %>
+                <div class="bg-red-100 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-red-700">
+                    <%= inspect(@error.details.exception) %>
+                  </div>
+                </div>
+            <% end %>
           <% end %>
           
           <%= if @error.query do %>
