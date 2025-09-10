@@ -38,15 +38,39 @@ defmodule SelectoComponents.Debug.DebugDisplay do
         </div>
         
         <div :if={@expanded} class="space-y-2">
-          <.debug_section 
-            :if={@debug_info[:query]} 
-            title="SQL Query" 
-            content={@debug_info.query}
-            type="code"
-          />
+          <div :if={@debug_info[:query]} class="border-t border-gray-200 pt-2">
+            <div class="flex items-center justify-between mb-2">
+              <h5 class="font-medium text-gray-600">SQL Query</h5>
+              <button 
+                :if={@debug_info[:params] && length(@debug_info.params) > 0}
+                type="button"
+                phx-click="toggle_sql_mode" 
+                phx-target={@myself}
+                class="inline-flex items-center px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-xs font-medium transition-colors"
+              >
+                <%= if @show_interpolated do %>
+                  Show Parameterized
+                <% else %>
+                  Show Interpolated
+                <% end %>
+              </button>
+            </div>
+            <%= if @show_interpolated && @debug_info[:params] do %>
+              <div class="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
+                <%= Phoenix.HTML.raw(format_sql_with_makeup(interpolate_params(@debug_info.query, @debug_info.params))) %>
+              </div>
+              <div class="mt-2 text-xs text-gray-600">
+                <span class="font-semibold">Note:</span> This interpolated query can be copied and pasted directly into psql or other SQL tools.
+              </div>
+            <% else %>
+              <div class="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
+                <%= Phoenix.HTML.raw(format_sql_with_makeup(@debug_info.query)) %>
+              </div>
+            <% end %>
+          </div>
           
           <.debug_section 
-            :if={@debug_info[:params]} 
+            :if={@debug_info[:params] && !@show_interpolated} 
             title="Parameters" 
             content={@debug_info.params}
             type="list"
@@ -86,18 +110,36 @@ defmodule SelectoComponents.Debug.DebugDisplay do
       <h5 class="font-medium text-gray-600 mb-1"><%= @title %></h5>
       <%= case @type do %>
         <% "code" -> %>
-          <pre class="bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
-            <code class="text-xs font-mono text-gray-800"><%= @content %></code>
-          </pre>
+          <%= if @title == "SQL Query" do %>
+            <div class="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
+              <%= Phoenix.HTML.raw(format_sql_with_makeup(@content)) %>
+            </div>
+          <% else %>
+            <pre class="bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
+              <code class="text-xs font-mono text-gray-800"><%= @content %></code>
+            </pre>
+          <% end %>
         <% "list" -> %>
-          <ul class="bg-white p-2 rounded border border-gray-200">
-            <%= for {item, index} <- Enum.with_index(@content) do %>
-              <li class="text-xs">
-                <span class="text-gray-500">[<%= index %>]</span> 
-                <%= inspect(item, pretty: true, limit: 50) %>
-              </li>
-            <% end %>
-          </ul>
+          <%= if @title == "Parameters" do %>
+            <ul class="bg-white p-2 rounded border border-gray-200">
+              <%= for {item, index} <- Enum.with_index(@content, 1) do %>
+                <li class="text-xs font-mono">
+                  <span class="text-blue-600 font-semibold">$<%= index %></span>
+                  <span class="text-gray-500 mx-1">=</span>
+                  <span class="text-gray-800"><%= format_param_value(item) %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <ul class="bg-white p-2 rounded border border-gray-200">
+              <%= for {item, index} <- Enum.with_index(@content) do %>
+                <li class="text-xs">
+                  <span class="text-gray-500">[<%= index %>]</span> 
+                  <%= inspect(item, pretty: true, limit: 50) %>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
         <% _ -> %>
           <div class="bg-white p-2 rounded border border-gray-200 text-xs">
             <%= @content %>
@@ -122,7 +164,13 @@ defmodule SelectoComponents.Debug.DebugDisplay do
   end
 
   def mount(socket) do
-    {:ok, assign(socket, expanded: true, show_debug: false, debug_info: %{}, metadata: %{})}
+    {:ok, assign(socket, 
+      expanded: true, 
+      show_debug: false, 
+      show_interpolated: false,
+      debug_info: %{}, 
+      metadata: %{}
+    )}
   end
 
   def update(assigns, socket) do
@@ -158,6 +206,10 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def handle_event("toggle_debug_details", _, socket) do
     {:noreply, assign(socket, expanded: !socket.assigns.expanded)}
+  end
+
+  def handle_event("toggle_sql_mode", _, socket) do
+    {:noreply, assign(socket, show_interpolated: !socket.assigns.show_interpolated)}
   end
 
   # Helper functions
@@ -231,4 +283,84 @@ defmodule SelectoComponents.Debug.DebugDisplay do
   end
   defp format_metadata_value(value) when is_number(value), do: to_string(value)
   defp format_metadata_value(value), do: inspect(value, limit: 20)
+
+  defp format_param_value(value) when is_binary(value) do
+    if String.length(value) > 50 do
+      "'#{String.slice(value, 0, 50)}...'"
+    else
+      "'#{value}'"
+    end
+  end
+  defp format_param_value(value) when is_nil(value), do: "NULL"
+  defp format_param_value(value) when is_boolean(value), do: if(value, do: "TRUE", else: "FALSE")
+  defp format_param_value(value) when is_number(value), do: to_string(value)
+  defp format_param_value(value), do: inspect(value, limit: 50)
+
+  defp interpolate_params(sql, params) when is_binary(sql) and is_list(params) do
+    # Replace $1, $2, etc. with actual parameter values
+    params
+    |> Enum.with_index(1)
+    |> Enum.reduce(sql, fn {value, index}, acc ->
+      # Escape the parameter value for SQL
+      escaped_value = escape_sql_value(value)
+      String.replace(acc, "$#{index}", escaped_value)
+    end)
+  end
+  defp interpolate_params(sql, _), do: sql
+
+  defp escape_sql_value(nil), do: "NULL"
+  defp escape_sql_value(true), do: "TRUE"
+  defp escape_sql_value(false), do: "FALSE"
+  defp escape_sql_value(value) when is_number(value), do: to_string(value)
+  defp escape_sql_value(value) when is_binary(value) do
+    # Escape single quotes by doubling them
+    escaped = String.replace(value, "'", "''")
+    "'#{escaped}'"
+  end
+  defp escape_sql_value(%DateTime{} = dt), do: "'#{DateTime.to_iso8601(dt)}'"
+  defp escape_sql_value(%Date{} = d), do: "'#{Date.to_iso8601(d)}'"
+  defp escape_sql_value(%Time{} = t), do: "'#{Time.to_iso8601(t)}'"
+  defp escape_sql_value(value) when is_list(value) do
+    # Handle arrays/lists
+    items = Enum.map(value, &escape_sql_value/1)
+    "ARRAY[#{Enum.join(items, ", ")}]"
+  end
+  defp escape_sql_value(value), do: "'#{inspect(value)}'"
+
+  defp format_sql_with_makeup(sql) when is_binary(sql) do
+    # Use Makeup to format and highlight SQL
+    # First, ensure MakeupSQL lexer is registered
+    Makeup.Registry.fetch_lexer_by_name!("sql")
+    
+    # Format the SQL with Makeup
+    sql
+    |> Makeup.highlight(lexer: Makeup.Lexers.SQLLexer)
+    |> add_makeup_styles()
+  rescue
+    _ ->
+      # Fallback to simple HTML escaping if Makeup fails
+      "<pre class=\"text-xs font-mono text-gray-300\">#{Phoenix.HTML.html_escape(sql) |> Phoenix.HTML.safe_to_string()}</pre>"
+  end
+  defp format_sql_with_makeup(_), do: ""
+
+  # Add inline styles for Makeup tokens since we're in a component
+  defp add_makeup_styles(html) do
+    """
+    <style>
+      .highlight { font-family: monospace; font-size: 0.75rem; line-height: 1.25rem; color: #e5e7eb; }
+      .highlight .k { color: #93c5fd; font-weight: 600; } /* Keywords */
+      .highlight .kc { color: #86efac; font-weight: 600; } /* Keyword constants (TRUE, FALSE, NULL) */
+      .highlight .kd { color: #f87171; font-weight: 600; } /* Keyword declarations (CREATE, ALTER, DROP) */
+      .highlight .o { color: #9ca3af; } /* Operators */
+      .highlight .s { color: #fde047; } /* Strings */
+      .highlight .si { color: #fbbf24; } /* String interpolation */
+      .highlight .n { color: #e5e7eb; } /* Names */
+      .highlight .nf { color: #fbbf24; } /* Function names */
+      .highlight .m { color: #67e8f9; } /* Numbers */
+      .highlight .c { color: #6b7280; font-style: italic; } /* Comments */
+      .highlight .p { color: #9ca3af; } /* Punctuation */
+    </style>
+    <div class="highlight">#{html}</div>
+    """
+  end
 end

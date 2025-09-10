@@ -757,13 +757,14 @@ defmodule SelectoComponents.Form do
       end
 
       defp view_from_params(params, socket) do
-        # First, clear any existing query results to prevent stale data display
-        socket =
-          assign(socket,
-            query_results: nil,
-            executed: false,
-            execution_error: nil
-          )
+        try do
+          # First, clear any existing query results to prevent stale data display
+          socket =
+            assign(socket,
+              query_results: nil,
+              executed: false,
+              execution_error: nil
+            )
 
         # Create a fresh Selecto structure instead of reusing the cached one
         # This ensures any internal state is properly reset for the new view
@@ -803,17 +804,22 @@ defmodule SelectoComponents.Form do
 
         selected_view = String.to_atom(Map.get(params, "view_mode"))
 
-        {_, module, _, opt} =
-          Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
-        {view_set, view_meta} =
-          String.to_existing_atom("#{module}.Process").view(
-            opt,
-            params,
-            columns_map,
-            filtered,
-            selecto
-          )
+        # Handle case where view might not be found
+        view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
+        
+        {view_set, view_meta} = case view_tuple do
+          {_, module, _, opt} ->
+            String.to_existing_atom("#{module}.Process").view(
+              opt,
+              params,
+              columns_map,
+              filtered,
+              selecto
+            )
+          nil ->
+            # View not found - raise error that will be caught
+            raise "View mode '#{selected_view}' not found in configured views"
+        end
 
         selecto = Map.put(selecto, :set, view_set)
 
@@ -1031,6 +1037,46 @@ defmodule SelectoComponents.Form do
                 params: error_params,
                 timing: nil
               }
+            )
+        end
+        rescue
+          error ->
+            # Handle any errors that occur during view processing
+            sanitized_error = case error do
+              %Selecto.Error{} = e -> e
+              e when is_binary(e) -> %Selecto.Error{type: :view_error, message: e, details: %{}}
+              e -> %Selecto.Error{type: :view_error, message: "Error processing view: #{inspect(e)}", details: %{error: e}}
+            end
+            
+            if dev_mode?() do
+              IO.puts("[VIEW ERROR] #{inspect(error)}")
+              IO.puts("[VIEW ERROR] Stacktrace: #{inspect(__STACKTRACE__)}")
+            end
+            
+            assign(socket,
+              query_results: nil,
+              executed: false,
+              execution_error: sanitized_error,
+              view_meta: %{},
+              last_query_info: %{}
+            )
+        catch
+          :exit, reason ->
+            # Handle exits (like process crashes)
+            if dev_mode?() do
+              IO.puts("[VIEW EXIT] #{inspect(reason)}")
+            end
+            
+            assign(socket,
+              query_results: nil,
+              executed: false,
+              execution_error: %Selecto.Error{
+                type: :system_error,
+                message: "System error occurred while processing view",
+                details: %{exit_reason: reason}
+              },
+              view_meta: %{},
+              last_query_info: %{}
             )
         end
       end
