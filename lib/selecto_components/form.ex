@@ -167,24 +167,41 @@ defmodule SelectoComponents.Form do
             end
           }
         >
-          <h3 class="text-base-content font-medium mb-2">Filter Configuration</h3>
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
-            id="filter_tree"
-            available={@field_filters}
+            id="tree_builder"
+            available={build_filter_list(@selecto)}
             filters={@view_config.filters}
           >
-            <:filter_form :let={{uuid, index, section, fv}}>
-              <.live_component
-                module={SelectoComponents.Components.FilterForms}
-                id={uuid}
-                uuid={uuid}
-                section={section}
-                index={index}
-                filter={fv}
-                columns={Selecto.columns(@selecto)}
-                custom_filters={Selecto.filters(@selecto)}
-              />
+            <:filter_form :let={{uuid, index, section, filter_value}}>
+              <div class="grid grid-cols-3 gap-2">
+                <select name={"filters[#{uuid}][comp]"} class="sc-select">
+                  <option value="=" selected={filter_value["comp"] == "="}>Equals</option>
+                  <option value="!=" selected={filter_value["comp"] == "!="}>Not Equals</option>
+                  <option value=">" selected={filter_value["comp"] == ">"}>Greater Than</option>
+                  <option value=">=" selected={filter_value["comp"] == ">="}>Greater or Equal</option>
+                  <option value="<" selected={filter_value["comp"] == "<"}>Less Than</option>
+                  <option value="<=" selected={filter_value["comp"] == "<="}>Less or Equal</option>
+                  <option value="LIKE" selected={filter_value["comp"] == "LIKE"}>Contains</option>
+                  <option value="NOT LIKE" selected={filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
+                  <option value="IS NULL" selected={filter_value["comp"] == "IS NULL"}>Is Empty</option>
+                  <option value="IS NOT NULL" selected={filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+                </select>
+                
+                <input 
+                  type="text" 
+                  name={"filters[#{uuid}][value]"} 
+                  value={filter_value["value"]}
+                  placeholder="Enter value..."
+                  class="sc-input"
+                  disabled={filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+                />
+                
+                <input type="hidden" name={"filters[#{uuid}][uuid]"} value={uuid}/>
+                <input type="hidden" name={"filters[#{uuid}][section]"} value={section}/>
+                <input type="hidden" name={"filters[#{uuid}][index]"} value={index}/>
+                <input type="hidden" name={"filters[#{uuid}][filter]"} value={filter_value["filter"]}/>
+              </div>
             </:filter_form>
           </.live_component>
         </div>
@@ -696,6 +713,16 @@ defmodule SelectoComponents.Form do
           # Re-execute the view with current parameters and sorting
           view_from_params_with_sort(params, socket, sort_by)
         end)
+      end
+      
+      @impl true
+      def handle_info({:filters_updated, updated_filters}, socket) do
+        # Update the view config with new filters
+        socket = assign(socket,
+          view_config: %{socket.assigns.view_config | filters: updated_filters}
+        )
+        # Don't auto-execute, wait for user to click Apply
+        {:noreply, socket}
       end
 
       # Helper function to execute view from current state
@@ -1268,6 +1295,16 @@ defmodule SelectoComponents.Form do
     Map.values(Selecto.columns(selecto))
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
+  end
+  
+  defp build_available_fields(selecto) do
+    Selecto.columns(selecto)
+    |> Enum.map(fn {field_id, column} ->
+      field_id_str = if is_atom(field_id), do: Atom.to_string(field_id), else: to_string(field_id)
+      field_name = Map.get(column, :name, field_id_str)
+      {field_id_str, %{name: field_name}}
+    end)
+    |> Map.new()
   end
 
   # Auto-pivot detection and application
