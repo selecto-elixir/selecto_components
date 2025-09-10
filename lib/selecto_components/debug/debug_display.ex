@@ -42,7 +42,9 @@ defmodule SelectoComponents.Debug.DebugDisplay do
             <div class="flex items-center justify-between mb-2">
               <h5 class="font-medium text-gray-600">SQL Query</h5>
               <div class="flex items-center gap-2">
+                <!-- Copy button temporarily hidden - see COMPTASK-0099 -->
                 <button 
+                  :if={false}
                   type="button"
                   phx-click="copy_sql" 
                   phx-target={@myself}
