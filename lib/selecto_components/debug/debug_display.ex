@@ -8,7 +8,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def render(assigns) do
     ~H"""
-    <div class="selecto-debug-panel">
+    <div class="selecto-debug-panel" id={"debug-panel-#{@id}"} phx-hook="ClipboardHook">
       <div :if={@show_debug} class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
@@ -41,19 +41,33 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           <div :if={@debug_info[:query]} class="border-t border-gray-200 pt-2">
             <div class="flex items-center justify-between mb-2">
               <h5 class="font-medium text-gray-600">SQL Query</h5>
-              <button 
-                :if={@debug_info[:params] && length(@debug_info.params) > 0}
-                type="button"
-                phx-click="toggle_sql_mode" 
-                phx-target={@myself}
-                class="inline-flex items-center px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-xs font-medium transition-colors"
-              >
+              <div class="flex items-center gap-2">
+                <button 
+                  type="button"
+                  phx-click="copy_sql" 
+                  phx-target={@myself}
+                  class="inline-flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+                  title="Copy SQL to clipboard"
+                >
+                  <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy
+                </button>
+                <button 
+                  :if={@debug_info[:params] && length(@debug_info.params) > 0}
+                  type="button"
+                  phx-click="toggle_sql_mode" 
+                  phx-target={@myself}
+                  class="inline-flex items-center px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-xs font-medium transition-colors"
+                >
                 <%= if @show_interpolated do %>
                   Show Parameterized
                 <% else %>
                   Show Interpolated
                 <% end %>
-              </button>
+                </button>
+              </div>
             </div>
             <%= if @show_interpolated && @debug_info[:params] do %>
               <div class="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
@@ -210,6 +224,26 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def handle_event("toggle_sql_mode", _, socket) do
     {:noreply, assign(socket, show_interpolated: !socket.assigns.show_interpolated)}
+  end
+  
+  def handle_event("copy_sql", _params, socket) do
+    sql_to_copy = if socket.assigns.show_interpolated do
+      # Get interpolated SQL
+      case socket.assigns.debug_info do
+        %{query: query, params: params} when is_binary(query) and is_list(params) ->
+          interpolate_params(query, params)
+        %{query: query} when is_binary(query) ->
+          query
+        _ ->
+          ""
+      end
+    else
+      # Get raw SQL
+      socket.assigns.debug_info[:query] || ""
+    end
+    
+    # Push event to JavaScript hook to handle clipboard
+    {:noreply, push_event(socket, "copy-to-clipboard", %{text: sql_to_copy})}
   end
 
   # Helper functions
