@@ -229,6 +229,15 @@ defmodule SelectoComponents.Debug.ConfigReader do
     Application.get_env(:selecto_components, :dev_mode, false) ||
       Application.get_env(:selecto_components, :env) == :dev ||
       System.get_env("DEV_MODE") == "true" ||
+      check_mix_env()
+  end
+  
+  defp check_mix_env do
+    # Mix is not available in production releases
+    if Code.ensure_loaded?(Mix) do
       Mix.env() in [:dev, :test]
+    else
+      false
+    end
   end
 end
