@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
   alias SelectoComponents.Debug.DebugDisplay
+  alias SelectoComponents.Debug.ProductionConfig
 
   def render(assigns) do
     assigns =
@@ -16,12 +17,16 @@ defmodule SelectoComponents.Results do
 
           assign(assigns, module: module, view_opts: opt)
       end
+    
+    # Check debug permissions using params and session from socket
+    show_debug = should_show_debug?(assigns)
+    assigns = assign(assigns, :show_debug, show_debug)
 
     ~H"""
       <div>
-        <!-- Debug Display Panel -->
+        <!-- Debug Display Panel (only shown if debug is enabled) -->
         <.live_component
-          :if={@executed && @query_results}
+          :if={@show_debug && @executed && @query_results}
           module={DebugDisplay}
           id="debug_display"
           domain_module={Map.get(assigns, :domain_module)}
@@ -43,6 +48,15 @@ defmodule SelectoComponents.Results do
         </div>
       </div>
     """
+  end
+
+  defp should_show_debug?(assigns) do
+    # Try to get params and session from the socket
+    params = get_in(assigns, [:socket, :assigns, :params]) || %{}
+    session = get_in(assigns, [:socket, :assigns, :session]) || %{}
+    
+    # Use ProductionConfig to check if debug should be shown
+    ProductionConfig.debug_enabled?(params, session)
   end
 
   defp build_debug_data(assigns) do
