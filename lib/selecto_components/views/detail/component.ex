@@ -7,7 +7,40 @@ defmodule SelectoComponents.Views.Detail.Component do
   import SelectoComponents.Components.NestedTable
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.EnhancedTable.Sorting
+  alias SelectoComponents.EnhancedTable.ColumnManager
   use Phoenix.LiveComponent
+
+  def mount(socket) do
+    # Initialize column configuration
+    columns = []  # Will be populated in update/2
+    socket = ColumnManager.init_columns(socket, columns)
+    {:ok, socket}
+  end
+
+  def update(assigns, socket) do
+    # Extract columns from selecto if available
+    columns = if Map.has_key?(assigns, :selecto) do
+      Map.get(assigns.selecto.set, :columns, [])
+      |> Enum.map(fn col -> 
+        %{
+          id: col["field"],
+          name: col["alias"] || col["field"],
+          width: 150,
+          min_width: 50,
+          max_width: 500
+        }
+      end)
+    else
+      []
+    end
+    
+    socket = 
+      socket
+      |> assign(assigns)
+      |> ColumnManager.init_columns(columns)
+    
+    {:ok, socket}
+  end
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
@@ -129,6 +162,8 @@ defmodule SelectoComponents.Views.Detail.Component do
               sort_by={assigns[:sort_by] || []}
               multi={false}
               target={@myself}
+              resizable={true}
+              column_config={assigns[:column_config] || %{}}
             />
           <% end %>
           <%!-- Add headers for subselect columns --%>
@@ -256,6 +291,39 @@ defmodule SelectoComponents.Views.Detail.Component do
         view_meta: %{socket.assigns.view_meta | page: new_page}
       )
 
+    {:noreply, socket}
+  end
+
+  def handle_event("resize_column", %{"column_id" => column_id, "width" => width}, socket) do
+    new_width = String.to_integer(width)
+    socket = ColumnManager.resize_column(socket, column_id, new_width)
+    {:noreply, socket}
+  end
+
+  def handle_event("reorder_columns", %{"columns" => column_order}, socket) do
+    # Get current columns to reset with new order
+    columns = socket.assigns[:columns] || []
+    socket = ColumnManager.reorder_columns(socket, columns, column_order)
+    {:noreply, socket}
+  end
+
+  def handle_event("reset_columns", _params, socket) do
+    # Get initial columns to reset
+    columns = if Map.has_key?(socket.assigns, :selecto) do
+      Map.get(socket.assigns.selecto.set, :columns, [])
+      |> Enum.map(fn col -> 
+        %{
+          id: col["field"],
+          name: col["alias"] || col["field"],
+          width: 150,
+          min_width: 50,
+          max_width: 500
+        }
+      end)
+    else
+      []
+    end
+    socket = ColumnManager.reset_columns(socket, columns)
     {:noreply, socket}
   end
 end

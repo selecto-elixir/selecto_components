@@ -122,21 +122,69 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
   Render sortable column header.
   """
   def sortable_header(assigns) do
-    ~H"""
-    <th
-      class={"px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100 select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
-      phx-click="sort_column"
-      phx-value-column={@column}
-      phx-value-multi={@multi || false}
-      phx-target={@target}
-      title={"Click to sort by #{@label}#{if @multi, do: " (Shift+Click for multi-column sort)", else: ""}"}
-    >
-      <div class="flex items-center justify-between">
-        <span><%= @label %></span>
-        <.sort_indicator column={@column} sort_by={@sort_by} show_position={@multi} />
-      </div>
-    </th>
-    """
+    # Check if resizable is enabled
+    if Map.get(assigns, :resizable, false) && Map.get(assigns, :column_config) do
+      column_config = Map.get(assigns.column_config, assigns.column, %{
+        width: 150,
+        min_width: 50,
+        max_width: 500
+      })
+      
+      assigns = Phoenix.Component.assign(assigns, :col_config, column_config)
+      
+      ~H"""
+      <th
+        class={"relative px-2 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
+        style={"width: #{@col_config.width}px; min-width: #{@col_config.min_width}px; max-width: #{@col_config.max_width}px;"}
+        data-column-id={@column}
+      >
+        <div 
+          class="flex items-center justify-between cursor-pointer hover:bg-gray-100 px-2 rounded"
+          phx-click="sort_column"
+          phx-value-column={@column}
+          phx-value-multi={@multi || false}
+          phx-target={@target}
+          title={"Click to sort by #{@label}#{if @multi, do: " (Shift+Click for multi-column sort)", else: ""}"}
+          draggable={if Map.get(assigns, :reorderable, false), do: "true", else: "false"}
+          phx-hook={if Map.get(assigns, :reorderable, false), do: "ColumnReorder", else: nil}
+          id={"col-header-#{@column}"}
+          data-column-id={@column}
+        >
+          <span class="truncate"><%= @label %></span>
+          <.sort_indicator column={@column} sort_by={@sort_by} show_position={@multi} />
+        </div>
+        
+        <%!-- Resize handle --%>
+        <%= if Map.get(assigns, :resizable, false) do %>
+          <div
+            class="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors"
+            phx-hook="ColumnResize"
+            id={"resize-#{@column}"}
+            data-column-id={@column}
+          >
+            <div class="absolute inset-y-0 -left-1 -right-1 z-10"></div>
+          </div>
+        <% end %>
+      </th>
+      """
+    else
+      # Original non-resizable header
+      ~H"""
+      <th
+        class={"px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100 select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
+        phx-click="sort_column"
+        phx-value-column={@column}
+        phx-value-multi={@multi || false}
+        phx-target={@target}
+        title={"Click to sort by #{@label}#{if @multi, do: " (Shift+Click for multi-column sort)", else: ""}"}
+      >
+        <div class="flex items-center justify-between">
+          <span><%= @label %></span>
+          <.sort_indicator column={@column} sort_by={@sort_by} show_position={@multi} />
+        </div>
+      </th>
+      """
+    end
   end
 
   # Private functions
