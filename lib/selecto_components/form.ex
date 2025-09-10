@@ -419,16 +419,17 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("agg_add_filters", params, socket) do
-        selected_view = String.to_atom(socket.assigns.view_config.view_mode)
+        with_error_handling(socket, "agg_add_filters", fn ->
+          selected_view = String.to_atom(socket.assigns.view_config.view_mode)
 
-        {_, _, _, opt} =
-          Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
+          {_, _, _, opt} =
+            Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-        new_view_mode = Map.get(opt, :drill_down, "detail")
+          new_view_mode = Map.get(opt, :drill_down, "detail")
 
-        view_params =
-          %{socket.assigns.used_params | "view_mode" => "detail"}
-          |> Map.put(
+          view_params =
+            %{socket.assigns.used_params | "view_mode" => "detail"}
+            |> Map.put(
             "filters",
             Enum.reduce(
               params,
@@ -525,7 +526,8 @@ defmodule SelectoComponents.Form do
             }
           )
 
-        {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+          {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+        end)
       end
 
       def handle_event("graph_drill_down", params, socket) do
@@ -535,8 +537,9 @@ defmodule SelectoComponents.Form do
       end
 
       def handle_event("chart_click", params, socket) do
-        # Extract the label/value from the clicked chart element
-        label = Map.get(params, "label")
+        with_error_handling(socket, "chart_click", fn ->
+          # Extract the label/value from the clicked chart element
+          label = Map.get(params, "label")
         _value = Map.get(params, "value")
         
         # Get current view mode and graph configuration
@@ -606,7 +609,8 @@ defmodule SelectoComponents.Form do
           }
         )
         
-        {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+          {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+        end)
       end
 
       @impl true

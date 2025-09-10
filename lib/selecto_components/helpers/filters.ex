@@ -135,6 +135,10 @@ defmodule SelectoComponents.Helpers.Filters do
 
             :string ->
               acc ++ [ _make_string_filter(f) ]
+            
+            :custom_column ->
+              # Custom columns should be treated as strings for filtering purposes
+              acc ++ [ _make_string_filter(f) ]
 
             x when x in [:naive_datetime, :utc_datetime] ->
               acc ++ [{Map.get(f, "filter"), _make_date_filter(f)}]
