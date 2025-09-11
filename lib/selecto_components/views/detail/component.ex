@@ -160,6 +160,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         sticky_header={true}
         show_scroll_indicators={true}
         mobile_layout={assigns[:mobile_layout] || :horizontal}
+        phx-hook="RowClickable"
       >
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
@@ -204,7 +205,12 @@ defmodule SelectoComponents.Views.Detail.Component do
           <% {_results, columns_from_query, _aliases} = @query_results %>
           <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
           
-          <tr class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top">
+          <tr 
+            class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
+            phx-click="show_row_details"
+            phx-value-row-index={actual_idx}
+            phx-target={@myself}
+          >
             <td class="px-1 py-1">
               <%= actual_idx + 1 %>
             </td>
@@ -365,9 +371,80 @@ defmodule SelectoComponents.Views.Detail.Component do
     {:noreply, socket}
   end
   
+  def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
+    index = String.to_integer(row_index)
+    {results, _} = socket.assigns.processed_results
+    
+    # Normalize results to maps if needed
+    normalized_results = if length(results) > 0 and is_list(hd(results)) do
+      {_results, columns, _aliases} = socket.assigns.query_results
+      Enum.map(results, fn row ->
+        Enum.zip(columns, row) |> Map.new()
+      end)
+    else
+      results
+    end
+    
+    record = Enum.at(normalized_results, index)
+    
+    # Send event to parent to show modal
+    send(self(), {:show_detail_modal, %{
+      record: record,
+      current_index: index,
+      total_records: length(normalized_results),
+      records: normalized_results,
+      fields: socket.assigns.aliases,
+      related_data: build_related_data(record, socket)
+    }})
+    
+    {:noreply, socket}
+  end
+  
   def handle_info({:load_more_data, _end_index}, socket) do
     # This would be implemented by the parent component to load more data
     send(self(), :load_more_virtual_data)
     {:noreply, socket}
+  end
+  
+  # Helper function to build related data configuration
+  defp build_related_data(record, socket) do
+    # This would be configured based on the domain/schema relationships
+    # For now, return empty map - parent component can override
+    %{}
+  end
+  
+  @doc """
+  JavaScript hooks for row click handling.
+  """
+  def __hooks__() do
+    %{
+      "RowClickable" => %{
+        mounted: """
+        // Add click handlers to all table rows
+        this.el.querySelectorAll('tr[phx-click="show_row_details"]').forEach(row => {
+          row.style.cursor = 'pointer';
+          
+          row.addEventListener('mouseenter', () => {
+            if (!row.classList.contains('bg-blue-50')) {
+              row.dataset.originalBg = row.className;
+              row.classList.add('bg-blue-50');
+            }
+          });
+          
+          row.addEventListener('mouseleave', () => {
+            row.classList.remove('bg-blue-50');
+            if (row.dataset.originalBg) {
+              row.className = row.dataset.originalBg;
+            }
+          });
+        });
+        """,
+        
+        updated: """
+        // Re-apply handlers after LiveView updates
+        this.mounted();
+        """
+      }
+    }
   end
 end

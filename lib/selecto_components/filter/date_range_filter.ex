@@ -111,13 +111,13 @@ defmodule SelectoComponents.Filter.DateRangeFilter do
         {Date.add(today, -29), today}
         
       :this_month ->
-        start = Date.beginning_of_month(today)
+        start = beginning_of_month(today)
         {start, today}
         
       :last_month ->
-        last_month = Date.add(today, -Date.day_of_month(today))
-        start = Date.beginning_of_month(last_month)
-        end_date = Date.end_of_month(last_month)
+        last_month = Date.add(today, -today.day)
+        start = beginning_of_month(last_month)
+        end_date = end_of_month(last_month)
         {start, end_date}
         
       :this_year ->
@@ -217,29 +217,14 @@ defmodule SelectoComponents.Filter.DateRangeFilter do
     };
     """
   end
-end
-
-# Extension for Date module
-defmodule Date do
-  @doc """
-  Get the first day of the month for a given date.
-  """
-  def beginning_of_month(date) do
+  # Helper functions for date calculations
+  
+  defp beginning_of_month(date) do
     Date.new!(date.year, date.month, 1)
   end
   
-  @doc """
-  Get the last day of the month for a given date.
-  """
-  def end_of_month(date) do
+  defp end_of_month(date) do
     days = :calendar.last_day_of_the_month(date.year, date.month)
     Date.new!(date.year, date.month, days)
-  end
-  
-  @doc """
-  Get the day of the month for a given date.
-  """
-  def day_of_month(date) do
-    date.day
   end
 end
