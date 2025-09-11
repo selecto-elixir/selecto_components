@@ -8,12 +8,16 @@ defmodule SelectoComponents.Views.Detail.Component do
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.EnhancedTable.ColumnManager
+  alias SelectoComponents.EnhancedTable.ResponsiveWrapper
   use Phoenix.LiveComponent
 
   def mount(socket) do
     # Initialize column configuration
     columns = []  # Will be populated in update/2
-    socket = ColumnManager.init_columns(socket, columns)
+    socket = 
+      socket
+      |> ColumnManager.init_columns(columns)
+      |> ResponsiveWrapper.init_responsive_state()
     {:ok, socket}
   end
 
@@ -150,7 +154,13 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
+      <ResponsiveWrapper.responsive_table 
+        id={"detail-table-#{@myself}"}
+        sticky_header={true}
+        show_scroll_indicators={true}
+        mobile_layout={assigns[:mobile_layout] || :horizontal}
+      >
+        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">#</th>
@@ -268,6 +278,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           </tr>
         <% end %>
       </table>
+      </ResponsiveWrapper.responsive_table>
     </div>
     """
   end
@@ -324,6 +335,16 @@ defmodule SelectoComponents.Views.Detail.Component do
       []
     end
     socket = ColumnManager.reset_columns(socket, columns)
+    {:noreply, socket}
+  end
+
+  def handle_event("viewport_change", params, socket) do
+    socket = ResponsiveWrapper.handle_viewport_change(socket, params)
+    {:noreply, socket}
+  end
+
+  def handle_event("scroll_position", %{"top" => top, "left" => left}, socket) do
+    socket = assign(socket, scroll_position: %{top: top, left: left})
     {:noreply, socket}
   end
 end
