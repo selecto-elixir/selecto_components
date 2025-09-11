@@ -345,8 +345,8 @@ defmodule SelectoComponents.Modal.DetailModal do
   defp format_value(value) when is_binary(value), do: value
   defp format_value(value) when is_number(value), do: to_string(value)
   defp format_value(value) when is_boolean(value), do: to_string(value)
-  defp format_value(%Date{} = date), do: Date.to_string(date)
-  defp format_value(%DateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
+  defp format_value(%{__struct__: Date} = date), do: Date.to_string(date)
+  defp format_value(%{__struct__: DateTime} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
   defp format_value(value), do: inspect(value)
   
   defp humanize(atom) when is_atom(atom), do: humanize(Atom.to_string(atom))

@@ -290,7 +290,7 @@ defmodule SelectoComponents.EnhancedTable.InlineEdit do
   defp format_display_value(value, :boolean) do
     if value, do: "✓", else: "✗"
   end
-  defp format_display_value(%Date{} = date, :date) do
+  defp format_display_value(%{__struct__: Date} = date, :date) do
     Calendar.strftime(date, "%Y-%m-%d")
   end
   defp format_display_value(value, _type) do
