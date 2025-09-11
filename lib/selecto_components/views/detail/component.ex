@@ -9,6 +9,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.EnhancedTable.ColumnManager
   alias SelectoComponents.EnhancedTable.ResponsiveWrapper
+  alias SelectoComponents.EnhancedTable.Virtualization
   use Phoenix.LiveComponent
 
   def mount(socket) do
@@ -345,6 +346,28 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("scroll_position", %{"top" => top, "left" => left}, socket) do
     socket = assign(socket, scroll_position: %{top: top, left: left})
+    {:noreply, socket}
+  end
+
+  def handle_event("virtual_scroll", params, socket) do
+    socket = Virtualization.handle_scroll(socket, params)
+    {:noreply, socket}
+  end
+
+  def handle_event("row_height_changed", %{"index" => index, "height" => height}, socket) do
+    socket = Virtualization.update_row_height(socket, index, height)
+    {:noreply, socket}
+  end
+
+  def handle_event("viewport_measured", %{"width" => _width, "height" => height}, socket) do
+    virtual = Map.get(socket.assigns, :virtual_scroll, %{})
+    socket = assign(socket, virtual_scroll: Map.put(virtual, :viewport_height, height))
+    {:noreply, socket}
+  end
+  
+  def handle_info({:load_more_data, _end_index}, socket) do
+    # This would be implemented by the parent component to load more data
+    send(self(), :load_more_virtual_data)
     {:noreply, socket}
   end
 end
