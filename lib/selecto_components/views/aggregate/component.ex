@@ -15,15 +15,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     {:ok, socket}
   end
   
-  def handle_event("sort_column", %{"column" => column} = params, socket) do
-    multi = Map.get(params, "multi", "false") == "true"
-    socket = Sorting.handle_sort_click(column, socket, multi)
-    
-    # Trigger re-execution with new sort
-    send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
-    
-    {:noreply, socket}
-  end
+  # Sorting disabled in aggregate view to prevent SQL errors with ROLLUP queries
+  # def handle_event("sort_column", %{"column" => column} = params, socket) do
+  #   multi = Map.get(params, "multi", "false") == "true"
+  #   socket = Sorting.handle_sort_click(column, socket, multi)
+  #   
+  #   # Trigger re-execution with new sort
+  #   send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
+  #   
+  #   {:noreply, socket}
+  # end
 
   # # Helper function to determine styling level based on group values
   # defp determine_level(group_values) do
@@ -426,39 +427,18 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
         <tr>
-          <%!-- Sortable headers for group by columns --%>
-          <%= for {alias, {:group_by, field, _coldef}} <- @group_by do %>
-            <% column_field = case field do
-              {:field, field_id, _alias} when is_atom(field_id) -> Atom.to_string(field_id)
-              {:field, {_extract_type, field_id, _format}, _alias} when is_atom(field_id) -> Atom.to_string(field_id)
-              _ -> alias
-            end %>
-            <Sorting.sortable_header 
-              column={column_field}
-              label={alias}
-              sort_by={assigns[:sort_by] || []}
-              multi={false}
-              target={@myself}
-            />
+          <%!-- Non-sortable headers for group by columns (sorting disabled in aggregate view) --%>
+          <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+              <%= alias %>
+            </th>
           <% end %>
 
-          <%!-- Sortable headers for aggregate columns --%>
-          <%= for {alias, {:agg, agg, _coldef}} <- @aggregate do %>
-            <% column_field = case agg do
-              {:field, {func, field_id}, _alias} when is_atom(field_id) -> 
-                "#{func}_#{field_id}"
-              {:field, field_id, _alias} when is_atom(field_id) -> 
-                Atom.to_string(field_id)
-              _ -> 
-                alias
-            end %>
-            <Sorting.sortable_header 
-              column={column_field}
-              label={alias}
-              sort_by={assigns[:sort_by] || []}
-              multi={false}
-              target={@myself}
-            />
+          <%!-- Non-sortable headers for aggregate columns (sorting disabled in aggregate view) --%>
+          <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+              <%= alias %>
+            </th>
           <% end %>
 
         </tr>
