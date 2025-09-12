@@ -17,7 +17,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     columns = []  # Will be populated in update/2
     socket = 
       socket
-      |> ColumnManager.init_columns(columns)
+      |> assign(:columns_config, init_columns_config(columns))
     {:ok, socket}
   end
 
@@ -41,7 +41,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     socket = 
       socket
       |> assign(assigns)
-      |> ColumnManager.init_columns(columns)
+      |> assign(:columns_config, init_columns_config(columns))
     
     {:ok, socket}
   end
@@ -154,15 +154,9 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
-      <ResponsiveWrapper.responsive_table 
-        id={"detail-table-#{@myself}"}
-        sticky_header={true}
-        show_scroll_indicators={true}
-        mobile_layout={assigns[:mobile_layout] || :horizontal}
-        phx-hook="RowClickable"
-      >
+      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook="RowClickable">
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
-
+        <thead>
         <tr>
           <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">#</th>
           <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
@@ -186,7 +180,8 @@ defmodule SelectoComponents.Views.Detail.Component do
             <% end %>
           <% end %>
         </tr>
-
+        </thead>
+        <tbody>
         <%!--  --%>
         <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
           <% # Process row data once at the beginning of the iteration %>
@@ -283,8 +278,9 @@ defmodule SelectoComponents.Views.Detail.Component do
             <% end %>
           </tr>
         <% end %>
+        </tbody>
       </table>
-      </ResponsiveWrapper.responsive_table>
+      </div>
     </div>
     """
   end
@@ -313,14 +309,14 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def handle_event("resize_column", %{"column_id" => column_id, "width" => width}, socket) do
     new_width = String.to_integer(width)
-    socket = ColumnManager.resize_column(socket, column_id, new_width)
+    # Column resize handled by client-side JS
     {:noreply, socket}
   end
 
   def handle_event("reorder_columns", %{"columns" => column_order}, socket) do
     # Get current columns to reset with new order
     columns = socket.assigns[:columns] || []
-    socket = ColumnManager.reorder_columns(socket, columns, column_order)
+    # Column reorder handled by client-side JS
     {:noreply, socket}
   end
 
@@ -340,12 +336,12 @@ defmodule SelectoComponents.Views.Detail.Component do
     else
       []
     end
-    socket = ColumnManager.reset_columns(socket, columns)
+    # Column reset
     {:noreply, socket}
   end
 
   def handle_event("viewport_change", params, socket) do
-    socket = ResponsiveWrapper.handle_viewport_change(socket, params)
+    # Viewport change handled by client-side JS
     {:noreply, socket}
   end
 
@@ -355,12 +351,12 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("virtual_scroll", params, socket) do
-    socket = Virtualization.handle_scroll(socket, params)
+    # Scroll handled by client-side JS
     {:noreply, socket}
   end
 
   def handle_event("row_height_changed", %{"index" => index, "height" => height}, socket) do
-    socket = Virtualization.update_row_height(socket, index, height)
+    # Row height update handled by client-side JS
     {:noreply, socket}
   end
 
@@ -368,6 +364,18 @@ defmodule SelectoComponents.Views.Detail.Component do
     virtual = Map.get(socket.assigns, :virtual_scroll, %{})
     socket = assign(socket, virtual_scroll: Map.put(virtual, :viewport_height, height))
     {:noreply, socket}
+  end
+  
+  # Helper function to initialize column configuration
+  defp init_columns_config(columns) do
+    Enum.map(columns, fn col ->
+      %{
+        id: col,
+        visible: true,
+        width: "auto",
+        locked: false
+      }
+    end)
   end
   
   def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
