@@ -158,7 +158,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
         <thead>
         <tr>
-          <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">#</th>
+          <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-gray-700 uppercase bg-gray-50 w-12 max-w-12 min-w-12">#</th>
           <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
             <% column_field = Enum.at(@columns, idx)["field"] %>
             <Sorting.sortable_header 
@@ -205,7 +205,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-value-row-index={actual_idx}
             phx-target={@myself}
           >
-            <td class="px-1 py-1">
+            <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
               <%= actual_idx + 1 %>
             </td>
             <%!-- Display regular columns --%>
