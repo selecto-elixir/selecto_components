@@ -42,9 +42,8 @@ defmodule SelectoComponents.Debug.DebugDisplay do
             <div class="flex items-center justify-between mb-2">
               <h5 class="font-medium text-gray-600">SQL Query</h5>
               <div class="flex items-center gap-2">
-                <!-- Copy button temporarily hidden - see COMPTASK-0099 -->
+                <!-- Copy button fixed - COMPTASK-0099 -->
                 <button 
-                  :if={false}
                   type="button"
                   phx-click="copy_sql" 
                   phx-target={@myself}
@@ -279,12 +278,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
     show_debug = ConfigReader.debug_enabled?(domain_module, view_type)
     
     debug_info = if show_debug && assigns[:debug_data] do
-      result = ConfigReader.build_debug_info(assigns.debug_data, config)
-      if Application.get_env(:selecto_components, :env, :dev) == :dev do
-        IO.puts("[DEBUG] DebugDisplay.update - debug_info received: #{inspect(result, limit: :infinity)}")
-        IO.puts("[DEBUG] DebugDisplay.update - has query? #{Map.has_key?(result, :query)}")
-      end
-      result
+      ConfigReader.build_debug_info(assigns.debug_data, config)
     else
       %{}
     end

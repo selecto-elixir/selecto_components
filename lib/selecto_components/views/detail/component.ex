@@ -18,7 +18,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     socket = 
       socket
       |> ColumnManager.init_columns(columns)
-      |> ResponsiveWrapper.init_responsive_state()
     {:ok, socket}
   end
 

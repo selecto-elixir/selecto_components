@@ -3,9 +3,8 @@ defmodule SelectoComponents.Sharing.LinkGenerator do
   Generates shareable links for view configurations with state preservation.
   """
 
-  alias Phoenix.Component
+  use Phoenix.Component
   import Phoenix.LiveView
-  import Phoenix.HTML
 
   @doc """
   Component for generating and displaying shareable links.

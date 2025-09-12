@@ -198,14 +198,15 @@ defmodule SelectoComponents.Performance.Dashboard do
   end
 
   def metric_tile(assigns) do
-    trend_positive = if assigns[:inverse_trend], do: assigns.trend < 0, else: assigns.trend > 0
+    assigns = assign(assigns, :trend_positive, 
+      if(assigns[:inverse_trend], do: assigns.trend < 0, else: assigns.trend > 0))
     
     ~H"""
     <div class={"bg-#{@color}-50 p-4 rounded-lg"}>
       <div class="flex items-center justify-between mb-2">
         <.icon name={@icon} class={"w-5 h-5 text-#{@color}-600"} />
         <%= if @trend != 0 do %>
-          <div class={"text-xs flex items-center #{if trend_positive, do: "text-green-600", else: "text-red-600"}"}>
+          <div class={"text-xs flex items-center #{if @trend_positive, do: "text-green-600", else: "text-red-600"}"}>
             <%= if @trend > 0 do %>
               ↑ <%= abs(@trend) %>%
             <% else %>

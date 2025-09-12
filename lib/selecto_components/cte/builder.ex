@@ -42,6 +42,7 @@ defmodule SelectoComponents.CTE.Builder do
             <div class="space-y-2">
               <%= for cte <- @ctes do %>
                 <div
+                  id={"cte-#{cte.id}"}
                   class={"p-3 border rounded cursor-pointer transition-colors #{if cte.id == @selected_cte_id, do: "bg-blue-50 border-blue-500", else: "hover:bg-gray-50"}"}
                   phx-click="select_cte"
                   phx-target={@myself}
@@ -455,7 +456,6 @@ defmodule SelectoComponents.CTE.Builder do
     """
   end
 
-  defp put_flash(socket, _type, _message), do: socket
 
   @doc """
   JavaScript hooks for drag-and-drop functionality.

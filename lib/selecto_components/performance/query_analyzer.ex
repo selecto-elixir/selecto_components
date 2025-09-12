@@ -231,7 +231,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     }
   end
 
-  defp parse_plan(plan_text) do
+  defp parse_plan(_plan_text) do
     # Parse execution plan text into tree structure
     # This is a simplified version
     %{
@@ -264,7 +264,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     }
   end
 
-  defp extract_metrics(plan) do
+  defp extract_metrics(_plan) do
     %{
       total_cost: 2267.9,
       rows_examined: 15234,
@@ -272,7 +272,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     }
   end
 
-  defp generate_suggestions(plan) do
+  defp generate_suggestions(_plan) do
     [
       %{
         title: "Convert Sequential Scan to Index Scan",
@@ -312,7 +312,9 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
   end
 
   defp format_number(num) when is_number(num) do
-    Number.Delimit.number_to_delimited(num)
+    num
+    |> to_string()
+    |> String.replace(~r/(\d)(?=(\d{3})+(?!\d))/, "\\1,")
   end
   defp format_number(_), do: "0"
 

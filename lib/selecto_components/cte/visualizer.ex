@@ -144,12 +144,12 @@ defmodule SelectoComponents.CTE.Visualizer do
   Renders an edge between CTE nodes.
   """
   def cte_edge(assigns) do
-    path = calculate_edge_path(assigns.from_pos, assigns.to_pos)
+    assigns = assign(assigns, :path, calculate_edge_path(assigns.from_pos, assigns.to_pos))
     
     ~H"""
     <g class="cte-edge">
       <path
-        d={path}
+        d={@path}
         fill="none"
         stroke="#6B7280"
         stroke-width="2"
@@ -341,7 +341,11 @@ defmodule SelectoComponents.CTE.Visualizer do
   defp format_duration(ms) when is_number(ms), do: "#{ms}ms"
   defp format_duration(_), do: "N/A"
 
-  defp format_number(num) when is_number(num), do: Number.Delimit.number_to_delimited(num)
+  defp format_number(num) when is_number(num) do
+    num
+    |> to_string()
+    |> String.replace(~r/(\d)(?=(\d{3})+(?!\d))/, "\\1,")
+  end
   defp format_number(_), do: "N/A"
 
   defp format_bytes(bytes) when is_number(bytes) do

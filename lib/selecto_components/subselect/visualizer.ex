@@ -86,27 +86,29 @@ defmodule SelectoComponents.Subselect.Visualizer do
   end
 
   def query_node(assigns) do
-    node_id = generate_node_id(assigns.query)
-    is_expanded = MapSet.member?(assigns.expanded, node_id)
-    is_selected = assigns.selected && assigns.selected.id == assigns.query.id
-    has_children = has_subqueries?(assigns.query)
+    assigns = 
+      assigns
+      |> assign(:node_id, generate_node_id(assigns.query))
+      |> assign(:is_expanded, MapSet.member?(assigns.expanded, generate_node_id(assigns.query)))
+      |> assign(:is_selected, assigns.selected && assigns.selected.id == assigns.query.id)
+      |> assign(:has_children, has_subqueries?(assigns.query))
     
     ~H"""
     <div class={"query-node ml-#{@level * 4}"}>
       <div
-        class={"flex items-center p-2 rounded cursor-pointer transition-colors #{if is_selected, do: "bg-blue-100", else: "hover:bg-gray-100"}"}
+        class={"flex items-center p-2 rounded cursor-pointer transition-colors #{if @is_selected, do: "bg-blue-100", else: "hover:bg-gray-100"}"}
         phx-click="select_node"
         phx-value-id={assigns.query.id}
       >
-        <%= if has_children do %>
+        <%= if @has_children do %>
           <button
             type="button"
             phx-click="toggle_node"
-            phx-value-id={node_id}
+            phx-value-id={@node_id}
             class="mr-2"
           >
             <.icon
-              name={if is_expanded, do: "hero-chevron-down", else: "hero-chevron-right"}
+              name={if @is_expanded, do: "hero-chevron-down", else: "hero-chevron-right"}
               class="w-4 h-4 text-gray-500"
             />
           </button>
@@ -130,7 +132,7 @@ defmodule SelectoComponents.Subselect.Visualizer do
         <% end %>
       </div>
       
-      <%= if is_expanded && has_children do %>
+      <%= if @is_expanded && @has_children do %>
         <div class="ml-4 mt-1">
           <%= for subquery <- get_subqueries(assigns.query) do %>
             <.query_node
@@ -208,7 +210,7 @@ defmodule SelectoComponents.Subselect.Visualizer do
   end
 
   def performance_metric(assigns) do
-    percentage = min(100, round(@value / @max * 100))
+    assigns = assign(assigns, :percentage, min(100, round(assigns.value / assigns.max * 100)))
     
     ~H"""
     <div class="performance-metric">
@@ -219,7 +221,7 @@ defmodule SelectoComponents.Subselect.Visualizer do
       <div class="w-full bg-gray-200 rounded-full h-2">
         <div
           class={"h-2 rounded-full transition-all #{@color}"}
-          style={"width: #{percentage}%"}
+          style={"width: #{@percentage}%"}
         >
         </div>
       </div>
@@ -228,15 +230,25 @@ defmodule SelectoComponents.Subselect.Visualizer do
   end
 
   def performance_badge(assigns) do
-    {color, icon} = case assigns.performance.score do
-      score when score >= 80 -> {"bg-green-100 text-green-700", "hero-check-circle"}
-      score when score >= 60 -> {"bg-yellow-100 text-yellow-700", "hero-exclamation-triangle"}
-      _ -> {"bg-red-100 text-red-700", "hero-x-circle"}
-    end
+    assigns = 
+      case assigns.performance.score do
+        score when score >= 80 -> 
+          assigns
+          |> assign(:badge_color, "bg-green-100 text-green-700")
+          |> assign(:badge_icon, "hero-check-circle")
+        score when score >= 60 -> 
+          assigns
+          |> assign(:badge_color, "bg-yellow-100 text-yellow-700")
+          |> assign(:badge_icon, "hero-exclamation-triangle")
+        _ -> 
+          assigns
+          |> assign(:badge_color, "bg-red-100 text-red-700")
+          |> assign(:badge_icon, "hero-x-circle")
+      end
     
     ~H"""
-    <div class={"performance-badge px-2 py-1 rounded-full text-xs font-medium flex items-center #{color}"}>
-      <.icon name={icon} class="w-3 h-3 mr-1" />
+    <div class={"performance-badge px-2 py-1 rounded-full text-xs font-medium flex items-center #{@badge_color}"}>
+      <.icon name={@badge_icon} class="w-3 h-3 mr-1" />
       <%= @performance.score %>%
     </div>
     """
@@ -255,6 +267,7 @@ defmodule SelectoComponents.Subselect.Visualizer do
           <div class="space-y-2">
             <%= for template <- @query_templates do %>
               <div
+                id={"query-template-#{template.id}"}
                 class="query-template bg-white border rounded p-3 cursor-move hover:shadow-md transition-shadow"
                 draggable="true"
                 phx-hook="DraggableQuery"

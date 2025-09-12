@@ -193,6 +193,7 @@ defmodule SelectoComponents.Subselect.Builder do
   def draggable_component(assigns) do
     ~H"""
     <div
+      id={"draggable-#{@type}"}
       class="draggable-component bg-white border rounded p-2 cursor-move hover:shadow-md transition-shadow"
       draggable="true"
       phx-hook="DraggableComponent"
@@ -414,9 +415,9 @@ defmodule SelectoComponents.Subselect.Builder do
               >
                 <option value="=" selected={condition.operator == "="} >=</option>
                 <option value="!=" selected={condition.operator == "!="}>!=</option>
-                <option value=">" selected={condition.operator == ">"}>></option>
-                <option value=">=" selected={condition.operator == "="}>>=</option>
-                <option value="<" selected={condition.operator == "<"}><</option>
+                <option value=">" selected={condition.operator == ">"}>&gt;</option>
+                <option value=">=" selected={condition.operator == ">="}>&gt;=</option>
+                <option value="<" selected={condition.operator == "<"}>&lt;</option>
                 <option value="<=" selected={condition.operator == "<="}>&lt;=</option>
                 <option value="IN" selected={condition.operator == "IN"}>IN</option>
                 <option value="LIKE" selected={condition.operator == "LIKE"}>LIKE</option>
@@ -451,6 +452,115 @@ defmodule SelectoComponents.Subselect.Builder do
       >
         + Add Condition
       </button>
+    </div>
+    """
+  end
+
+  defp join_properties(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Join Type</label>
+        <select
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="join_type"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        >
+          <option value="INNER">INNER JOIN</option>
+          <option value="LEFT">LEFT JOIN</option>
+          <option value="RIGHT">RIGHT JOIN</option>
+          <option value="FULL">FULL OUTER JOIN</option>
+        </select>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Join Table</label>
+        <select
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="join_table"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        >
+          <option value="">Select table...</option>
+          <%= for schema <- @schemas do %>
+            <option value={schema.__schema__(:source)}><%= schema.__schema__(:source) %></option>
+          <% end %>
+        </select>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Join Condition</label>
+        <input
+          type="text"
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="join_on"
+          placeholder="e.g., t1.id = t2.foreign_id"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        />
+      </div>
+    </div>
+    """
+  end
+
+  defp group_properties(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Group By Fields</label>
+        <input
+          type="text"
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="group_fields"
+          placeholder="e.g., category, status"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Having Clause</label>
+        <input
+          type="text"
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="having"
+          placeholder="e.g., COUNT(*) > 10"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        />
+      </div>
+    </div>
+    """
+  end
+
+  defp exists_properties(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Exists Type</label>
+        <select
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="exists_type"
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        >
+          <option value="EXISTS">EXISTS</option>
+          <option value="NOT EXISTS">NOT EXISTS</option>
+        </select>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Subquery</label>
+        <textarea
+          phx-change="update_component_config"
+          phx-target={@myself}
+          name="subquery"
+          rows="4"
+          placeholder="SELECT 1 FROM table WHERE ..."
+          class="w-full px-3 py-2 border border-gray-200 rounded"
+        />
+      </div>
     </div>
     """
   end
@@ -555,12 +665,16 @@ defmodule SelectoComponents.Subselect.Builder do
   defp validate_query_structure(structure) do
     errors = []
     
-    if !Map.has_key?(structure, :select) do
-      errors = ["SELECT clause is required" | errors]
+    errors = if !Map.has_key?(structure, :select) do
+      ["SELECT clause is required" | errors]
+    else
+      errors
     end
     
-    if !Map.has_key?(structure, :from) do
-      errors = ["FROM clause is required" | errors]
+    errors = if !Map.has_key?(structure, :from) do
+      ["FROM clause is required" | errors]
+    else
+      errors
     end
     
     errors
@@ -573,27 +687,35 @@ defmodule SelectoComponents.Subselect.Builder do
   defp generate_sql(structure) do
     parts = []
     
-    if select = structure[:select] do
+    parts = if select = structure[:select] do
       fields = Enum.join(select.config[:fields] || ["*"], ", ")
       distinct = if select.config[:distinct], do: "DISTINCT ", else: ""
-      parts = ["SELECT #{distinct}#{fields}" | parts]
+      ["SELECT #{distinct}#{fields}" | parts]
+    else
+      parts
     end
     
-    if from = structure[:from] do
+    parts = if from = structure[:from] do
       table = from.config[:table] || "dual"
       alias_part = if from.config[:alias], do: " AS #{from.config[:alias]}", else: ""
-      parts = parts ++ ["FROM #{table}#{alias_part}"]
+      parts ++ ["FROM #{table}#{alias_part}"]
+    else
+      parts
     end
     
-    if where = structure[:where] do
+    parts = if where = structure[:where] do
       conditions = 
         where.config[:conditions]
         |> Enum.map(&format_condition/1)
         |> Enum.join(" AND ")
       
       if conditions != "" do
-        parts = parts ++ ["WHERE #{conditions}"]
+        parts ++ ["WHERE #{conditions}"]
+      else
+        parts
       end
+    else
+      parts
     end
     
     Enum.join(parts, "\n")
@@ -621,8 +743,6 @@ defmodule SelectoComponents.Subselect.Builder do
       true -> ""
     end
   end
-
-  defp put_flash(socket, _type, _message), do: socket
 
   defp icon(assigns) do
     ~H"""

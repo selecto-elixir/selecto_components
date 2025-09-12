@@ -879,28 +879,24 @@ defmodule SelectoComponents.Form do
         selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
           denorm_groups = selecto.set.denorm_groups
           
-          IO.puts("[SUBSELECT DEBUG] Applying subselects for denorm_groups: #{inspect(denorm_groups)}")
-          
           # The selecto already has the selected columns set, we just need to add subselects
           # Use SubselectBuilder to add subselects for denormalizing columns
           try do
             # Add subselects for each denormalizing group
             result = Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-              IO.puts("[SUBSELECT DEBUG] Adding subselect for #{relationship_path} with columns: #{inspect(columns)}")
+              # Add subselect for #{relationship_path} with columns: #{inspect(columns)}
               SelectoComponents.SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
             end)
             
-            IO.puts("[SUBSELECT DEBUG] Subselects added successfully. Subselected field: #{inspect(Map.get(result.set, :subselected, []))}")
             result
           rescue
             e ->
-              IO.puts("[SUBSELECT ERROR] Failed to apply subselects: #{inspect(e)}")
-              IO.puts("[SUBSELECT ERROR] Stacktrace: #{inspect(__STACKTRACE__)}")
+              # Failed to apply subselects: #{inspect(e)}
               # Fall back to original selecto if subselects fail
               selecto
           end
         else
-          IO.puts("[SUBSELECT DEBUG] No denorm_groups to process")
+          # No denorm_groups to process
           selecto
         end
         
@@ -912,16 +908,6 @@ defmodule SelectoComponents.Form do
           selecto
         end
 
-        # Generate SQL for debugging
-        try do
-          {sql, sql_params} = Selecto.to_sql(selecto)
-          IO.puts("[SUBSELECT SQL] Generated SQL: #{sql}")
-          IO.puts("[SUBSELECT SQL] Parameters: #{inspect(sql_params)}")
-        rescue
-          e ->
-            IO.puts("[SUBSELECT SQL ERROR] Failed to generate SQL: #{inspect(e)}")
-        end
-        
         # Execute query using the new metadata-returning function
         # This handles errors gracefully and won't crash the LiveView
         query_result = try do
@@ -947,7 +933,7 @@ defmodule SelectoComponents.Form do
             # But only for detail views - aggregate views need list format
             normalized_rows = if socket.assigns.view_config.view_mode == "detail" and 
                                 length(rows) > 0 and is_list(hd(rows)) do
-              IO.puts("[SUBSELECT NORMALIZE] Converting list rows to maps for detail view")
+              # Converting list rows to maps for detail view
               Enum.map(rows, fn row ->
                 Enum.zip(columns, row) |> Map.new()
               end)
@@ -955,55 +941,8 @@ defmodule SelectoComponents.Form do
               rows
             end
             
-            IO.puts("[SUBSELECT RESULT] Query executed successfully")
-            IO.puts("[SUBSELECT RESULT] Number of rows: #{length(normalized_rows)}")
-            IO.puts("[SUBSELECT RESULT] Columns: #{inspect(columns)}")
-            
             # Check if any rows have subselect data
-            if length(normalized_rows) > 0 do
-              first_row = hd(normalized_rows)
-              
-              # Handle both map and list formats
-              cond do
-                is_map(first_row) ->
-                  IO.puts("[SUBSELECT RESULT] First row keys (map): #{inspect(Map.keys(first_row))}")
-                  
-                  # Check for any keys that might be subselect results
-                  Enum.each(Map.keys(first_row), fn key ->
-                    value = Map.get(first_row, key)
-                    cond do
-                      # Already decoded list of maps (subselect data)
-                      is_list(value) and length(value) > 0 and is_map(hd(value)) ->
-                        IO.puts("[SUBSELECT RESULT] Found decoded subselect data in column '#{key}': #{length(value)} items")
-                      
-                      # JSON string that needs decoding
-                      is_binary(value) ->
-                        case Jason.decode(value) do
-                          {:ok, decoded} when is_list(decoded) ->
-                            IO.puts("[SUBSELECT RESULT] Found JSON array in column '#{key}': #{length(decoded)} items")
-                          _ ->
-                            :ok
-                        end
-                      
-                      true ->
-                        :ok
-                    end
-                  end)
-                  
-                is_list(first_row) ->
-                  IO.puts("[SUBSELECT RESULT] First row (list format): #{length(first_row)} columns")
-                  IO.puts("[SUBSELECT RESULT] Column values: #{inspect(Enum.take(first_row, 3))}")
-                  
-                  # Check if last element might be subselect data
-                  last_elem = List.last(first_row)
-                  if is_list(last_elem) and length(last_elem) > 0 and is_map(hd(last_elem)) do
-                    IO.puts("[SUBSELECT RESULT] Found subselect data with #{length(last_elem)} items")
-                  end
-                  
-                true ->
-                  IO.puts("[SUBSELECT RESULT] Unexpected row format: #{inspect(first_row)}")
-              end
-            end
+            # Debug inspection removed - data structure validated elsewhere
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
@@ -1402,7 +1341,6 @@ defmodule SelectoComponents.Form do
       end
     end)
     
-    IO.puts("[PIVOT DEBUG] Qualified columns by table: #{inspect(qualified_cols_by_table)}")
     
     # Only pivot if:
     # 1. There are qualified columns from other tables
@@ -1412,11 +1350,9 @@ defmodule SelectoComponents.Form do
     result = case Map.keys(qualified_cols_by_table) do
       [] ->
         # No qualified columns from other tables
-        IO.puts("[PIVOT DEBUG] No qualified columns from other tables - no pivot")
         false
       table_names ->
         if source_cols != [] do
-          IO.puts("[PIVOT DEBUG] Source columns selected: #{inspect(source_cols)} - NO PIVOT")
           false
         else
           # Check if we can find a pivot target that gives access to all tables
@@ -1427,8 +1363,6 @@ defmodule SelectoComponents.Form do
           # Simple approach: try to pivot to the first table and assume it has access to others
           # More sophisticated would be to check the actual join hierarchy
           pivot_target = hd(table_names)
-          IO.puts("[PIVOT DEBUG] Multiple tables #{inspect(table_names)}, attempting pivot to #{pivot_target}")
-          IO.puts("[PIVOT DEBUG] TODO: Should verify #{pivot_target} has access to other tables")
           
           # For now, allow pivot to the first table
           # This works for film -> language case
@@ -1436,7 +1370,6 @@ defmodule SelectoComponents.Form do
         end
     end
     
-    IO.puts("[PIVOT DEBUG] Final should_auto_pivot result: #{result}")
     result
   end
 
@@ -1460,7 +1393,6 @@ defmodule SelectoComponents.Form do
   def find_pivot_target(selecto, selected_columns) do
     # Find the target table from qualified column names
     
-    IO.puts("[PIVOT DEBUG] Finding pivot target for columns: #{inspect(selected_columns)}")
     
     # Extract table names from qualified columns
     table_targets = 
@@ -1470,7 +1402,6 @@ defmodule SelectoComponents.Form do
         if String.contains?(col_str, ".") do
           [table_name, _] = String.split(col_str, ".", parts: 2)
           result = String.to_atom(table_name)
-          IO.puts("[PIVOT DEBUG] Extracted table #{result} from #{col_str}")
           result
         else
           nil
@@ -1479,7 +1410,6 @@ defmodule SelectoComponents.Form do
       |> Enum.filter(&(&1 != nil))
       |> Enum.uniq()
     
-    IO.puts("[PIVOT DEBUG] Table targets: #{inspect(table_targets)}")
     
     # If we have explicit table references, determine the best pivot target
     if length(table_targets) > 0 do
@@ -1501,11 +1431,9 @@ defmodule SelectoComponents.Form do
         end)
         
         selected_target = hd(sorted_targets)
-        IO.puts("[PIVOT DEBUG] Multiple table targets: #{inspect(table_targets)}, sorted: #{inspect(sorted_targets)}, using: #{selected_target}")
         selected_target
       else
         target = hd(table_targets)
-        IO.puts("[PIVOT DEBUG] Using single table target: #{target}")
         target
       end
       
@@ -1513,20 +1441,17 @@ defmodule SelectoComponents.Form do
     else
       # Fall back to checking schemas for simple column names
       schemas = Map.get(selecto.domain, :schemas, %{})
-      IO.puts("[PIVOT DEBUG] Checking schemas: #{inspect(Map.keys(schemas))}")
       
       result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
         schema_columns = Map.keys(schema_config.columns || %{})
         
         if has_all_columns?(selected_columns, schema_columns) do
-          IO.puts("[PIVOT DEBUG] Schema #{schema_name} has all columns")
           schema_name
         else
           nil
         end
       end)
       
-      IO.puts("[PIVOT DEBUG] Schema search result: #{inspect(result)}") 
       result
     end
   end
@@ -1590,7 +1515,6 @@ defmodule SelectoComponents.Form do
 
   # Apply custom pivot transformation
   def apply_custom_pivot(selecto, target_table, join_path) do
-    IO.puts("[PIVOT DEBUG] Applying custom pivot with path: #{inspect(join_path)}")
     
     # Store the pivot configuration in the selecto set
     pivot_config = %{
@@ -1615,7 +1539,6 @@ defmodule SelectoComponents.Form do
     
     updated_set = Map.put(updated_set, :pivot_state, pivot_state)
     
-    IO.puts("[PIVOT DEBUG] Updated set with pivot config: #{inspect(updated_set)}")
     
     Map.put(selecto, :set, updated_set)
   end

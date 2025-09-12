@@ -280,8 +280,8 @@ defmodule SelectoComponents.Subselect.Optimizer do
     suggestions = []
     
     # Check for IN subqueries that can be converted to EXISTS
-    if has_in_subquery?(query) do
-      suggestions = [%{
+    suggestions = if has_in_subquery?(query) do
+      [%{
         id: "convert-in-exists",
         type: "rewrite",
         title: "Convert IN to EXISTS",
@@ -289,11 +289,13 @@ defmodule SelectoComponents.Subselect.Optimizer do
         example: "WHERE EXISTS (SELECT 1 FROM table WHERE ...)",
         impact: "high"
       } | suggestions]
+    else
+      suggestions
     end
     
     # Check for correlated subqueries
-    if has_correlated_subquery?(query) do
-      suggestions = [%{
+    suggestions = if has_correlated_subquery?(query) do
+      [%{
         id: "decorrelate",
         type: "rewrite",
         title: "Decorrelate Subquery",
@@ -301,11 +303,13 @@ defmodule SelectoComponents.Subselect.Optimizer do
         example: "JOIN (SELECT ...) AS subquery ON ...",
         impact: "high"
       } | suggestions]
+    else
+      suggestions
     end
     
     # Check for SELECT *
-    if has_select_star?(query) do
-      suggestions = [%{
+    suggestions = if has_select_star?(query) do
+      [%{
         id: "specify-columns",
         type: "schema",
         title: "Specify Column Names",
@@ -313,6 +317,8 @@ defmodule SelectoComponents.Subselect.Optimizer do
         example: "SELECT id, name, email FROM ...",
         impact: "medium"
       } | suggestions]
+    else
+      suggestions
     end
     
     suggestions
@@ -321,28 +327,32 @@ defmodule SelectoComponents.Subselect.Optimizer do
   defp detect_patterns(query) do
     patterns = []
     
-    if has_n_plus_one_pattern?(query) do
-      patterns = [%{
+    patterns = if has_n_plus_one_pattern?(query) do
+      [%{
         type: "performance",
         name: "N+1 Query Pattern",
         description: "Multiple subqueries that could be combined into a single join.",
         recommendation: "Consider using a JOIN or batch loading."
       } | patterns]
+    else
+      patterns
     end
     
-    if has_cartesian_product?(query) do
-      patterns = [%{
+    patterns = if has_cartesian_product?(query) do
+      [%{
         type: "warning",
         name: "Cartesian Product",
         description: "Missing JOIN condition may result in cartesian product.",
         recommendation: "Add appropriate JOIN conditions."
       } | patterns]
+    else
+      patterns
     end
     
     patterns
   end
 
-  defp estimate_performance(query) do
+  defp estimate_performance(_query) do
     # Simplified performance estimation
     %{
       original_time: 150,
@@ -379,7 +389,7 @@ defmodule SelectoComponents.Subselect.Optimizer do
 
   defp has_in_subquery?(query), do: String.contains?(query, " IN (SELECT")
   
-  defp has_correlated_subquery?(query), do: false  # Simplified
+  defp has_correlated_subquery?(_query), do: false  # Simplified
   
   defp has_select_star?(query), do: String.contains?(query, "SELECT *")
   
@@ -396,7 +406,9 @@ defmodule SelectoComponents.Subselect.Optimizer do
   end
 
   defp format_number(num) when is_number(num) do
-    Number.Delimit.number_to_delimited(num)
+    num
+    |> to_string()
+    |> String.replace(~r/(\d)(?=(\d{3})+(?!\d))/, "\\1,")
   end
   defp format_number(_), do: "0"
 

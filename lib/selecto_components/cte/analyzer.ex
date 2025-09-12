@@ -104,13 +104,13 @@ defmodule SelectoComponents.CTE.Analyzer do
                 </div>
                 <div>
                   <span class="text-gray-600">Circular Dependencies:</span>
-                  <span class="font-medium ml-2 <%= if @dependency_analysis.circular_deps > 0, do: "text-red-600", else: "text-green-600" %>">
+                  <span class={"font-medium ml-2 #{if @dependency_analysis.circular_deps > 0, do: "text-red-600", else: "text-green-600"}"}>
                     <%= @dependency_analysis.circular_deps %>
                   </span>
                 </div>
                 <div>
                   <span class="text-gray-600">Unused CTEs:</span>
-                  <span class="font-medium ml-2 <%= if @dependency_analysis.unused_ctes > 0, do: "text-yellow-600", else: "text-green-600" %>">
+                  <span class={"font-medium ml-2 #{if @dependency_analysis.unused_ctes > 0, do: "text-yellow-600", else: "text-green-600"}"}>
                     <%= @dependency_analysis.unused_ctes %>
                   </span>
                 </div>
@@ -496,7 +496,9 @@ defmodule SelectoComponents.CTE.Analyzer do
   defp format_bytes(_), do: "N/A"
 
   defp format_number(num) when is_number(num) do
-    Number.Delimit.number_to_delimited(num)
+    num
+    |> to_string()
+    |> String.replace(~r/(\d)(?=(\d{3})+(?!\d))/, "\\1,")
   end
   defp format_number(_), do: "N/A"
 
