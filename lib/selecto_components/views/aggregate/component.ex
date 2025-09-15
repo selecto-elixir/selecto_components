@@ -69,8 +69,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp tree_table(%{subs: {{gb, subs}, i}, groups: [first_group | groups]} = assigns) do
     ## Carry the data to construct this group by forward until we get to the place we will actually draw the row
-    IO.puts("[TREE_TABLE DEBUG] first_group: #{inspect(first_group, limit: :infinity)}")
-    IO.puts("[TREE_TABLE DEBUG] gb value: #{inspect(gb)}")
     payload =
       Map.get(assigns, :payload, []) ++
         [{i, first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
@@ -153,33 +151,22 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               {coldef, {display_val, filter_val}} when is_map(coldef) ->
                 # When v is a tuple (display_value, filter_value), use the configured filter field
                 # Custom columns use string keys, regular fields use atom keys
-                IO.inspect(coldef, label: "[FILTER DEBUG] coldef in tuple case", limit: :infinity)
                 filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
 
                 # If no group_by_filter is specified, fall back to the column identifier
                 filter_key = filter_key || Map.get(coldef, :colid) || Map.get(coldef, :name) || Map.get(coldef, "name")
-                IO.inspect(filter_key, label: "[FILTER DEBUG] filter_key determined")
-                IO.inspect(filter_val, label: "[FILTER DEBUG] filter_val")
 
                 if filter_key != nil do
                   # Use the filter_val (second element of tuple) which should be the actor_id
-                  result = %{"phx-value-#{filter_key}" => filter_val}
-                  IO.puts("[AGG FILTER] Creating filter: phx-value-#{filter_key} => #{filter_val}")
-                  result
+                  %{"phx-value-#{filter_key}" => filter_val}
                 else
-                  IO.puts("[AGG FILTER] No filter_key found, coldef: #{inspect(coldef)}")
                   %{}
                 end
 
               {coldef, v} when is_map(coldef) ->
                 # When v is not a tuple, use it directly
-                IO.puts("[FILTER DEBUG] Non-tuple case, v = #{inspect(v)}")
-                IO.inspect(coldef, label: "[FILTER DEBUG] coldef in non-tuple case", limit: :infinity)
-                IO.inspect(field, label: "[FILTER DEBUG] field tuple", limit: :infinity)
-
                 # Check if we're dealing with the full_name field that should use actor_id
                 filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
-                IO.puts("[FILTER DEBUG] group_by_filter from coldef: #{inspect(filter_key)}")
 
                 # If no group_by_filter is specified, extract field identifier from the field tuple
                 filter_key = if filter_key do
@@ -196,24 +183,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                       Map.get(coldef, :colid) || Map.get(coldef, :name) || Map.get(coldef, "name")
                   end
                 end
-                IO.puts("[FILTER DEBUG] Final filter_key: #{inspect(filter_key)}")
 
                 if filter_key != nil do
-                  result = %{"phx-value-#{filter_key}" => v}
-                  IO.puts("[AGG FILTER] Creating filter (non-tuple): phx-value-#{filter_key} => #{inspect(v)}")
-                  result
+                  %{"phx-value-#{filter_key}" => v}
                 else
-                  IO.puts("[AGG FILTER] No filter_key found (non-tuple), coldef: #{inspect(coldef)}")
                   %{}
                 end
 
               _ ->
                 # Fallback for unexpected cases
-                IO.puts("[FILTER DEBUG] Hit fallback case!")
-                IO.inspect(coldef, label: "[FALLBACK] coldef", limit: :infinity)
-                IO.inspect(v, label: "[FALLBACK] v")
-                IO.inspect(field, label: "[FALLBACK] field", limit: :infinity)
-
                 # Try to get group_by_filter from coldef even if it's not a map
                 # or extract the proper filter field from the field tuple
                 filter_field = cond do

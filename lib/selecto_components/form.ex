@@ -493,7 +493,6 @@ defmodule SelectoComponents.Form do
                 conf = Selecto.field(socket.assigns.selecto, field_name)
                 actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
                   group_by_filter = Map.get(conf, :group_by_filter)
-                  IO.puts("[FILTER FIX] Field '#{field_name}' has group_by_filter: '#{group_by_filter}', using that instead")
                   group_by_filter
                 else
                   field_name
@@ -501,7 +500,6 @@ defmodule SelectoComponents.Form do
 
                 # Update the filter config to use the correct field
                 filter_config = Map.put(filter_config, "filter", actual_filter_field)
-                IO.puts("[FIRST FILTER] Creating filter: field=#{actual_filter_field} (was #{field_name}), value=#{v1}")
                 Map.put(acc, newid, filter_config)
               end
             )
@@ -519,10 +517,8 @@ defmodule SelectoComponents.Form do
                   end) ++
                     Enum.map(params, fn {f, v} ->
                       # Extract the actual field name from phx-value-* parameters
-                      IO.puts("[FILTER DEBUG] Processing param: #{inspect(f)} => #{inspect(v)}")
                       field_name = case f do
                         "phx-value-" <> actual_field ->
-                          IO.puts("[FILTER FIX] Extracted field '#{actual_field}' from '#{f}'")
                           actual_field
                         "" ->
                           # Try to find a suitable field from current group_by configuration

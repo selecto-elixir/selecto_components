@@ -71,62 +71,63 @@ defmodule SelectoComponents.Filter.FilterSets do
         <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 class="text-lg font-semibold mb-4">Save Filter Set</h3>
-            
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  phx-input="update_save_form"
-                  phx-target={@myself}
-                  phx-value-key="name"
-                  value={@save_form.name}
-                  class="w-full border-gray-300 rounded-md"
-                  placeholder="Enter filter set name"
-                />
+
+            <.form for={%{}} as={:filter_set_form} phx-change="update_filter_set_form" phx-target={@myself}>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Name <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="filter_set_form[name]"
+                    value={@save_form.name}
+                    class={"w-full rounded-md " <> if(@save_form.name == "" || is_nil(@save_form.name), do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-gray-300")}
+                    placeholder="Enter filter set name (required)"
+                    required
+                  />
+                <%= if @save_form.name == "" || is_nil(@save_form.name) do %>
+                  <p class="mt-1 text-sm text-red-600">Name is required</p>
+                <% end %>
               </div>
               
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  phx-input="update_save_form"
-                  phx-target={@myself}
-                  phx-value-key="description"
-                  value={@save_form.description}
-                  class="w-full border-gray-300 rounded-md"
-                  rows="3"
-                  placeholder="Optional description"
-                ><%= @save_form.description %></textarea>
-              </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    name="filter_set_form[description]"
+                    class="w-full border-gray-300 rounded-md"
+                    rows="3"
+                    placeholder="Optional description"
+                  ><%= @save_form.description %></textarea>
+                </div>
               
-              <div class="flex items-center gap-4">
-                <label class="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    phx-click="toggle_default"
-                    phx-target={@myself}
-                    checked={@save_form.is_default}
-                    class="rounded border-gray-300"
-                  />
-                  <span class="text-sm">Set as default</span>
-                </label>
-                
-                <label class="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    phx-click="toggle_shared"
-                    phx-target={@myself}
-                    checked={@save_form.is_shared}
-                    class="rounded border-gray-300"
-                  />
-                  <span class="text-sm">Share with others</span>
-                </label>
+                <div class="flex items-center gap-4">
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      phx-click="toggle_default"
+                      phx-target={@myself}
+                      checked={@save_form.is_default}
+                      class="rounded border-gray-300"
+                    />
+                    <span class="text-sm">Set as default</span>
+                  </label>
+
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      phx-click="toggle_shared"
+                      phx-target={@myself}
+                      checked={@save_form.is_shared}
+                      class="rounded border-gray-300"
+                    />
+                    <span class="text-sm">Share with others</span>
+                  </label>
+                </div>
               </div>
-            </div>
+            </.form>
             
             <div class="mt-6 flex justify-end gap-2">
               <button
@@ -141,7 +142,8 @@ defmodule SelectoComponents.Filter.FilterSets do
                 type="button"
                 phx-click="do_save_filter_set"
                 phx-target={@myself}
-                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={@save_form.name == "" || is_nil(@save_form.name)}
+                class={"px-4 py-2 rounded-md " <> if(@save_form.name == "" || is_nil(@save_form.name), do: "bg-gray-400 text-gray-200 cursor-not-allowed", else: "bg-blue-600 text-white hover:bg-blue-700")}
               >
                 Save
               </button>
@@ -366,7 +368,7 @@ defmodule SelectoComponents.Filter.FilterSets do
            )}
         
         {:error, _} ->
-          {:noreply, send_flash(socket, :error, "Failed to load filter set")}
+          {:noreply, put_flash(socket, :error, "Failed to load filter set")}
       end
     end
   end
@@ -382,8 +384,13 @@ defmodule SelectoComponents.Filter.FilterSets do
     {:noreply, assign(socket, show_manage_dialog: !socket.assigns.show_manage_dialog)}
   end
   
-  def handle_event("update_save_form", %{"key" => key, "value" => value}, socket) do
-    save_form = Map.put(socket.assigns.save_form, String.to_existing_atom(key), value)
+  def handle_event("update_filter_set_form", %{"filter_set_form" => form_params}, socket) do
+    save_form = %{
+      name: form_params["name"] || "",
+      description: form_params["description"] || "",
+      is_default: socket.assigns.save_form.is_default,
+      is_shared: socket.assigns.save_form.is_shared
+    }
     {:noreply, assign(socket, save_form: save_form)}
   end
   
@@ -404,25 +411,39 @@ defmodule SelectoComponents.Filter.FilterSets do
       "is_default" => to_string(socket.assigns.save_form.is_default),
       "is_shared" => to_string(socket.assigns.save_form.is_shared)
     }
-    
+
     require Logger
     Logger.debug("Saving filter set with params: #{inspect(params)}")
     Logger.debug("Current filters: #{inspect(socket.assigns[:current_filters])}")
-    
-    case save_filter_set(params, socket.assigns) do
-      {:ok, filter_set} ->
-        {:noreply,
-         socket
-         |> assign(
-           show_save_dialog: false,
-           current_set_id: filter_set.id,
-           current_set: filter_set
-         )
-         |> load_filter_sets()
-         |> send_flash(:info, "Filter set saved successfully")}
-      
-      {:error, _changeset} ->
-        {:noreply, send_flash(socket, :error, "Failed to save filter set")}
+
+    # Validate that name is not empty
+    if params["name"] == "" || is_nil(params["name"]) do
+      {:noreply, put_flash(socket, :error, "Filter set name cannot be empty")}
+    else
+      case save_filter_set(params, socket.assigns) do
+        {:ok, filter_set} ->
+          {:noreply,
+           socket
+           |> assign(
+             show_save_dialog: false,
+             current_set_id: filter_set.id,
+             current_set: filter_set
+           )
+           |> load_filter_sets()
+           |> reset_save_form()
+           |> put_flash(:info, "Filter set saved successfully")}
+
+        {:error, changeset} ->
+          error_msg = case changeset do
+            %Ecto.Changeset{errors: errors} ->
+              errors
+              |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+              |> Enum.join(", ")
+            _ ->
+              "Failed to save filter set"
+          end
+          {:noreply, put_flash(socket, :error, error_msg)}
+      end
     end
   end
   
@@ -433,10 +454,10 @@ defmodule SelectoComponents.Filter.FilterSets do
          socket
          |> load_filter_sets()
          |> clear_current_if_deleted(id)
-         |> send_flash(:info, "Filter set deleted")}
+         |> put_flash(:info, "Filter set deleted")}
       
       {:error, _} ->
-        {:noreply, send_flash(socket, :error, "Failed to delete filter set")}
+        {:noreply, put_flash(socket, :error, "Failed to delete filter set")}
     end
   end
   
@@ -446,10 +467,10 @@ defmodule SelectoComponents.Filter.FilterSets do
         {:noreply,
          socket
          |> load_filter_sets()
-         |> send_flash(:info, "Default filter set updated")}
+         |> put_flash(:info, "Default filter set updated")}
       
       {:error, _} ->
-        {:noreply, send_flash(socket, :error, "Failed to set default")}
+        {:noreply, put_flash(socket, :error, "Failed to set default")}
     end
   end
   
@@ -463,10 +484,10 @@ defmodule SelectoComponents.Filter.FilterSets do
            current_set_id: new_set.id,
            current_set: new_set
          )
-         |> send_flash(:info, "Filter set duplicated")}
+         |> put_flash(:info, "Filter set duplicated")}
       
       {:error, _} ->
-        {:noreply, send_flash(socket, :error, "Failed to duplicate filter set")}
+        {:noreply, put_flash(socket, :error, "Failed to duplicate filter set")}
     end
   end
   
@@ -482,7 +503,7 @@ defmodule SelectoComponents.Filter.FilterSets do
          )}
       
       {:error, _} ->
-        {:noreply, send_flash(socket, :error, "Failed to generate share data")}
+        {:noreply, put_flash(socket, :error, "Failed to generate share data")}
     end
   end
   
@@ -492,17 +513,17 @@ defmodule SelectoComponents.Filter.FilterSets do
   
   def handle_event("import_set", _params, socket) do
     # Implementation would handle JSON import
-    {:noreply, send_flash(socket, :info, "Import functionality coming soon")}
+    {:noreply, put_flash(socket, :info, "Import functionality coming soon")}
   end
   
   def handle_event("export_set", %{"id" => id}, socket) do
     case export_filter_set(id, socket.assigns) do
       {:ok, json} ->
         send(self(), {:download_json, "filter_set_#{id}.json", json})
-        {:noreply, send_flash(socket, :info, "Filter set exported")}
+        {:noreply, put_flash(socket, :info, "Filter set exported")}
       
       {:error, _} ->
-        {:noreply, send_flash(socket, :error, "Failed to export filter set")}
+        {:noreply, put_flash(socket, :error, "Failed to export filter set")}
     end
   end
   
@@ -511,10 +532,13 @@ defmodule SelectoComponents.Filter.FilterSets do
   defp load_filter_sets(socket) do
     %{user_id: user_id, domain: domain} = socket.assigns
     adapter = socket.assigns[:filter_sets_adapter]
-    
-    personal_sets = list_personal_filter_sets(user_id, domain, adapter)
-    shared_sets = list_shared_filter_sets(user_id, domain, adapter)
-    system_sets = list_system_filter_sets(domain, adapter)
+
+    # Normalize domain by removing leading slash for consistent lookups
+    normalized_domain = String.trim_leading(to_string(domain), "/")
+
+    personal_sets = list_personal_filter_sets(user_id, normalized_domain, adapter)
+    shared_sets = list_shared_filter_sets(user_id, normalized_domain, adapter)
+    system_sets = list_system_filter_sets(normalized_domain, adapter)
     
     assign(socket,
       personal_sets: personal_sets,
@@ -589,10 +613,13 @@ defmodule SelectoComponents.Filter.FilterSets do
           %{}
       end
       
+      # Normalize domain by removing leading slash for consistent storage
+      normalized_domain = String.trim_leading(to_string(assigns.domain), "/")
+
       attrs = %{
         name: params["name"],
         description: params["description"],
-        domain: assigns.domain,
+        domain: normalized_domain,
         filters: filters_map,
         user_id: assigns.user_id,
         is_shared: params["is_shared"] == "true"
@@ -681,10 +708,7 @@ defmodule SelectoComponents.Filter.FilterSets do
     {:error, :not_implemented}
   end
   
-  defp send_flash(socket, type, message) do
-    send(self(), {:put_flash, type, message})
-    socket
-  end
+  # Flash helper removed - using Phoenix.LiveView.put_flash directly
   
   defp increment_usage(_id), do: :ok
 end
