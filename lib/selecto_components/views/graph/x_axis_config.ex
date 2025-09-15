@@ -6,7 +6,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
     <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
       <div class="flex items-center justify-between mb-2">
         <span class="font-medium text-sm text-gray-700"><%= @col.name %></span>
-        <span class="text-xs text-gray-500"><%= @col.type %></span>
+        <span class="text-xs text-gray-500"><%= Map.get(@col, :type, :string) %></span>
       </div>
       
       <div class="grid grid-cols-1 gap-3">
@@ -22,7 +22,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         </div>
 
         <!-- Datetime Formatting (if applicable) -->
-        <div :if={@col.type in [:naive_datetime, :utc_datetime, :date]}>
+        <div :if={Map.get(@col, :type, :string) in [:naive_datetime, :utc_datetime, :date]}>
           <label class="block text-xs font-medium text-gray-600 mb-1">Date Format</label>
           <select name={"#{@prefix}[format]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>
@@ -36,7 +36,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         </div>
 
         <!-- String truncation (if applicable) -->
-        <div :if={@col.type in [:string, :text]}>
+        <div :if={Map.get(@col, :type, :string) in [:string, :text]}>
           <label class="block text-xs font-medium text-gray-600 mb-1">Max Length</label>
           <input 
             name={"#{@prefix}[max_length]"}

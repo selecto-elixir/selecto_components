@@ -14,7 +14,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
           <%= @col.name %>
         </div>
         <div class="pl-4">
-          <%= case @col.type do%>
+          <%= case Map.get(@col, :type, :string) do%>
             <% x when x in [:int, :id] -> %>
               <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
 

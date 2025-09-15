@@ -1,332 +1,263 @@
 defmodule SelectoComponents.Filter.FilterSets do
   @moduledoc """
-  Manages saved filter sets for quick application of common filter combinations.
-  Provides save, load, edit, delete, and share functionality for filter configurations.
+  LiveComponent for managing saved filter sets.
+  Provides UI for saving, loading, and managing filter configurations.
   """
   
   use Phoenix.LiveComponent
+  import Phoenix.Component
+  import SelectoComponents.Components.Common
   
   def render(assigns) do
     ~H"""
-    <div class="filter-sets-manager" id={"filter-sets-#{@id}"}>
-      <!-- Quick Access Dropdown -->
-      <div class="filter-sets-dropdown">
-        <div class="flex items-center gap-2 mb-3">
-          <select
-            id={"filter-set-select-#{@id}"}
-            phx-change="load_filter_set"
-            phx-target={@myself}
-            class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Choose a filter set...</option>
+    <div class="filter-sets-component">
+      <!-- Main Controls -->
+      <div class="flex items-center gap-2">
+        <select
+          id={"filter-set-select-#{@id}"}
+          name={"filter-set-select-#{@id}"}
+          phx-change="load_filter_set"
+          phx-target={@myself}
+          class="select select-bordered select-sm"
+        >
+          <option value="">-- Select Filter Set --</option>
+          
+          <%= if length(@personal_sets) > 0 do %>
             <optgroup label="Personal">
-              <%= for set <- @personal_sets do %>
-                <option value={set.id} selected={@current_set_id == set.id}>
-                  <%= set.name %>
-                  <%= if set.is_default do %>
-                    (Default)
-                  <% end %>
-                </option>
-              <% end %>
+              <option :for={set <- @personal_sets} value={set.id} selected={@current_set_id == set.id}>
+                <%= set.name %><%= if set.is_default, do: " (Default)" %>
+              </option>
             </optgroup>
-            <%= if length(@shared_sets) > 0 do %>
-              <optgroup label="Shared">
-                <%= for set <- @shared_sets do %>
-                  <option value={set.id} selected={@current_set_id == set.id}>
-                    <%= set.name %> (by <%= set.owner_name %>)
-                  </option>
-                <% end %>
-              </optgroup>
-            <% end %>
-            <%= if length(@system_sets) > 0 do %>
-              <optgroup label="System">
-                <%= for set <- @system_sets do %>
-                  <option value={set.id} selected={@current_set_id == set.id}>
-                    <%= set.name %>
-                  </option>
-                <% end %>
-              </optgroup>
-            <% end %>
-          </select>
-          
-          <!-- Action Buttons -->
-          <button
-            type="button"
-            phx-click="toggle_save_dialog"
-            phx-target={@myself}
-            title="Save current filters"
-            class="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V2" />
-            </svg>
-          </button>
-          
-          <%= if @current_set_id && can_edit?(@current_set, @user_id) do %>
-            <button
-              type="button"
-              phx-click="toggle_edit_dialog"
-              phx-target={@myself}
-              title="Edit filter set"
-              class="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
           <% end %>
           
-          <button
-            type="button"
-            phx-click="toggle_manage_dialog"
-            phx-target={@myself}
-            title="Manage filter sets"
-            class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-        </div>
+          <%= if length(@shared_sets) > 0 do %>
+            <optgroup label="Shared">
+              <option :for={set <- @shared_sets} value={set.id} selected={@current_set_id == set.id}>
+                <%= set.name %>
+              </option>
+            </optgroup>
+          <% end %>
+          
+          <%= if length(@system_sets) > 0 do %>
+            <optgroup label="System">
+              <option :for={set <- @system_sets} value={set.id} selected={@current_set_id == set.id}>
+                <%= set.name %>
+              </option>
+            </optgroup>
+          <% end %>
+        </select>
         
-        <!-- Current Set Info -->
-        <%= if @current_set do %>
-          <div class="current-set-info bg-blue-50 p-2 rounded text-xs">
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-blue-900">
-                <%= @current_set.name %>
-              </span>
-              <div class="flex items-center gap-2">
-                <%= if @current_set.is_shared do %>
-                  <span class="text-blue-600" title="Shared">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-                    </svg>
-                  </span>
-                <% end %>
-                <button
-                  type="button"
-                  phx-click="share_filter_set"
-                  phx-target={@myself}
-                  phx-value-id={@current_set.id}
-                  title="Share this filter set"
-                  class="text-blue-600 hover:text-blue-800"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a3 3 0 10-5.432 0M5.432 17.026a3 3 0 100-5.432m0 5.432a3 3 0 100-5.432" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <%= if @current_set.description do %>
-              <p class="text-blue-700 mt-1"><%= @current_set.description %></p>
-            <% end %>
-          </div>
-        <% end %>
+        <button
+          phx-click="toggle_save_dialog"
+          phx-target={@myself}
+          class="btn btn-sm btn-primary"
+          title="Save current filters"
+        >
+          Save
+        </button>
+        
+        <button
+          phx-click="toggle_manage_dialog"
+          phx-target={@myself}
+          class="btn btn-sm btn-secondary"
+          title="Manage filter sets"
+        >
+          Manage
+        </button>
       </div>
       
       <!-- Save Dialog -->
       <%= if @show_save_dialog do %>
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Save Filter Set</h3>
+            <h3 class="text-lg font-semibold mb-4">Save Filter Set</h3>
             
-            <form phx-submit="save_filter_set" phx-target={@myself}>
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={@save_form.name}
-                    required
-                    class="w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="My Custom Filters"
-                  />
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Description (optional)
-                  </label>
-                  <textarea
-                    name="description"
-                    rows="2"
-                    class="w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Filters for Q4 analysis..."
-                  ><%= @save_form.description %></textarea>
-                </div>
-                
-                <div class="flex items-center gap-4">
-                  <label class="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="is_default"
-                      checked={@save_form.is_default}
-                      class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span class="text-sm text-gray-700">Set as default</span>
-                  </label>
-                  
-                  <label class="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="is_shared"
-                      checked={@save_form.is_shared}
-                      class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span class="text-sm text-gray-700">Share with team</span>
-                  </label>
-                </div>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  phx-input="update_save_form"
+                  phx-target={@myself}
+                  phx-value-key="name"
+                  value={@save_form.name}
+                  class="w-full border-gray-300 rounded-md"
+                  placeholder="Enter filter set name"
+                />
               </div>
               
-              <div class="mt-6 flex gap-3">
-                <button
-                  type="submit"
-                  class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  Save Filter Set
-                </button>
-                <button
-                  type="button"
-                  phx-click="toggle_save_dialog"
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  phx-input="update_save_form"
                   phx-target={@myself}
-                  class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                >
-                  Cancel
-                </button>
+                  phx-value-key="description"
+                  value={@save_form.description}
+                  class="w-full border-gray-300 rounded-md"
+                  rows="3"
+                  placeholder="Optional description"
+                ><%= @save_form.description %></textarea>
               </div>
-            </form>
+              
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    phx-click="toggle_default"
+                    phx-target={@myself}
+                    checked={@save_form.is_default}
+                    class="rounded border-gray-300"
+                  />
+                  <span class="text-sm">Set as default</span>
+                </label>
+                
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    phx-click="toggle_shared"
+                    phx-target={@myself}
+                    checked={@save_form.is_shared}
+                    class="rounded border-gray-300"
+                  />
+                  <span class="text-sm">Share with others</span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                phx-click="toggle_save_dialog"
+                phx-target={@myself}
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                phx-click="do_save_filter_set"
+                phx-target={@myself}
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       <% end %>
       
       <!-- Manage Dialog -->
       <%= if @show_manage_dialog do %>
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Manage Filter Sets</h3>
+            <h3 class="text-lg font-semibold mb-4">Manage Filter Sets</h3>
             
-            <div class="space-y-6">
-              <!-- Personal Filter Sets -->
-              <div>
-                <h4 class="text-sm font-medium text-gray-700 mb-2">Personal Filter Sets</h4>
+            <%= if length(@personal_sets) > 0 do %>
+              <div class="mb-6">
+                <h4 class="font-medium mb-2">Personal Filter Sets</h4>
                 <div class="space-y-2">
-                  <%= for set <- @personal_sets do %>
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div class="flex-1">
-                        <div class="flex items-center gap-2">
-                          <span class="font-medium text-gray-900"><%= set.name %></span>
-                          <%= if set.is_default do %>
-                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Default</span>
-                          <% end %>
-                          <%= if set.is_shared do %>
-                            <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Shared</span>
-                          <% end %>
-                        </div>
-                        <%= if set.description do %>
-                          <p class="text-xs text-gray-600 mt-1"><%= set.description %></p>
-                        <% end %>
-                        <p class="text-xs text-gray-500 mt-1">
-                          Created <%= format_relative_time(set.inserted_at) %>
-                          • Used <%= set.usage_count %> times
-                        </p>
-                      </div>
-                      
-                      <div class="flex items-center gap-2 ml-4">
-                        <button
-                          type="button"
-                          phx-click="set_default"
-                          phx-target={@myself}
-                          phx-value-id={set.id}
-                          title="Set as default"
-                          class="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        >
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          phx-click="duplicate_set"
-                          phx-target={@myself}
-                          phx-value-id={set.id}
-                          title="Duplicate"
-                          class="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded"
-                        >
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          phx-click="export_set"
-                          phx-target={@myself}
-                          phx-value-id={set.id}
-                          title="Export"
-                          class="p-1.5 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                        >
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          phx-click="delete_set"
-                          phx-target={@myself}
-                          phx-value-id={set.id}
-                          data-confirm="Are you sure you want to delete this filter set?"
-                          title="Delete"
-                          class="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
+                  <div :for={set <- @personal_sets} class="flex items-center justify-between p-2 border rounded">
+                    <div>
+                      <span class="font-medium"><%= set.name %></span>
+                      <%= if set.is_default do %>
+                        <span class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Default</span>
+                      <% end %>
+                      <%= if set.description do %>
+                        <p class="text-sm text-gray-600"><%= set.description %></p>
+                      <% end %>
                     </div>
-                  <% end %>
-                  
-                  <%= if length(@personal_sets) == 0 do %>
-                    <p class="text-sm text-gray-500 italic">No personal filter sets saved yet.</p>
-                  <% end %>
+                    <div class="flex gap-1">
+                      <%= unless set.is_default do %>
+                        <button
+                          phx-click="set_default"
+                          phx-value-id={set.id}
+                          phx-target={@myself}
+                          class="text-sm px-2 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
+                          title="Set as default"
+                        >
+                          Default
+                        </button>
+                      <% end %>
+                      <button
+                        phx-click="duplicate_set"
+                        phx-value-id={set.id}
+                        phx-target={@myself}
+                        class="text-sm px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                        title="Duplicate"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        phx-click="share_filter_set"
+                        phx-value-id={set.id}
+                        phx-target={@myself}
+                        class="text-sm px-2 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
+                        title="Share"
+                      >
+                        Share
+                      </button>
+                      <button
+                        phx-click="delete_set"
+                        phx-value-id={set.id}
+                        phx-target={@myself}
+                        class="text-sm px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
+                        onclick="return confirm('Are you sure you want to delete this filter set?')"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              
-              <!-- Import Section -->
-              <div>
-                <h4 class="text-sm font-medium text-gray-700 mb-2">Import Filter Set</h4>
-                <div class="flex gap-2">
-                  <input
-                    type="text"
-                    id={"import-input-#{@id}"}
-                    placeholder="Paste filter set JSON or URL..."
-                    class="flex-1 text-sm border-gray-300 rounded-md"
-                  />
-                  <button
-                    type="button"
-                    phx-click="import_set"
-                    phx-target={@myself}
-                    class="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700"
-                  >
-                    Import
-                  </button>
-                </div>
-              </div>
-            </div>
+            <% end %>
             
-            <div class="mt-6 flex justify-end">
+            <%= if length(@shared_sets) > 0 do %>
+              <div class="mb-6">
+                <h4 class="font-medium mb-2">Shared Filter Sets</h4>
+                <div class="space-y-2">
+                  <div :for={set <- @shared_sets} class="flex items-center justify-between p-2 border rounded">
+                    <div>
+                      <span class="font-medium"><%= set.name %></span>
+                      <%= if set.description do %>
+                        <p class="text-sm text-gray-600"><%= set.description %></p>
+                      <% end %>
+                    </div>
+                    <div class="flex gap-1">
+                      <button
+                        phx-click="duplicate_set"
+                        phx-value-id={set.id}
+                        phx-target={@myself}
+                        class="text-sm px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                        title="Duplicate"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+            
+            <div class="mt-6 flex justify-between">
+              <div class="flex gap-2">
+                <button
+                  phx-click="import_set"
+                  phx-target={@myself}
+                  class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Import
+                </button>
+              </div>
               <button
                 type="button"
                 phx-click="toggle_manage_dialog"
                 phx-target={@myself}
-                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
               >
                 Close
               </button>
@@ -337,35 +268,22 @@ defmodule SelectoComponents.Filter.FilterSets do
       
       <!-- Share Dialog -->
       <%= if @show_share_dialog do %>
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Share Filter Set</h3>
+            <h3 class="text-lg font-semibold mb-4">Share Filter Set</h3>
             
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Shareable URL
+                  Share URL
                 </label>
-                <div class="flex gap-2">
-                  <input
-                    type="text"
-                    id={"share-url-#{@id}"}
-                    value={@share_url}
-                    readonly
-                    class="flex-1 text-sm border-gray-300 rounded-md bg-gray-50"
-                  />
-                  <button
-                    type="button"
-                    id={"copy-btn-#{@id}"}
-                    phx-click="copy_share_url"
-                    phx-target={@myself}
-                    phx-hook="CopyToClipboard"
-                    data-target={"share-url-#{@id}"}
-                    class="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-                  >
-                    Copy
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={@share_url}
+                  readonly
+                  class="w-full border-gray-300 rounded-md bg-gray-50"
+                  onclick="this.select()"
+                />
               </div>
               
               <div>
@@ -418,9 +336,7 @@ defmodule SelectoComponents.Filter.FilterSets do
          description: "",
          is_default: false,
          is_shared: false
-       },
-       user_id: nil,
-       domain: nil
+       }
      )}
   end
   
@@ -431,24 +347,27 @@ defmodule SelectoComponents.Filter.FilterSets do
      |> load_filter_sets()}
   end
   
-  def handle_event("load_filter_set", %{"value" => ""}, socket) do
-    {:noreply, socket}
-  end
-  
-  def handle_event("load_filter_set", %{"value" => set_id}, socket) do
-    case get_filter_set(set_id, socket.assigns) do
-      {:ok, filter_set} ->
-        send(self(), {:apply_filter_set, filter_set})
+  def handle_event("load_filter_set", params, socket) do
+    # Handle both "value" and direct parameter access
+    set_id = params["value"] || params["filter-set-select-#{socket.assigns.id}"] || ""
+    
+    if set_id == "" or is_nil(set_id) do
+      {:noreply, socket}
+    else
+      case get_filter_set(set_id, socket.assigns) do
+        {:ok, filter_set} ->
+          send(self(), {:apply_filter_set, filter_set})
+          
+          {:noreply,
+           socket
+           |> assign(
+             current_set_id: filter_set.id,
+             current_set: filter_set
+           )}
         
-        {:noreply,
-         socket
-         |> assign(
-           current_set_id: filter_set.id,
-           current_set: filter_set
-         )}
-      
-      {:error, _} ->
-        {:noreply, socket}
+        {:error, _} ->
+          {:noreply, send_flash(socket, :error, "Failed to load filter set")}
+      end
     end
   end
   
@@ -463,7 +382,33 @@ defmodule SelectoComponents.Filter.FilterSets do
     {:noreply, assign(socket, show_manage_dialog: !socket.assigns.show_manage_dialog)}
   end
   
-  def handle_event("save_filter_set", params, socket) do
+  def handle_event("update_save_form", %{"key" => key, "value" => value}, socket) do
+    save_form = Map.put(socket.assigns.save_form, String.to_existing_atom(key), value)
+    {:noreply, assign(socket, save_form: save_form)}
+  end
+  
+  def handle_event("toggle_default", _params, socket) do
+    save_form = Map.put(socket.assigns.save_form, :is_default, !socket.assigns.save_form.is_default)
+    {:noreply, assign(socket, save_form: save_form)}
+  end
+  
+  def handle_event("toggle_shared", _params, socket) do
+    save_form = Map.put(socket.assigns.save_form, :is_shared, !socket.assigns.save_form.is_shared)
+    {:noreply, assign(socket, save_form: save_form)}
+  end
+  
+  def handle_event("do_save_filter_set", _params, socket) do
+    params = %{
+      "name" => socket.assigns.save_form.name,
+      "description" => socket.assigns.save_form.description,
+      "is_default" => to_string(socket.assigns.save_form.is_default),
+      "is_shared" => to_string(socket.assigns.save_form.is_shared)
+    }
+    
+    require Logger
+    Logger.debug("Saving filter set with params: #{inspect(params)}")
+    Logger.debug("Current filters: #{inspect(socket.assigns[:current_filters])}")
+    
     case save_filter_set(params, socket.assigns) do
       {:ok, filter_set} ->
         {:noreply,
@@ -565,10 +510,11 @@ defmodule SelectoComponents.Filter.FilterSets do
   
   defp load_filter_sets(socket) do
     %{user_id: user_id, domain: domain} = socket.assigns
+    adapter = socket.assigns[:filter_sets_adapter]
     
-    personal_sets = list_personal_filter_sets(user_id, domain)
-    shared_sets = list_shared_filter_sets(user_id, domain)
-    system_sets = list_system_filter_sets(domain)
+    personal_sets = list_personal_filter_sets(user_id, domain, adapter)
+    shared_sets = list_shared_filter_sets(user_id, domain, adapter)
+    system_sets = list_system_filter_sets(domain, adapter)
     
     assign(socket,
       personal_sets: personal_sets,
@@ -594,68 +540,151 @@ defmodule SelectoComponents.Filter.FilterSets do
     end
   end
   
-  defp can_edit?(nil, _user_id), do: false
-  defp can_edit?(%{owner_id: owner_id}, user_id), do: owner_id == user_id
+  # Adapter delegation functions
   
-  defp format_relative_time(datetime) do
-    # Simple relative time formatting
-    now = DateTime.utc_now()
-    diff = DateTime.diff(now, datetime, :second)
+  defp list_personal_filter_sets(user_id, domain, adapter) when not is_nil(adapter) do
+    adapter.list_personal_filter_sets(user_id, domain)
+  end
+  defp list_personal_filter_sets(_, _, _), do: []
+  
+  defp list_shared_filter_sets(user_id, domain, adapter) when not is_nil(adapter) do
+    adapter.list_shared_filter_sets(user_id, domain)
+  end
+  defp list_shared_filter_sets(_, _, _), do: []
+  
+  defp list_system_filter_sets(domain, adapter) when not is_nil(adapter) do
+    adapter.list_system_filter_sets(domain)
+  end
+  defp list_system_filter_sets(_, _), do: []
+  
+  defp get_filter_set(id, assigns) do
+    adapter = assigns[:filter_sets_adapter]
+    user_id = assigns[:user_id]
     
-    cond do
-      diff < 60 -> "just now"
-      diff < 3600 -> "#{div(diff, 60)} minutes ago"
-      diff < 86400 -> "#{div(diff, 3600)} hours ago"
-      diff < 604800 -> "#{div(diff, 86400)} days ago"
-      true -> Calendar.strftime(datetime, "%b %d, %Y")
+    if adapter do
+      adapter.get_filter_set(id, user_id)
+    else
+      {:error, :no_adapter}
     end
   end
   
-  # These would typically interact with a database context
-  defp list_personal_filter_sets(_user_id, _domain), do: []
-  defp list_shared_filter_sets(_user_id, _domain), do: []
-  defp list_system_filter_sets(_domain), do: []
-  defp get_filter_set(_id, _assigns), do: {:error, :not_found}
-  defp save_filter_set(_params, _assigns), do: {:error, :not_implemented}
-  defp delete_filter_set(_id, _assigns), do: {:error, :not_implemented}
-  defp set_default_filter_set(_id, _assigns), do: {:error, :not_implemented}
-  defp duplicate_filter_set(_id, _assigns), do: {:error, :not_implemented}
-  defp generate_share_data(_id, _assigns), do: {:error, :not_implemented}
-  defp export_filter_set(_id, _assigns), do: {:error, :not_implemented}
-  defp increment_usage(_id), do: :ok
+  defp save_filter_set(params, assigns) do
+    require Logger
+    adapter = assigns[:filter_sets_adapter]
+    Logger.debug("Adapter: #{inspect(adapter)}")
+    
+    if adapter do
+      # Convert filters from list format to map format
+      filters_map = case assigns.current_filters do
+        filters when is_list(filters) ->
+          Enum.reduce(filters, %{}, fn
+            {uuid, _section, filter_data}, acc ->
+              Map.put(acc, uuid, filter_data)
+            _, acc ->
+              acc
+          end)
+        filters when is_map(filters) ->
+          filters
+        _ ->
+          %{}
+      end
+      
+      attrs = %{
+        name: params["name"],
+        description: params["description"],
+        domain: assigns.domain,
+        filters: filters_map,
+        user_id: assigns.user_id,
+        is_shared: params["is_shared"] == "true"
+      }
+      
+      Logger.debug("Creating filter set with attrs: #{inspect(attrs)}")
+      result = adapter.create_filter_set(attrs)
+      Logger.debug("Create result: #{inspect(result)}")
+      result
+    else
+      Logger.debug("No adapter found")
+      {:error, :no_adapter}
+    end
+  rescue
+    e -> 
+      Logger.error("Error creating filter set: #{inspect(e)}")
+      {:error, :adapter_error}
+  end
+  
+  defp update_filter_set(id, params, assigns) do
+    adapter = assigns[:filter_sets_adapter]
+    
+    if adapter do
+      attrs = %{
+        name: params["name"],
+        description: params["description"],
+        is_shared: params["is_shared"] == "true"
+      }
+      
+      adapter.update_filter_set(id, attrs, assigns.user_id)
+    else
+      {:error, :no_adapter}
+    end
+  end
+  
+  defp delete_filter_set(id, assigns) do
+    adapter = assigns[:filter_sets_adapter]
+    
+    if adapter do
+      adapter.delete_filter_set(id, assigns.user_id)
+    else
+      {:error, :no_adapter}
+    end
+  end
+  
+  defp set_default_filter_set(id, assigns) do
+    adapter = assigns[:filter_sets_adapter]
+    
+    if adapter do
+      adapter.set_default_filter_set(id, assigns.user_id)
+    else
+      {:error, :no_adapter}
+    end
+  end
+  
+  defp duplicate_filter_set(id, assigns) do
+    adapter = assigns[:filter_sets_adapter]
+    user_id = assigns[:user_id]
+    
+    if adapter do
+      with {:ok, original} <- adapter.get_filter_set(id, user_id) do
+        attrs = %{
+          name: "#{original.name} (Copy)",
+          description: original.description,
+          domain: original.domain,
+          filters: original.filters,
+          user_id: user_id,
+          is_shared: false,
+          is_default: false
+        }
+        
+        adapter.create_filter_set(attrs)
+      end
+    else
+      {:error, :no_adapter}
+    end
+  end
+  
+  defp generate_share_data(_id, _assigns) do
+    # TODO: Implement share URL generation
+    {:error, :not_implemented}
+  end
+  
+  defp export_filter_set(_id, _assigns) do
+    # TODO: Implement JSON export
+    {:error, :not_implemented}
+  end
   
   defp send_flash(socket, type, message) do
     send(self(), {:put_flash, type, message})
     socket
   end
   
-  @doc """
-  JavaScript hook for copy to clipboard functionality.
-  """
-  def __hooks__() do
-    %{
-      "CopyToClipboard" => """
-      export default {
-        mounted() {
-          this.el.addEventListener('click', e => {
-            const targetId = this.el.dataset.target;
-            const target = document.getElementById(targetId);
-            if (target) {
-              navigator.clipboard.writeText(target.value).then(() => {
-                // Show temporary success state
-                const originalText = this.el.innerText;
-                this.el.innerText = 'Copied!';
-                this.el.classList.add('bg-green-600');
-                setTimeout(() => {
-                  this.el.innerText = originalText;
-                  this.el.classList.remove('bg-green-600');
-                }, 2000);
-              });
-            }
-          });
-        }
-      }
-      """
-    }
-  end
+  defp increment_usage(_id), do: :ok
 end

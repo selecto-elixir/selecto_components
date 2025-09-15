@@ -14,7 +14,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
           <%= @col.name %>
         </div>
         <div class="pl-4">
-          <%= case @col.type do%>
+          <%= case Map.get(@col, :type, :string) do%>
             <% x when x in [:integer, :id, :decimal] -> %>
               <label>Format
                 <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
@@ -46,7 +46,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               </label>
 
             <% _ -> %>
-              <%= @col.type %>
+              <%= Map.get(@col, :type, :string) %>
 
           <% end %>
         </div>

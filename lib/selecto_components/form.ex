@@ -4,6 +4,7 @@ defmodule SelectoComponents.Form do
   import SelectoComponents.Components.Common
   alias Phoenix.LiveView.JS
   alias SelectoComponents.ErrorHandling.ErrorDisplay
+  alias SelectoComponents.Components.FilterForms
 
   @doc """
   Form for configuing Selecto View
@@ -167,6 +168,17 @@ defmodule SelectoComponents.Form do
             end
           }
         >
+          <!-- Filter Sets Component -->
+          <.live_component
+            :if={Map.get(assigns, :filter_sets_adapter)}
+            module={SelectoComponents.Filter.FilterSets}
+            id="filter_sets"
+            user_id={Map.get(assigns, :user_id)}
+            domain={Map.get(assigns, :domain) || Map.get(assigns, :path)}
+            current_filters={@view_config.filters}
+            filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
+          />
+          
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
             id="tree_builder"
@@ -174,34 +186,7 @@ defmodule SelectoComponents.Form do
             filters={@view_config.filters}
           >
             <:filter_form :let={{uuid, index, section, filter_value}}>
-              <div class="grid grid-cols-3 gap-2">
-                <select name={"filters[#{uuid}][comp]"} class="sc-select">
-                  <option value="=" selected={filter_value["comp"] == "="}>Equals</option>
-                  <option value="!=" selected={filter_value["comp"] == "!="}>Not Equals</option>
-                  <option value=">" selected={filter_value["comp"] == ">"}>Greater Than</option>
-                  <option value=">=" selected={filter_value["comp"] == ">="}>Greater or Equal</option>
-                  <option value="<" selected={filter_value["comp"] == "<"}>Less Than</option>
-                  <option value="<=" selected={filter_value["comp"] == "<="}>Less or Equal</option>
-                  <option value="LIKE" selected={filter_value["comp"] == "LIKE"}>Contains</option>
-                  <option value="NOT LIKE" selected={filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
-                  <option value="IS NULL" selected={filter_value["comp"] == "IS NULL"}>Is Empty</option>
-                  <option value="IS NOT NULL" selected={filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
-                </select>
-                
-                <input 
-                  type="text" 
-                  name={"filters[#{uuid}][value]"} 
-                  value={filter_value["value"]}
-                  placeholder="Enter value..."
-                  class="sc-input"
-                  disabled={filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-                />
-                
-                <input type="hidden" name={"filters[#{uuid}][uuid]"} value={uuid}/>
-                <input type="hidden" name={"filters[#{uuid}][section]"} value={section}/>
-                <input type="hidden" name={"filters[#{uuid}][index]"} value={index}/>
-                <input type="hidden" name={"filters[#{uuid}][filter]"} value={filter_value["filter"]}/>
-              </div>
+              <%= render_filter_form(assigns, uuid, index, section, filter_value) %>
             </:filter_form>
           </.live_component>
         </div>
@@ -454,24 +439,36 @@ defmodule SelectoComponents.Form do
               Map.get(socket.assigns.used_params, "filters", %{}),
               fn {f, v}, acc ->
                 newid = UUID.uuid4()
+                IO.puts("[FIRST FILTER] Processing param: #{inspect(f)} => #{inspect(v)}")
 
-                # Handle empty field names by trying to find the appropriate field
-                # This happens when aggregate components don't properly set filter keys
-                field_name = if f == "" or f == nil do
-                  # Try to find a suitable field from current group_by configuration
-                  current_group_by = socket.assigns.view_config.group_by || []
-                  case current_group_by do
-                    [first_group | _] -> first_group
-                    [] -> "id"  # Fallback to a basic field
-                  end
-                else
-                  f
+                # Extract the actual field name from phx-value-* parameters
+                field_name = case f do
+                  "phx-value-" <> actual_field ->
+                    IO.puts("[FIRST FILTER] Extracted '#{actual_field}' from '#{f}'")
+                    actual_field
+                  "" ->
+                    # Try to find a suitable field from current group_by configuration
+                    current_group_by = socket.assigns.view_config.group_by || []
+                    case current_group_by do
+                      [first_group | _] -> first_group
+                      [] -> "id"  # Fallback to a basic field
+                    end
+                  nil ->
+                    # Try to find a suitable field from current group_by configuration
+                    current_group_by = socket.assigns.view_config.group_by || []
+                    case current_group_by do
+                      [first_group | _] -> first_group
+                      [] -> "id"  # Fallback to a basic field
+                    end
+                  _ -> f
                 end
 
                 conf = Selecto.field(socket.assigns.selecto, field_name)
 
                 {v1, v2} = if conf != nil do
-                  case conf.type do
+                  # Custom columns might not have a type field
+                  field_type = Map.get(conf, :type, :string)
+                  case field_type do
                     x when x in [:utc_datetime, :naive_datetime] ->
                       Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
 
@@ -483,7 +480,7 @@ defmodule SelectoComponents.Form do
                   {v, ""}
                 end
 
-                Map.put(acc, newid, %{
+                filter_config = %{
                   "comp" => "=",
                   "filter" => field_name,
                   "index" => "0",
@@ -491,7 +488,21 @@ defmodule SelectoComponents.Form do
                   "uuid" => newid,
                   "value" => v1,
                   "value2" => v2
-                })
+                }
+                # Check if we should use a different filter field (e.g., for full_name -> actor_id)
+                conf = Selecto.field(socket.assigns.selecto, field_name)
+                actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
+                  group_by_filter = Map.get(conf, :group_by_filter)
+                  IO.puts("[FILTER FIX] Field '#{field_name}' has group_by_filter: '#{group_by_filter}', using that instead")
+                  group_by_filter
+                else
+                  field_name
+                end
+
+                # Update the filter config to use the correct field
+                filter_config = Map.put(filter_config, "filter", actual_filter_field)
+                IO.puts("[FIRST FILTER] Creating filter: field=#{actual_filter_field} (was #{field_name}), value=#{v1}")
+                Map.put(acc, newid, filter_config)
               end
             )
           )
@@ -507,22 +518,35 @@ defmodule SelectoComponents.Form do
                     _ -> true
                   end) ++
                     Enum.map(params, fn {f, v} ->
-                      # Handle empty field names by trying to find the appropriate field
-                      field_name = if f == "" or f == nil do
-                        # Try to find a suitable field from current group_by configuration
-                        current_group_by = socket.assigns.view_config.group_by || []
-                        case current_group_by do
-                          [first_group | _] -> first_group
-                          [] -> "id"  # Fallback to a basic field
-                        end
-                      else
-                        f
+                      # Extract the actual field name from phx-value-* parameters
+                      IO.puts("[FILTER DEBUG] Processing param: #{inspect(f)} => #{inspect(v)}")
+                      field_name = case f do
+                        "phx-value-" <> actual_field ->
+                          IO.puts("[FILTER FIX] Extracted field '#{actual_field}' from '#{f}'")
+                          actual_field
+                        "" ->
+                          # Try to find a suitable field from current group_by configuration
+                          current_group_by = socket.assigns.view_config.group_by || []
+                          case current_group_by do
+                            [first_group | _] -> first_group
+                            [] -> "id"  # Fallback to a basic field
+                          end
+                        nil ->
+                          # Try to find a suitable field from current group_by configuration
+                          current_group_by = socket.assigns.view_config.group_by || []
+                          case current_group_by do
+                            [first_group | _] -> first_group
+                            [] -> "id"  # Fallback to a basic field
+                          end
+                        _ -> f
                       end
 
                       conf = Selecto.field(socket.assigns.selecto, field_name)
 
                       result = if conf != nil do
-                        case conf.type do
+                        # Custom columns might not have a type field
+                        field_type = Map.get(conf, :type, :string)
+                        case field_type do
                           x when x in [:utc_datetime, :naive_datetime] ->
                             {v1, v2} =
                               Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
@@ -1209,6 +1233,80 @@ defmodule SelectoComponents.Form do
   ### __using___
 
   ### Reorg these to use in pickers
+  defp render_filter_form(assigns, uuid, index, section, filter_value) do
+    # Get the filter definition from the selecto
+    filter_id = filter_value["filter"]
+    
+    filter_def = 
+      case Selecto.filters(assigns.selecto) do
+        filters when is_map(filters) ->
+          Map.get(filters, filter_id)
+        _ ->
+          nil
+      end
+    
+    # Check if this is a custom filter with a component
+    if filter_def && Map.get(filter_def, :type) == :component && Map.get(filter_def, :component) do
+      # Render the custom component
+      component_assigns = %{
+        uuid: uuid,
+        valmap: filter_value,
+        def: filter_def
+      }
+      
+      assigns = Map.merge(assigns, component_assigns)
+      
+      ~H"""
+      <div>
+        <%= @def.component.(assigns) %>
+        <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+        <input type="hidden" name={"filters[#{@uuid}][section]"} value={section}/>
+        <input type="hidden" name={"filters[#{@uuid}][index]"} value={index}/>
+        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={filter_value["filter"]}/>
+      </div>
+      """
+    else
+      # Render the default filter form
+      assigns = Map.merge(assigns, %{
+        uuid: uuid,
+        section: section,
+        index: index,
+        filter_value: filter_value
+      })
+      
+      ~H"""
+      <div class="grid grid-cols-3 gap-2">
+        <select name={"filters[#{@uuid}][comp]"} class="sc-select">
+          <option value="=" selected={@filter_value["comp"] == "="}>Equals</option>
+          <option value="!=" selected={@filter_value["comp"] == "!="}>Not Equals</option>
+          <option value=">" selected={@filter_value["comp"] == ">"}>Greater Than</option>
+          <option value=">=" selected={@filter_value["comp"] == ">="}>Greater or Equal</option>
+          <option value="<" selected={@filter_value["comp"] == "<"}>Less Than</option>
+          <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
+          <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
+          <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
+          <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
+          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+        </select>
+        
+        <input 
+          type="text" 
+          name={"filters[#{@uuid}][value]"} 
+          value={@filter_value["value"]}
+          placeholder="Enter value..."
+          class="sc-input col-span-2"
+          disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+        />
+        
+        <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+        <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+        <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      </div>
+      """
+    end
+  end
+
   defp build_filter_list(selecto) do
     # Include explicit filters and only columns that are marked as filterable
     filterable_columns =

@@ -14,7 +14,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
           <%= @col.name %>
         </div>
         <div class="pl-4">
-          <%= case @col.type do%>
+          <%= case Map.get(@col, :type, :string) do%>
             <% x when x in [:int, :id, :decimal] -> %>
 
             <% x when x in [:float] -> %>

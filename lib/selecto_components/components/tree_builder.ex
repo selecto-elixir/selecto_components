@@ -175,6 +175,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
     """
   end
 
+  defp get_filter_name(available, filter_id) do
+    case Enum.find(available, fn {id, _name} -> id == filter_id end) do
+      {_id, name} -> name
+      nil -> filter_id || "Unknown Filter"
+    end
+  end
+
   defp render_area(assigns) do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
 
@@ -205,6 +212,9 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
             <% {uuid, section, fv} -> %>
               <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
+                <div class="text-sm font-medium text-gray-600 mb-1">
+                  <%= get_filter_name(@available, fv["filter"]) %>
+                </div>
                 <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
               </div>
               <div class="absolute top-1 right-1 flex">
