@@ -36,7 +36,19 @@ defmodule SelectoComponents.Form do
           error={Map.get(assigns, :execution_error)}
           errors={Map.get(assigns, :component_errors, [])}
         />
-        
+
+        <!-- View Config Manager for saving/loading view configurations -->
+        <.live_component
+          :if={Map.get(assigns, :saved_view_config_module)}
+          module={SelectoComponents.ViewConfigManager}
+          id="view_config_manager"
+          view_config={@view_config}
+          saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
+          saved_view_context={Map.get(assigns, :saved_view_context)}
+          current_user_id={Map.get(assigns, :current_user_id)}
+          parent_id={@myself}
+        />
+
         <!-- Main Navigation Tabs -->
         <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
           <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
@@ -371,6 +383,28 @@ defmodule SelectoComponents.Form do
       def handle_event("view-apply", params, socket) do
         with_error_handling(socket, "view-apply", fn ->
           {:noreply, view_from_params(params, state_to_url(params, socket))}
+        end)
+      end
+
+      @impl true
+      def handle_event("load_view_config", %{"name" => config_name}, socket) do
+        with_error_handling(socket, "load_view_config", fn ->
+          view_type = socket.assigns.view_config.view_mode || "detail"
+
+          case socket.assigns.saved_view_config_module.get_view_config(
+            config_name,
+            socket.assigns.saved_view_context,
+            view_type,
+            user_id: Map.get(socket.assigns, :current_user_id)
+          ) do
+            nil ->
+              {:noreply, put_flash(socket, :error, "View configuration not found")}
+
+            config ->
+              params = socket.assigns.saved_view_config_module.decode_view_config(config)
+              socket = view_from_params(params, socket)
+              {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
+          end
         end)
       end
 
