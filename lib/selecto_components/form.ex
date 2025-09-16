@@ -973,7 +973,21 @@ defmodule SelectoComponents.Form do
             query_sql = Map.get(metadata, :sql)
             query_params = Map.get(metadata, :params, [])
             execution_time = Map.get(metadata, :execution_time, 0)
-            
+
+            # Record query metrics
+            SelectoComponents.Performance.MetricsCollector.record_query(
+              query_sql,
+              execution_time,
+              %{
+                rows_returned: length(rows),
+                columns_count: length(columns),
+                view_mode: socket.assigns.view_config.view_mode,
+                has_filters: length(selecto.set.filtered) > 0,
+                has_grouping: length(selecto.set.group_by) > 0,
+                params: query_params
+              }
+            )
+
             # Convert rows to maps if they're lists (happens with subselects)
             # But only for detail views - aggregate views need list format
             normalized_rows = if socket.assigns.view_config.view_mode == "detail" and 
