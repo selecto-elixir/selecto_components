@@ -695,15 +695,44 @@ defmodule SelectoComponents.Form do
         list = String.to_atom(list)
 
         view_config = socket.assigns.view_config
+        original_list = view_config.views[view][list]
+
+        filtered_list = Enum.filter(original_list, fn
+          {id, _, _} when is_binary(id) -> id != item
+          [id, _, _] when is_binary(id) -> id != item
+          {id, _, _} -> to_string(id) != item
+          [id, _, _] -> to_string(id) != item
+          _ -> true
+        end)
+
+        # Update the view_config
+        updated_view_config = put_in(
+          view_config.views[view][list],
+          filtered_list
+        )
 
         socket =
           assign(socket,
-            view_config:
-              put_in(
-                view_config.views[view][list],
-                Enum.filter(view_config.views[view][list], fn {id, _, _} -> id != item end)
-              )
+            view_config: updated_view_config
           )
+
+        # Force update of the child component for this specific view
+        # Find the view module from the views list
+        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
+
+        if view_module do
+          {id, mod, _, _} = view_module
+          component_id = "view_#{id}_form"
+
+          # Send update to the specific view form component
+          send_update(String.to_existing_atom("#{mod}.Form"),
+            id: component_id,
+            view_config: updated_view_config,
+            columns: socket.assigns.columns,
+            view: view_module,
+            selecto: socket.assigns.selecto
+          )
+        end
 
         # Don't execute view - wait for submit
         {:noreply, socket}
@@ -715,22 +744,50 @@ defmodule SelectoComponents.Form do
         list = String.to_atom(list)
         view_config = socket.assigns.view_config
         item_list = view_config.views[view][list]
-        item_index = Enum.find_index(item_list, fn {i, _, _} -> i == uuid end)
-        {item, item_list} = List.pop_at(item_list, item_index)
+        item_index = Enum.find_index(item_list, fn
+          {id, _, _} when is_binary(id) -> id == uuid
+          [id, _, _] when is_binary(id) -> id == uuid
+          {id, _, _} -> to_string(id) == uuid
+          [id, _, _] -> to_string(id) == uuid
+          _ -> false
+        end)
 
-        item_list =
-          List.insert_at(
-            item_list,
-            case direction do
-              "up" -> item_index - 1
-              "down" -> item_index + 1
-            end,
-            item
-          )
+        # Handle case where item not found
+        if item_index == nil do
+          {:noreply, socket}
+        else
+          {item, item_list} = List.pop_at(item_list, item_index)
 
-        socket = assign(socket, view_config: put_in(view_config.views[view][list], item_list))
-        # Don't execute view - wait for submit
-        {:noreply, socket}
+          item_list =
+            List.insert_at(
+              item_list,
+              case direction do
+                "up" -> item_index - 1
+                "down" -> item_index + 1
+              end,
+              item
+            )
+
+          updated_view_config = put_in(view_config.views[view][list], item_list)
+          socket = assign(socket, view_config: updated_view_config)
+
+          # Force update of the child component
+          view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
+          if view_module do
+            {id, mod, _, _} = view_module
+            component_id = "view_#{id}_form"
+            send_update(String.to_existing_atom("#{mod}.Form"),
+              id: component_id,
+              view_config: updated_view_config,
+              columns: socket.assigns.columns,
+              view: view_module,
+              selecto: socket.assigns.selecto
+            )
+          end
+
+          # Don't execute view - wait for submit
+          {:noreply, socket}
+        end
       end
 
       @impl true
@@ -742,14 +799,26 @@ defmodule SelectoComponents.Form do
 
         view_config = socket.assigns.view_config
 
-        socket =
-          assign(socket,
-            view_config:
-              put_in(
-                view_config.views[view][list],
-                Enum.uniq(view_config.views[view][list] ++ [{id, item, config}])
-              )
+        updated_view_config = put_in(
+          view_config.views[view][list],
+          Enum.uniq(view_config.views[view][list] ++ [{id, item, config}])
+        )
+
+        socket = assign(socket, view_config: updated_view_config)
+
+        # Force update of the child component
+        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
+        if view_module do
+          {id, mod, _, _} = view_module
+          component_id = "view_#{id}_form"
+          send_update(String.to_existing_atom("#{mod}.Form"),
+            id: component_id,
+            view_config: updated_view_config,
+            columns: socket.assigns.columns,
+            view: view_module,
+            selecto: socket.assigns.selecto
           )
+        end
 
         # Don't execute view - wait for submit
         {:noreply, socket}
@@ -829,15 +898,26 @@ defmodule SelectoComponents.Form do
                 items_params =
                   items
                   |> Enum.with_index()
-                  |> Enum.reduce(%{}, fn {{id, field, config}, index}, item_acc ->
-                    Map.put(
-                      item_acc,
-                      id,
-                      Map.merge(config, %{
-                        "field" => field,
-                        "index" => to_string(index)
-                      })
-                    )
+                  |> Enum.reduce(%{}, fn
+                    {{id, field, config}, index}, item_acc ->
+                      Map.put(
+                        item_acc,
+                        id,
+                        Map.merge(config, %{
+                          "field" => field,
+                          "index" => to_string(index)
+                        })
+                      )
+
+                    {[id, field, config], index}, item_acc ->
+                      Map.put(
+                        item_acc,
+                        id,
+                        Map.merge(config, %{
+                          "field" => field,
+                          "index" => to_string(index)
+                        })
+                      )
                   end)
 
                 Map.put(acc, to_string(list_name), items_params)

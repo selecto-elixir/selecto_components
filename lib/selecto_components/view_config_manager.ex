@@ -15,7 +15,8 @@ defmodule SelectoComponents.ViewConfigManager do
       show_load_menu: false,
       saved_configs: [],
       config_name: "",
-      config_description: ""
+      config_description: "",
+      is_public: false
     )}
   end
 
@@ -24,16 +25,29 @@ defmodule SelectoComponents.ViewConfigManager do
     socket =
       socket
       |> assign(assigns)
-      |> load_saved_configs()
+      |> maybe_load_saved_configs()
 
     {:ok, socket}
+  end
+
+  defp maybe_load_saved_configs(socket) do
+    # Only load configs if not already loaded
+    if Map.get(socket.assigns, :configs_loaded, false) do
+      socket
+    else
+      socket
+      |> load_saved_configs()
+      |> assign(configs_loaded: true)
+    end
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="relative inline-block text-left">
-      <div class="flex items-center gap-2">
+    <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900">View Configuration - <%= get_view_type_label(@view_config.view_mode) %> Mode</h3>
+        <div class="flex items-center gap-2">
         <!-- Load button with dropdown -->
         <div class="relative">
           <button
@@ -71,7 +85,7 @@ defmodule SelectoComponents.ViewConfigManager do
                     type="button"
                     phx-click="load_view_config"
                     phx-value-name={config.name}
-                    phx-target={@parent_id}
+                    phx-target={@myself}
                     class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                   >
                     <div class="font-medium"><%= config.name %></div>
@@ -119,7 +133,7 @@ defmodule SelectoComponents.ViewConfigManager do
 
             <!-- Modal panel -->
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <form phx-submit="save_view_config" phx-target={@myself}>
+              <div>
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <div class="sm:flex sm:items-start">
                     <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -167,6 +181,9 @@ defmodule SelectoComponents.ViewConfigManager do
                           <input
                             type="checkbox"
                             name="is_public"
+                            phx-click="toggle_is_public"
+                            phx-target={@myself}
+                            checked={@is_public}
                             class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                           />
                           <span class="ml-2 text-sm text-gray-600">Make this view public (visible to all users)</span>
@@ -177,7 +194,9 @@ defmodule SelectoComponents.ViewConfigManager do
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                   <button
-                    type="submit"
+                    type="button"
+                    phx-click="do_save_view_config"
+                    phx-target={@myself}
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
                   >
                     Save View
@@ -190,11 +209,12 @@ defmodule SelectoComponents.ViewConfigManager do
                     Cancel
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
       <% end %>
+      </div>
     </div>
     """
   end
@@ -205,7 +225,7 @@ defmodule SelectoComponents.ViewConfigManager do
   end
 
   def handle_event("hide_save_dialog", _params, socket) do
-    {:noreply, assign(socket, show_save_dialog: false, config_name: "", config_description: "")}
+    {:noreply, assign(socket, show_save_dialog: false, config_name: "", config_description: "", is_public: false)}
   end
 
   def handle_event("hide_load_menu", _params, socket) do
@@ -220,29 +240,44 @@ defmodule SelectoComponents.ViewConfigManager do
     {:noreply, assign(socket, config_description: desc)}
   end
 
-  def handle_event("save_view_config", params, socket) do
+  def handle_event("toggle_is_public", _params, socket) do
+    {:noreply, assign(socket, is_public: !socket.assigns.is_public)}
+  end
+
+  def handle_event("do_save_view_config", _params, socket) do
     view_type = socket.assigns.view_config.view_mode || "detail"
 
+    # Only save view-specific configuration (not filters)
+    view_specific_config = extract_view_specific_config(socket.assigns.view_config, view_type)
+
+    IO.puts("=== SAVING VIEW CONFIG ===")
+    IO.puts("View type: #{view_type}")
+    IO.puts("Config being saved:")
+    IO.inspect(view_specific_config, pretty: true, limit: :infinity)
+    IO.puts("=========================")
+
     case socket.assigns.saved_view_config_module.save_view_config(
-      params["config_name"],
+      socket.assigns.config_name,
       socket.assigns.saved_view_context,
       view_type,
-      view_config_to_params(socket.assigns.view_config),
+      view_specific_config,
       user_id: Map.get(socket.assigns, :current_user_id),
-      description: params["config_description"],
-      is_public: params["is_public"] == "on"
+      description: socket.assigns.config_description,
+      is_public: socket.assigns[:is_public] || false
     ) do
       {:ok, _config} ->
         socket =
           socket
-          |> assign(show_save_dialog: false, config_name: "", config_description: "")
-          |> load_saved_configs()
+          |> assign(show_save_dialog: false, config_name: "", config_description: "", is_public: false)
+          |> assign(configs_loaded: false)
+          |> maybe_load_saved_configs()
 
-        send(self(), {:put_flash, :info, "View configuration saved successfully"})
+        # Component can't use put_flash directly, but can update assigns
+        # The parent can check for this and display a message
         {:noreply, socket}
 
       {:error, _changeset} ->
-        send(self(), {:put_flash, :error, "Failed to save view configuration"})
+        # Component can't use put_flash directly
         {:noreply, socket}
     end
   end
@@ -254,6 +289,37 @@ defmodule SelectoComponents.ViewConfigManager do
   @impl true
   def handle_event("toggle_load_menu", _params, socket) do
     {:noreply, assign(socket, show_load_menu: !socket.assigns.show_load_menu)}
+  end
+
+  def handle_event("load_view_config", %{"name" => name}, socket) do
+    view_type = socket.assigns.view_config.view_mode || "detail"
+
+    config = socket.assigns.saved_view_config_module.load_view_config(
+      name,
+      socket.assigns.saved_view_context,
+      view_type,
+      user_id: Map.get(socket.assigns, :current_user_id)
+    )
+
+    IO.puts("=== LOADING VIEW CONFIG ===")
+    IO.puts("View name: #{name}")
+    IO.puts("View type: #{view_type}")
+    IO.puts("Loaded config:")
+    IO.inspect(config, pretty: true, limit: :infinity)
+    IO.puts("===========================")
+
+    case config do
+      nil ->
+        {:noreply, socket}
+
+      config ->
+        # Send message to parent LiveView to apply the config
+        send(self(), {:apply_view_config, config})
+
+        {:noreply,
+         socket
+         |> assign(show_load_menu: false)}
+    end
   end
 
   defp load_saved_configs(socket) do
@@ -278,16 +344,118 @@ defmodule SelectoComponents.ViewConfigManager do
       socket.assigns.saved_view_config_module != nil
   end
 
-  defp view_config_to_params(view_config) do
+  defp extract_view_specific_config(view_config, view_type) do
+    IO.puts("=== EXTRACTING VIEW CONFIG ===")
+    IO.puts("Full view_config:")
+    IO.inspect(view_config, pretty: true, limit: :infinity)
+
+    # Extract only the configuration for the current view type
+    # Exclude filters as they have their own save system
+    views = Map.get(view_config, :views, %{})
+
+    IO.puts("Views section:")
+    IO.inspect(views, pretty: true, limit: :infinity)
+
+    view_type_atom = String.to_existing_atom(view_type)
+    current_view_config = Map.get(views, view_type_atom, %{})
+
+    IO.puts("Current view config for #{view_type}:")
+    IO.inspect(current_view_config, pretty: true, limit: :infinity)
+
+    # For detail view, ensure we have the actual selected columns from the view_config
+    current_view_config = case view_type do
+      "detail" ->
+        # Get the selected columns from the main Selecto configuration
+        selected = get_selected_from_selecto(view_config)
+        order_by = get_order_by_from_selecto(view_config)
+
+        current_view_config
+        |> Map.put(:selected, selected)
+        |> Map.put(:order_by, order_by)
+        |> Map.put(:per_page, Map.get(current_view_config, :per_page, "30"))
+
+      _ ->
+        current_view_config
+    end
+
+    # Return only the view-specific configuration
+    %{
+      view_type => current_view_config
+    }
+    |> sanitize_for_json()
+  end
+
+  defp get_selected_from_selecto(view_config) do
+    # Try to get from the detail view first, then fall back to the main columns
+    case get_in(view_config, [:views, :detail, :selected]) do
+      nil ->
+        # Fall back to columns from view_config
+        Map.get(view_config, :columns, [])
+        |> Enum.map(fn col ->
+          case col do
+            {uuid, field, data} -> {uuid, field, data}
+            %{"uuid" => uuid, "field" => field} = data -> {uuid, field, data}
+            _ -> nil
+          end
+        end)
+        |> Enum.filter(&(&1 != nil))
+
+      selected -> selected
+    end
+  end
+
+  defp get_order_by_from_selecto(view_config) do
+    # Try to get from the detail view first, then fall back
+    case get_in(view_config, [:views, :detail, :order_by]) do
+      nil ->
+        # Fall back to order_by from view_config
+        Map.get(view_config, :order_by, [])
+        |> Enum.map(fn item ->
+          case item do
+            {uuid, field, data} -> {uuid, field, data}
+            %{"uuid" => uuid, "field" => field} = data -> {uuid, field, data}
+            _ -> nil
+          end
+        end)
+        |> Enum.filter(&(&1 != nil))
+
+      order_by -> order_by
+    end
+  end
+
+  defp view_config_to_params(view_config) when is_struct(view_config) do
     Map.from_struct(view_config)
     |> Map.drop([:__struct__, :__meta__])
+    |> sanitize_for_json()
   end
+
+  defp view_config_to_params(view_config) when is_map(view_config) do
+    view_config
+    |> sanitize_for_json()
+  end
+
+  # Convert tuples to lists for JSON encoding
+  defp sanitize_for_json(data) when is_map(data) do
+    Map.new(data, fn {k, v} -> {k, sanitize_for_json(v)} end)
+  end
+
+  defp sanitize_for_json(data) when is_list(data) do
+    Enum.map(data, &sanitize_for_json/1)
+  end
+
+  defp sanitize_for_json(data) when is_tuple(data) do
+    data
+    |> Tuple.to_list()
+    |> sanitize_for_json()
+  end
+
+  defp sanitize_for_json(data), do: data
 
   defp get_view_type_label("aggregate"), do: "Aggregate"
   defp get_view_type_label("graph"), do: "Graph"
   defp get_view_type_label(_), do: "Detail"
 
-  defp format_time_ago(datetime) do
+  defp format_time_ago(%DateTime{} = datetime) do
     now = DateTime.utc_now()
     diff = DateTime.diff(now, datetime, :second)
 
@@ -299,4 +467,11 @@ defmodule SelectoComponents.ViewConfigManager do
       true -> "#{div(diff, 604800)} weeks ago"
     end
   end
+
+  defp format_time_ago(%NaiveDateTime{} = naive_datetime) do
+    datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
+    format_time_ago(datetime)
+  end
+
+  defp format_time_ago(nil), do: "unknown"
 end

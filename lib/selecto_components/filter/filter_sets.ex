@@ -346,7 +346,18 @@ defmodule SelectoComponents.Filter.FilterSets do
     {:ok,
      socket
      |> assign(assigns)
-     |> load_filter_sets()}
+     |> maybe_load_filter_sets()}
+  end
+
+  defp maybe_load_filter_sets(socket) do
+    # Only load filter sets if not already loaded
+    if Map.get(socket.assigns, :filter_sets_loaded, false) do
+      socket
+    else
+      socket
+      |> load_filter_sets()
+      |> assign(filter_sets_loaded: true)
+    end
   end
   
   def handle_event("load_filter_set", params, socket) do
@@ -429,7 +440,8 @@ defmodule SelectoComponents.Filter.FilterSets do
              current_set_id: filter_set.id,
              current_set: filter_set
            )
-           |> load_filter_sets()
+           |> assign(filter_sets_loaded: false)
+           |> maybe_load_filter_sets()
            |> reset_save_form()
            |> put_flash(:info, "Filter set saved successfully")}
 
@@ -452,7 +464,8 @@ defmodule SelectoComponents.Filter.FilterSets do
       {:ok, _} ->
         {:noreply,
          socket
-         |> load_filter_sets()
+         |> assign(filter_sets_loaded: false)
+         |> maybe_load_filter_sets()
          |> clear_current_if_deleted(id)
          |> put_flash(:info, "Filter set deleted")}
       
@@ -466,7 +479,8 @@ defmodule SelectoComponents.Filter.FilterSets do
       {:ok, _} ->
         {:noreply,
          socket
-         |> load_filter_sets()
+         |> assign(filter_sets_loaded: false)
+         |> maybe_load_filter_sets()
          |> put_flash(:info, "Default filter set updated")}
       
       {:error, _} ->
@@ -479,7 +493,8 @@ defmodule SelectoComponents.Filter.FilterSets do
       {:ok, new_set} ->
         {:noreply,
          socket
-         |> load_filter_sets()
+         |> assign(filter_sets_loaded: false)
+         |> maybe_load_filter_sets()
          |> assign(
            current_set_id: new_set.id,
            current_set: new_set
