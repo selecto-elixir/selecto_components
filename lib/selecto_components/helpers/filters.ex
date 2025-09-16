@@ -112,8 +112,6 @@ defmodule SelectoComponents.Helpers.Filters do
           
           if column == nil do
             # Skip this filter if column not found
-            IO.puts("[FILTER WARNING] Column not found for filter: #{inspect(filter_key)}")
-            IO.puts("[FILTER WARNING] Available columns: #{inspect(Map.keys(Selecto.columns(selecto)))}")
             acc
           else
             case column.type do

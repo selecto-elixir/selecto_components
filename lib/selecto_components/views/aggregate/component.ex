@@ -430,9 +430,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         coldef = case field do
           {:field, field_id, _alias} ->
             # Selecto.field now returns full custom column definitions with group_by_filter
-            IO.inspect(field_id, label: "[AGG DEBUG] Looking up field")
             result = Selecto.field(assigns.selecto, field_id)
-            IO.inspect(result, label: "[AGG DEBUG] Selecto.field returned", limit: :infinity)
             if result == nil do
               # Field not found - use basic definition
               %{name: alias, format: nil}

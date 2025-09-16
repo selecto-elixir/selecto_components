@@ -48,7 +48,6 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
-    # |> IO.inspect()
     
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
@@ -92,8 +91,6 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   defp render_detail_view(assigns) do
     {results, aliases} = assigns.processed_results
-    # IO.puts("RENDER!")
-    # IO.inspect(assigns.view_meta, label: "VIEW META")
     
     # Ensure results are normalized to maps if they're lists
     normalized_results = if length(results) > 0 and is_list(hd(results)) do

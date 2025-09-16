@@ -62,12 +62,11 @@ defmodule SelectoComponents.Views.Detail.Form do
             <input name={"order_by[#{id}][uuid]"} type="hidden" value={id}/>
             <.live_component
               module={SelectoComponents.Views.Detail.OrderByConfig}
-              id={"order_by-#{id}"}
+              id={"order_by-#{id}-#{:erlang.phash2(config)}"}
               col={Selecto.field(@selecto, item)}
               item={item}
               fieldname="order_by"
               prefix={ "order_by[#{id}]" }
-
               config={config}/>
           </:item_form>
         </.live_component>

@@ -300,9 +300,7 @@ defmodule SelectoComponents.Form do
         categorized = ErrorCategorizer.categorize(error)
         
         if dev_mode?() do
-          IO.puts("[COMPONENT ERROR - #{operation_name}] Type: #{error_type}")
-          IO.puts("[COMPONENT ERROR] Details: #{inspect(error)}")
-          IO.puts("[COMPONENT ERROR] Categorized: #{inspect(categorized)}")
+          # Error type: #{error_type}
         end
         
         # Add error to component_errors list
@@ -401,7 +399,17 @@ defmodule SelectoComponents.Form do
               {:noreply, put_flash(socket, :error, "View configuration not found")}
 
             config ->
-              params = socket.assigns.saved_view_config_module.decode_view_config(config)
+              # Decode the saved configuration
+              saved_params = socket.assigns.saved_view_config_module.decode_view_config(config)
+
+              # The saved params only contain the view-specific configuration
+              # We need to convert it to full params format
+              params = convert_saved_config_to_full_params(saved_params, view_type)
+
+              # First update the view_config state from params
+              socket = params_to_state(params, socket)
+
+              # Then apply the view
               socket = view_from_params(params, socket)
               {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
           end
@@ -473,12 +481,10 @@ defmodule SelectoComponents.Form do
               Map.get(socket.assigns.used_params, "filters", %{}),
               fn {f, v}, acc ->
                 newid = UUID.uuid4()
-                IO.puts("[FIRST FILTER] Processing param: #{inspect(f)} => #{inspect(v)}")
 
                 # Extract the actual field name from phx-value-* parameters
                 field_name = case f do
                   "phx-value-" <> actual_field ->
-                    IO.puts("[FIRST FILTER] Extracted '#{actual_field}' from '#{f}'")
                     actual_field
                   "" ->
                     # Try to find a suitable field from current group_by configuration
@@ -1139,7 +1145,7 @@ defmodule SelectoComponents.Form do
           {:error, %Selecto.Error{} = error} ->
             sanitized_error = sanitize_error_for_environment(error)
             if dev_mode?() do
-              IO.puts("[QUERY ERROR] Selecto.Error: #{inspect(error)}")
+              # Selecto.Error occurred
             end
             
             # Try to extract SQL even in error case for debugging
@@ -1177,7 +1183,7 @@ defmodule SelectoComponents.Form do
             })
             
             if dev_mode?() do
-              IO.puts("[QUERY ERROR] Generic error: #{inspect(error)}")
+              # Generic error occurred
             end
             
             # Try to extract SQL even in error case for debugging
@@ -1217,8 +1223,7 @@ defmodule SelectoComponents.Form do
             end
             
             if dev_mode?() do
-              IO.puts("[VIEW ERROR] #{inspect(error)}")
-              IO.puts("[VIEW ERROR] Stacktrace: #{inspect(__STACKTRACE__)}")
+              # View error occurred
             end
             
             assign(socket,
@@ -1232,7 +1237,7 @@ defmodule SelectoComponents.Form do
           :exit, reason ->
             # Handle exits (like process crashes)
             if dev_mode?() do
-              IO.puts("[VIEW EXIT] #{inspect(reason)}")
+              # View exit: #{inspect(reason)}
             end
             
             assign(socket,
@@ -1279,6 +1284,77 @@ defmodule SelectoComponents.Form do
             view_mode: Map.get(params, "view_mode", "aggregate")
           }
         )
+      end
+
+      # Convert saved view configuration to full params format
+      defp convert_saved_config_to_full_params(saved_params, view_type) do
+        # The saved params look like: %{"detail" => %{selected: [...], order_by: [...], ...}}
+        # We need to convert to params format that params_to_state expects
+
+        view_config = Map.get(saved_params, view_type, %{})
+
+        # Convert the view-specific lists to params format
+        params = %{
+          "view_mode" => view_type
+        }
+
+        # Convert selected items
+        params = if selected = Map.get(view_config, :selected) do
+          selected_params = selected
+          |> Enum.with_index()
+          |> Enum.reduce(%{}, fn
+            {[uuid, field, config], index}, acc ->
+              Map.put(acc, uuid, Map.merge(config, %{
+                "field" => field,
+                "index" => to_string(index)
+              }))
+            {{uuid, field, config}, index}, acc ->
+              Map.put(acc, uuid, Map.merge(config, %{
+                "field" => field,
+                "index" => to_string(index)
+              }))
+          end)
+          Map.put(params, "selected", selected_params)
+        else
+          params
+        end
+
+        # Convert order_by items - always set this to ensure replacement
+        order_by = Map.get(view_config, :order_by, [])
+        order_by_params = order_by
+        |> Enum.with_index()
+        |> Enum.reduce(%{}, fn
+          {[uuid, field, config], index}, acc ->
+            # Ensure all keys and values in config are strings
+            string_config = case config do
+              nil -> %{}
+              map when is_map(map) ->
+                Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
+              _ -> %{}
+            end
+            Map.put(acc, uuid, Map.merge(string_config, %{
+              "field" => field,
+              "index" => to_string(index)
+            }))
+          {{uuid, field, config}, index}, acc ->
+            # Ensure all keys and values in config are strings
+            string_config = case config do
+              nil -> %{}
+              map when is_map(map) ->
+                Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
+              _ -> %{}
+            end
+            Map.put(acc, uuid, Map.merge(string_config, %{
+              "field" => field,
+              "index" => to_string(index)
+            }))
+        end)
+        params = Map.put(params, "order_by", order_by_params)
+
+        # Add other view-specific params
+        params
+        |> Map.put("per_page", to_string(Map.get(view_config, :per_page, "30")))
+        |> Map.put("prevent_denormalization", to_string(Map.get(view_config, :prevent_denormalization, true)))
       end
 
       ### Check if view parameters have changed significantly

@@ -250,12 +250,6 @@ defmodule SelectoComponents.ViewConfigManager do
     # Only save view-specific configuration (not filters)
     view_specific_config = extract_view_specific_config(socket.assigns.view_config, view_type)
 
-    IO.puts("=== SAVING VIEW CONFIG ===")
-    IO.puts("View type: #{view_type}")
-    IO.puts("Config being saved:")
-    IO.inspect(view_specific_config, pretty: true, limit: :infinity)
-    IO.puts("=========================")
-
     case socket.assigns.saved_view_config_module.save_view_config(
       socket.assigns.config_name,
       socket.assigns.saved_view_context,
@@ -301,13 +295,6 @@ defmodule SelectoComponents.ViewConfigManager do
       user_id: Map.get(socket.assigns, :current_user_id)
     )
 
-    IO.puts("=== LOADING VIEW CONFIG ===")
-    IO.puts("View name: #{name}")
-    IO.puts("View type: #{view_type}")
-    IO.puts("Loaded config:")
-    IO.inspect(config, pretty: true, limit: :infinity)
-    IO.puts("===========================")
-
     case config do
       nil ->
         {:noreply, socket}
@@ -345,22 +332,15 @@ defmodule SelectoComponents.ViewConfigManager do
   end
 
   defp extract_view_specific_config(view_config, view_type) do
-    IO.puts("=== EXTRACTING VIEW CONFIG ===")
-    IO.puts("Full view_config:")
-    IO.inspect(view_config, pretty: true, limit: :infinity)
 
     # Extract only the configuration for the current view type
     # Exclude filters as they have their own save system
     views = Map.get(view_config, :views, %{})
 
-    IO.puts("Views section:")
-    IO.inspect(views, pretty: true, limit: :infinity)
 
     view_type_atom = String.to_existing_atom(view_type)
     current_view_config = Map.get(views, view_type_atom, %{})
 
-    IO.puts("Current view config for #{view_type}:")
-    IO.inspect(current_view_config, pretty: true, limit: :infinity)
 
     # For detail view, ensure we have the actual selected columns from the view_config
     current_view_config = case view_type do
