@@ -10,14 +10,15 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   Modal wrapper component with backdrop and animations.
   """
   def modal(assigns) do
+    assigns = assign_new(assigns, :icon_type, fn -> :info end)
+    assigns = assign_new(assigns, :show, fn -> true end)
+
     ~H"""
     <div
       id={@id}
-      phx-mounted={show_modal()}
-      phx-remove={hide_modal()}
       phx-hook="ModalControl"
       data-cancel={JS.exec("data-cancel", to: "##{@id}")}
-      class="relative z-50 hidden"
+      class="relative z-50"
     >
       <%!-- Backdrop --%>
       <div

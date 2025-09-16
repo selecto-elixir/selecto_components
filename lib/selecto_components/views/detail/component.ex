@@ -233,18 +233,13 @@ defmodule SelectoComponents.Views.Detail.Component do
             
             <%!-- Add subselect columns inline --%>
             <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
-              <% IO.puts("[NESTED TABLE DEBUG] Subselect configs found: #{inspect(Map.get(@view_meta, :subselect_configs, []))}") %>
               <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-                <% IO.puts("[NESTED TABLE DEBUG] Processing config for key: #{config.key}") %>
-                <% IO.puts("[NESTED TABLE DEBUG] Available columns in row: #{inspect(Map.keys(row_data_by_column))}") %>
                 <% data = Map.get(row_data_by_column, config.key, []) %>
-                <% IO.puts("[NESTED TABLE DEBUG] Raw data for #{config.key}: #{inspect(data)}") %>
                 <% # Use actual_idx to ensure unique IDs %>
                 <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
                 <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
                   <% # Parse the data here to ensure it's fresh %>
                   <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data) %>
-                  <% IO.puts("[NESTED TABLE DEBUG] Parsed data for #{config.key}: #{inspect(parsed_data)}") %>
                   <div id={"nested_#{unique_id}"}>
                     <%= if length(parsed_data) > 0 do %>
                       <table class="min-w-full border border-gray-300 rounded">
@@ -380,8 +375,17 @@ defmodule SelectoComponents.Views.Detail.Component do
   
   def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
     index = String.to_integer(row_index)
-    {results, _} = socket.assigns.processed_results
-    
+
+    # Get results from processed_results if available, otherwise extract from query_results
+    {results, aliases} = if Map.has_key?(socket.assigns, :processed_results) do
+      socket.assigns.processed_results
+    else
+      case socket.assigns.query_results do
+        {results, _columns, aliases} -> {results, aliases}
+        _ -> {[], []}
+      end
+    end
+
     # Normalize results to maps if needed
     normalized_results = if length(results) > 0 and is_list(hd(results)) do
       {_results, columns, _aliases} = socket.assigns.query_results
@@ -391,19 +395,19 @@ defmodule SelectoComponents.Views.Detail.Component do
     else
       results
     end
-    
+
     record = Enum.at(normalized_results, index)
-    
+
     # Send event to parent to show modal
     send(self(), {:show_detail_modal, %{
       record: record,
       current_index: index,
       total_records: length(normalized_results),
       records: normalized_results,
-      fields: socket.assigns.aliases,
+      fields: aliases,
       related_data: build_related_data(record, socket)
     }})
-    
+
     {:noreply, socket}
   end
   

@@ -169,24 +169,64 @@ defmodule SelectoComponents.Modal.DetailModal do
   # Render the content for the current tab
   defp render_tab_content(%{current_tab: "details"} = assigns) do
     ~H"""
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <%= for {field, value} <- format_record_fields(@record, @fields) do %>
-        <div>
-          <dt class="text-sm font-medium text-gray-500"><%= humanize(field) %></dt>
-          <dd class="mt-1 text-sm text-gray-900">
-            <%= if @edit_mode do %>
-              <input
-                type="text"
-                value={value}
-                class="w-full px-2 py-1 border border-gray-300 rounded-md"
-                phx-change="update_field"
-                phx-value-field={field}
-                phx-target={@myself}
-              />
+    <div class="space-y-4">
+      <%!-- Regular fields in a grid --%>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <%= for {field, value} <- format_record_fields(@record, @fields) do %>
+          <%= if !is_list(value) do %>
+            <div>
+              <dt class="text-sm font-medium text-gray-500"><%= humanize(field) %></dt>
+              <dd class="mt-1 text-sm text-gray-900">
+                <%= if @edit_mode do %>
+                  <input
+                    type="text"
+                    value={value}
+                    class="w-full px-2 py-1 border border-gray-300 rounded-md"
+                    phx-change="update_field"
+                    phx-value-field={field}
+                    phx-target={@myself}
+                  />
+                <% else %>
+                  <%= format_value(value) %>
+                <% end %>
+              </dd>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+
+      <%!-- Nested tables for array/list fields --%>
+      <%= for {field, value} <- get_nested_fields(@record) do %>
+        <div class="mt-6">
+          <h4 class="text-sm font-medium text-gray-700 mb-2"><%= humanize(field) %></h4>
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <%= if length(value) > 0 do %>
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <%= for key <- get_nested_keys(value) do %>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <%= humanize(key) %>
+                      </th>
+                    <% end %>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <%= for item <- value do %>
+                    <tr class="hover:bg-gray-50">
+                      <%= for key <- get_nested_keys(value) do %>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                          <%= format_value(Map.get(item, key)) %>
+                        </td>
+                      <% end %>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
             <% else %>
-              <%= format_value(value) %>
+              <p class="px-4 py-2 text-sm text-gray-500 italic">No <%= String.downcase(humanize(field)) %> data</p>
             <% end %>
-          </dd>
+          </div>
         </div>
       <% end %>
     </div>
@@ -329,16 +369,15 @@ defmodule SelectoComponents.Modal.DetailModal do
   defp get_related_fields(_), do: []
   
   defp format_record_fields(nil, _fields), do: []
-  defp format_record_fields(record, fields) when is_list(fields) do
-    Enum.map(fields, fn field ->
-      {field, Map.get(record, String.to_atom(field), "")}
-    end)
-  end
-  defp format_record_fields(record, _fields) do
+  defp format_record_fields(record, _fields) when is_map(record) do
+    # Return all fields from the record, including nested ones
     record
-    |> Map.from_struct()
-    |> Map.drop([:__meta__, :__struct__])
-    |> Enum.to_list()
+    |> Map.drop(["__meta__", "__struct__", :__meta__, :__struct__])
+    |> Enum.map(fn {key, value} -> {to_string(key), value} end)
+  end
+  defp format_record_fields(_record, _fields) do
+    # Fallback for unexpected data
+    []
   end
   
   defp format_value(nil), do: "-"
@@ -357,6 +396,24 @@ defmodule SelectoComponents.Modal.DetailModal do
     |> Enum.map(&String.capitalize/1)
     |> Enum.join(" ")
   end
+
+  # Helper functions for nested data
+  defp get_nested_fields(record) when is_map(record) do
+    record
+    |> Enum.filter(fn {_key, value} ->
+      is_list(value) && length(value) > 0 && is_map(hd(value))
+    end)
+    |> Enum.map(fn {key, value} -> {key, value} end)
+  end
+  defp get_nested_fields(_), do: []
+
+  defp get_nested_keys([first | _]) when is_map(first) do
+    first
+    |> Map.keys()
+    |> Enum.reject(&(&1 in [:__meta__, :__struct__, "__meta__", "__struct__"]))
+    |> Enum.sort()
+  end
+  defp get_nested_keys(_), do: []
   
   defp tab_class(active) do
     base = "py-2 px-1 border-b-2 font-medium text-sm"

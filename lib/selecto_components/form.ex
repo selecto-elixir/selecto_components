@@ -745,6 +745,31 @@ defmodule SelectoComponents.Form do
         {:noreply, socket}
       end
 
+      @impl true
+      def handle_info({:show_detail_modal, detail_data}, socket) do
+        # Check if modal detail view is enabled (opt-in feature)
+        if Map.get(socket.assigns, :enable_modal_detail, false) do
+          # Set modal data in assigns to trigger rendering
+          socket = assign(socket,
+            show_detail_modal: true,
+            modal_detail_data: detail_data
+          )
+          {:noreply, socket}
+        else
+          # Fallback to default behavior or ignore if not enabled
+          {:noreply, socket}
+        end
+      end
+
+      @impl true
+      def handle_info({:close_detail_modal, _modal_id}, socket) do
+        socket = assign(socket,
+          show_detail_modal: false,
+          modal_detail_data: nil
+        )
+        {:noreply, socket}
+      end
+
       # Helper function to execute view from current state
       defp execute_view_from_current_state(socket) do
         params = view_config_to_params(socket.assigns.view_config)
