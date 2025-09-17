@@ -51,12 +51,32 @@ defmodule SelectoComponents.Views.Detail.Component do
     
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
-      # Error is already displayed by the form component wrapper
-      # Just show a message that view cannot be rendered
+      # Display the actual error message
       ~H"""
       <div>
+        <%= if @execution_error do %>
+          <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong class="font-bold">Query Error:</strong>
+            <span class="block sm:inline">
+              <%= case @execution_error do %>
+                <% %{message: msg} -> %>
+                  <%= msg %>
+                <% error when is_binary(error) -> %>
+                  <%= error %>
+                <% error -> %>
+                  <%= inspect(error) %>
+              <% end %>
+            </span>
+            <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) do %>
+              <details class="mt-2">
+                <summary class="cursor-pointer text-sm">Debug Details</summary>
+                <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+              </details>
+            <% end %>
+          </div>
+        <% end %>
         <div class="text-gray-500 italic p-4">
-          View cannot be displayed due to query error. Please check the error message above.
+          View cannot be displayed due to the query error shown above.
         </div>
       </div>
       """
@@ -208,23 +228,25 @@ defmodule SelectoComponents.Views.Detail.Component do
             <%!-- Display regular columns --%>
             <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
               class="px-1 py-1 align-top">
-              <%= with def <- Selecto.columns(@selecto)[col_conf["field"]] do %>
-                <%= case def do %>
+              <% def = Selecto.columns(@selecto)[col_conf["field"]] %>
+              <%= case def do %>
 
-                  <% %{format: :component} = def -> %>
-                    <%= def.component.(%{row: row_data_by_uuid[col_conf["uuid"]], config: col_conf}) %>
+                <% %{format: :component} = def -> %>
+                    <%=
+                      safe_render_component(def.component, %{
+                        row: row_data_by_uuid[col_conf["uuid"]],
+                        config: col_conf
+                      })
+                    %>
 
                   <% %{format: :link} = def -> %>
-                    <%= with {href, txt} <- def.link_parts.(row_data_by_uuid[col_conf["uuid"]])  do %>
-                      <.link href={href} class="underline font-bold text-blue-500">
-                        <%= txt %>
-                      </.link>
-                    <% end %>
+                    <%=
+                      safe_render_link(def.link_parts, row_data_by_uuid[col_conf["uuid"]])
+                    %>
 
                   <% _ -> %>
                     <%= row_data_by_uuid[col_conf["uuid"]] %>
 
-                <% end %>
               <% end %>
             </td>
             
@@ -454,5 +476,52 @@ defmodule SelectoComponents.Views.Detail.Component do
         """
       }
     }
+  end
+
+  defp safe_render_component(component_fn, params) do
+    try do
+      component_fn.(params)
+    rescue
+      e ->
+        error_html = """
+        <div class="text-red-600 text-xs p-1 bg-red-50 rounded">
+          <div class="font-bold">Component Error:</div>
+          <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
+          #{if Mix.env() == :dev do
+            "<details class='mt-1'>
+              <summary class='cursor-pointer text-xs'>Debug Info</summary>
+              <div class='text-xs'>Row data: #{inspect(params.row)}</div>
+            </details>"
+          else
+            ""
+          end}
+        </div>
+        """
+        Phoenix.HTML.raw(error_html)
+    end
+  end
+
+  defp safe_render_link(link_parts_fn, row_data) do
+    try do
+      case link_parts_fn.(row_data) do
+        {href, txt} ->
+          Phoenix.HTML.raw("""
+          <a href="#{href}" class="underline font-bold text-blue-500">
+            #{Phoenix.HTML.html_escape(txt)}
+          </a>
+          """)
+        _ ->
+          row_data
+      end
+    rescue
+      e ->
+        error_html = """
+        <div class="text-red-600 text-xs p-1 bg-red-50 rounded">
+          <div class="font-bold">Link Error:</div>
+          <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
+        </div>
+        """
+        Phoenix.HTML.raw(error_html)
+    end
   end
 end
