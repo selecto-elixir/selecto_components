@@ -1605,7 +1605,7 @@ defmodule SelectoComponents.Form do
       target_table = find_pivot_target(selecto, selected_columns)
 
       if target_table do
-        # Apply custom pivot for PagilaDomain structure
+        # Apply custom pivot for domain structure
 
         # Find the join path to the target table
         join_path = find_join_path_to_target(selecto.domain, target_table)
@@ -1705,8 +1705,8 @@ defmodule SelectoComponents.Form do
         else
           # Check if we can find a pivot target that gives access to all tables
           # For now, use a simple heuristic: pivot to the first/root table in the list
-          # In PagilaDomain: film can access language, but language can't access film
-          # So if we have [film, language], we can pivot to film
+          # Example: if source can access target, but target can't access source,
+          # pivot to the table that has broader access
 
           # Simple approach: try to pivot to the first table and assume it has access to others
           # More sophisticated would be to check the actual join hierarchy
@@ -1765,13 +1765,13 @@ defmodule SelectoComponents.Form do
       # that provides access to all the others
       target = if length(table_targets) > 1 do
         # Multiple tables - need to pick the one that can access the others
-        # In the hierarchy: actor -> film_actors -> film -> language
-        # If we have [language, film], we should pivot to film (not language)
-        # because film can access language, but language can't access film
+        # Example hierarchy: source -> intermediate -> target -> child
+        # If we have [child, target], we should pivot to target (not child)
+        # because target can access child, but child can't access target
 
         # Simple heuristic: prefer tables that appear earlier in the join chain
-        # film comes before language in the hierarchy
-        priority_order = [:film, :film_actors, :language, :category, :inventory, :rental, :customer]
+        # This is domain-specific and should be customized
+        priority_order = []
 
         sorted_targets = Enum.sort_by(table_targets, fn target ->
           # Find index in priority order, or put at end if not found
@@ -1828,7 +1828,7 @@ defmodule SelectoComponents.Form do
     end)
   end
 
-  # Find the join path from source to target table in PagilaDomain structure
+  # Find the join path from source to target table in domain structure
   def find_join_path_to_target(domain, target_table) do
     target_str = Atom.to_string(target_table)
 

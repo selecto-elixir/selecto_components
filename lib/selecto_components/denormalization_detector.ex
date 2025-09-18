@@ -124,19 +124,16 @@ defmodule SelectoComponents.DenormalizationDetector do
 
     last_segment = List.last(join_path)
 
-    # For the Pagila database:
-    # - actor -> film is many-to-many (through film_actor)
-    # - film -> actor is many-to-many (through film_actor)
-    # So when we're in the actor context and joining to film, it's denormalizing
+    # Example relationships:
+    # - source -> target could be many-to-many (through intermediate table)
+    # - target -> source could be many-to-many (through intermediate table)
+    # When joining from one context to another with many-to-many relationship, it's denormalizing
 
     # Common patterns that indicate multiple rows
+    # These should be configured based on your domain
     denormalizing_patterns = [
-      "film",       # actor -> films (many-to-many)
-      "films",
-      "actor",      # film -> actors (many-to-many)
-      "actors",
-      "category",   # film -> categories (many-to-many)
-      "categories",
+      # Add patterns specific to your domain here
+      # e.g., "items", "orders", "details"
       "inventory",  # film -> inventory (one-to-many)
       "rental",     # customer -> rentals (one-to-many)
       "rentals",
