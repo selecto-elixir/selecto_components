@@ -71,7 +71,7 @@ defmodule SelectoComponents.Form do
             >
               View
             </button>
-            
+
             <button
               type="button"
               role="tab"
@@ -91,7 +91,7 @@ defmodule SelectoComponents.Form do
             >
               Filters
             </button>
-            
+
             <button
               :if={@use_saved_views}
               type="button"
@@ -112,7 +112,7 @@ defmodule SelectoComponents.Form do
             >
               Save View
             </button>
-            
+
             <button
               type="button"
               role="tab"
@@ -136,7 +136,7 @@ defmodule SelectoComponents.Form do
         </div>
 
         <!-- Tab Content Panels -->
-        <div 
+        <div
           role="tabpanel"
           id="main-tabpanel-view"
           aria-labelledby="main-tab-view"
@@ -168,7 +168,7 @@ defmodule SelectoComponents.Form do
           </.live_component>
         </div>
 
-        <div 
+        <div
           role="tabpanel"
           id="main-tabpanel-filter"
           aria-labelledby="main-tab-filter"
@@ -190,10 +190,10 @@ defmodule SelectoComponents.Form do
             current_filters={@view_config.filters}
             filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
           />
-          
+
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
-            id="tree_builder"
+            id={"tree_builder_#{hash_filter_structure(@view_config.filters)}"}
             available={build_filter_list(@selecto)}
             filters={@view_config.filters}
           >
@@ -202,7 +202,7 @@ defmodule SelectoComponents.Form do
             </:filter_form>
           </.live_component>
         </div>
-        
+
         <div
           :if={@use_saved_views}
           role="tabpanel"
@@ -227,8 +227,8 @@ defmodule SelectoComponents.Form do
             </div>
           </div>
         </div>
-        
-        <div 
+
+        <div
           role="tabpanel"
           id="main-tabpanel-export"
           aria-labelledby="main-tab-export"
@@ -263,7 +263,7 @@ defmodule SelectoComponents.Form do
   defmacro __using__(_opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
-      
+
       # Import error handling helpers
       import SelectoComponents.Form, only: [dev_mode?: 0, sanitize_error_for_environment: 1]
 
@@ -278,19 +278,19 @@ defmodule SelectoComponents.Form do
         rescue
           e in RuntimeError ->
             handle_component_error(socket, e, operation_name, :runtime_error)
-          
+
           e in ArgumentError ->
             handle_component_error(socket, e, operation_name, :argument_error)
-            
+
           e in KeyError ->
             handle_component_error(socket, e, operation_name, :key_error)
-            
+
           e ->
             handle_component_error(socket, e, operation_name, :unknown_error)
         catch
           :exit, reason ->
             handle_component_error(socket, {:exit, reason}, operation_name, :exit)
-            
+
           kind, reason ->
             handle_component_error(socket, {kind, reason}, operation_name, :catch)
         end
@@ -298,15 +298,15 @@ defmodule SelectoComponents.Form do
 
       defp handle_component_error(socket, error, operation_name, error_type) do
         categorized = ErrorCategorizer.categorize(error)
-        
+
         if dev_mode?() do
           # Error type: #{error_type}
         end
-        
+
         # Add error to component_errors list
         existing_errors = Map.get(socket.assigns, :component_errors, [])
         new_errors = [Map.put(categorized, :operation, operation_name) | existing_errors] |> Enum.take(5)
-        
+
         {:noreply, assign(socket, component_errors: new_errors)}
       end
 
@@ -326,7 +326,7 @@ defmodule SelectoComponents.Form do
         socket = params_to_state(params, socket)
         {:noreply, view_from_params(params, socket)}
       end
-      
+
       defp normalize_query_results(socket) do
         case socket.assigns[:query_results] do
           {rows, columns, aliases} when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
@@ -335,7 +335,7 @@ defmodule SelectoComponents.Form do
               Enum.zip(columns, row) |> Map.new()
             end)
             assign(socket, query_results: {normalized_rows, columns, aliases})
-          
+
           _ ->
             # Results are already normalized or empty
             socket
@@ -353,14 +353,20 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_event("view-validate", params, socket) do
-        with_error_handling(socket, "view-validate", fn ->
-          # Process all parameters including view-specific configs (aggregates, group_by, etc.)
-          socket = params_to_state(params, socket)
+        # Check if we should skip this validation (e.g., after filter add/remove)
+        if socket.assigns[:skip_next_validation] do
+          # Clear the flag and skip processing
+          {:noreply, assign(socket, skip_next_validation: false)}
+        else
+          with_error_handling(socket, "view-validate", fn ->
+            # Process all parameters including view-specific configs (aggregates, group_by, etc.)
+            socket = params_to_state(params, socket)
 
-          # Don't execute view on validation - only on submit
-          # This allows users to configure aggregates without immediate updates
-          {:noreply, socket}
-        end)
+            # Don't execute view on validation - only on submit
+            # This allows users to configure aggregates without immediate updates
+            {:noreply, socket}
+          end)
+        end
       end
 
       ### Save tab open. save view!
@@ -421,42 +427,47 @@ defmodule SelectoComponents.Form do
         new_filter = Map.get(par, "element")
         target = Map.get(par, "target")
 
+        new_filter_item = case new_filter do
+          "__AND__" ->
+            [{UUID.uuid4(), target, "AND"}]
+
+          "__OR__" ->
+            [{UUID.uuid4(), target, "OR"}]
+
+          _ ->
+            [
+              {UUID.uuid4(), target,
+               %{"filter" => new_filter, "value" => nil, "index" => 2000}}
+            ]
+        end
+
+        updated_filters = socket.assigns.view_config.filters ++ new_filter_item
+
         socket =
           assign(socket,
             view_config: %{
               socket.assigns.view_config
-              | filters:
-                  socket.assigns.view_config.filters ++
-                    case new_filter do
-                      "__AND__" ->
-                        [{UUID.uuid4(), target, "AND"}]
-
-                      "__OR__" ->
-                        [{UUID.uuid4(), target, "OR"}]
-
-                      _ ->
-                        [
-                          {UUID.uuid4(), target,
-                           %{"filter" => new_filter, "value" => nil, "index" => 2000}}
-                        ]
-                    end
-            }
+              | filters: updated_filters
+            },
+            # Set a flag to skip query execution on next validation
+            skip_next_validation: true
           )
 
         {:noreply, socket}
       end
 
       def handle_event("filter_remove", params, socket) do
+        # Update filters without triggering view execution
+        updated_filters = socket.assigns.view_config.filters
+          |> Enum.filter(fn
+            {u, s, _c} -> u != Map.get(params, "uuid") && s != Map.get(params, "uuid")
+          end)
+
         socket =
           assign(socket,
-            view_config: %{
-              socket.assigns.view_config
-              | filters:
-                  socket.assigns.view_config.filters
-                  |> Enum.filter(fn
-                    {u, s, _c} -> u != Map.get(params, "uuid") && s != Map.get(params, "uuid")
-                  end)
-            }
+            view_config: %{socket.assigns.view_config | filters: updated_filters},
+            # Set a flag to skip query execution on next validation
+            skip_next_validation: true
           )
 
         {:noreply, socket}
@@ -597,7 +608,7 @@ defmodule SelectoComponents.Form do
                         # Default handling if no configuration found
                         {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
                       end
-                      
+
                       result
                     end)
             }
@@ -618,40 +629,40 @@ defmodule SelectoComponents.Form do
           # Extract the label/value from the clicked chart element
           label = Map.get(params, "label")
         _value = Map.get(params, "value")
-        
+
         # Get current view mode and graph configuration
         current_view_mode = socket.assigns.view_config.view_mode
         graph_config = socket.assigns.view_config.views[:graph] || %{}
-        
+
         # Determine which field was clicked based on current graph x_axis configuration
         x_axis = graph_config[:x_axis] || []
         field_name = case x_axis do
-          [{_id, field, _config} | _] -> 
+          [{_id, field, _config} | _] ->
             # Extract the actual field name from the tuple
             field
-          _ -> 
+          _ ->
             # If no x_axis configured, try to extract from label context
             "id"
         end
-        
+
         # Create a new filter based on the clicked value
         new_filter_id = UUID.uuid4()
         new_filter_map = %{
-          "filter" => field_name, 
+          "filter" => field_name,
           "value" => to_string(label),
           "comp" => "=",  # Set comparison operator for exact match
           "section" => "filters"  # Ensure section is set
         }
         new_filter = {new_filter_id, "filters", new_filter_map}
-        
+
         # Add the filter to existing filters
         updated_filters = socket.assigns.view_config.filters ++ [new_filter]
-        
+
         # Switch to detail view (or configured drill_down view)
         selected_view = String.to_atom(current_view_mode)
         {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end) || {:detail, nil, nil, %{}}
         new_view_mode = Map.get(opt, :drill_down, :detail)
-        
+
         # Build the complete filter params map including section
         filters_map = Enum.reduce(updated_filters, %{}, fn
           {id, "filters", filter_map}, acc ->
@@ -663,20 +674,20 @@ defmodule SelectoComponents.Form do
           _, acc ->
             acc
         end)
-        
+
         # Get current params or initialize with empty maps
         current_params = socket.assigns[:used_params] || %{}
-        
+
         # Build complete params structure that view_from_params expects
         # Include view-specific configurations
-        view_params = 
+        view_params =
           current_params
           |> Map.put("view_mode", Atom.to_string(new_view_mode))
           |> Map.put("filters", filters_map)
           |> Map.put_new("aggregate", %{})  # Ensure aggregate config exists
           |> Map.put_new("detail", %{})     # Ensure detail config exists
           |> Map.put_new("graph", %{})      # Ensure graph config exists
-        
+
         # Update the view configuration
         socket = assign(socket,
           view_config: %{
@@ -685,7 +696,7 @@ defmodule SelectoComponents.Form do
               filters: updated_filters
           }
         )
-        
+
           {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
         end)
       end
@@ -829,21 +840,21 @@ defmodule SelectoComponents.Form do
         # Don't execute view - wait for submit
         {:noreply, socket}
       end
-      
+
       @impl true
       def handle_info({:rerun_query_with_sort, sort_by}, socket) do
         with_error_handling(socket, "rerun_query_with_sort", fn ->
           # Get current parameters or use saved params
           params = socket.assigns[:used_params] || view_config_to_params(socket.assigns.view_config)
-          
+
           # Store sort configuration in socket
           socket = assign(socket, sort_by: sort_by)
-          
+
           # Re-execute the view with current parameters and sorting
           view_from_params_with_sort(params, socket, sort_by)
         end)
       end
-      
+
       @impl true
       def handle_info({:filters_updated, updated_filters}, socket) do
         # Update the view config with new filters
@@ -961,7 +972,7 @@ defmodule SelectoComponents.Form do
           {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
         end)
       end
-      
+
       # Version of view_from_params that applies sorting
       defp view_from_params_with_sort(params, socket, sort_by) do
         # Store the sort_by in socket so the modified view_from_params can use it
@@ -1019,7 +1030,7 @@ defmodule SelectoComponents.Form do
 
         # Handle case where view might not be found
         view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-        
+
         {view_set, view_meta} = case view_tuple do
           {_, module, _, opt} ->
             String.to_existing_atom("#{module}.Process").view(
@@ -1038,12 +1049,12 @@ defmodule SelectoComponents.Form do
 
         # Apply automatic pivot if needed
         selecto = SelectoComponents.Form.maybe_auto_pivot(selecto, params)
-        
+
 
         # Apply subselects if denorm_groups were configured
         selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
           denorm_groups = selecto.set.denorm_groups
-          
+
           # The selecto already has the selected columns set, we just need to add subselects
           # Use SubselectBuilder to add subselects for denormalizing columns
           try do
@@ -1052,7 +1063,7 @@ defmodule SelectoComponents.Form do
               # Add subselect for #{relationship_path} with columns: #{inspect(columns)}
               SelectoComponents.SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
             end)
-            
+
             result
           rescue
             e ->
@@ -1064,7 +1075,7 @@ defmodule SelectoComponents.Form do
           # No denorm_groups to process
           selecto
         end
-        
+
         # Apply sorting if provided
         selecto = if socket.assigns[:sort_by] do
           alias SelectoComponents.EnhancedTable.Sorting
@@ -1086,7 +1097,7 @@ defmodule SelectoComponents.Form do
             # Catch exits (like connection failures) to prevent LiveView crashes
             {:error, Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
         end
-        
+
         case query_result do
           {:ok, {rows, columns, aliases}, metadata} ->
             # Extract metadata from the new execute function
@@ -1110,7 +1121,7 @@ defmodule SelectoComponents.Form do
 
             # Convert rows to maps if they're lists (happens with subselects)
             # But only for detail views - aggregate views need list format
-            normalized_rows = if socket.assigns.view_config.view_mode == "detail" and 
+            normalized_rows = if socket.assigns.view_config.view_mode == "detail" and
                                 length(rows) > 0 and is_list(hd(rows)) do
               # Converting list rows to maps for detail view
               Enum.map(rows, fn row ->
@@ -1119,7 +1130,7 @@ defmodule SelectoComponents.Form do
             else
               rows
             end
-            
+
             # Check if any rows have subselect data
             # Debug inspection removed - data structure validated elsewhere
 
@@ -1147,7 +1158,7 @@ defmodule SelectoComponents.Form do
             if dev_mode?() do
               # Selecto.Error occurred
             end
-            
+
             # Try to extract SQL even in error case for debugging
             {error_sql, error_params} = try do
               case Selecto.to_sql(selecto) do
@@ -1157,7 +1168,7 @@ defmodule SelectoComponents.Form do
             rescue
               _ -> {nil, []}
             end
-            
+
             assign(socket,
               selecto: selecto,
               columns: columns_list,
@@ -1174,18 +1185,18 @@ defmodule SelectoComponents.Form do
                 timing: nil
               }
             )
-            
+
           {:error, error} ->
             sanitized_error = sanitize_error_for_environment(%Selecto.Error{
-              type: :query_error, 
+              type: :query_error,
               message: inspect(error),
               details: %{original_error: error}
             })
-            
+
             if dev_mode?() do
               # Generic error occurred
             end
-            
+
             # Try to extract SQL even in error case for debugging
             {error_sql, error_params} = try do
               case Selecto.to_sql(selecto) do
@@ -1195,7 +1206,7 @@ defmodule SelectoComponents.Form do
             rescue
               _ -> {nil, []}
             end
-            
+
             assign(socket,
               selecto: selecto,
               columns: columns_list,
@@ -1221,11 +1232,11 @@ defmodule SelectoComponents.Form do
               e when is_binary(e) -> %Selecto.Error{type: :view_error, message: e, details: %{}}
               e -> %Selecto.Error{type: :view_error, message: "Error processing view: #{inspect(e)}", details: %{error: e}}
             end
-            
+
             if dev_mode?() do
               # View error occurred
             end
-            
+
             assign(socket,
               query_results: nil,
               executed: false,
@@ -1239,7 +1250,7 @@ defmodule SelectoComponents.Form do
             if dev_mode?() do
               # View exit: #{inspect(reason)}
             end
-            
+
             assign(socket,
               query_results: nil,
               executed: false,
@@ -1277,12 +1288,15 @@ defmodule SelectoComponents.Form do
             })
           end)
 
+        # Preserve existing view_config and only update what's in params
+        existing_config = socket.assigns[:view_config] || %{}
+
         assign(socket,
-          view_config: %{
+          view_config: Map.merge(existing_config, %{
             filters: filters,
             views: view_configs,
-            view_mode: Map.get(params, "view_mode", "aggregate")
-          }
+            view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+          })
         )
       end
 
@@ -1369,7 +1383,7 @@ defmodule SelectoComponents.Form do
           # Group by changes in aggregate view
           view_specific_params_changed?(params, used_params, "group_by"),
 
-          # Aggregate fields changes in aggregate view  
+          # Aggregate fields changes in aggregate view
           view_specific_params_changed?(params, used_params, "aggregate"),
 
           # Column selection changes in detail view
@@ -1461,15 +1475,15 @@ defmodule SelectoComponents.Form do
   defp render_filter_form(assigns, uuid, index, section, filter_value) do
     # Get the filter definition from the selecto
     filter_id = filter_value["filter"]
-    
-    filter_def = 
+
+    filter_def =
       case Selecto.filters(assigns.selecto) do
         filters when is_map(filters) ->
           Map.get(filters, filter_id)
         _ ->
           nil
       end
-    
+
     # Check if this is a custom filter with a component
     if filter_def && Map.get(filter_def, :type) == :component && Map.get(filter_def, :component) do
       # Render the custom component
@@ -1478,9 +1492,9 @@ defmodule SelectoComponents.Form do
         valmap: filter_value,
         def: filter_def
       }
-      
+
       assigns = Map.merge(assigns, component_assigns)
-      
+
       ~H"""
       <div>
         <%= @def.component.(assigns) %>
@@ -1498,7 +1512,7 @@ defmodule SelectoComponents.Form do
         index: index,
         filter_value: filter_value
       })
-      
+
       ~H"""
       <div class="grid grid-cols-3 gap-2">
         <select name={"filters[#{@uuid}][comp]"} class="sc-select">
@@ -1513,16 +1527,16 @@ defmodule SelectoComponents.Form do
           <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
           <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
         </select>
-        
-        <input 
-          type="text" 
-          name={"filters[#{@uuid}][value]"} 
+
+        <input
+          type="text"
+          name={"filters[#{@uuid}][value]"}
           value={@filter_value["value"]}
           placeholder="Enter value..."
           class="sc-input col-span-2"
           disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
         />
-        
+
         <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
         <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
         <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
@@ -1530,6 +1544,17 @@ defmodule SelectoComponents.Form do
       </div>
       """
     end
+  end
+
+  # Hash only the filter structure (IDs and sections), not the values
+  # This ensures the component remounts when filters are added/removed
+  # but not when filter values or comparisons change
+  defp hash_filter_structure(filters) do
+    filters
+    |> Enum.map(fn
+      {uuid, section, _config} -> {uuid, section}
+    end)
+    |> :erlang.phash2()
   end
 
   defp build_filter_list(selecto) do
@@ -1558,7 +1583,7 @@ defmodule SelectoComponents.Form do
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
   end
-  
+
   defp build_available_fields(selecto) do
     Selecto.columns(selecto)
     |> Enum.map(fn {field_id, column} ->
@@ -1574,17 +1599,17 @@ defmodule SelectoComponents.Form do
   def maybe_auto_pivot(selecto, params) do
     # Check if automatic pivot is needed based on selected columns
     selected_columns = get_selected_columns_from_params(params)
-    
-    
+
+
     if should_auto_pivot?(selecto, selected_columns) do
       target_table = find_pivot_target(selecto, selected_columns)
-      
+
       if target_table do
         # Apply custom pivot for PagilaDomain structure
-        
+
         # Find the join path to the target table
         join_path = find_join_path_to_target(selecto.domain, target_table)
-        
+
         if join_path do
           # Apply the custom pivot transformation
           pivoted = apply_custom_pivot(selecto, target_table, join_path)
@@ -1602,30 +1627,30 @@ defmodule SelectoComponents.Form do
 
   def get_selected_columns_from_params(params) do
     view_mode = Map.get(params, "view_mode", "")
-    
+
     case view_mode do
       "aggregate" ->
-        group_by_cols = Map.get(params, "group_by", %{}) 
-                       |> Map.values() 
+        group_by_cols = Map.get(params, "group_by", %{})
+                       |> Map.values()
                        |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         aggregate_cols = Map.get(params, "aggregate", %{})
                         |> Map.values()
                         |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         group_by_cols ++ aggregate_cols
-        
+
       "detail" ->
         # Handle the selected map structure from the UI
         selected_map = Map.get(params, "selected", %{})
-        
+
         # Extract field names from the selected map
         Map.values(selected_map)
         |> Enum.map(fn item ->
           Map.get(item, "field")
         end)
         |> Enum.filter(&(&1 != nil))
-        
+
       _ ->
         []
     end
@@ -1635,16 +1660,16 @@ defmodule SelectoComponents.Form do
     # Check if selected columns justify a pivot
     source_columns = get_source_columns(selecto)
     source_column_strs = Enum.map(source_columns, &to_string/1)
-    
+
     # Categorize columns
     {source_cols, qualified_cols_by_table} = Enum.reduce(selected_columns, {[], %{}}, fn col, {src, qualified} ->
       col_str = to_string(col)
-      
+
       if String.contains?(col_str, ".") do
         # It's a qualified column
         parts = String.split(col_str, ".", parts: 2)
         [table_name, _column_name] = parts
-        
+
         if table_name == "selecto_root" || table_name == "" do
           # It's actually a source column with qualification
           {[col_str | src], qualified}
@@ -1663,13 +1688,13 @@ defmodule SelectoComponents.Form do
         end
       end
     end)
-    
-    
+
+
     # Only pivot if:
     # 1. There are qualified columns from other tables
     # 2. NO source columns are selected (they wouldn't be available after pivot)
     # 3. All qualified columns are from tables accessible from a single pivot target
-    
+
     result = case Map.keys(qualified_cols_by_table) do
       [] ->
         # No qualified columns from other tables
@@ -1682,17 +1707,17 @@ defmodule SelectoComponents.Form do
           # For now, use a simple heuristic: pivot to the first/root table in the list
           # In PagilaDomain: film can access language, but language can't access film
           # So if we have [film, language], we can pivot to film
-          
+
           # Simple approach: try to pivot to the first table and assume it has access to others
           # More sophisticated would be to check the actual join hierarchy
           pivot_target = hd(table_names)
-          
+
           # For now, allow pivot to the first table
           # This works for film -> language case
           true
         end
     end
-    
+
     result
   end
 
@@ -1706,19 +1731,19 @@ defmodule SelectoComponents.Form do
     # Check if column exists in source (handle string/atom conversion)
     col_atom = if is_binary(column_name), do: String.to_atom(column_name), else: column_name
     col_string = if is_atom(column_name), do: Atom.to_string(column_name), else: column_name
-    
+
     Enum.any?(source_columns, fn source_col ->
-      source_col == col_atom or source_col == col_string or 
+      source_col == col_atom or source_col == col_string or
       Atom.to_string(source_col) == col_string
     end)
   end
 
   def find_pivot_target(selecto, selected_columns) do
     # Find the target table from qualified column names
-    
-    
+
+
     # Extract table names from qualified columns
-    table_targets = 
+    table_targets =
       selected_columns
       |> Enum.map(fn col ->
         col_str = to_string(col)
@@ -1732,8 +1757,8 @@ defmodule SelectoComponents.Form do
       end)
       |> Enum.filter(&(&1 != nil))
       |> Enum.uniq()
-    
-    
+
+
     # If we have explicit table references, determine the best pivot target
     if length(table_targets) > 0 do
       # When there are multiple tables, we need to find the "root" table
@@ -1743,38 +1768,38 @@ defmodule SelectoComponents.Form do
         # In the hierarchy: actor -> film_actors -> film -> language
         # If we have [language, film], we should pivot to film (not language)
         # because film can access language, but language can't access film
-        
+
         # Simple heuristic: prefer tables that appear earlier in the join chain
         # film comes before language in the hierarchy
         priority_order = [:film, :film_actors, :language, :category, :inventory, :rental, :customer]
-        
+
         sorted_targets = Enum.sort_by(table_targets, fn target ->
           # Find index in priority order, or put at end if not found
           Enum.find_index(priority_order, &(&1 == target)) || 999
         end)
-        
+
         selected_target = hd(sorted_targets)
         selected_target
       else
         target = hd(table_targets)
         target
       end
-      
+
       target
     else
       # Fall back to checking schemas for simple column names
       schemas = Map.get(selecto.domain, :schemas, %{})
-      
+
       result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
         schema_columns = Map.keys(schema_config.columns || %{})
-        
+
         if has_all_columns?(selected_columns, schema_columns) do
           schema_name
         else
           nil
         end
       end)
-      
+
       result
     end
   end
@@ -1784,20 +1809,20 @@ defmodule SelectoComponents.Form do
     # Handle both simple and qualified column names
     Enum.all?(selected_columns, fn col ->
       col_str = to_string(col)
-      
+
       # If it's a qualified column name, extract just the column part
-      col_name = 
+      col_name =
         if String.contains?(col_str, ".") do
           [_, column_name] = String.split(col_str, ".", parts: 2)
           column_name
         else
           col_str
         end
-      
+
       col_atom = if is_binary(col_name), do: String.to_atom(col_name), else: col_name
-      
+
       Enum.any?(schema_columns, fn schema_col ->
-        schema_col == col_atom or 
+        schema_col == col_atom or
         Atom.to_string(schema_col) == col_name
       end)
     end)
@@ -1806,10 +1831,10 @@ defmodule SelectoComponents.Form do
   # Find the join path from source to target table in PagilaDomain structure
   def find_join_path_to_target(domain, target_table) do
     target_str = Atom.to_string(target_table)
-    
+
     # Search through the joins hierarchy
     case Map.get(domain, :joins) do
-      nil -> 
+      nil ->
         nil
       joins ->
         search_joins_recursive(joins, target_str, [])
@@ -1819,7 +1844,7 @@ defmodule SelectoComponents.Form do
   defp search_joins_recursive(joins, target, path) when is_map(joins) do
     Enum.find_value(joins, fn {join_name, join_config} ->
       join_name_str = Atom.to_string(join_name)
-      
+
       # Check if this is the target
       if join_name_str == target do
         path ++ [join_name]
@@ -1838,7 +1863,7 @@ defmodule SelectoComponents.Form do
 
   # Apply custom pivot transformation
   def apply_custom_pivot(selecto, target_table, join_path) do
-    
+
     # Store the pivot configuration in the selecto set
     pivot_config = %{
       target_table: target_table,
@@ -1846,11 +1871,11 @@ defmodule SelectoComponents.Form do
       original_source: :actor,  # The original source table
       original_filters: Map.get(selecto.set, :filtered, [])
     }
-    
+
     # Update the selecto set with pivot information
     # This will be used by Selecto's query builder to restructure the query
     updated_set = Map.put(selecto.set, :pivot_config, pivot_config)
-    
+
     # Also set a pivot_state for compatibility
     # Use CTE strategy for better performance and cleaner SQL
     pivot_state = %{
@@ -1859,13 +1884,13 @@ defmodule SelectoComponents.Form do
       preserve_filters: true,
       subquery_strategy: :cte
     }
-    
+
     updated_set = Map.put(updated_set, :pivot_state, pivot_state)
-    
-    
+
+
     Map.put(selecto, :set, updated_set)
   end
-  
+
   # Environment detection helpers
   def dev_mode? do
     # Check if we're in dev or test environment
@@ -1882,7 +1907,7 @@ defmodule SelectoComponents.Form do
         true
     end
   end
-  
+
   def sanitize_error_for_environment(error) do
     if dev_mode?() do
       # In dev mode, return the full error with all details
@@ -1898,7 +1923,7 @@ defmodule SelectoComponents.Form do
       }
     end
   end
-  
+
   defp get_safe_error_message(%Selecto.Error{type: type}) do
     # Return user-friendly messages based on error type
     case type do
@@ -1920,7 +1945,7 @@ defmodule SelectoComponents.Form do
   @doc false
   def build_debug_data(assigns) do
     query_data = Map.get(assigns, :last_query_info, %{})
-    
+
     # Extract row count from query_results
     row_count = case Map.get(assigns, :query_results) do
       {rows, _columns, _aliases} when is_list(rows) ->
@@ -1937,7 +1962,7 @@ defmodule SelectoComponents.Form do
           _ -> 0
         end
     end
-    
+
     %{
       query: Map.get(query_data, :sql),
       params: Map.get(query_data, :params, []),

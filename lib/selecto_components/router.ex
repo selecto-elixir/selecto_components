@@ -55,6 +55,7 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_event("filter_remove", params, state) do
+    IO.puts("Handling filter_remove event")
     case handle_filter_remove(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
     end
@@ -168,11 +169,11 @@ defmodule SelectoComponents.Router do
   defp maybe_auto_pivot(selecto, view_config) do
     # Check if automatic pivot is needed
     selected_columns = get_selected_columns(view_config)
-    
-    
+
+
     if should_auto_pivot?(selecto, selected_columns) do
       target_table = find_pivot_target(selecto, selected_columns)
-      
+
       if target_table do
         # Apply pivot to the target table
         pivoted = Selecto.Pivot.pivot(selecto, target_table)
@@ -189,25 +190,25 @@ defmodule SelectoComponents.Router do
     # Extract selected columns from view config
     # This depends on the view mode (aggregate, detail, etc.)
     view_mode = Map.get(view_config, :view_mode) || Map.get(view_config, "view_mode")
-    
+
     case view_mode do
       "aggregate" ->
-        group_by_cols = Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{})) 
-                       |> Map.values() 
+        group_by_cols = Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{}))
+                       |> Map.values()
                        |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         aggregate_cols = Map.get(view_config, :aggregate, Map.get(view_config, "aggregate", %{}))
                         |> Map.values()
                         |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         group_by_cols ++ aggregate_cols
-        
+
       "detail" ->
         # Handle both simple and qualified column names from selected map
         selected_map = Map.get(view_config, :selected, Map.get(view_config, "selected", %{}))
-        
+
         # Extract field names from the selected map structure
-        selected_fields = 
+        selected_fields =
           case selected_map do
             # If it's a map with UUID keys (typical case)
             map when is_map(map) ->
@@ -216,17 +217,17 @@ defmodule SelectoComponents.Router do
                 Map.get(item, "field") || Map.get(item, :field)
               end)
               |> Enum.filter(&(&1 != nil))
-            
+
             # If it's a list
             list when is_list(list) ->
               list
-            
+
             _ ->
               []
           end
-        
+
         selected_fields
-        
+
       _ ->
         []
     end
@@ -236,15 +237,15 @@ defmodule SelectoComponents.Router do
     # Check if any selected columns are missing from the base table
     # or are qualified column names (e.g., "film.description")
     source_columns = get_source_columns(selecto)
-    
+
     result = Enum.any?(selected_columns, fn col ->
       col_str = to_string(col)
-      
+
       # Check if it's a qualified column name (contains a dot)
       if String.contains?(col_str, ".") do
         # Qualified columns like "film.description" should trigger pivot
         parts = String.split(col_str, ".", parts: 2)
-        
+
         [table_name, _column_name] = parts
         # Pivot should be triggered for qualified names from joined tables
         should_pivot = table_name != "selecto_root" && table_name != ""
@@ -255,7 +256,7 @@ defmodule SelectoComponents.Router do
         not exists
       end
     end)
-    
+
     result
   end
 
@@ -269,9 +270,9 @@ defmodule SelectoComponents.Router do
     # Check if column exists in source (handle string/atom conversion)
     col_atom = if is_binary(column_name), do: String.to_atom(column_name), else: column_name
     col_string = if is_atom(column_name), do: Atom.to_string(column_name), else: column_name
-    
+
     Enum.any?(source_columns, fn source_col ->
-      source_col == col_atom or source_col == col_string or 
+      source_col == col_atom or source_col == col_string or
       Atom.to_string(source_col) == col_string
     end)
   end
@@ -279,10 +280,10 @@ defmodule SelectoComponents.Router do
   defp find_pivot_target(selecto, selected_columns) do
     # Find the first joined table that has all the selected columns
     # Handle both simple and qualified column names
-    
-    
+
+
     # Extract table names from qualified columns
-    table_targets = 
+    table_targets =
       selected_columns
       |> Enum.map(fn col ->
         col_str = to_string(col)
@@ -296,8 +297,8 @@ defmodule SelectoComponents.Router do
       end)
       |> Enum.filter(&(&1 != nil))
       |> Enum.uniq()
-    
-    
+
+
     # If we have explicit table references, use the first one
     if length(table_targets) > 0 do
       # Return the first table that was explicitly referenced
@@ -306,17 +307,17 @@ defmodule SelectoComponents.Router do
     else
       # Fall back to original logic for simple column names
       schemas = Map.get(selecto.domain, :schemas, %{})
-      
+
       result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
         schema_columns = Map.keys(schema_config.columns || %{})
-        
+
         if has_all_columns?(selected_columns, schema_columns) do
           schema_name
         else
           nil
         end
       end)
-      
+
       result
     end
   end
@@ -326,20 +327,20 @@ defmodule SelectoComponents.Router do
     # Handle both simple and qualified column names
     Enum.all?(selected_columns, fn col ->
       col_str = to_string(col)
-      
+
       # If it's a qualified column name, extract just the column part
-      col_name = 
+      col_name =
         if String.contains?(col_str, ".") do
           [_, column_name] = String.split(col_str, ".", parts: 2)
           column_name
         else
           col_str
         end
-      
+
       col_atom = if is_binary(col_name), do: String.to_atom(col_name), else: col_name
-      
+
       Enum.any?(schema_columns, fn schema_col ->
-        schema_col == col_atom or 
+        schema_col == col_atom or
         Atom.to_string(schema_col) == col_name
       end)
     end)

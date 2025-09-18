@@ -21,6 +21,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
               col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
+              columns={@columns}
               fieldname="group_by"
               prefix={ "group_by[#{id}]" }
 
@@ -44,6 +45,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
               col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
+              columns={@columns}
               fieldname="aggregate"
               prefix={ "aggregate[#{id}]" }
               config={config}/>

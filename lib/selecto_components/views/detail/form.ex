@@ -42,6 +42,7 @@ defmodule SelectoComponents.Views.Detail.Form do
               col={Selecto.field(@selecto, item)}
               uuid={id}
               item={item}
+              columns={@columns}
               fieldname="selected"
               prefix={ "selected[#{id}]" }
 
@@ -65,6 +66,7 @@ defmodule SelectoComponents.Views.Detail.Form do
               id={"order_by-#{id}-#{:erlang.phash2(config)}"}
               col={Selecto.field(@selecto, item)}
               item={item}
+              columns={@columns}
               fieldname="order_by"
               prefix={ "order_by[#{id}]" }
               config={config}/>
