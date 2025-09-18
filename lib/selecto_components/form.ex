@@ -4,7 +4,6 @@ defmodule SelectoComponents.Form do
   import SelectoComponents.Components.Common
   alias Phoenix.LiveView.JS
   alias SelectoComponents.ErrorHandling.ErrorDisplay
-  alias SelectoComponents.Components.FilterForms
 
   @doc """
   Form for configuing Selecto View
@@ -1484,6 +1483,27 @@ defmodule SelectoComponents.Form do
           nil
       end
 
+    # Also try to get the column definition if filter_def is nil
+    column_def = if filter_def == nil do
+      columns = Selecto.columns(assigns.selecto)
+      Enum.find_value(columns, fn {_key, col} ->
+        if col.colid == filter_id or to_string(col.colid) == filter_id do
+          col
+        else
+          nil
+        end
+      end)
+    else
+      filter_def
+    end
+
+    # Determine the field type
+    field_type = cond do
+      filter_def && Map.has_key?(filter_def, :type) -> Map.get(filter_def, :type)
+      column_def && Map.has_key?(column_def, :type) -> Map.get(column_def, :type)
+      true -> :string
+    end
+
     # Check if this is a custom filter with a component
     if filter_def && Map.get(filter_def, :type) == :component && Map.get(filter_def, :component) do
       # Render the custom component
@@ -1505,46 +1525,116 @@ defmodule SelectoComponents.Form do
       </div>
       """
     else
-      # Render the default filter form
+      # Render the default filter form based on field type
       assigns = Map.merge(assigns, %{
         uuid: uuid,
         section: section,
         index: index,
-        filter_value: filter_value
+        filter_value: filter_value,
+        field_type: field_type
       })
 
-      ~H"""
-      <div class="grid grid-cols-3 gap-2">
-        <select name={"filters[#{@uuid}][comp]"} class="sc-select">
-          <option value="=" selected={@filter_value["comp"] == "="}>Equals</option>
-          <option value="!=" selected={@filter_value["comp"] == "!="}>Not Equals</option>
-          <option value=">" selected={@filter_value["comp"] == ">"}>Greater Than</option>
-          <option value=">=" selected={@filter_value["comp"] == ">="}>Greater or Equal</option>
-          <option value="<" selected={@filter_value["comp"] == "<"}>Less Than</option>
-          <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
-          <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
-          <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
-          <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
-        </select>
-
-        <input
-          type="text"
-          name={"filters[#{@uuid}][value]"}
-          value={@filter_value["value"]}
-          placeholder="Enter value..."
-          class="sc-input col-span-2"
-          disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-        />
-
-        <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-        <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-        <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
-      </div>
-      """
+      # Render different forms based on field type
+      case field_type do
+        type when type in [:naive_datetime, :utc_datetime, :date] ->
+          render_datetime_filter(assigns)
+        _ ->
+          render_standard_filter(assigns)
+      end
     end
   end
+
+  # Render datetime filter with appropriate controls
+
+  ### TODO add a 'Between' option that shows two inputs. The start would be an INCLUSIVE >= and the end would be an EXCLUSIVE < -- so that we could do things like 2024-01-01 to 2024-02-01 to get all of January
+  ### TODO when someone clicks a formatted aggregate like YYYY or YYYY-MM, add a filter with >= and <= for that period
+  ### TODO add shortcusts like 'This Month', 'Last Month', 'Last 7 Days', 'Last 30 Days', 'This Year', 'Last Year', This Quarter', 'Next 7 Days', 'Next 30 Days', 'Next Month', 'Next Year', 'Next Quarter'
+  ### TODO add 'YTD' (Year to Date) shortcut and 'QTD' (Quarter to Date) shortcut and 'MTD' (Month to Date) shortcut
+  ### TODO add special control for 'This year and last year YTD' and smae for QTD and MTD
+
+  defp render_datetime_filter(assigns) do
+    ~H"""
+    <div class="grid grid-cols-3 gap-2">
+      <select name={"filters[#{@uuid}][comp]"} class="sc-select">
+        <option value="=" selected={@filter_value["comp"] == "="}>On</option>
+        <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
+        <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
+        <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
+        <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
+        <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
+        <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
+        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+      </select>
+
+      <input
+        type={if @field_type == :date, do: "date", else: "datetime-local"}
+        name={"filters[#{@uuid}][value]"}
+        value={format_datetime_value(@filter_value["value"], @field_type)}
+        class="sc-input col-span-2"
+        disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+      />
+
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+    </div>
+    """
+  end
+
+  # Render standard text/number filter
+  defp render_standard_filter(assigns) do
+    ~H"""
+    <div class="grid grid-cols-3 gap-2">
+      <select name={"filters[#{@uuid}][comp]"} class="sc-select">
+        <option value="=" selected={@filter_value["comp"] == "="}>Equals</option>
+        <option value="!=" selected={@filter_value["comp"] == "!="}>Not Equals</option>
+        <option value=">" selected={@filter_value["comp"] == ">"}>Greater Than</option>
+        <option value=">=" selected={@filter_value["comp"] == ">="}>Greater or Equal</option>
+        <option value="<" selected={@filter_value["comp"] == "<"}>Less Than</option>
+        <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
+        <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
+        <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
+        <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
+        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+      </select>
+
+      <input
+        type="text"
+        name={"filters[#{@uuid}][value]"}
+        value={@filter_value["value"]}
+        placeholder="Enter value..."
+        class="sc-input col-span-2"
+        disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+      />
+
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+    </div>
+    """
+  end
+
+  # Format datetime value for HTML input
+  defp format_datetime_value(nil, _type), do: ""
+  defp format_datetime_value("", _type), do: ""
+  defp format_datetime_value(value, :date) when is_binary(value) do
+    # Try to parse and format as YYYY-MM-DD
+    case Date.from_iso8601(value) do
+      {:ok, date} -> Date.to_string(date)
+      _ -> String.slice(value, 0..9)
+    end
+  end
+  defp format_datetime_value(value, type) when type in [:naive_datetime, :utc_datetime] and is_binary(value) do
+    # Try to parse and format as YYYY-MM-DDTHH:MM for datetime-local input
+    cond do
+      String.contains?(value, "T") -> String.slice(value, 0..15)
+      String.length(value) >= 16 -> String.slice(value, 0..9) <> "T" <> String.slice(value, 11..15)
+      true -> value
+    end
+  end
+  defp format_datetime_value(value, _type), do: value
 
   # Hash only the filter structure (IDs and sections), not the values
   # This ensures the component remounts when filters are added/removed

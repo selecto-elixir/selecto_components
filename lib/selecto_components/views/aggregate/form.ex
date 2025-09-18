@@ -1,6 +1,26 @@
 defmodule SelectoComponents.Views.Aggregate.Form do
   use Phoenix.LiveComponent
 
+  # Helper function to extract field from formatted date tuples
+  defp get_field_for_item(selecto, item) do
+    field_name = case item do
+      # Handle formatted date tuple {:to_char, {"field_name", "format"}}
+      {:to_char, {field, _format}} -> field
+      # Handle other extraction tuples if any
+      {_func, field} when is_binary(field) -> field
+      # Regular field name
+      field when is_binary(field) or is_atom(field) -> field
+      # Fallback
+      _ -> nil
+    end
+
+    if field_name do
+      Selecto.field(selecto, field_name)
+    else
+      nil
+    end
+  end
+
   def render(assigns) do
     ~H"""
       <div>
@@ -18,7 +38,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             <.live_component
               module={SelectoComponents.Views.Aggregate.GroupByConfig}
               id={id}
-              col={Selecto.field(@selecto, item)}
+              col={get_field_for_item(@selecto, item)}
               uuid={id}
               item={item}
               columns={@columns}
@@ -42,7 +62,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             <.live_component
               module={SelectoComponents.Views.Aggregate.Aggregate.Config}
               id={id}
-              col={Selecto.field(@selecto, item)}
+              col={get_field_for_item(@selecto, item)}
               uuid={id}
               item={item}
               columns={@columns}

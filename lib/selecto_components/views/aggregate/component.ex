@@ -428,7 +428,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         # Get the proper column definition from selecto
         # Now that Selecto.field returns full definitions, we get all properties
         coldef = case field do
-          {:field, field_id, _alias} ->
+          {:field, {:to_char, {field_name, _format}}, _alias} ->
+            # Handle formatted date fields
+            Selecto.field(assigns.selecto, field_name) || %{name: alias, format: nil}
+
+          {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
             # Selecto.field now returns full custom column definitions with group_by_filter
             result = Selecto.field(assigns.selecto, field_id)
             if result == nil do

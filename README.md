@@ -171,7 +171,6 @@ end
 
 ### Core Components
 - `SelectoComponents.Components.TreeBuilder` - Drag-and-drop query builder with colocated JavaScript hook
-- `SelectoComponents.Components.FilterForms` - Dynamic filter forms for different field types
 - `SelectoComponents.Components.ListPicker` - Reorderable list selection component
 - `SelectoComponents.Components.Tabs` - Tab navigation component
 - `SelectoComponents.Components.RadioTabs` - Radio-style tab selection

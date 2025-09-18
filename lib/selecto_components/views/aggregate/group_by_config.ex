@@ -9,7 +9,12 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
 
   def render(assigns) do
     # Get the display name from the columns list FIRST
-    item_str = to_string(assigns[:item] || "")
+    # Handle formatted date tuples
+    item_str = case assigns[:item] do
+      {:to_char, {field, _format}} -> to_string(field)
+      {_func, field} when is_binary(field) -> to_string(field)
+      item -> to_string(item || "")
+    end
 
     # Find the name in the columns list
     display_name = case Enum.find(assigns[:columns] || [], fn
