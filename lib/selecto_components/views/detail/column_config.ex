@@ -47,49 +47,59 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
     assigns = Map.put(assigns, :display_name, display_name)
 
     ~H"""
-      <div class="relative">
-        <div class="">
-          <%= @display_name %>
+      <div class="space-y-2">
+        <div>
+          <div class="font-medium text-sm text-gray-700">Name:</div>
+          <div class="pl-2"><%= @display_name %></div>
         </div>
-        <div class="pl-4">
-          <%= case Map.get(@col, :type, :string) do%>
-            <% x when x in [:int, :id] -> %>
-              <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
 
-            <% x when x in [:float, :decimal] -> %>
-              <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
-              <label><.sc_select name={"#{@prefix}[decimal_places]"}
-                options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
-                value={Map.get(@config, "decimal_places")}/>
-                Decimal Places</label>
+        <div>
+          <div class="font-medium text-sm text-gray-700">Alias:</div>
+          <div class="pl-2">
+            <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
+          </div>
+        </div>
 
+        <div>
+          <div class="font-medium text-sm text-gray-700">Options:</div>
+          <div class="pl-2">
+            <%= case Map.get(@col, :type, :string) do%>
+              <% x when x in [:int, :id] -> %>
+                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
 
-            <% x when x in [:string] -> %>
+              <% x when x in [:float, :decimal] -> %>
+                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
+                <label><.sc_select name={"#{@prefix}[decimal_places]"}
+                  options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
+                  value={Map.get(@config, "decimal_places")}/>
+                  Decimal Places</label>
 
-            <% :boolean -> %>
-              <!--:Y_N :1_0 :yes_no :check_blank -->
+              <% x when x in [:string] -> %>
+                <span class="text-sm text-gray-500">No additional options</span>
 
-            <% x when x in [:naive_datetime, :utc_datetime] -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
-              </label>
+              <% :boolean -> %>
+                <!--:Y_N :1_0 :yes_no :check_blank -->
+                <span class="text-sm text-gray-500">Boolean display options coming soon</span>
 
-            <% _ -> %>
-              <%= case Map.get(@col, :configure_component) do %>
-                <% colconf when is_function(colconf) -> %>
-                  <%= colconf.(%{
-                    col: @col,
-                    config: @config,
-                    prefix: @prefix
-                  }) %>
-                <% nil -> %>
-              <% end %>
+              <% x when x in [:naive_datetime, :utc_datetime] -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
+                </label>
+
+              <% _ -> %>
+                <%= case Map.get(@col, :configure_component) do %>
+                  <% colconf when is_function(colconf) -> %>
+                    <%= colconf.(%{
+                      col: @col,
+                      config: @config,
+                      prefix: @prefix
+                    }) %>
+                  <% nil -> %>
+                    <span class="text-sm text-gray-500">No additional options</span>
+                <% end %>
             <% end %>
           </div>
-        <div class="absolute top-0 right-20">
-          <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
         </div>
-
       </div>
     """
   end
