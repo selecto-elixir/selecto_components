@@ -259,6 +259,69 @@ defmodule SelectoComponents.Form do
     """
   end
 
+  @impl true
+  def handle_event("datetime-filter-change", params, socket) do
+    # This event is triggered when datetime filter comparison mode changes
+    # We need to update the view config to reflect the change
+    IO.puts("\n=== DATETIME FILTER CHANGE (LiveComponent) ===")
+    IO.inspect(params, label: "Params received")
+
+    # Extract UUID from _target or params
+    uuid = params["uuid"] ||
+           (case get_in(params, ["_target"]) do
+              ["filters", uuid_val, "comp"] -> uuid_val
+              _ -> nil
+            end)
+
+    # Get the new comparison value directly from filters
+    new_comp = get_in(params, ["filters", uuid, "comp"])
+
+    IO.puts("UUID: #{uuid}")
+    IO.puts("New comparison: #{inspect(new_comp)}")
+
+    # Update the view_config in the socket assigns
+    IO.inspect(socket.assigns.view_config.filters, label: "Current filters")
+
+    updated_filters = socket.assigns.view_config.filters
+      |> Enum.map(fn
+        {u, section, filter} when u == uuid ->
+          IO.puts("Found matching filter to update: #{u}")
+          # Update the comparison operator and reset value when changing modes
+          updated_filter = case new_comp do
+            "BETWEEN" ->
+              IO.puts("Switching to BETWEEN mode")
+              # Reset to empty values for between mode
+              Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
+            "SHORTCUT" ->
+              IO.puts("Switching to SHORTCUT mode")
+              # Default to "today" for shortcuts
+              Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
+            "RELATIVE" ->
+              IO.puts("Switching to RELATIVE mode")
+              # Default to empty for relative
+              Map.merge(filter, %{"comp" => new_comp, "value" => ""})
+            _ ->
+              IO.puts("Switching to standard mode: #{new_comp}")
+              # Keep existing value for standard operators
+              Map.put(filter, "comp", new_comp)
+          end
+          IO.inspect(updated_filter, label: "Updated filter value")
+          {u, section, updated_filter}
+        other ->
+          other
+      end)
+
+    IO.inspect(updated_filters, label: "All filters after update")
+
+    updated_config = put_in(socket.assigns.view_config, [:filters], updated_filters)
+
+    # Send the updated config to the parent LiveView
+    send(self(), {:update_view_config, updated_config})
+
+    # Also update the LiveComponent's state for immediate rendering
+    {:noreply, assign(socket, view_config: updated_config)}
+  end
+
   defmacro __using__(_opts \\ []) do
     quote do
       ### These run in the 'use'ing liveview's context
@@ -471,6 +534,9 @@ defmodule SelectoComponents.Form do
 
         {:noreply, socket}
       end
+
+      # The datetime-filter-change event is now handled by the LiveComponent directly
+      # This prevents conflicts and ensures proper state management
 
       def handle_event("agg_add_filters", params, socket) do
         with_error_handling(socket, "agg_add_filters", fn ->
@@ -855,6 +921,13 @@ defmodule SelectoComponents.Form do
       end
 
       @impl true
+      def handle_info({:update_view_config, updated_config}, socket) do
+        IO.puts("\n=== UPDATING VIEW CONFIG IN PARENT (handle_info) ===")
+        IO.inspect(updated_config.filters, label: "New filters")
+        # Update the view config in the parent LiveView
+        {:noreply, assign(socket, view_config: updated_config)}
+      end
+
       def handle_info({:filters_updated, updated_filters}, socket) do
         # Update the view config with new filters
         socket = assign(socket,
@@ -1472,6 +1545,10 @@ defmodule SelectoComponents.Form do
 
   ### Reorg these to use in pickers
   defp render_filter_form(assigns, uuid, index, section, filter_value) do
+    IO.puts("\n=== RENDER_FILTER_FORM called ===")
+    IO.puts("UUID: #{uuid}, Filter: #{filter_value["filter"]}")
+    IO.inspect(filter_value, label: "Filter value in render_filter_form")
+
     # Get the filter definition from the selecto
     filter_id = filter_value["filter"]
 
@@ -1513,15 +1590,20 @@ defmodule SelectoComponents.Form do
         def: filter_def
       }
 
-      assigns = Map.merge(assigns, component_assigns)
+      assigns =
+        assigns
+        |> Map.merge(component_assigns)
+        |> Map.put(:section, section)
+        |> Map.put(:index, index)
+        |> Map.put(:filter_value, filter_value)
 
       ~H"""
       <div>
         <%= @def.component.(assigns) %>
         <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-        <input type="hidden" name={"filters[#{@uuid}][section]"} value={section}/>
-        <input type="hidden" name={"filters[#{@uuid}][index]"} value={index}/>
-        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={filter_value["filter"]}/>
+        <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+        <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
       </div>
       """
     else
@@ -1545,34 +1627,143 @@ defmodule SelectoComponents.Form do
   end
 
   # Render datetime filter with appropriate controls
-
-  ### TODO add a 'Between' option that shows two inputs. The start would be an INCLUSIVE >= and the end would be an EXCLUSIVE < -- so that we could do things like 2024-01-01 to 2024-02-01 to get all of January
-  ### TODO when someone clicks a formatted aggregate like YYYY or YYYY-MM, add a filter with >= and <= for that period
-  ### TODO add shortcusts like 'This Month', 'Last Month', 'Last 7 Days', 'Last 30 Days', 'This Year', 'Last Year', This Quarter', 'Next 7 Days', 'Next 30 Days', 'Next Month', 'Next Year', 'Next Quarter'
-  ### TODO add 'YTD' (Year to Date) shortcut and 'QTD' (Quarter to Date) shortcut and 'MTD' (Month to Date) shortcut
-  ### TODO add special control for 'This year and last year YTD' and smae for QTD and MTD
-
   defp render_datetime_filter(assigns) do
-    ~H"""
-    <div class="grid grid-cols-3 gap-2">
-      <select name={"filters[#{@uuid}][comp]"} class="sc-select">
-        <option value="=" selected={@filter_value["comp"] == "="}>On</option>
-        <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
-        <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
-        <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
-        <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
-        <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
-        <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
-      </select>
+    # Check if value is a shortcut or relative date
+    filter_value = assigns[:filter_value] || %{}
 
-      <input
-        type={if @field_type == :date, do: "date", else: "datetime-local"}
-        name={"filters[#{@uuid}][value]"}
-        value={format_datetime_value(@filter_value["value"], @field_type)}
-        class="sc-input col-span-2"
-        disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-      />
+    IO.puts("\n=== RENDER DATETIME FILTER ===")
+    IO.inspect(filter_value, label: "Filter value in render")
+    IO.puts("Comparison mode: #{filter_value["comp"]}")
+
+    is_shortcut = is_date_shortcut(filter_value["value"])
+    is_relative = is_relative_date(filter_value["value"])
+
+    assigns =
+      assigns
+      |> Map.put(:is_shortcut, is_shortcut)
+      |> Map.put(:is_relative, is_relative)
+      |> Map.put(:filter_value, filter_value)
+
+    ~H"""
+    <div class="space-y-2">
+      <div class="grid grid-cols-3 gap-2">
+        <select
+          name={"filters[#{@uuid}][comp]"}
+          class="sc-select"
+          phx-change="datetime-filter-change"
+          phx-target={@myself}
+          phx-value-uuid={@uuid}>
+          <option value="=" selected={@filter_value["comp"] == "="}>On</option>
+          <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
+          <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
+          <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
+          <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
+          <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
+          <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
+          <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>Quick Select</option>
+          <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>Relative Days</option>
+          <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
+          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+        </select>
+
+        <%= cond do %>
+          <% @filter_value["comp"] == "BETWEEN" -> %>
+            <div class="col-span-2 grid grid-cols-2 gap-2">
+              <input
+                type={if @field_type == :date, do: "date", else: "datetime-local"}
+                name={"filters[#{@uuid}][value_start]"}
+                value={format_datetime_value(@filter_value["value_start"], @field_type)}
+                class="sc-input"
+                placeholder="Start"
+              />
+              <input
+                type={if @field_type == :date, do: "date", else: "datetime-local"}
+                name={"filters[#{@uuid}][value_end]"}
+                value={format_datetime_value(@filter_value["value_end"], @field_type)}
+                class="sc-input"
+                placeholder="End (exclusive)"
+              />
+            </div>
+
+          <% @filter_value["comp"] == "SHORTCUT" -> %>
+            <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
+              <optgroup label="Days">
+                <option value="today" selected={@filter_value["value"] == "today"}>Today</option>
+                <option value="yesterday" selected={@filter_value["value"] == "yesterday"}>Yesterday</option>
+                <option value="tomorrow" selected={@filter_value["value"] == "tomorrow"}>Tomorrow</option>
+              </optgroup>
+              <optgroup label="Weeks">
+                <option value="this_week" selected={@filter_value["value"] == "this_week"}>This Week</option>
+                <option value="last_week" selected={@filter_value["value"] == "last_week"}>Last Week</option>
+                <option value="next_week" selected={@filter_value["value"] == "next_week"}>Next Week</option>
+              </optgroup>
+              <optgroup label="Months">
+                <option value="this_month" selected={@filter_value["value"] == "this_month"}>This Month</option>
+                <option value="last_month" selected={@filter_value["value"] == "last_month"}>Last Month</option>
+                <option value="next_month" selected={@filter_value["value"] == "next_month"}>Next Month</option>
+                <option value="mtd" selected={@filter_value["value"] == "mtd"}>Month to Date</option>
+              </optgroup>
+              <optgroup label="Quarters">
+                <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>This Quarter</option>
+                <option value="last_quarter" selected={@filter_value["value"] == "last_quarter"}>Last Quarter</option>
+                <option value="next_quarter" selected={@filter_value["value"] == "next_quarter"}>Next Quarter</option>
+                <option value="qtd" selected={@filter_value["value"] == "qtd"}>Quarter to Date</option>
+              </optgroup>
+              <optgroup label="Years">
+                <option value="this_year" selected={@filter_value["value"] == "this_year"}>This Year</option>
+                <option value="last_year" selected={@filter_value["value"] == "last_year"}>Last Year</option>
+                <option value="next_year" selected={@filter_value["value"] == "next_year"}>Next Year</option>
+                <option value="ytd" selected={@filter_value["value"] == "ytd"}>Year to Date</option>
+              </optgroup>
+              <optgroup label="Relative Periods">
+                <option value="last_7_days" selected={@filter_value["value"] == "last_7_days"}>Last 7 Days</option>
+                <option value="last_30_days" selected={@filter_value["value"] == "last_30_days"}>Last 30 Days</option>
+                <option value="last_60_days" selected={@filter_value["value"] == "last_60_days"}>Last 60 Days</option>
+                <option value="last_90_days" selected={@filter_value["value"] == "last_90_days"}>Last 90 Days</option>
+                <option value="next_7_days" selected={@filter_value["value"] == "next_7_days"}>Next 7 Days</option>
+                <option value="next_30_days" selected={@filter_value["value"] == "next_30_days"}>Next 30 Days</option>
+              </optgroup>
+              <optgroup label="Year Comparisons">
+                <option value="ytd_vs_last" selected={@filter_value["value"] == "ytd_vs_last"}>This Year & Last Year YTD</option>
+                <option value="qtd_vs_last" selected={@filter_value["value"] == "qtd_vs_last"}>This Quarter & Last Quarter QTD</option>
+                <option value="mtd_vs_last" selected={@filter_value["value"] == "mtd_vs_last"}>This Month & Last Month MTD</option>
+              </optgroup>
+            </select>
+
+          <% @filter_value["comp"] == "RELATIVE" -> %>
+            <div class="col-span-2 flex gap-2">
+              <input
+                type="text"
+                name={"filters[#{@uuid}][value]"}
+                value={@filter_value["value"]}
+                class="sc-input flex-1"
+                placeholder="e.g., 5 (5 days ago), 3-7 (3-7 days ago), -30 (>30 days ago), 30- (within 30 days)"
+                pattern="^-?\d+(-\d+)?-?$"
+              />
+              <div class="text-xs text-gray-500 self-center">
+                <span class="font-semibold">Examples:</span>
+                1 = yesterday,
+                3-7 = 3-7 days ago,
+                -30 = over 30 days ago,
+                30- = within 30 days
+              </div>
+            </div>
+
+          <% @filter_value["comp"] in ["IS NULL", "IS NOT NULL"] -> %>
+            <div class="col-span-2 text-gray-500 text-sm self-center">
+              No value needed
+            </div>
+
+          <% true -> %>
+            <input
+              type={if @field_type == :date, do: "date", else: "datetime-local"}
+              name={"filters[#{@uuid}][value]"}
+              value={format_datetime_value(@filter_value["value"], @field_type)}
+              class="sc-input col-span-2"
+              disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+            />
+        <% end %>
+      </div>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
@@ -1636,13 +1827,287 @@ defmodule SelectoComponents.Form do
   end
   defp format_datetime_value(value, _type), do: value
 
+  # Check if a value is a date shortcut
+  defp is_date_shortcut(value) when is_binary(value) do
+    value in ~w(today yesterday tomorrow this_week last_week next_week
+                this_month last_month next_month mtd
+                this_quarter last_quarter next_quarter qtd
+                this_year last_year next_year ytd
+                last_7_days last_30_days last_60_days last_90_days
+                next_7_days next_30_days
+                ytd_vs_last qtd_vs_last mtd_vs_last)
+  end
+  defp is_date_shortcut(_), do: false
+
+  # Check if a value is a relative date format
+  defp is_relative_date(value) when is_binary(value) do
+    # Matches patterns like: 5, 3-7, -30, 30-
+    Regex.match?(~r/^-?\d+(-\d+)?-?$/, value)
+  end
+  defp is_relative_date(_), do: false
+
+  # Process datetime filter values before query execution
+  def process_datetime_filter(filter_config) do
+    case Map.get(filter_config, "comp") do
+      "BETWEEN" ->
+        # Convert to SQL between with inclusive start and exclusive end
+        start_date = parse_datetime_value(filter_config["value_start"])
+        end_date = parse_datetime_value(filter_config["value_end"])
+
+        # Return two filters: >= start and < end
+        [
+          %{filter_config | "comp" => ">=", "value" => start_date},
+          %{filter_config | "comp" => "<", "value" => end_date}
+        ]
+
+      "SHORTCUT" ->
+        process_date_shortcut(filter_config["value"], filter_config)
+
+      "RELATIVE" ->
+        process_relative_date(filter_config["value"], filter_config)
+
+      _ ->
+        # Standard comparison, just parse the value
+        %{filter_config | "value" => parse_datetime_value(filter_config["value"])}
+    end
+  end
+
+  # Process date shortcuts into actual date ranges
+  defp process_date_shortcut(shortcut, base_config) do
+    today = Date.utc_today()
+
+    case shortcut do
+      "today" ->
+        start_of_day = NaiveDateTime.new!(today, ~T[00:00:00])
+        end_of_day = NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])
+        [
+          %{base_config | "comp" => ">=", "value" => start_of_day},
+          %{base_config | "comp" => "<", "value" => end_of_day}
+        ]
+
+      "yesterday" ->
+        yesterday = Date.add(today, -1)
+        start_of_day = NaiveDateTime.new!(yesterday, ~T[00:00:00])
+        end_of_day = NaiveDateTime.new!(today, ~T[00:00:00])
+        [
+          %{base_config | "comp" => ">=", "value" => start_of_day},
+          %{base_config | "comp" => "<", "value" => end_of_day}
+        ]
+
+      "tomorrow" ->
+        tomorrow = Date.add(today, 1)
+        start_of_day = NaiveDateTime.new!(tomorrow, ~T[00:00:00])
+        end_of_day = NaiveDateTime.new!(Date.add(tomorrow, 1), ~T[00:00:00])
+        [
+          %{base_config | "comp" => ">=", "value" => start_of_day},
+          %{base_config | "comp" => "<", "value" => end_of_day}
+        ]
+
+      "this_week" ->
+        start_of_week = beginning_of_week(today)
+        end_of_week = Date.add(start_of_week, 7)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_week, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+        ]
+
+      "last_week" ->
+        start_of_week = beginning_of_week(Date.add(today, -7))
+        end_of_week = Date.add(start_of_week, 7)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_week, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+        ]
+
+      "this_month" ->
+        start_of_month = Date.beginning_of_month(today)
+        start_of_next_month = Date.beginning_of_month(Date.add(today, 32))
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])}
+        ]
+
+      "last_month" ->
+        last_month = Date.add(today, -today.day)
+        start_of_month = Date.beginning_of_month(last_month)
+        end_of_month = Date.beginning_of_month(today)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
+        ]
+
+      "mtd" ->
+        # Month to date
+        start_of_month = Date.beginning_of_month(today)
+        tomorrow = Date.add(today, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+        ]
+
+      "this_quarter" ->
+        start_of_quarter = beginning_of_quarter(today)
+        start_of_next_quarter = Date.add(start_of_quarter, 91) # Approx 3 months
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_next_quarter, ~T[00:00:00])}
+        ]
+
+      "qtd" ->
+        # Quarter to date
+        start_of_quarter = beginning_of_quarter(today)
+        tomorrow = Date.add(today, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+        ]
+
+      "this_year" ->
+        start_of_year = Date.new!(today.year, 1, 1)
+        start_of_next_year = Date.new!(today.year + 1, 1, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_year, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_next_year, ~T[00:00:00])}
+        ]
+
+      "ytd" ->
+        # Year to date
+        start_of_year = Date.new!(today.year, 1, 1)
+        tomorrow = Date.add(today, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_year, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+        ]
+
+      "last_" <> days when days in ~w(7_days 30_days 60_days 90_days) ->
+        num_days = String.to_integer(String.replace(days, "_days", ""))
+        start_date = Date.add(today, -num_days)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
+        ]
+
+      "next_" <> days when days in ~w(7_days 30_days) ->
+        num_days = String.to_integer(String.replace(days, "_days", ""))
+        end_date = Date.add(today, num_days + 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(today, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_date, ~T[00:00:00])}
+        ]
+
+      "ytd_vs_last" ->
+        # This year YTD and last year's same YTD period
+        start_of_this_year = Date.new!(today.year, 1, 1)
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
+        same_day_last_year = Date.new!(today.year - 1, today.month, today.day)
+
+        # Return an OR condition (would need special handling in query builder)
+        [
+          %{base_config | "comp" => "BETWEEN_MULTI",
+            "ranges" => [
+              {NaiveDateTime.new!(start_of_this_year, ~T[00:00:00]),
+               NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])},
+              {NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
+               NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+            ]}
+        ]
+
+      _ ->
+        # Unknown shortcut, return as-is
+        base_config
+    end
+  end
+
+  # Process relative date patterns
+  defp process_relative_date(pattern, base_config) do
+    today = Date.utc_today()
+
+    cond do
+      # Pattern: "5" - exactly 5 days ago
+      Regex.match?(~r/^\d+$/, pattern) ->
+        days_ago = String.to_integer(pattern)
+        target_date = Date.add(today, -days_ago)
+        start_of_day = NaiveDateTime.new!(target_date, ~T[00:00:00])
+        end_of_day = NaiveDateTime.new!(Date.add(target_date, 1), ~T[00:00:00])
+        [
+          %{base_config | "comp" => ">=", "value" => start_of_day},
+          %{base_config | "comp" => "<", "value" => end_of_day}
+        ]
+
+      # Pattern: "3-7" - between 3 and 7 days ago
+      Regex.match?(~r/^(\d+)-(\d+)$/, pattern) ->
+        [_, start_str, end_str] = Regex.run(~r/^(\d+)-(\d+)$/, pattern)
+        start_days = String.to_integer(start_str)
+        end_days = String.to_integer(end_str)
+        start_date = Date.add(today, -end_days)
+        end_date = Date.add(today, -start_days + 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_date, ~T[00:00:00])}
+        ]
+
+      # Pattern: "-30" - more than 30 days ago
+      Regex.match?(~r/^-(\d+)$/, pattern) ->
+        [_, days_str] = Regex.run(~r/^-(\d+)$/, pattern)
+        days = String.to_integer(days_str)
+        cutoff_date = Date.add(today, -days)
+        %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(cutoff_date, ~T[00:00:00])}
+
+      # Pattern: "30-" - within the last 30 days
+      Regex.match?(~r/^(\d+)-$/, pattern) ->
+        [_, days_str] = Regex.run(~r/^(\d+)-$/, pattern)
+        days = String.to_integer(days_str)
+        start_date = Date.add(today, -days)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
+        ]
+
+      true ->
+        base_config
+    end
+  end
+
+  # Helper to find beginning of week (Monday)
+  defp beginning_of_week(date) do
+    day_of_week = Date.day_of_week(date, :monday)
+    Date.add(date, -(day_of_week - 1))
+  end
+
+  # Helper to find beginning of quarter
+  defp beginning_of_quarter(date) do
+    quarter_month = div(date.month - 1, 3) * 3 + 1
+    Date.new!(date.year, quarter_month, 1)
+  end
+
+  # Parse datetime value from string
+  defp parse_datetime_value(value) when is_binary(value) do
+    cond do
+      String.contains?(value, "T") ->
+        case NaiveDateTime.from_iso8601(value <> ":00") do
+          {:ok, dt} -> dt
+          _ -> value
+        end
+      String.length(value) == 10 ->
+        case Date.from_iso8601(value) do
+          {:ok, date} -> NaiveDateTime.new!(date, ~T[00:00:00])
+          _ -> value
+        end
+      true ->
+        value
+    end
+  end
+  defp parse_datetime_value(value), do: value
+
   # Hash only the filter structure (IDs and sections), not the values
   # This ensures the component remounts when filters are added/removed
   # but not when filter values or comparisons change
   defp hash_filter_structure(filters) do
+    # Include the entire filter structure in the hash so changes to comp, value, etc.
+    # will trigger a re-render of the TreeBuilder component
     filters
     |> Enum.map(fn
-      {uuid, section, _config} -> {uuid, section}
+      {uuid, section, config} -> {uuid, section, config}
     end)
     |> :erlang.phash2()
   end
