@@ -153,8 +153,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 # Custom columns use string keys, regular fields use atom keys
                 filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
 
-                # If no group_by_filter is specified, fall back to the column identifier
-                filter_key = filter_key || Map.get(coldef, :colid) || Map.get(coldef, :name) || Map.get(coldef, "name")
+                # If no group_by_filter is specified, use colid (the actual field identifier)
+                filter_key = filter_key || Map.get(coldef, :colid) || Map.get(coldef, "colid")
 
                 if filter_key != nil do
                   # Use the filter_val (second element of tuple) which should be the actor_id
@@ -173,14 +173,26 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                   filter_key
                 else
                   # Extract field identifier from the field tuple
-                  case field do
+                  extracted = case field do
+                    {:field, {:to_char, {field_name, _format}}, _alias} ->
+                      # Handle formatted date fields - use the actual field name, not the alias
+                      IO.puts("Extracting from to_char: field_name=#{field_name}")
+                      field_name
                     {:field, field_id, _alias} when is_atom(field_id) ->
                       Atom.to_string(field_id)
                     {:field, field_id, _alias} when is_binary(field_id) ->
                       field_id
                     _ ->
                       # Final fallback to coldef properties
-                      Map.get(coldef, :colid) || Map.get(coldef, :name) || Map.get(coldef, "name")
+                      nil
+                  end
+
+                  # Only fall back to coldef properties if we couldn't extract from field
+                  if extracted do
+                    extracted
+                  else
+                    # Use colid (the actual field identifier), not the display name
+                    Map.get(coldef, :colid) || Map.get(coldef, "colid")
                   end
                 end
 
@@ -210,6 +222,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                   # Otherwise extract field name from the field tuple
                   true ->
                     case field do
+                      {:field, {:to_char, {field_name, _format}}, _} ->
+                        # Handle formatted date fields
+                        field_name
                       {:field, fid, _} -> to_string(fid)
                       _ -> "id"
                     end

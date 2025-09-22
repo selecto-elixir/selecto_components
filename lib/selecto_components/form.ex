@@ -292,6 +292,18 @@ defmodule SelectoComponents.Form do
               IO.puts("Switching to BETWEEN mode")
               # Reset to empty values for between mode
               Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
+            "DATE_BETWEEN" ->
+              IO.puts("Switching to DATE_BETWEEN mode")
+              # Reset to empty values for date between mode
+              Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
+            "DATE=" ->
+              IO.puts("Switching to DATE= mode")
+              # Keep existing value or set to today's date
+              Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
+            "DATE!=" ->
+              IO.puts("Switching to DATE!= mode")
+              # Keep existing value or set to today's date
+              Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
             "SHORTCUT" ->
               IO.puts("Switching to SHORTCUT mode")
               # Default to "today" for shortcuts
@@ -540,6 +552,8 @@ defmodule SelectoComponents.Form do
 
       def handle_event("agg_add_filters", params, socket) do
         with_error_handling(socket, "agg_add_filters", fn ->
+          IO.puts("\n=== AGG_ADD_FILTERS DEBUG ===")
+          IO.inspect(params, label: "Params received")
           selected_view = String.to_atom(socket.assigns.view_config.view_mode)
 
           {_, _, _, opt} =
@@ -579,31 +593,75 @@ defmodule SelectoComponents.Form do
                   _ -> f
                 end
 
+                IO.puts("Extracted field_name: #{field_name}")
                 conf = Selecto.field(socket.assigns.selecto, field_name)
 
-                {v1, v2} = if conf != nil do
-                  # Custom columns might not have a type field
-                  field_type = Map.get(conf, :type, :string)
-                  case field_type do
-                    x when x in [:utc_datetime, :naive_datetime] ->
-                      Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
+                # Detect date format patterns and set appropriate comparison mode
+                {comp_mode, v1, v2} = cond do
+                  # YYYY-MM-DD format - exact date match
+                  String.match?(v, ~r/^\d{4}-\d{2}-\d{2}$/) ->
+                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+                      {"DATE=", v, ""}
+                    else
+                      {"=", v, ""}
+                    end
 
-                    _ ->
-                      {v, ""}
-                  end
-                else
-                  # If no field configuration found, default to string handling
-                  {v, ""}
+                  # YYYY-MM format - match entire month
+                  String.match?(v, ~r/^\d{4}-\d{2}$/) ->
+                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+                      # Convert to date range for the month
+                      [year_str, month_str] = String.split(v, "-")
+                      {year, _} = Integer.parse(year_str)
+                      {month, _} = Integer.parse(month_str)
+
+                      start_date = Date.new!(year, month, 1)
+                      # Get last day of the month
+                      days_in_month = Date.days_in_month(start_date)
+                      end_date = Date.new!(year, month, days_in_month) |> Date.add(1)
+
+                      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+                    else
+                      {"=", v, ""}
+                    end
+
+                  # YYYY format - match entire year
+                  String.match?(v, ~r/^\d{4}$/) ->
+                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+                      {year, _} = Integer.parse(v)
+                      start_date = Date.new!(year, 1, 1)
+                      end_date = Date.new!(year + 1, 1, 1)
+
+                      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+                    else
+                      {"=", v, ""}
+                    end
+
+                  # Default handling for datetime fields
+                  conf != nil ->
+                    field_type = Map.get(conf, :type, :string)
+                    case field_type do
+                      x when x in [:utc_datetime, :naive_datetime] ->
+                        {v1_parsed, v2_parsed} = Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
+                        {"=", v1_parsed, v2_parsed}
+                      _ ->
+                        {"=", v, ""}
+                    end
+
+                  # No field configuration found
+                  true ->
+                    {"=", v, ""}
                 end
 
                 filter_config = %{
-                  "comp" => "=",
+                  "comp" => comp_mode,
                   "filter" => field_name,
                   "index" => "0",
                   "section" => "filters",
                   "uuid" => newid,
                   "value" => v1,
-                  "value2" => v2
+                  "value2" => v2,
+                  "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+                  "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
                 }
                 # Check if we should use a different filter field (e.g., for full_name -> actor_id)
                 conf = Selecto.field(socket.assigns.selecto, field_name)
@@ -1081,10 +1139,14 @@ defmodule SelectoComponents.Form do
         columns_map =
           raw_columns
           |> Enum.into(%{}, fn {key, col} ->
-            col_with_field = Map.put(col, :field, col.name)
-            {key, col_with_field}
+            # Preserve the original field identifier as colid
+            col_with_metadata = col
+              |> Map.put(:field, col.name)
+              |> Map.put(:colid, key)  # Store the actual field identifier
+            {key, col_with_metadata}
           end)
           |> then(fn cols ->
+            # Also add entries by display name for lookup convenience
             Enum.reduce(cols, cols, fn {_colid, col}, acc ->
               Map.put(acc, col.name, col)
             end)
@@ -1655,11 +1717,14 @@ defmodule SelectoComponents.Form do
           phx-value-uuid={@uuid}>
           <option value="=" selected={@filter_value["comp"] == "="}>On</option>
           <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
+          <option value="DATE=" selected={@filter_value["comp"] == "DATE="}>Date Equals</option>
+          <option value="DATE!=" selected={@filter_value["comp"] == "DATE!="}>Date Not Equals</option>
           <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
           <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
           <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
           <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
           <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
+          <option value="DATE_BETWEEN" selected={@filter_value["comp"] == "DATE_BETWEEN"}>Date Between</option>
           <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>Quick Select</option>
           <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>Relative Days</option>
           <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
@@ -1667,19 +1732,19 @@ defmodule SelectoComponents.Form do
         </select>
 
         <%= cond do %>
-          <% @filter_value["comp"] == "BETWEEN" -> %>
+          <% @filter_value["comp"] in ["BETWEEN", "DATE_BETWEEN"] -> %>
             <div class="col-span-2 grid grid-cols-2 gap-2">
               <input
-                type={if @field_type == :date, do: "date", else: "datetime-local"}
+                type="date"
                 name={"filters[#{@uuid}][value_start]"}
-                value={format_datetime_value(@filter_value["value_start"], @field_type)}
+                value={format_datetime_value(@filter_value["value_start"], :date)}
                 class="sc-input"
                 placeholder="Start"
               />
               <input
-                type={if @field_type == :date, do: "date", else: "datetime-local"}
+                type="date"
                 name={"filters[#{@uuid}][value_end]"}
-                value={format_datetime_value(@filter_value["value_end"], @field_type)}
+                value={format_datetime_value(@filter_value["value_end"], :date)}
                 class="sc-input"
                 placeholder="End (exclusive)"
               />
@@ -1748,6 +1813,14 @@ defmodule SelectoComponents.Form do
                 30- = within 30 days
               </div>
             </div>
+
+          <% @filter_value["comp"] in ["DATE=", "DATE!="] -> %>
+            <input
+              type="date"
+              name={"filters[#{@uuid}][value]"}
+              value={format_datetime_value(@filter_value["value"], :date)}
+              class="sc-input col-span-2"
+            />
 
           <% @filter_value["comp"] in ["IS NULL", "IS NOT NULL"] -> %>
             <div class="col-span-2 text-gray-500 text-sm self-center">

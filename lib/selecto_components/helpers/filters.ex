@@ -67,8 +67,92 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp _make_date_filter(filter) do
-    {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
-    {:between, start, stop}
+    comp = Map.get(filter, "comp", "=")
+
+    case comp do
+      "DATE=" ->
+        # For DATE=, we want to match the entire day
+        date_str = Map.get(filter, "value")
+        if date_str do
+          case Date.from_iso8601(date_str) do
+            {:ok, date} ->
+              # Convert to datetime range for the entire day
+              start_dt = NaiveDateTime.new!(date, ~T[00:00:00])
+              end_dt = NaiveDateTime.new!(date, ~T[23:59:59])
+              {:between, start_dt, end_dt}
+            _ ->
+              # Fallback to original behavior if date parsing fails
+              {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+              {:between, start, stop}
+          end
+        else
+          {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+          {:between, start, stop}
+        end
+
+      "DATE!=" ->
+        # For DATE!=, we want to exclude the entire day
+        date_str = Map.get(filter, "value")
+        if date_str do
+          case Date.from_iso8601(date_str) do
+            {:ok, date} ->
+              # Convert to datetime range for the entire day and negate
+              start_dt = NaiveDateTime.new!(date, ~T[00:00:00])
+              end_dt = NaiveDateTime.new!(date, ~T[23:59:59])
+              {:not, {:between, start_dt, end_dt}}
+            _ ->
+              # Fallback
+              {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+              {:not, {:between, start, stop}}
+          end
+        else
+          {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+          {:not, {:between, start, stop}}
+        end
+
+      "DATE_BETWEEN" ->
+        # For DATE_BETWEEN, use the start and end dates
+        start_str = Map.get(filter, "value_start") || Map.get(filter, "value")
+        end_str = Map.get(filter, "value_end") || Map.get(filter, "value2")
+
+        if start_str && end_str do
+          with {:ok, start_date} <- Date.from_iso8601(start_str),
+               {:ok, end_date} <- Date.from_iso8601(end_str) do
+            start_dt = NaiveDateTime.new!(start_date, ~T[00:00:00])
+            # For end date, we want to include the entire day, so go to start of next day
+            end_dt = NaiveDateTime.new!(end_date, ~T[00:00:00])
+            {:between, start_dt, end_dt}
+          else
+            _ ->
+              # Fallback to original behavior
+              {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+              {:between, start, stop}
+          end
+        else
+          # Fallback to original behavior
+          {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+          {:between, start, stop}
+        end
+
+      _ ->
+        # Default behavior for other comparison operators
+        # Ensure we have value2 key for val_to_dates
+        filter_with_value2 = Map.put_new(filter, "value2", "")
+        {start, stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+
+        # Handle different comparison operators
+        case comp do
+          "=" -> {:between, start, stop}
+          "!=" -> {:not, {:between, start, stop}}
+          ">" -> {:>, stop}
+          ">=" -> {:>=, start}
+          "<" -> {:<, start}
+          "<=" -> {:<=, stop}
+          "IS NULL" -> :is_null
+          "IS NOT NULL" -> :is_not_null
+          _ -> {:between, start, stop}
+        end
+    end
   end
 
   ## Build filters that can be sent to the selecto
@@ -138,7 +222,7 @@ defmodule SelectoComponents.Helpers.Filters do
               # Custom columns should be treated as strings for filtering purposes
               acc ++ [ _make_string_filter(f) ]
 
-            x when x in [:naive_datetime, :utc_datetime] ->
+            x when x in [:naive_datetime, :utc_datetime, :date] ->
               acc ++ [{Map.get(f, "filter"), _make_date_filter(f)}]
 
             {:parameterized, _, _enum_conf} ->
