@@ -233,7 +233,21 @@ defmodule SelectoComponents.Helpers.Filters do
               acc ++ [ _make_string_filter(f) ]
 
             x when x in [:naive_datetime, :utc_datetime, :date] ->
-              acc ++ [{Map.get(f, "filter"), _make_date_filter(f)}]
+              # Handle date filters, including multi-range OR conditions
+              date_filter_result = _make_date_filter(f)
+              case date_filter_result do
+                {:or, conditions} ->
+                  # Transform OR conditions to include field name
+                  field_name = Map.get(f, "filter")
+                  or_filters = Enum.map(conditions, fn filter_val ->
+                    {field_name, filter_val}
+                  end)
+                  acc ++ [{:or, or_filters}]
+
+                other ->
+                  # Regular date filter
+                  acc ++ [{Map.get(f, "filter"), other}]
+              end
 
             {:parameterized, _, _enum_conf} ->
               # TODO check selected against enum_conf.mappings!
@@ -446,6 +460,109 @@ defmodule SelectoComponents.Helpers.Filters do
         tomorrow = Date.add(today, 1)
         {:between, NaiveDateTime.new!(start_of_year, ~T[00:00:00]),
                   NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+
+      "ytd_vs_last" ->
+        # This year YTD and last year YTD
+        start_of_this_year = Date.new!(today.year, 1, 1)
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
+        tomorrow = Date.add(today, 1)
+
+        # Handle leap year edge case for Feb 29
+        same_day_last_year = try do
+          Date.new!(today.year - 1, today.month, today.day)
+        rescue
+          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+        end
+
+        # Return OR condition with both date ranges
+        {:or, [
+          {:between, NaiveDateTime.new!(start_of_this_year, ~T[00:00:00]),
+                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+          {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
+                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+        ]}
+
+      "last_ytd" ->
+        # Last year's YTD to the same day
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
+        # Handle leap year edge case for Feb 29
+        same_day_last_year = try do
+          Date.new!(today.year - 1, today.month, today.day)
+        rescue
+          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+        end
+        {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
+                  NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+
+      "qtd_vs_last" ->
+        # This quarter QTD and same quarter last year QTD
+        start_of_quarter = beginning_of_quarter(today)
+        tomorrow = Date.add(today, 1)
+
+        # Same quarter last year
+        last_year_quarter_start = Date.new!(today.year - 1, start_of_quarter.month, 1)
+
+        # Handle leap year edge case
+        same_day_last_year = try do
+          Date.new!(today.year - 1, today.month, today.day)
+        rescue
+          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+        end
+
+        {:or, [
+          {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+          {:between, NaiveDateTime.new!(last_year_quarter_start, ~T[00:00:00]),
+                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+        ]}
+
+      "mtd_vs_last" ->
+        # This month MTD and last month MTD
+        start_of_month = Date.beginning_of_month(today)
+        tomorrow = Date.add(today, 1)
+
+        # Last month (handle January case)
+        {last_month_year, last_month_month} = if today.month == 1 do
+          {today.year - 1, 12}
+        else
+          {today.year, today.month - 1}
+        end
+
+        last_month_start = Date.new!(last_month_year, last_month_month, 1)
+
+        # Get same day last month (handle month-end edge cases)
+        days_in_last_month = Date.days_in_month(Date.new!(last_month_year, last_month_month, 1))
+        last_month_day = min(today.day, days_in_last_month)
+        same_day_last_month = Date.new!(last_month_year, last_month_month, last_month_day)
+
+        {:or, [
+          {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+          {:between, NaiveDateTime.new!(last_month_start, ~T[00:00:00]),
+                     NaiveDateTime.new!(Date.add(same_day_last_month, 1), ~T[00:00:00])}
+        ]}
+
+      "mtd_vs_last_year" ->
+        # This month MTD and same month last year MTD
+        start_of_month = Date.beginning_of_month(today)
+        tomorrow = Date.add(today, 1)
+
+        # Same month last year
+        last_year_month_start = Date.new!(today.year - 1, today.month, 1)
+
+        # Handle leap year edge case
+        same_day_last_year = try do
+          Date.new!(today.year - 1, today.month, today.day)
+        rescue
+          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+        end
+
+        {:or, [
+          {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+          {:between, NaiveDateTime.new!(last_year_month_start, ~T[00:00:00]),
+                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+        ]}
 
       shortcut when shortcut in ~w(last_7_days last_30_days last_60_days last_90_days) ->
         num_days = shortcut
