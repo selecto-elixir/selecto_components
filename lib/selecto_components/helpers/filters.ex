@@ -146,21 +146,74 @@ defmodule SelectoComponents.Helpers.Filters do
 
       _ ->
         # Default behavior for other comparison operators
-        # Ensure we have value2 key for val_to_dates
-        filter_with_value2 = Map.put_new(filter, "value2", "")
-        {start, stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+        # For < and <= operators with datetime values, preserve the exact time
+        value_str = Map.get(filter, "value")
 
-        # Handle different comparison operators
-        case comp do
-          "=" -> {:between, start, stop}
-          "!=" -> {:not, {:between, start, stop}}
-          ">" -> {:>, stop}
-          ">=" -> {:>=, start}
-          "<" -> {:<, start}
-          "<=" -> {:<=, stop}
-          "IS NULL" -> :is_null
-          "IS NOT NULL" -> :is_not_null
-          _ -> {:between, start, stop}
+        case {comp, value_str} do
+          {"<", value} when is_binary(value) ->
+            # Check if it has a time component
+            if String.match?(value, ~r/\d{2}:\d{2}/) do
+              # Parse the datetime directly preserving time
+              datetime = parse_datetime_preserving_time(value)
+              {:<, datetime}
+            else
+              # Date only, use beginning of day
+              filter_with_value2 = Map.put_new(filter, "value2", "")
+              {start, _stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+              {:<, start}
+            end
+
+          {"<=", value} when is_binary(value) ->
+            # Check if it has a time component
+            if String.match?(value, ~r/\d{2}:\d{2}/) do
+              # Parse the datetime directly preserving time
+              datetime = parse_datetime_preserving_time(value)
+              {:<=, datetime}
+            else
+              # Date only, use end of day
+              filter_with_value2 = Map.put_new(filter, "value2", "")
+              {_start, stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+              {:<=, stop}
+            end
+
+          {">", value} when is_binary(value) ->
+            # Check if it has a time component
+            if String.match?(value, ~r/\d{2}:\d{2}/) do
+              # Parse the datetime directly preserving time
+              datetime = parse_datetime_preserving_time(value)
+              {:>, datetime}
+            else
+              # Date only, use end of day
+              filter_with_value2 = Map.put_new(filter, "value2", "")
+              {_start, stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+              {:>, stop}
+            end
+
+          {">=", value} when is_binary(value) ->
+            # Check if it has a time component
+            if String.match?(value, ~r/\d{2}:\d{2}/) do
+              # Parse the datetime directly preserving time
+              datetime = parse_datetime_preserving_time(value)
+              {:>=, datetime}
+            else
+              # Date only, use beginning of day
+              filter_with_value2 = Map.put_new(filter, "value2", "")
+              {start, _stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+              {:>=, start}
+            end
+
+          _ ->
+            # For other operators, use the standard date range logic
+            filter_with_value2 = Map.put_new(filter, "value2", "")
+            {start, stop} = Selecto.Helpers.Date.val_to_dates(filter_with_value2)
+
+            case comp do
+              "=" -> {:between, start, stop}
+              "!=" -> {:not, {:between, start, stop}}
+              "IS NULL" -> :is_null
+              "IS NOT NULL" -> :is_not_null
+              _ -> {:between, start, stop}
+            end
         end
     end
   end
@@ -608,5 +661,31 @@ defmodule SelectoComponents.Helpers.Filters do
     # Use the server's local date from Erlang calendar functions
     {{year, month, day}, _time} = :calendar.local_time()
     Date.new!(year, month, day)
+  end
+
+  defp parse_datetime_preserving_time(datetime_str) do
+    # Add Z suffix if not present for timezone
+    datetime_str =
+      cond do
+        String.match?(datetime_str, ~r/Z$/) -> datetime_str
+        String.match?(datetime_str, ~r/\d\d:\d\d:\d\d/) -> datetime_str <> "Z"
+        String.match?(datetime_str, ~r/\d\d:\d\d/) -> datetime_str <> ":00Z"
+        true -> datetime_str <> "T00:00:00Z"
+      end
+
+    case DateTime.from_iso8601(datetime_str) do
+      {:ok, datetime, _} -> datetime
+      _ ->
+        # Fallback to NaiveDateTime if DateTime parsing fails
+        case NaiveDateTime.from_iso8601(datetime_str) do
+          {:ok, datetime} -> datetime
+          _ ->
+            # Last resort - try to parse as date only
+            case Date.from_iso8601(datetime_str) do
+              {:ok, date} -> NaiveDateTime.new!(date, ~T[00:00:00])
+              _ -> NaiveDateTime.utc_now()
+            end
+        end
+    end
   end
 end

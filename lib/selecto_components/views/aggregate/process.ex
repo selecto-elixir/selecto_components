@@ -63,8 +63,30 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           end
         else
           case col.type do
-            x when x in [:naive_datetime, :utc_datetime] ->
+            x when x in [:naive_datetime, :utc_datetime, :date] ->
               {:field, datetime_gb_proc(col, e), alias}
+
+            x when x in [:integer, :float, :decimal, :id] ->
+              # Check if buckets format is specified
+              format = Map.get(e, "format")
+              bucket_ranges = Map.get(e, "bucket_ranges")
+
+              if format == "buckets" and is_binary(bucket_ranges) and bucket_ranges != "" do
+                field_with_alias = if String.contains?(to_string(col.colid), ".") do
+                  to_string(col.colid)
+                else
+                  "selecto_root.#{col.colid}"
+                end
+                alias SelectoComponents.Helpers.BucketParser
+                case_sql = BucketParser.generate_bucket_case_sql(
+                  field_with_alias,
+                  bucket_ranges,
+                  :integer
+                )
+                {:field, {:raw_sql, case_sql}, alias}
+              else
+                {:field, col.colid, alias}
+              end
 
             :custom_column ->
               case Map.get(col, :requires_select) do
@@ -84,10 +106,54 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp datetime_gb_proc(col, config) do
-    # "Year", "Month", "Day", "Hour", "YYYY-MM-DD", "YYYY-MM"
-    case Map.get(config, "format") do
-      # x when x in ~w(Year Month Day) -> {:extract, col.colid, x}
-      x when x in ~w(YYYY-MM-DD YYYY-MM YYYY) -> {:to_char, {col.colid, x}}
+    format = Map.get(config, "format")
+    bucket_ranges = Map.get(config, "bucket_ranges")
+
+    case format do
+      # Standard date formats
+      x when x in ~w(YYYY-MM-DD YYYY-MM YYYY YYYY-WW YYYY-Q MM DD D HH24) ->
+        {:to_char, {col.colid, x}}
+
+      # Bucket formats
+      "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        # Generate CASE expression for age buckets in group by
+        field_with_alias = if String.contains?(to_string(col.colid), ".") do
+          # For qualified names like "category.updated_at", extract just the column part
+          # and use the pivot table alias "t"
+          [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
+          "t.#{column}"
+        else
+          "selecto_root.#{col.colid}"
+        end
+        alias SelectoComponents.Helpers.BucketParser
+        case_sql = BucketParser.generate_bucket_case_sql(
+          "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+          bucket_ranges,
+          :integer
+        )
+        {:raw_sql, case_sql}
+
+      "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        # Generate CASE expression for custom date buckets
+        field_with_alias = if String.contains?(to_string(col.colid), ".") do
+          # For qualified names like "category.updated_at", extract just the column part
+          # and use the pivot table alias "t"
+          [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
+          "t.#{column}"
+        else
+          "selecto_root.#{col.colid}"
+        end
+        alias SelectoComponents.Helpers.BucketParser
+        case_sql = BucketParser.generate_bucket_case_sql(
+          field_with_alias,
+          bucket_ranges,
+          :date
+        )
+        {:raw_sql, case_sql}
+
+      _ ->
+        # Default to day format
+        {:to_char, {col.colid, "YYYY-MM-DD"}}
     end
   end
 
@@ -95,7 +161,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     aggregates
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
-    |> Enum.map(fn e ->
+    |> Enum.flat_map(fn e ->
       # ????
       alias =
         case Map.get(e, "alias") do
@@ -104,16 +170,89 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           _ -> Map.get(e, "alias")
         end
 
-      {:field,
-       {
-         String.to_atom(
-           case Map.get(e, "format") do
-             nil -> "count"
-             _ -> Map.get(e, "format")
-           end
-         ),
-         Map.get(e, "field")
-       }, alias}
+      # Handle special formats like buckets and age_buckets
+      format = Map.get(e, "format", "count")
+      field = Map.get(e, "field")
+      bucket_ranges = Map.get(e, "bucket_ranges")
+
+      case format do
+        "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+          # Generate multiple columns for age buckets
+          alias SelectoComponents.Helpers.BucketParser
+
+          # Get bucket labels to create separate columns
+          labels = BucketParser.get_bucket_labels(bucket_ranges)
+
+          # Return multiple aggregate specs, one for each bucket
+          # Use a special aggregate type that preserves field references
+          Enum.map(labels, fn label ->
+            bucket_alias = "#{alias}_#{String.replace(label, ~r/[^a-zA-Z0-9_]/, "_")}"
+
+            # Parse the bucket range for this label
+            ranges = BucketParser.parse_bucket_ranges(bucket_ranges)
+
+            # Find the range for this label
+            range_spec = Enum.find(ranges, fn {_, _, l} -> l == label end)
+
+            aggregate_spec = case range_spec do
+              {min, max, _} when is_integer(min) and is_integer(max) ->
+                if min == max do
+                  {:count_age_bucket, field, min, min}
+                else
+                  {:count_age_bucket, field, min, max}
+                end
+              {min, :infinity, _} ->
+                {:count_age_bucket, field, min, :infinity}
+              {:negative_infinity, max, _} ->
+                {:count_age_bucket, field, :negative_infinity, max}
+              _ ->
+                # For "Other" bucket
+                {:count_age_bucket_other, field, bucket_ranges}
+            end
+
+            {:field, aggregate_spec, bucket_alias}
+          end)
+
+        "buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+          # Generate multiple columns for numeric buckets
+          alias SelectoComponents.Helpers.BucketParser
+
+          # Get bucket labels to create separate columns
+          labels = BucketParser.get_bucket_labels(bucket_ranges)
+
+          # Return multiple aggregate specs, one for each bucket
+          Enum.map(labels, fn label ->
+            bucket_alias = "#{alias}_#{String.replace(label, ~r/[^a-zA-Z0-9_]/, "_")}"
+
+            # Parse the bucket range for this label
+            ranges = BucketParser.parse_bucket_ranges(bucket_ranges)
+
+            # Find the range for this label
+            range_spec = Enum.find(ranges, fn {_, _, l} -> l == label end)
+
+            aggregate_spec = case range_spec do
+              {min, max, _} when is_integer(min) and is_integer(max) ->
+                if min == max do
+                  {:count_bucket, field, min, min}
+                else
+                  {:count_bucket, field, min, max}
+                end
+              {min, :infinity, _} ->
+                {:count_bucket, field, min, :infinity}
+              {:negative_infinity, max, _} ->
+                {:count_bucket, field, :negative_infinity, max}
+              _ ->
+                # For "Other" bucket
+                {:count_bucket_other, field, bucket_ranges}
+            end
+
+            {:field, aggregate_spec, bucket_alias}
+          end)
+
+        format_str ->
+          # Standard aggregates - return as single item list for consistency
+          [{:field, {String.to_atom(format_str), field}, alias}]
+      end
     end)
   end
 end

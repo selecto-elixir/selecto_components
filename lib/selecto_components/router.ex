@@ -109,6 +109,8 @@ defmodule SelectoComponents.Router do
   end
 
   defp execute_query(params, state) do
+    require Logger
+
     try do
       # Process view configuration
       view_config = State.update_view_config(state, params).view_config
@@ -121,13 +123,39 @@ defmodule SelectoComponents.Router do
       # Apply automatic pivot if needed
       pivoted_selecto = maybe_auto_pivot(filtered_selecto, view_config)
 
+      # Log the SQL being generated for debugging
+      try do
+        sql_info = Selecto.to_sql(pivoted_selecto)
+        Logger.debug("Executing SQL: #{inspect(sql_info, pretty: true)}")
+      rescue
+        e ->
+          Logger.error("Failed to generate SQL: #{inspect(e)}")
+          Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
+      end
+
       # Execute the query
       case Selecto.execute(pivoted_selecto) do
-        {:ok, results} -> {:ok, results, pivoted_selecto}
-        {:error, error} -> {:error, error}
+        {:ok, results} ->
+          {:ok, results, pivoted_selecto}
+
+        {:error, %{message: message} = error} ->
+          Logger.error("Query execution failed with error: #{message}")
+          Logger.error("Full error details: #{inspect(error, pretty: true)}")
+          {:error, %{error | message: "Query execution failed: #{message}"}}
+
+        {:error, error} when is_binary(error) ->
+          Logger.error("Query execution failed: #{error}")
+          {:error, %{message: "Query execution failed: #{error}"}}
+
+        {:error, error} ->
+          Logger.error("Query execution failed with unknown error: #{inspect(error)}")
+          {:error, %{message: "Query execution failed: #{inspect(error)}"}}
       end
     rescue
-      e -> {:error, e}
+      e ->
+        Logger.error("Exception during query execution: #{inspect(e)}")
+        Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
+        {:error, %{message: "Query execution exception: #{Exception.message(e)}"}}
     end
   end
 
