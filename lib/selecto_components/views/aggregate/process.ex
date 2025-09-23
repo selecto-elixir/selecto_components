@@ -18,26 +18,55 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   def view(_opt, params, columns, filtered, _selecto) do
+    require Logger
+
+    Logger.debug("=== AGGREGATE VIEW PROCESSING START ===")
+    Logger.debug("Params received: #{inspect(params, pretty: true)}")
+    Logger.debug("Filtered received: #{inspect(filtered, pretty: true)}")
+
+    # Check if any bucket_ranges are in params that shouldn't be
+    if Map.has_key?(params, "filters") do
+      Logger.debug("FILTERS in params: #{inspect(Map.get(params, "filters"), pretty: true)}")
+    end
+    if Map.has_key?(params, "aggregate") do
+      Logger.debug("AGGREGATE in params: #{inspect(Map.get(params, "aggregate"), pretty: true)}")
+    end
+    if Map.has_key?(params, "group_by") do
+      Logger.debug("GROUP_BY in params: #{inspect(Map.get(params, "group_by"), pretty: true)}")
+    end
+
     group_by_params = Map.get(params, "group_by", %{})
+    Logger.debug("Group by params: #{inspect(group_by_params, pretty: true)}")
 
     aggregate =
       Map.get(params, "aggregate", %{})
       |> aggregates(columns)
 
-    group_by = group_by_params |> group_by(columns)
+    Logger.debug("Processed aggregates: #{inspect(aggregate, pretty: true)}")
 
-    {%{
+    group_by = group_by_params |> group_by(columns)
+    Logger.debug("Processed group_by: #{inspect(group_by, pretty: true)}")
+
+    selected = Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate
+    Logger.debug("Selected fields: #{inspect(selected, pretty: true)}")
+
+    view_set = %{
        groups: group_by,
        gb_params: group_by_params,
        aggregates: aggregate,
-       selected: Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate,
+       selected: selected,
        filtered: filtered,
        group_by: [
          {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal_position, g} end)}
        ],
        ### when using rollup, we need to workaround postgres bug. Currently implemented in Selecto builder
        order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal_position, g} end)
-     }, %{}}
+     }
+
+    Logger.debug("Final view_set: #{inspect(view_set, pretty: true)}")
+    Logger.debug("=== AGGREGATE VIEW PROCESSING END ===")
+
+    {view_set, %{}}
   end
 
   def group_by(group_by, columns) do
@@ -158,10 +187,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   def aggregates(aggregates, _columns) do
-    aggregates
+    require Logger
+    Logger.debug("=== AGGREGATES FUNCTION START ===")
+    Logger.debug("Input aggregates map: #{inspect(aggregates, pretty: true)}")
+
+    result = aggregates
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
     |> Enum.flat_map(fn e ->
+      Logger.debug("Processing aggregate item: #{inspect(e, pretty: true)}")
       # ????
       alias =
         case Map.get(e, "alias") do
@@ -177,16 +211,62 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
       case format do
         "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+          Logger.debug("Processing age_buckets with ranges: #{bucket_ranges}")
           # Generate multiple columns for age buckets
           alias SelectoComponents.Helpers.BucketParser
 
           # Get bucket labels to create separate columns
           labels = BucketParser.get_bucket_labels(bucket_ranges)
+          Logger.debug("Generated labels: #{inspect(labels)}")
 
           # Return multiple aggregate specs, one for each bucket
           # Use a special aggregate type that preserves field references
           Enum.map(labels, fn label ->
-            bucket_alias = "#{alias}_#{String.replace(label, ~r/[^a-zA-Z0-9_]/, "_")}"
+            # Create a prettier display name for the bucket column
+            pretty_label = case label do
+              "Other" ->
+                if alias == "" or alias == nil do
+                  "Other"
+                else
+                  "#{alias} (Other)"
+                end
+              _ ->
+                # Parse the label to determine the format
+                cond do
+                  # Single day: "0" -> "0 days"
+                  Regex.match?(~r/^\d+$/, label) ->
+                    days = label
+                    if alias == "" or alias == nil do
+                      "#{days} days"
+                    else
+                      "#{alias} (#{days} days)"
+                    end
+
+                  # Range: "3-10" -> "3-10 days"
+                  Regex.match?(~r/^\d+-\d+$/, label) ->
+                    if alias == "" or alias == nil do
+                      "#{label} days"
+                    else
+                      "#{alias} (#{label} days)"
+                    end
+
+                  # Open-ended: "11+" -> "11+ days"
+                  Regex.match?(~r/^\d+\+$/, label) ->
+                    if alias == "" or alias == nil do
+                      "#{label} days"
+                    else
+                      "#{alias} (#{label} days)"
+                    end
+
+                  # Default fallback
+                  true ->
+                    if alias == "" or alias == nil do
+                      label
+                    else
+                      "#{alias} (#{label})"
+                    end
+                end
+            end
 
             # Parse the bucket range for this label
             ranges = BucketParser.parse_bucket_ranges(bucket_ranges)
@@ -207,10 +287,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
                 {:count_age_bucket, field, :negative_infinity, max}
               _ ->
                 # For "Other" bucket
-                {:count_age_bucket_other, field, bucket_ranges}
+                spec = {:count_age_bucket_other, field, bucket_ranges}
+                Logger.debug("Created 'Other' bucket spec with bucket_ranges: #{inspect(spec)}")
+                spec
             end
 
-            {:field, aggregate_spec, bucket_alias}
+            result = {:field, aggregate_spec, pretty_label}
+            Logger.debug("Returning aggregate field spec: #{inspect(result)}")
+            result
           end)
 
         "buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
@@ -254,5 +338,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           [{:field, {String.to_atom(format_str), field}, alias}]
       end
     end)
+
+    Logger.debug("=== AGGREGATES FUNCTION END ===")
+    Logger.debug("Final aggregates result: #{inspect(result, pretty: true)}")
+    result
   end
 end

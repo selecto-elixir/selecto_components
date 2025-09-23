@@ -596,8 +596,73 @@ defmodule SelectoComponents.Form do
                 IO.puts("Extracted field_name: #{field_name}")
                 conf = Selecto.field(socket.assigns.selecto, field_name)
 
+                # Check if this is an age bucket field from group_by config
+                group_by_config = socket.assigns.view_config.group_by || %{}
+                field_group_config = Enum.find_value(Map.values(group_by_config), fn config ->
+                  if Map.get(config, "field") == field_name do
+                    config
+                  else
+                    nil
+                  end
+                end)
+
+                is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+
                 # Detect date format patterns and set appropriate comparison mode
                 {comp_mode, v1, v2} = cond do
+                  # Check for bucket range patterns like "1-10", "11+", "Other", etc.
+                  String.match?(v, ~r/^\d+-\d+$/) || String.match?(v, ~r/^\d+\+$/) || v == "Other" ->
+                    # This is a bucket range - parse it to create appropriate filter
+                    if is_age_bucket && conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+                      # For age buckets on date fields, convert age ranges to date ranges
+                      today = Date.utc_today()
+
+                      cond do
+                        # Range like "1-10" or "0-10" - convert to date range
+                        String.match?(v, ~r/^(\d+)-(\d+)$/) ->
+                          [min_days_str, max_days_str] = String.split(v, "-")
+                          max_days = String.to_integer(max_days_str)
+                          min_days = String.to_integer(min_days_str)
+                          # Dates are max_days ago to min_days ago
+                          start_date = Date.add(today, -(max_days + 1))
+                          end_date = Date.add(today, -min_days)
+                          {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+
+                        # Open-ended range like "11+" - older than N days
+                        String.match?(v, ~r/^(\d+)\+$/) ->
+                          days = v |> String.replace("+", "") |> String.to_integer()
+                          cutoff_date = Date.add(today, -days)
+                          {"<=", Date.to_iso8601(cutoff_date), ""}
+
+                        # "Other" bucket - skip for now
+                        v == "Other" ->
+                          {"=", "", ""}
+
+                        true ->
+                          {"=", v, ""}
+                      end
+                    else
+                      # Not age bucket or not a date field - handle as numeric bucket
+                      cond do
+                        # Range like "1-10" or "0-10"
+                        String.match?(v, ~r/^(\d+)-(\d+)$/) ->
+                          [min_str, max_str] = String.split(v, "-")
+                          {"BETWEEN", min_str, max_str}
+
+                        # Open-ended range like "11+"
+                        String.match?(v, ~r/^(\d+)\+$/) ->
+                          min_str = String.replace(v, "+", "")
+                          {">=", min_str, ""}
+
+                        # "Other" bucket - skip creating a filter for now
+                        v == "Other" ->
+                          {"=", "", ""}  # This will be filtered out by empty value check
+
+                        true ->
+                          {"=", v, ""}
+                      end
+                    end
+
                   # YYYY-MM-DD format - exact date match
                   String.match?(v, ~r/^\d{4}-\d{2}-\d{2}$/) ->
                     if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
@@ -1094,6 +1159,11 @@ defmodule SelectoComponents.Form do
 
       defp view_filter_process(params, item_name) do
         Map.get(params, item_name, %{})
+        |> Enum.filter(fn {_uuid, f} ->
+          # Only include actual filters, not aggregate/group_by configurations
+          # Filters should have at least these keys: filter, comp, value, section
+          is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp")
+        end)
         |> Enum.sort(fn {_, f1}, {_, f2} ->
           String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
         end)
@@ -1152,13 +1222,29 @@ defmodule SelectoComponents.Form do
             end)
           end)
 
+        require Logger
+        Logger.debug("=== FILTER PROCESSING IN view_from_params ===")
+        Logger.debug("Raw filters from params: #{inspect(Map.get(params, "filters", %{}), pretty: true)}")
+
         filters_by_section =
-          Map.values(Map.get(params, "filters", %{}))
+          Map.get(params, "filters", %{})
+          |> Map.values()
+          |> Enum.filter(fn f ->
+            # Only include actual filters with required fields
+            is_valid = is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp") && Map.has_key?(f, "section")
+            if not is_valid do
+              Logger.debug("Rejecting invalid filter entry: #{inspect(f, pretty: true)}")
+            end
+            is_valid
+          end)
           |> Enum.reduce(%{}, fn f, acc ->
             Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
           end)
 
+        Logger.debug("Filters by section after validation: #{inspect(filters_by_section, pretty: true)}")
+
         filtered = filter_recurse(selecto, filters_by_section, "filters")
+        Logger.debug("Filtered result from filter_recurse: #{inspect(filtered, pretty: true)}")
 
         selected_view = String.to_atom(Map.get(params, "view_mode"))
 
@@ -1179,7 +1265,12 @@ defmodule SelectoComponents.Form do
             raise "View mode '#{selected_view}' not found in configured views"
         end
 
+        require Logger
+        Logger.debug("=== FORM VIEW_SET ASSIGNMENT ===")
+        Logger.debug("View_set being assigned to selecto.set: #{inspect(view_set, pretty: true)}")
+        Logger.debug("View_set.filtered field: #{inspect(Map.get(view_set, :filtered), pretty: true)}")
         selecto = Map.put(selecto, :set, view_set)
+        Logger.debug("selecto.set.filtered after assignment: #{inspect(selecto.set.filtered, pretty: true)}")
 
         # Apply automatic pivot if needed
         selecto = SelectoComponents.Form.maybe_auto_pivot(selecto, params)
@@ -2392,6 +2483,10 @@ defmodule SelectoComponents.Form do
   # Auto-pivot detection and application
   # These functions are used within the macro expansion
   def maybe_auto_pivot(selecto, params) do
+    require Logger
+    Logger.debug("=== MAYBE_AUTO_PIVOT START ===")
+    Logger.debug("selecto.set.filtered before pivot: #{inspect(selecto.set.filtered, pretty: true)}")
+
     # Check if automatic pivot is needed based on selected columns
     selected_columns = get_selected_columns_from_params(params)
 
@@ -2400,6 +2495,7 @@ defmodule SelectoComponents.Form do
       target_table = find_pivot_target(selecto, selected_columns)
 
       if target_table do
+        Logger.debug("Applying pivot to target: #{inspect(target_table)}")
         # Apply custom pivot for domain structure
 
         # Find the join path to the target table
