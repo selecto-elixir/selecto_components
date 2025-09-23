@@ -1979,7 +1979,7 @@ defmodule SelectoComponents.Form do
 
   # Process date shortcuts into actual date ranges
   defp process_date_shortcut(shortcut, base_config) do
-    today = Date.utc_today()
+    today = get_local_today()
 
     case shortcut do
       "today" ->
@@ -2125,7 +2125,7 @@ defmodule SelectoComponents.Form do
 
   # Process relative date patterns
   defp process_relative_date(pattern, base_config) do
-    today = Date.utc_today()
+    today = get_local_today()
 
     cond do
       # Pattern: "5" - exactly 5 days ago
@@ -2190,6 +2190,13 @@ defmodule SelectoComponents.Form do
   defp beginning_of_quarter(date) do
     quarter_month = div(date.month - 1, 3) * 3 + 1
     Date.new!(date.year, quarter_month, 1)
+  end
+
+  # Get the server's local date (no timezone adjustments)
+  defp get_local_today() do
+    # Use the server's local date from Erlang calendar functions
+    {{year, month, day}, _time} = :calendar.local_time()
+    Date.new!(year, month, day)
   end
 
   # Parse datetime value from string

@@ -246,7 +246,8 @@ defmodule SelectoComponents.Helpers.Filters do
 
   # Process relative date patterns like "13-7" (13 to 7 days ago)
   defp process_relative_date_filter(pattern) do
-    today = Date.utc_today()
+    # Use the server's local date as "today"
+    today = get_local_today()
 
     cond do
       # Pattern: "5" - exactly 5 days ago
@@ -284,7 +285,8 @@ defmodule SelectoComponents.Helpers.Filters do
       Regex.match?(~r/^(\d+)-$/, pattern) ->
         [_, days_str] = Regex.run(~r/^(\d+)-$/, pattern)
         days = String.to_integer(days_str)
-        start_dt = NaiveDateTime.new!(Date.add(today, -days), ~T[00:00:00])
+        start_date = Date.add(today, -days)
+        start_dt = NaiveDateTime.new!(start_date, ~T[00:00:00])
         # >= means from that day onwards
         {:>=, start_dt}
 
@@ -298,7 +300,7 @@ defmodule SelectoComponents.Helpers.Filters do
 
   # Process date shortcuts like "this_month", "last_week", etc.
   defp process_date_shortcut_filter(shortcut) do
-    today = Date.utc_today()
+    today = get_local_today()
 
     case shortcut do
       "today" ->
@@ -367,5 +369,12 @@ defmodule SelectoComponents.Helpers.Filters do
   defp beginning_of_week(date) do
     day_of_week = Date.day_of_week(date, :monday)
     Date.add(date, -(day_of_week - 1))
+  end
+
+  # Get the server's local date (no timezone adjustments)
+  defp get_local_today() do
+    # Use the server's local date from Erlang calendar functions
+    {{year, month, day}, _time} = :calendar.local_time()
+    Date.new!(year, month, day)
   end
 end
