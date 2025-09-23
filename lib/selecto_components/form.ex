@@ -1579,6 +1579,19 @@ defmodule SelectoComponents.Form do
         push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
       end
 
+      @impl true
+      def handle_info({:query_executed, query_info}, socket) do
+        socket =
+          socket
+          |> assign(:query_results, query_info.query_results)
+          |> assign(:last_query_info, Map.get(query_info, :last_query_info))
+          |> assign(:view_meta, Map.get(query_info, :view_meta))
+          |> assign(:applied_view, Map.get(query_info, :applied_view))
+          |> assign(:executed, true)
+
+        {:noreply, socket}
+      end
+
       def get_initial_state(views, selecto) do
         view_configs =
           view_configs =
@@ -1755,6 +1768,7 @@ defmodule SelectoComponents.Form do
                 value={format_datetime_value(@filter_value["value_start"], :date)}
                 class="sc-input"
                 placeholder="Start"
+                phx-debounce="300"
               />
               <input
                 type="date"
@@ -1762,6 +1776,7 @@ defmodule SelectoComponents.Form do
                 value={format_datetime_value(@filter_value["value_end"], :date)}
                 class="sc-input"
                 placeholder="End (exclusive)"
+                phx-debounce="300"
               />
             </div>
 
@@ -1819,6 +1834,7 @@ defmodule SelectoComponents.Form do
                 class="sc-input flex-1"
                 placeholder="e.g., 5 (5 days ago), 3-7 (3-7 days ago), -30 (>30 days ago), 30- (within 30 days)"
                 pattern="^-?\d+(-\d+)?-?$"
+                phx-debounce="500"
               />
               <div class="text-xs text-gray-500 self-center">
                 <span class="font-semibold">Examples:</span>
@@ -1884,6 +1900,7 @@ defmodule SelectoComponents.Form do
         value={@filter_value["value"]}
         placeholder="Enter value..."
         class="sc-input col-span-2"
+        phx-debounce="300"
         disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
       />
 
@@ -2122,34 +2139,41 @@ defmodule SelectoComponents.Form do
           %{base_config | "comp" => "<", "value" => end_of_day}
         ]
 
-      # Pattern: "3-7" - between 3 and 7 days ago
+      # Pattern: "3-7" - between 3 and 7 days ago (inclusive range in the past)
+      # For "13-7": 13 days ago to 7 days ago
       Regex.match?(~r/^(\d+)-(\d+)$/, pattern) ->
-        [_, start_str, end_str] = Regex.run(~r/^(\d+)-(\d+)$/, pattern)
-        start_days = String.to_integer(start_str)
-        end_days = String.to_integer(end_str)
-        start_date = Date.add(today, -end_days)
-        end_date = Date.add(today, -start_days + 1)
+        [_, first_str, second_str] = Regex.run(~r/^(\d+)-(\d+)$/, pattern)
+        first_days = String.to_integer(first_str)
+        second_days = String.to_integer(second_str)
+        # Determine the older and newer dates (larger number = further in past)
+        older_days = max(first_days, second_days)
+        newer_days = min(first_days, second_days)
+        start_date = Date.add(today, -older_days)  # Further in the past
+        end_date = Date.add(today, -newer_days + 1)  # More recent (exclusive end)
         [
           %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
           %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_date, ~T[00:00:00])}
         ]
 
-      # Pattern: "-30" - more than 30 days ago
+      # Pattern: "-5" - all dates before 5 days ago (older than 5 days ago)
+      # -0 means all dates before today (all past)
+      # -1 means all dates before yesterday
       Regex.match?(~r/^-(\d+)$/, pattern) ->
         [_, days_str] = Regex.run(~r/^-(\d+)$/, pattern)
         days = String.to_integer(days_str)
+        # < means before the start of N days ago
         cutoff_date = Date.add(today, -days)
         %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(cutoff_date, ~T[00:00:00])}
 
-      # Pattern: "30-" - within the last 30 days
+      # Pattern: "5-" - from 5 days ago onwards (including 5 days ago, today and future)
+      # 0- means today and all future
+      # 1- means from yesterday onwards
       Regex.match?(~r/^(\d+)-$/, pattern) ->
         [_, days_str] = Regex.run(~r/^(\d+)-$/, pattern)
         days = String.to_integer(days_str)
         start_date = Date.add(today, -days)
-        [
-          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
-          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
-        ]
+        # >= means from that day onwards
+        %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])}
 
       true ->
         base_config

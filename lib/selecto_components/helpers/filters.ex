@@ -70,6 +70,16 @@ defmodule SelectoComponents.Helpers.Filters do
     comp = Map.get(filter, "comp", "=")
 
     case comp do
+      "RELATIVE" ->
+        # Handle relative date patterns like "13-7" (13 to 7 days ago)
+        pattern = Map.get(filter, "value", "")
+        process_relative_date_filter(pattern)
+
+      "SHORTCUT" ->
+        # Handle date shortcuts like "this_month", "last_week", etc.
+        shortcut = Map.get(filter, "value", "")
+        process_date_shortcut_filter(shortcut)
+
       "DATE=" ->
         # For DATE=, we want to match the entire day
         date_str = Map.get(filter, "value")
@@ -232,5 +242,130 @@ defmodule SelectoComponents.Helpers.Filters do
           end
         end
     end)
+  end
+
+  # Process relative date patterns like "13-7" (13 to 7 days ago)
+  defp process_relative_date_filter(pattern) do
+    today = Date.utc_today()
+
+    cond do
+      # Pattern: "5" - exactly 5 days ago
+      Regex.match?(~r/^\d+$/, pattern) ->
+        days_ago = String.to_integer(pattern)
+        target_date = Date.add(today, -days_ago)
+        start_dt = NaiveDateTime.new!(target_date, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(target_date, 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+
+      # Pattern: "13-7" - between 13 and 7 days ago
+      Regex.match?(~r/^(\d+)-(\d+)$/, pattern) ->
+        [_, first_str, second_str] = Regex.run(~r/^(\d+)-(\d+)$/, pattern)
+        first_days = String.to_integer(first_str)
+        second_days = String.to_integer(second_str)
+        # Determine the older and newer dates (larger number = further in past)
+        older_days = max(first_days, second_days)
+        newer_days = min(first_days, second_days)
+        start_dt = NaiveDateTime.new!(Date.add(today, -older_days), ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(today, -newer_days + 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+
+      # Pattern: "-5" - all dates before 5 days ago (older than 5 days ago)
+      # -0 means all dates before today (all past)
+      # -1 means all dates before yesterday
+      Regex.match?(~r/^-(\d+)$/, pattern) ->
+        [_, days_str] = Regex.run(~r/^-(\d+)$/, pattern)
+        days = String.to_integer(days_str)
+        # < means before the start of N days ago
+        cutoff_dt = NaiveDateTime.new!(Date.add(today, -days), ~T[00:00:00])
+        {:<, cutoff_dt}
+
+      # Pattern: "5-" - from 5 days ago onwards (including today and future)
+      # 0- means today and all future
+      Regex.match?(~r/^(\d+)-$/, pattern) ->
+        [_, days_str] = Regex.run(~r/^(\d+)-$/, pattern)
+        days = String.to_integer(days_str)
+        start_dt = NaiveDateTime.new!(Date.add(today, -days), ~T[00:00:00])
+        # >= means from that day onwards
+        {:>=, start_dt}
+
+      true ->
+        # Default to today if pattern doesn't match
+        start_dt = NaiveDateTime.new!(today, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+    end
+  end
+
+  # Process date shortcuts like "this_month", "last_week", etc.
+  defp process_date_shortcut_filter(shortcut) do
+    today = Date.utc_today()
+
+    case shortcut do
+      "today" ->
+        start_dt = NaiveDateTime.new!(today, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+
+      "yesterday" ->
+        yesterday = Date.add(today, -1)
+        start_dt = NaiveDateTime.new!(yesterday, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(today, ~T[00:00:00])
+        {:between, start_dt, end_dt}
+
+      "tomorrow" ->
+        tomorrow = Date.add(today, 1)
+        start_dt = NaiveDateTime.new!(tomorrow, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(tomorrow, 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+
+      "this_week" ->
+        start_of_week = beginning_of_week(today)
+        end_of_week = Date.add(start_of_week, 7)
+        {:between, NaiveDateTime.new!(start_of_week, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+
+      "last_week" ->
+        start_of_week = beginning_of_week(Date.add(today, -7))
+        end_of_week = Date.add(start_of_week, 7)
+        {:between, NaiveDateTime.new!(start_of_week, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+
+      "this_month" ->
+        start_of_month = Date.beginning_of_month(today)
+        start_of_next_month = Date.beginning_of_month(Date.add(today, 31))
+        {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+                  NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])}
+
+      "last_month" ->
+        last_month = Date.add(today, -today.day)
+        start_of_month = Date.beginning_of_month(last_month)
+        end_of_month = Date.beginning_of_month(today)
+        {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
+
+      "this_year" ->
+        start_of_year = Date.new!(today.year, 1, 1)
+        start_of_next_year = Date.new!(today.year + 1, 1, 1)
+        {:between, NaiveDateTime.new!(start_of_year, ~T[00:00:00]),
+                  NaiveDateTime.new!(start_of_next_year, ~T[00:00:00])}
+
+      "last_year" ->
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
+        start_of_this_year = Date.new!(today.year, 1, 1)
+        {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
+                  NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])}
+
+      _ ->
+        # Default to today if shortcut doesn't match
+        start_dt = NaiveDateTime.new!(today, ~T[00:00:00])
+        end_dt = NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])
+        {:between, start_dt, end_dt}
+    end
+  end
+
+  # Helper to find beginning of week (Monday)
+  defp beginning_of_week(date) do
+    day_of_week = Date.day_of_week(date, :monday)
+    Date.add(date, -(day_of_week - 1))
   end
 end
