@@ -2041,6 +2041,84 @@ defmodule SelectoComponents.Form do
           %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
         ]
 
+      "next_week" ->
+        start_of_next_week = beginning_of_week(Date.add(today, 7))
+        end_of_next_week = Date.add(start_of_next_week, 7)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_next_week, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_next_week, ~T[00:00:00])}
+        ]
+
+      "next_month" ->
+        # Get first day of next month
+        {start_of_next_month, end_of_next_month} = if today.month == 12 do
+          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 2, 1)}
+        else
+          start_month = Date.new!(today.year, today.month + 1, 1)
+          # Handle month after next
+          end_month = if today.month == 11 do
+            Date.new!(today.year + 1, 1, 1)
+          else
+            Date.new!(today.year, today.month + 2, 1)
+          end
+          {start_month, end_month}
+        end
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_next_month, ~T[00:00:00])}
+        ]
+
+      "last_quarter" ->
+        # Calculate last quarter
+        current_quarter = div(today.month - 1, 3)
+        {start_of_quarter, end_of_quarter} = if current_quarter == 0 do
+          # Last quarter of previous year (Q4)
+          {Date.new!(today.year - 1, 10, 1), Date.new!(today.year, 1, 1)}
+        else
+          # Previous quarter this year
+          start_month = (current_quarter - 1) * 3 + 1
+          end_month = current_quarter * 3 + 1
+          {Date.new!(today.year, start_month, 1), Date.new!(today.year, end_month, 1)}
+        end
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+        ]
+
+      "next_quarter" ->
+        # Calculate next quarter
+        current_quarter = div(today.month - 1, 3)
+        {start_of_quarter, end_of_quarter} = if current_quarter == 3 do
+          # First quarter of next year (Q1)
+          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 4, 1)}
+        else
+          # Next quarter this year
+          start_month = (current_quarter + 1) * 3 + 1
+          end_month = if current_quarter == 2, do: 1, else: (current_quarter + 2) * 3 + 1
+          end_year = if current_quarter == 2, do: today.year + 1, else: today.year
+          {Date.new!(today.year, start_month, 1), Date.new!(end_year, end_month, 1)}
+        end
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+        ]
+
+      "last_year" ->
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
+        start_of_this_year = Date.new!(today.year, 1, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_last_year, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])}
+        ]
+
+      "next_year" ->
+        start_of_next_year = Date.new!(today.year + 1, 1, 1)
+        start_of_year_after = Date.new!(today.year + 2, 1, 1)
+        [
+          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_next_year, ~T[00:00:00])},
+          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_year_after, ~T[00:00:00])}
+        ]
+
       "mtd" ->
         # Month to date
         start_of_month = Date.beginning_of_month(today)
@@ -2052,7 +2130,10 @@ defmodule SelectoComponents.Form do
 
       "this_quarter" ->
         start_of_quarter = beginning_of_quarter(today)
-        start_of_next_quarter = Date.add(start_of_quarter, 91) # Approx 3 months
+        # Calculate start of next quarter properly
+        next_quarter_month = rem(div(today.month - 1, 3) + 1, 4) * 3 + 1
+        next_quarter_year = if next_quarter_month == 1, do: today.year + 1, else: today.year
+        start_of_next_quarter = Date.new!(next_quarter_year, next_quarter_month, 1)
         [
           %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
           %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(start_of_next_quarter, ~T[00:00:00])}
@@ -2086,7 +2167,8 @@ defmodule SelectoComponents.Form do
 
       "last_" <> days when days in ~w(7_days 30_days 60_days 90_days) ->
         num_days = String.to_integer(String.replace(days, "_days", ""))
-        start_date = Date.add(today, -num_days)
+        # "Last 7 days" means from 6 days ago through today (inclusive), which is 7 days total
+        start_date = Date.add(today, -(num_days - 1))
         [
           %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_date, ~T[00:00:00])},
           %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}

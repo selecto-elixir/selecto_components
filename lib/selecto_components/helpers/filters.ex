@@ -332,9 +332,15 @@ defmodule SelectoComponents.Helpers.Filters do
         {:between, NaiveDateTime.new!(start_of_week, ~T[00:00:00]),
                   NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
 
+      "next_week" ->
+        start_of_next_week = beginning_of_week(Date.add(today, 7))
+        end_of_next_week = Date.add(start_of_next_week, 7)
+        {:between, NaiveDateTime.new!(start_of_next_week, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_next_week, ~T[00:00:00])}
+
       "this_month" ->
         start_of_month = Date.beginning_of_month(today)
-        start_of_next_month = Date.beginning_of_month(Date.add(today, 31))
+        start_of_next_month = Date.beginning_of_month(Date.add(today, 32))
         {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
                   NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])}
 
@@ -344,6 +350,23 @@ defmodule SelectoComponents.Helpers.Filters do
         end_of_month = Date.beginning_of_month(today)
         {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
                   NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
+
+      "next_month" ->
+        # Get first day of next month
+        {start_of_next_month, end_of_next_month} = if today.month == 12 do
+          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 2, 1)}
+        else
+          start_month = Date.new!(today.year, today.month + 1, 1)
+          # Handle month after next
+          end_month = if today.month == 11 do
+            Date.new!(today.year + 1, 1, 1)
+          else
+            Date.new!(today.year, today.month + 2, 1)
+          end
+          {start_month, end_month}
+        end
+        {:between, NaiveDateTime.new!(start_of_next_month, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_next_month, ~T[00:00:00])}
 
       "this_year" ->
         start_of_year = Date.new!(today.year, 1, 1)
@@ -357,6 +380,92 @@ defmodule SelectoComponents.Helpers.Filters do
         {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
                   NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])}
 
+      "next_year" ->
+        start_of_next_year = Date.new!(today.year + 1, 1, 1)
+        start_of_year_after = Date.new!(today.year + 2, 1, 1)
+        {:between, NaiveDateTime.new!(start_of_next_year, ~T[00:00:00]),
+                  NaiveDateTime.new!(start_of_year_after, ~T[00:00:00])}
+
+      "this_quarter" ->
+        start_of_quarter = beginning_of_quarter(today)
+        # Calculate start of next quarter properly
+        next_quarter_month = rem(div(today.month - 1, 3) + 1, 4) * 3 + 1
+        next_quarter_year = if next_quarter_month == 1, do: today.year + 1, else: today.year
+        start_of_next_quarter = Date.new!(next_quarter_year, next_quarter_month, 1)
+        {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+                  NaiveDateTime.new!(start_of_next_quarter, ~T[00:00:00])}
+
+      "last_quarter" ->
+        # Calculate last quarter
+        current_quarter = div(today.month - 1, 3)
+        {start_of_quarter, end_of_quarter} = if current_quarter == 0 do
+          # Last quarter of previous year (Q4)
+          {Date.new!(today.year - 1, 10, 1), Date.new!(today.year, 1, 1)}
+        else
+          # Previous quarter this year
+          start_month = (current_quarter - 1) * 3 + 1
+          end_month = current_quarter * 3 + 1
+          {Date.new!(today.year, start_month, 1), Date.new!(today.year, end_month, 1)}
+        end
+        {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+
+      "next_quarter" ->
+        # Calculate next quarter
+        current_quarter = div(today.month - 1, 3)
+        {start_of_quarter, end_of_quarter} = if current_quarter == 3 do
+          # First quarter of next year (Q1)
+          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 4, 1)}
+        else
+          # Next quarter this year
+          start_month = (current_quarter + 1) * 3 + 1
+          end_month = if current_quarter == 2, do: 1, else: (current_quarter + 2) * 3 + 1
+          end_year = if current_quarter == 2, do: today.year + 1, else: today.year
+          {Date.new!(today.year, start_month, 1), Date.new!(end_year, end_month, 1)}
+        end
+        {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+
+      "mtd" ->
+        # Month to date
+        start_of_month = Date.beginning_of_month(today)
+        tomorrow = Date.add(today, 1)
+        {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+
+      "qtd" ->
+        # Quarter to date
+        start_of_quarter = beginning_of_quarter(today)
+        tomorrow = Date.add(today, 1)
+        {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+
+      "ytd" ->
+        # Year to date
+        start_of_year = Date.new!(today.year, 1, 1)
+        tomorrow = Date.add(today, 1)
+        {:between, NaiveDateTime.new!(start_of_year, ~T[00:00:00]),
+                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+
+      shortcut when shortcut in ~w(last_7_days last_30_days last_60_days last_90_days) ->
+        num_days = shortcut
+          |> String.replace("last_", "")
+          |> String.replace("_days", "")
+          |> String.to_integer()
+        # "Last 7 days" means from 6 days ago through today (inclusive), which is 7 days total
+        start_date = Date.add(today, -(num_days - 1))
+        {:between, NaiveDateTime.new!(start_date, ~T[00:00:00]),
+                  NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
+
+      shortcut when shortcut in ~w(next_7_days next_30_days) ->
+        num_days = shortcut
+          |> String.replace("next_", "")
+          |> String.replace("_days", "")
+          |> String.to_integer()
+        end_date = Date.add(today, num_days + 1)
+        {:between, NaiveDateTime.new!(today, ~T[00:00:00]),
+                  NaiveDateTime.new!(end_date, ~T[00:00:00])}
+
       _ ->
         # Default to today if shortcut doesn't match
         start_dt = NaiveDateTime.new!(today, ~T[00:00:00])
@@ -369,6 +478,12 @@ defmodule SelectoComponents.Helpers.Filters do
   defp beginning_of_week(date) do
     day_of_week = Date.day_of_week(date, :monday)
     Date.add(date, -(day_of_week - 1))
+  end
+
+  # Helper to find beginning of quarter
+  defp beginning_of_quarter(date) do
+    quarter_month = div(date.month - 1, 3) * 3 + 1
+    Date.new!(date.year, quarter_month, 1)
   end
 
   # Get the server's local date (no timezone adjustments)
