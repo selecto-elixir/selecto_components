@@ -1270,7 +1270,8 @@ defmodule SelectoComponents.Form do
 
             view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
-            assign(socket,
+            # Store query info in component state
+            socket = assign(socket,
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
@@ -1286,6 +1287,20 @@ defmodule SelectoComponents.Form do
                 timing: execution_time
               }
             )
+
+            # Send query info to parent LiveView so it can pass to Results component
+            send(self(), {:query_executed, %{
+              query_results: {normalized_rows, columns, aliases},
+              last_query_info: %{
+                sql: query_sql,
+                params: query_params,
+                timing: execution_time
+              },
+              view_meta: view_meta,
+              applied_view: Map.get(params, "view_mode")
+            }})
+
+            socket
 
           {:error, %Selecto.Error{} = error} ->
             sanitized_error = sanitize_error_for_environment(error)

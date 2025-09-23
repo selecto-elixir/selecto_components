@@ -6,24 +6,28 @@ defmodule SelectoComponents.Debug.ConfigReader do
 
   @default_config %{
     enabled: false,
-    show_query: false,
-    show_params: false,
-    show_timing: false,
-    show_row_count: false,
+    show_query: true,
+    show_params: true,
+    show_timing: true,
+    show_row_count: true,
     show_execution_plan: false,
     format_sql: true,
     max_param_length: 100,
     views: %{
       aggregate: %{
         show_query: true,
+        show_params: true,
         show_timing: true
       },
       detail: %{
         show_query: true,
+        show_params: true,
+        show_timing: true,
         show_row_count: true
       },
       graph: %{
-        show_query: false,
+        show_query: true,
+        show_params: true,
         show_timing: true
       }
     }
