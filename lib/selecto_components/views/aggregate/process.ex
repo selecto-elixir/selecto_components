@@ -216,56 +216,52 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           alias SelectoComponents.Helpers.BucketParser
 
           # Get bucket labels to create separate columns
+          # Remove "Other" from the labels since users should explicitly ask for what they want
           labels = BucketParser.get_bucket_labels(bucket_ranges)
-          Logger.debug("Generated labels: #{inspect(labels)}")
+          |> Enum.reject(fn label -> label == "Other" end)
+          Logger.debug("Generated labels (without Other): #{inspect(labels)}")
 
           # Return multiple aggregate specs, one for each bucket
           # Use a special aggregate type that preserves field references
-          Enum.map(labels, fn label ->
+          labels
+          |> Enum.with_index()
+          |> Enum.map(fn {label, index} ->
             # Create a prettier display name for the bucket column
+            # Put the user's alias only at the beginning of the first column
             pretty_label = case label do
               "Other" ->
-                if alias == "" or alias == nil do
-                  "Other"
-                else
-                  "#{alias} (Other)"
-                end
+                "Other"
               _ ->
                 # Parse the label to determine the format
                 cond do
-                  # Single day: "0" -> "0 days"
+                  # Single day: "0" -> "0 days" or "1 day"
                   Regex.match?(~r/^\d+$/, label) ->
-                    days = label
-                    if alias == "" or alias == nil do
-                      "#{days} days"
+                    days = String.to_integer(label)
+                    if days == 1 do
+                      "1 day"
                     else
-                      "#{alias} (#{days} days)"
+                      "#{label} days"
                     end
 
                   # Range: "3-10" -> "3-10 days"
                   Regex.match?(~r/^\d+-\d+$/, label) ->
-                    if alias == "" or alias == nil do
-                      "#{label} days"
-                    else
-                      "#{alias} (#{label} days)"
-                    end
+                    "#{label} days"
 
                   # Open-ended: "11+" -> "11+ days"
                   Regex.match?(~r/^\d+\+$/, label) ->
-                    if alias == "" or alias == nil do
-                      "#{label} days"
-                    else
-                      "#{alias} (#{label} days)"
-                    end
+                    "#{label} days"
 
                   # Default fallback
                   true ->
-                    if alias == "" or alias == nil do
-                      label
-                    else
-                      "#{alias} (#{label})"
-                    end
+                    label
                 end
+            end
+
+            # Add the alias prefix only to the first column
+            pretty_label = if index == 0 && alias != "" && alias != nil do
+              "#{alias}: #{pretty_label}"
+            else
+              pretty_label
             end
 
             # Parse the bucket range for this label
@@ -286,27 +282,49 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               {:negative_infinity, max, _} ->
                 {:count_age_bucket, field, :negative_infinity, max}
               _ ->
-                # For "Other" bucket
-                spec = {:count_age_bucket_other, field, bucket_ranges}
-                Logger.debug("Created 'Other' bucket spec with bucket_ranges: #{inspect(spec)}")
-                spec
+                # Should not happen since we filtered out "Other" from labels
+                nil
             end
 
-            result = {:field, aggregate_spec, pretty_label}
-            Logger.debug("Returning aggregate field spec: #{inspect(result)}")
-            result
+            # Only return the field spec if we have a valid aggregate_spec
+            if aggregate_spec do
+              result = {:field, aggregate_spec, pretty_label}
+              Logger.debug("Returning aggregate field spec: #{inspect(result)}")
+              result
+            else
+              nil
+            end
           end)
+          |> Enum.reject(&is_nil/1)  # Remove any nil entries
 
         "buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
           # Generate multiple columns for numeric buckets
           alias SelectoComponents.Helpers.BucketParser
 
           # Get bucket labels to create separate columns
+          # Remove "Other" from the labels since users should explicitly ask for what they want
           labels = BucketParser.get_bucket_labels(bucket_ranges)
+          |> Enum.reject(fn label -> label == "Other" end)
 
           # Return multiple aggregate specs, one for each bucket
-          Enum.map(labels, fn label ->
-            bucket_alias = "#{alias}_#{String.replace(label, ~r/[^a-zA-Z0-9_]/, "_")}"
+          labels
+          |> Enum.with_index()
+          |> Enum.map(fn {label, index} ->
+            # Create a prettier display name for the bucket column
+            # Put the user's alias only at the beginning of the first column
+            pretty_label = case label do
+              "Other" ->
+                "Other"
+              _ ->
+                label  # Numeric buckets use the label as-is
+            end
+
+            # Add the alias prefix only to the first column
+            pretty_label = if index == 0 && alias != "" && alias != nil do
+              "#{alias}: #{pretty_label}"
+            else
+              pretty_label
+            end
 
             # Parse the bucket range for this label
             ranges = BucketParser.parse_bucket_ranges(bucket_ranges)
@@ -326,12 +344,18 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               {:negative_infinity, max, _} ->
                 {:count_bucket, field, :negative_infinity, max}
               _ ->
-                # For "Other" bucket
-                {:count_bucket_other, field, bucket_ranges}
+                # Should not happen since we filtered out "Other" from labels
+                nil
             end
 
-            {:field, aggregate_spec, bucket_alias}
+            # Only return the field spec if we have a valid aggregate_spec
+            if aggregate_spec do
+              {:field, aggregate_spec, pretty_label}
+            else
+              nil
+            end
           end)
+          |> Enum.reject(&is_nil/1)  # Remove any nil entries
 
         format_str ->
           # Standard aggregates - return as single item list for consistency
