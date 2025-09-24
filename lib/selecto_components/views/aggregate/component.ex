@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
+  alias SelectoComponents.EnhancedTable.Sorting
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
@@ -13,6 +14,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     {:ok, socket}
   end
+
+  # Sorting disabled in aggregate view to prevent SQL errors with ROLLUP queries
+  # def handle_event("sort_column", %{"column" => column} = params, socket) do
+  #   multi = Map.get(params, "multi", "false") == "true"
+  #   socket = Sorting.handle_sort_click(column, socket, multi)
+  #
+  #   # Trigger re-execution with new sort
+  #   send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
+  #
+  #   {:noreply, socket}
+  # end
 
   # # Helper function to determine styling level based on group values
   # defp determine_level(group_values) do
@@ -119,7 +131,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       assigns.payload
       |> Enum.reduce(
         [],
-        fn {i, {_, {:group_by, _, coldef}}, v, _}, acc ->
+        fn {i, {_, {:group_by, field, coldef}}, v, _}, acc ->
           ### make this use a with!
           ### Filters from previous payload
           prefil =
@@ -136,16 +148,54 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 # For rollup rows, don't create filters
                 %{}
 
-              {coldef, {_, filt}} when is_map(coldef) ->
-                filter_key = Map.get(coldef, :group_by_filter, Map.get(coldef, :colid, Map.get(coldef, :name)))
+              {coldef, {display_val, filter_val}} when is_map(coldef) ->
+                # When v is a tuple (display_value, filter_value), use the configured filter field
+                # Custom columns use string keys, regular fields use atom keys
+                filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
+
+                # If no group_by_filter is specified, use colid (the actual field identifier)
+                filter_key = filter_key || Map.get(coldef, :colid) || Map.get(coldef, "colid")
+
                 if filter_key != nil do
-                  %{"phx-value-#{filter_key}" => filt}
+                  # Use the filter_val (second element of tuple) which should be the actor_id
+                  %{"phx-value-#{filter_key}" => filter_val}
                 else
                   %{}
                 end
 
-              {coldef, _} when is_map(coldef) ->
-                filter_key = Map.get(coldef, :group_by_filter, Map.get(coldef, :colid, Map.get(coldef, :name)))
+              {coldef, v} when is_map(coldef) ->
+                # When v is not a tuple, use it directly
+                # Check if we're dealing with the full_name field that should use actor_id
+                filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
+
+                # If no group_by_filter is specified, extract field identifier from the field tuple
+                filter_key = if filter_key do
+                  filter_key
+                else
+                  # Extract field identifier from the field tuple
+                  extracted = case field do
+                    {:field, {:to_char, {field_name, _format}}, _alias} ->
+                      # Handle formatted date fields - use the actual field name, not the alias
+                      IO.puts("Extracting from to_char: field_name=#{field_name}")
+                      field_name
+                    {:field, field_id, _alias} when is_atom(field_id) ->
+                      Atom.to_string(field_id)
+                    {:field, field_id, _alias} when is_binary(field_id) ->
+                      field_id
+                    _ ->
+                      # Final fallback to coldef properties
+                      nil
+                  end
+
+                  # Only fall back to coldef properties if we couldn't extract from field
+                  if extracted do
+                    extracted
+                  else
+                    # Use colid (the actual field identifier), not the display name
+                    Map.get(coldef, :colid) || Map.get(coldef, "colid")
+                  end
+                end
+
                 if filter_key != nil do
                   %{"phx-value-#{filter_key}" => v}
                 else
@@ -154,7 +204,34 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               _ ->
                 # Fallback for unexpected cases
-                %{}
+                # Try to get group_by_filter from coldef even if it's not a map
+                # or extract the proper filter field from the field tuple
+                filter_field = cond do
+                  # If coldef is a map-like structure with group_by_filter
+                  is_map(coldef) && Map.get(coldef, :group_by_filter) ->
+                    Map.get(coldef, :group_by_filter)
+
+                  is_map(coldef) && Map.get(coldef, "group_by_filter") ->
+                    Map.get(coldef, "group_by_filter")
+
+                  # If we have the field tuple with full_name, check if it should use actor_id
+                  match?({:field, :full_name, _}, field) ->
+                    # For full_name, we know it should filter by actor_id
+                    "actor_id"
+
+                  # Otherwise extract field name from the field tuple
+                  true ->
+                    case field do
+                      {:field, {:to_char, {field_name, _format}}, _} ->
+                        # Handle formatted date fields
+                        field_name
+                      {:field, fid, _} -> to_string(fid)
+                      _ -> "id"
+                    end
+                end
+
+                # Create the proper filter attribute
+                %{"phx-value-#{filter_field}" => to_string(v)}
             end
 
           acc ++
@@ -363,15 +440,31 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     group_by =
       group_by_mappings
       |> Enum.map(fn {alias, field} ->
-        # Get the proper column definition from selecto based on the field
+        # Get the proper column definition from selecto
+        # Now that Selecto.field returns full definitions, we get all properties
         coldef = case field do
-          {:field, field_id, _alias} when is_atom(field_id) ->
-            Selecto.field(assigns.selecto, field_id)
-          {:field, {_extract_type, field_id, _format}, _alias} when is_atom(field_id) ->
-            Selecto.field(assigns.selecto, field_id)
+          {:field, {:to_char, {field_name, _format}}, _alias} ->
+            # Handle formatted date fields
+            Selecto.field(assigns.selecto, field_name) || %{name: alias, format: nil}
+
+          {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
+            # Selecto.field now returns full custom column definitions with group_by_filter
+            result = Selecto.field(assigns.selecto, field_id)
+            if result == nil do
+              # Field not found - use basic definition
+              %{name: alias, format: nil}
+            else
+              result
+            end
+
+          {:field, {_extract_type, field_id, _format}, _alias} ->
+            # Handle extracted fields (e.g., date parts)
+            Selecto.field(assigns.selecto, field_id) || %{name: alias}
+
           {:row, _selector, _alias} ->
             # For row selectors, use a basic column definition
             %{name: alias, format: nil}
+
           _ ->
             # Fallback to basic definition
             %{name: alias, format: nil}
@@ -415,13 +508,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
 
         <tr>
-          <th :for={{alias, _} <- @group_by} class="font-bold px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
-            <%= alias %>
-          </th>
+          <%!-- Non-sortable headers for group by columns (sorting disabled in aggregate view) --%>
+          <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+              <%= alias %>
+            </th>
+          <% end %>
 
-          <th :for={{alias, _} <- @aggregate} class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50  ">
-            <%= alias %>
-          </th>
+          <%!-- Non-sortable headers for aggregate columns (sorting disabled in aggregate view) --%>
+          <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+              <%= alias %>
+            </th>
+          <% end %>
 
         </tr>
         <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by} aggregate={@aggregate}/>

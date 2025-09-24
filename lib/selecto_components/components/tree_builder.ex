@@ -6,7 +6,19 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
   import SelectoComponents.Components.Common
 
+  @impl true
+  def mount(socket) do
+    {:ok, socket}
+  end
 
+  @impl true
+  def update(assigns, socket) do
+    # When the component ID changes, Phoenix will remount the component entirely
+    # This ensures all form fields are properly recreated
+    {:ok, assign(socket, assigns)}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="tree-builder-component">
@@ -29,7 +41,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               draggable="true" data-item-id="__OR__" id="__OR__">OR group</div>
 
 
-            <div :for={{id, name} <- @available}>
+            <div :for={{id, name} <- @available} id={"available-#{id}"}>
               <div
                 class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
                 draggable="true" data-item-id={id}
@@ -38,8 +50,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
-            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form }) %>
-
+            <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form, component_id: @id }) %>
           </div>
         </div>
       </div>
@@ -175,46 +186,64 @@ defmodule SelectoComponents.Components.TreeBuilder do
     """
   end
 
+  defp get_filter_name(available, filter_id) do
+    case Enum.find(available, fn {id, _name} -> id == filter_id end) do
+      {_id, name} -> name
+      nil -> filter_id || "Unknown Filter"
+    end
+  end
+
   defp render_area(assigns) do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
+    # Create a unique key based on filter UUIDs to force proper re-rendering
+    filter_key = assigns.filters
+      |> Enum.map(fn {{uuid, _, _}, _} -> uuid end)
+      |> Enum.join("-")
+      |> then(fn key -> "#{assigns.section}-#{key}" end)
 
     ~H"""
       <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100 drop-zone"
       data-drop-zone={@section}
-      id={@section}>
+      id={filter_key}>
 
         <span class="text-base-content font-medium"><%= @conjunction %></span>
-        <div class="p-2 pl-6 pr-10 border-solid border border-base-300 bg-base-100 text-base-content relative"
-          :for={ {s, index} <-
-            Enum.filter( @filters, fn
-            {{_uuid,section,_conf}, _i} -> section == @section
-            end )
-          } %>
+        <%= for {{uuid, s_section, config} = s, index} <-
+              Enum.filter(@filters, fn
+                {{_uuid, section, _conf}, _i} -> section == @section
+              end) do %>
+          <div class="p-2 pl-6 pr-10 border-solid border border-base-300 bg-base-100 text-base-content relative"
+               id={uuid}>
 
-          <%= case s do %>
-            <% {uuid, _section, conjunction} when is_binary(conjunction) -> %>
-              <input name={"filters[#{uuid}][uuid]"} type="hidden" value={uuid}/>
-              <input name={"filters[#{uuid}][section]"} type="hidden" value={@section}/>
-              <input name={"filters[#{uuid}][index]"} type="hidden" value={@index}/>
-              <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
-              <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
-              <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
-              <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
-              </div>
+            <%= case {uuid, s_section, config} do %>
+              <% {uuid, _section, conjunction} when is_binary(conjunction) -> %>
+                <input name={"filters[#{uuid}][uuid]"} type="hidden" value={uuid}/>
+                <input name={"filters[#{uuid}][section]"} type="hidden" value={@section}/>
+                <input name={"filters[#{uuid}][index]"} type="hidden" value={@index}/>
+                <input name={"filters[#{uuid}][conjunction]"} type="hidden" value={conjunction}/>
+                <input name={"filters[#{uuid}][is_section]"} type="hidden" value="Y"/>
+                <%= render_area(%{ available: @available, filters: @filters, section: uuid, index: index, conjunction: conjunction, filter_form: @filter_form  }) %>
+                <div class="absolute top-1 right-1 flex">
+                  <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
+                </div>
 
-            <% {uuid, section, fv} -> %>
-              <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
-                <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
-              </div>
-              <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
-              </div>
+              <% {uuid, section, fv} -> %>
+                <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
+                  <div class="text-sm font-medium text-gray-600 mb-1">
+                    <%= get_filter_name(@available, fv["filter"]) %>
+                  </div>
+                  <div id={"filter-form-#{uuid}"}>
+                    <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
+                  </div>
+                </div>
+                <div class="absolute top-1 right-1 flex">
+                  <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid}/>
+                </div>
 
-          <% end %>
+            <% end %>
             <!-- new section -->
 
-        </div>
+          </div>
+        <% end %>
 
       </div>
     """

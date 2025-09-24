@@ -6,7 +6,7 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   @doc """
   Detects columns that would cause denormalization and groups them by relationship.
-  
+
   Returns a tuple of {normal_columns, denormalizing_groups}
   where denormalizing_groups is a map of relationship_path => columns
   """
@@ -15,16 +15,16 @@ defmodule SelectoComponents.DenormalizationDetector do
       field = Selecto.field(selecto, col_name)
       {col_name, field, analyze_column(selecto, field)}
     end)
-    
+
     # Separate normal columns from denormalizing ones
     {normal, denormalizing} = Enum.split_with(columns_with_info, fn {_, _, info} ->
       !info.causes_denormalization
     end)
-    
+
     normal_columns = Enum.map(normal, fn {name, _, _} -> name end)
-    
+
     # Group denormalizing columns by their relationship path
-    denormalizing_groups = 
+    denormalizing_groups =
       denormalizing
       |> Enum.group_by(fn {_, _, info} -> info.relationship_path end)
       |> Enum.map(fn {path, columns} ->
@@ -32,7 +32,7 @@ defmodule SelectoComponents.DenormalizationDetector do
         {path, col_names}
       end)
       |> Map.new()
-    
+
     {normal_columns, denormalizing_groups}
   end
 
@@ -62,15 +62,10 @@ defmodule SelectoComponents.DenormalizationDetector do
   defp analyze_column(selecto, field) do
     # Get the join path for this field
     join_path = get_join_path(field)
-    
-    IO.puts("[DENORM ANALYZE] Field: #{inspect(field)}")
-    IO.puts("[DENORM ANALYZE] Join path: #{inspect(join_path)}")
-    
+
     # Check if this involves a one-to-many or many-to-many relationship
     causes_denormalization = is_denormalizing_join?(selecto, join_path)
-    
-    IO.puts("[DENORM ANALYZE] Causes denorm: #{causes_denormalization}")
-    
+
     %{
       field: field,
       join_path: join_path,
@@ -83,27 +78,27 @@ defmodule SelectoComponents.DenormalizationDetector do
   defp get_join_path(field) do
     # Extract join path from field definition
     # Check various field formats for join indicators
-    
+
     # Try field name first (e.g., "actor[name]" or "film.title")
     field_name = Map.get(field, :field) || Map.get(field, :qualified_name) || ""
-    
+
     cond do
       # Check for bracket notation: "table[column]"
       String.contains?(field_name, "[") ->
         [table, _] = String.split(field_name, ["[", "]"], trim: true)
         [table]
-        
+
       # Check for dot notation: "table.column"
       String.contains?(field_name, ".") ->
         parts = String.split(field_name, ".")
         # All but the last part are the join path
         Enum.take(parts, length(parts) - 1)
-        
+
       # Check requires_join field
       Map.get(field, :requires_join) not in [nil, :selecto_root] ->
         # If it requires a join, use that as the path
         [to_string(Map.get(field, :requires_join))]
-        
+
       true ->
         # No join required
         []
@@ -119,29 +114,26 @@ defmodule SelectoComponents.DenormalizationDetector do
     # No join means no denormalization
     false
   end
-  
+
   defp is_denormalizing_join?(_selecto, join_path) do
     # Check if this join represents a one-to-many or many-to-many relationship
     # This is determined by checking if multiple rows could be returned
-    
+
     # For now, we'll use a heuristic based on common patterns
     # In a real implementation, this would check the actual schema relationships
-    
+
     last_segment = List.last(join_path)
-    
-    # For the Pagila database:
-    # - actor -> film is many-to-many (through film_actor)
-    # - film -> actor is many-to-many (through film_actor)
-    # So when we're in the actor context and joining to film, it's denormalizing
-    
+
+    # Example relationships:
+    # - source -> target could be many-to-many (through intermediate table)
+    # - target -> source could be many-to-many (through intermediate table)
+    # When joining from one context to another with many-to-many relationship, it's denormalizing
+
     # Common patterns that indicate multiple rows
+    # These should be configured based on your domain
     denormalizing_patterns = [
-      "film",       # actor -> films (many-to-many)
-      "films",
-      "actor",      # film -> actors (many-to-many)
-      "actors",
-      "category",   # film -> categories (many-to-many)
-      "categories",
+      # Add patterns specific to your domain here
+      # e.g., "items", "orders", "details"
       "inventory",  # film -> inventory (one-to-many)
       "rental",     # customer -> rentals (one-to-many)
       "rentals",
@@ -150,23 +142,22 @@ defmodule SelectoComponents.DenormalizationDetector do
       "film_actor", # junction table
       "film_category" # junction table
     ]
-    
+
     result = Enum.any?(denormalizing_patterns, fn pattern ->
       String.contains?(String.downcase(last_segment), pattern)
     end)
-    
-    IO.puts("[DENORM CHECK] Segment: #{last_segment}, Is denormalizing: #{result}")
+
     result
   end
 
   defp get_relationship_type(_selecto, []) do
     :none
   end
-  
+
   defp get_relationship_type(_selecto, join_path) do
     # Determine the type of relationship
     last_segment = List.last(join_path)
-    
+
     cond do
       String.contains?(String.downcase(last_segment), "film") -> :many_to_many  # actor->film is many-to-many
       String.contains?(String.downcase(last_segment), "actor") -> :many_to_many
@@ -184,7 +175,7 @@ defmodule SelectoComponents.DenormalizationDetector do
   def analyze_query(selecto) do
     # Get all joins from the Selecto structure
     joins = Map.get(selecto, :joins, [])
-    
+
     # Analyze each join for denormalization potential
     join_analysis = Enum.map(joins, fn join ->
       %{
@@ -194,7 +185,7 @@ defmodule SelectoComponents.DenormalizationDetector do
         cardinality: estimate_join_cardinality(join)
       }
     end)
-    
+
     %{
       has_denormalizing_joins: Enum.any?(join_analysis, & &1.causes_denormalization),
       joins: join_analysis
@@ -203,7 +194,7 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   defp join_causes_denormalization?(join) do
     # Check if this specific join would cause row multiplication
-    join.type in [:left, :right, :full] && 
+    join.type in [:left, :right, :full] &&
       is_one_to_many_relationship?(join)
   end
 

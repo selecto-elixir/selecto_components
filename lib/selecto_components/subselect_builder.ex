@@ -6,14 +6,14 @@ defmodule SelectoComponents.SubselectBuilder do
 
   @doc """
   Builds a Selecto query with subselects for denormalizing columns.
-  
+
   Takes a base selecto, normal columns, and denormalizing groups,
   returns an enhanced selecto with subselects.
   """
   def build_with_subselects(selecto, normal_columns, denormalizing_groups) do
     # Start with the base query and normal columns
     query = apply_normal_columns(selecto, normal_columns)
-    
+
     # Add subselects for each denormalizing group
     Enum.reduce(denormalizing_groups, query, fn {relationship_path, columns}, acc ->
       add_subselect_for_group(acc, relationship_path, columns)
@@ -60,7 +60,7 @@ defmodule SelectoComponents.SubselectBuilder do
   def add_subselect_for_group(selecto, relationship_path, columns) do
     # Generate a subselect for a group of related columns
     # All columns for a relationship should be in ONE subselect that returns JSON objects
-    
+
     # Extract just the field names without the table prefix
     field_names = Enum.map(columns, fn col ->
       # Remove table prefix if present (e.g., "film.description" -> "description")
@@ -69,9 +69,7 @@ defmodule SelectoComponents.SubselectBuilder do
         [field] -> field
       end
     end)
-    
-    IO.puts("[SUBSELECT BUILD] Creating subselect for #{relationship_path} with fields: #{inspect(field_names)}")
-    
+
     # Create a single config for all fields of this relationship
     config = %{
       fields: field_names,
@@ -79,14 +77,10 @@ defmodule SelectoComponents.SubselectBuilder do
       format: :json_agg,
       alias: relationship_path  # Use the relationship path as the alias
     }
-    
-    IO.puts("[SUBSELECT BUILD] Config being passed to Selecto.subselect: #{inspect(config)}")
-    
+
     # Apply a single subselect for all fields of this relationship
     result = Selecto.subselect(selecto, [config])
-    
-    IO.puts("[SUBSELECT BUILD] After Selecto.subselect, subselected: #{inspect(Map.get(result.set, :subselected, []))}")
-    
+
     result
   end
 
@@ -97,7 +91,7 @@ defmodule SelectoComponents.SubselectBuilder do
     |> String.split(".")
     |> List.last()
     |> pluralize()
-    
+
     "#{base}_data"
   end
 
@@ -134,12 +128,12 @@ defmodule SelectoComponents.SubselectBuilder do
     # This would generate the actual SQL for a correlated subquery
     # Example output:
     # (SELECT JSON_AGG(row_to_json(t)) FROM (
-    #   SELECT actor.name, actor.age 
-    #   FROM actor 
+    #   SELECT actor.name, actor.age
+    #   FROM actor
     #   JOIN film_actor ON actor.id = film_actor.actor_id
     #   WHERE film_actor.film_id = film.id
     # ) t) AS actors_data
-    
+
     # For now, return a placeholder structure
     %{
       type: :subselect,
@@ -159,7 +153,7 @@ defmodule SelectoComponents.SubselectBuilder do
     # - Combining multiple subselects on same table
     # - Using lateral joins where appropriate
     # - Adding proper indexes hints
-    
+
     selecto
   end
 
@@ -168,11 +162,11 @@ defmodule SelectoComponents.SubselectBuilder do
   """
   def validate_subselects(selecto) do
     subselects = Map.get(selecto, :subselects, [])
-    
+
     errors = Enum.flat_map(subselects, fn subselect ->
       validate_single_subselect(subselect)
     end)
-    
+
     case errors do
       [] -> :ok
       errors -> {:error, errors}
@@ -181,21 +175,21 @@ defmodule SelectoComponents.SubselectBuilder do
 
   defp validate_single_subselect(subselect) do
     errors = []
-    
+
     # Check for required fields
     errors = if Map.has_key?(subselect, :columns) do
       errors
     else
       ["Subselect missing required 'columns' field" | errors]
     end
-    
+
     # Check for valid alias
     errors = if Map.has_key?(subselect, :as) && is_binary(subselect.as) do
       errors
     else
       ["Subselect missing or invalid 'as' alias" | errors]
     end
-    
+
     errors
   end
 
@@ -242,7 +236,7 @@ defmodule SelectoComponents.SubselectBuilder do
         [_table, field] -> field
         [field] -> field
       end
-      
+
       %{
         field: col,
         header: String.capitalize(display_name),

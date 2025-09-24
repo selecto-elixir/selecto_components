@@ -35,6 +35,8 @@ defmodule SelectoComponents.MixProject do
       {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},
       {:ecto, "~> 3.11"},
       {:ecto_sql, "~> 3.11"},
+      {:makeup, "~> 1.1"},
+      {:makeup_sql, "~> 0.1.0"},
 
 
       # {:dep_from_hexpm, "~> 0.3.0"},

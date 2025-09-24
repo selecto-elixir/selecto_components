@@ -6,7 +6,7 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
     <div class="border border-gray-200 rounded-lg p-3 bg-blue-50">
       <div class="flex items-center justify-between mb-2">
         <span class="font-medium text-sm text-gray-700"><%= @col.name %></span>
-        <span class="text-xs text-gray-500"><%= @col.type %></span>
+        <span class="text-xs text-gray-500"><%= Map.get(@col, :type, :string) %></span>
       </div>
       
       <div class="grid grid-cols-1 gap-3">

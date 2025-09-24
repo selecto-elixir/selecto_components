@@ -18,20 +18,84 @@ defmodule SelectoComponents.Views.Graph.Component do
   def render(assigns) do
     ~H"""
     <div class="graph-component-wrapper">
-      <%= case {assigns[:executed], assigns.query_results} do %>
-        <% {false, _} -> %>
+      <%= cond do %>
+        <% assigns[:execution_error] -> %>
+          <%= render_error_state(assigns) %>
+        <% assigns[:executed] == false -> %>
           <%= render_loading_state(assigns) %>
-        <% {true, nil} -> %>
+        <% assigns[:executed] && assigns.query_results == nil -> %>
           <%= render_no_results_state(assigns) %>
-        <% {true, {results, _fields, aliases}} -> %>
+        <% assigns[:executed] && match?({_results, _fields, _aliases}, assigns.query_results) -> %>
+          <% {results, _fields, aliases} = assigns.query_results %>
           <%= render_chart(assigns, results, aliases) %>
-        <% _ -> %>
+        <% true -> %>
           <%= render_unknown_state(assigns) %>
       <% end %>
     </div>
     """
   end
 
+  defp render_error_state(assigns) do
+    assigns = assign(assigns, :error, assigns[:execution_error])
+    
+    ~H"""
+    <div class="flex items-center justify-center min-h-64 bg-red-50 rounded-lg border border-red-300 p-6">
+      <div class="text-center max-w-2xl">
+        <div class="text-4xl mb-3 text-red-500">⚠️</div>
+        <div class="font-semibold text-red-700 text-lg mb-2">Query Execution Error</div>
+        
+        <%= if is_struct(@error, Selecto.Error) do %>
+          <%= if @error.message do %>
+            <div class="text-red-600 mb-2"><%= @error.message %></div>
+          <% end %>
+          
+          <%= if @error.details[:exception] do %>
+            <%= case @error.details.exception do %>
+              <% %Postgrex.Error{postgres: postgres} when is_map(postgres) -> %>
+                <div class="bg-red-100 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-red-700">
+                    <%= Map.get(postgres, :message, "Database error occurred") %>
+                  </div>
+                  <%= if Map.get(postgres, :position) do %>
+                    <div class="text-xs text-red-600 mt-1">
+                      Position: <%= postgres.position %>
+                    </div>
+                  <% end %>
+                  <%= if Map.get(postgres, :code) do %>
+                    <div class="text-xs text-red-600 mt-1">
+                      Error Code: <%= postgres.code %>
+                    </div>
+                  <% end %>
+                </div>
+              <% _ -> %>
+                <div class="bg-red-100 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-red-700">
+                    <%= inspect(@error.details.exception) %>
+                  </div>
+                </div>
+            <% end %>
+          <% end %>
+          
+          <%= if @error.query do %>
+            <details class="mt-3 text-left">
+              <summary class="cursor-pointer text-sm text-red-600 hover:text-red-700">Show Query</summary>
+              <pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-x-auto"><%= @error.query %></pre>
+            </details>
+          <% end %>
+        <% else %>
+          <div class="text-red-600">
+            <%= inspect(@error) %>
+          </div>
+        <% end %>
+        
+        <div class="mt-4 text-sm text-gray-600">
+          Please check your query configuration and try again.
+        </div>
+      </div>
+    </div>
+    """
+  end
+  
   defp render_loading_state(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">

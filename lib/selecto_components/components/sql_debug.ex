@@ -28,11 +28,11 @@ defmodule SelectoComponents.Components.SqlDebug do
         |> Map.put(:debug_id, "sql_debug_#{:erlang.unique_integer([:positive])}")
       
       ~H"""
-      <div class="sql-debug-container mt-4 mb-4 border border-gray-300 rounded-lg bg-gray-50">
-        <div class="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-300 rounded-t-lg">
+      <div class="sql-debug-container mt-4 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
           <button
             type="button"
-            class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+            class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
             phx-click={toggle_debug(@debug_id)}
           >
             <svg
@@ -45,13 +45,13 @@ defmodule SelectoComponents.Components.SqlDebug do
             </svg>
             SQL Debug
             <%= if @execution_time do %>
-              <span class="ml-2 text-xs text-gray-500">(<%= @execution_time %>ms)</span>
+              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(<%= @execution_time %>ms)</span>
             <% end %>
           </button>
           
           <button
             type="button"
-            class="px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50"
+            class="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500"
             phx-click={copy_to_clipboard(@debug_id <> "_sql")}
           >
             Copy SQL
@@ -61,19 +61,19 @@ defmodule SelectoComponents.Components.SqlDebug do
         <div id={@debug_id} class={if @expanded, do: "block", else: "hidden"}>
           <div class="p-4">
             <div class="mb-3">
-              <h4 class="text-xs font-semibold text-gray-600 uppercase mb-1">Query</h4>
-              <pre id={@debug_id <> "_sql"} class="sql-code bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto text-xs"><%= @formatted_sql %></pre>
+              <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1">Query</h4>
+              <pre id={@debug_id <> "_sql"} class="sql-code bg-gray-900 dark:bg-gray-800 text-gray-100 dark:text-gray-200 p-3 rounded overflow-x-auto text-xs"><%= @formatted_sql %></pre>
             </div>
             
             <%= if @params && length(@params) > 0 do %>
               <div>
-                <h4 class="text-xs font-semibold text-gray-600 uppercase mb-1">Parameters</h4>
-                <div class="bg-white border border-gray-200 rounded p-2">
+                <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1">Parameters</h4>
+                <div class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-2">
                   <ul class="text-xs font-mono">
                     <%= for {param, idx} <- Enum.with_index(@params, 1) do %>
                       <li class="py-1">
-                        <span class="text-gray-500">$<%= idx %>:</span>
-                        <span class="text-gray-900"><%= inspect(param) %></span>
+                        <span class="text-gray-500 dark:text-gray-400">$<%= idx %>:</span>
+                        <span class="text-gray-900 dark:text-gray-200"><%= inspect(param) %></span>
                       </li>
                     <% end %>
                   </ul>
@@ -97,7 +97,7 @@ defmodule SelectoComponents.Components.SqlDebug do
   def sql_inline(assigns) do
     if Mix.env() == :dev do
       ~H"""
-      <span class="sql-inline font-mono text-xs text-gray-600 bg-gray-100 px-1 py-0.5 rounded">
+      <span class="sql-inline font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">
         <%= truncate_sql(@sql) %>
       </span>
       """

@@ -55,6 +55,7 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_event("filter_remove", params, state) do
+    IO.puts("Handling filter_remove event")
     case handle_filter_remove(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
     end
@@ -108,6 +109,8 @@ defmodule SelectoComponents.Router do
   end
 
   defp execute_query(params, state) do
+    require Logger
+
     try do
       # Process view configuration
       view_config = State.update_view_config(state, params).view_config
@@ -120,13 +123,39 @@ defmodule SelectoComponents.Router do
       # Apply automatic pivot if needed
       pivoted_selecto = maybe_auto_pivot(filtered_selecto, view_config)
 
+      # Log the SQL being generated for debugging
+      try do
+        sql_info = Selecto.to_sql(pivoted_selecto)
+        Logger.debug("Executing SQL: #{inspect(sql_info, pretty: true)}")
+      rescue
+        e ->
+          Logger.error("Failed to generate SQL: #{inspect(e)}")
+          Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
+      end
+
       # Execute the query
       case Selecto.execute(pivoted_selecto) do
-        {:ok, results} -> {:ok, results, pivoted_selecto}
-        {:error, error} -> {:error, error}
+        {:ok, results} ->
+          {:ok, results, pivoted_selecto}
+
+        {:error, %{message: message} = error} ->
+          Logger.error("Query execution failed with error: #{message}")
+          Logger.error("Full error details: #{inspect(error, pretty: true)}")
+          {:error, %{error | message: "Query execution failed: #{message}"}}
+
+        {:error, error} when is_binary(error) ->
+          Logger.error("Query execution failed: #{error}")
+          {:error, %{message: "Query execution failed: #{error}"}}
+
+        {:error, error} ->
+          Logger.error("Query execution failed with unknown error: #{inspect(error)}")
+          {:error, %{message: "Query execution failed: #{inspect(error)}"}}
       end
     rescue
-      e -> {:error, e}
+      e ->
+        Logger.error("Exception during query execution: #{inspect(e)}")
+        Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
+        {:error, %{message: "Query execution exception: #{Exception.message(e)}"}}
     end
   end
 
@@ -168,27 +197,19 @@ defmodule SelectoComponents.Router do
   defp maybe_auto_pivot(selecto, view_config) do
     # Check if automatic pivot is needed
     selected_columns = get_selected_columns(view_config)
-    
-    IO.puts("[PIVOT DEBUG] Selected columns: #{inspect(selected_columns)}")
-    IO.puts("[PIVOT DEBUG] View config: #{inspect(view_config)}")
-    
+
+
     if should_auto_pivot?(selecto, selected_columns) do
-      IO.puts("[PIVOT DEBUG] Should auto-pivot: true")
       target_table = find_pivot_target(selecto, selected_columns)
-      IO.puts("[PIVOT DEBUG] Target table found: #{inspect(target_table)}")
-      
+
       if target_table do
         # Apply pivot to the target table
-        IO.puts("[PIVOT DEBUG] Applying pivot to: #{target_table}")
         pivoted = Selecto.Pivot.pivot(selecto, target_table)
-        IO.puts("[PIVOT DEBUG] Pivot applied, new set: #{inspect(pivoted.set[:pivot_state])}")
         pivoted
       else
-        IO.puts("[PIVOT DEBUG] No target table found, not pivoting")
         selecto
       end
     else
-      IO.puts("[PIVOT DEBUG] Should auto-pivot: false")
       selecto
     end
   end
@@ -197,25 +218,25 @@ defmodule SelectoComponents.Router do
     # Extract selected columns from view config
     # This depends on the view mode (aggregate, detail, etc.)
     view_mode = Map.get(view_config, :view_mode) || Map.get(view_config, "view_mode")
-    
+
     case view_mode do
       "aggregate" ->
-        group_by_cols = Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{})) 
-                       |> Map.values() 
+        group_by_cols = Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{}))
+                       |> Map.values()
                        |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         aggregate_cols = Map.get(view_config, :aggregate, Map.get(view_config, "aggregate", %{}))
                         |> Map.values()
                         |> Enum.map(fn item -> Map.get(item, "field") end)
-        
+
         group_by_cols ++ aggregate_cols
-        
+
       "detail" ->
         # Handle both simple and qualified column names from selected map
         selected_map = Map.get(view_config, :selected, Map.get(view_config, "selected", %{}))
-        
+
         # Extract field names from the selected map structure
-        selected_fields = 
+        selected_fields =
           case selected_map do
             # If it's a map with UUID keys (typical case)
             map when is_map(map) ->
@@ -224,17 +245,17 @@ defmodule SelectoComponents.Router do
                 Map.get(item, "field") || Map.get(item, :field)
               end)
               |> Enum.filter(&(&1 != nil))
-            
+
             # If it's a list
             list when is_list(list) ->
               list
-            
+
             _ ->
               []
           end
-        
+
         selected_fields
-        
+
       _ ->
         []
     end
@@ -244,32 +265,26 @@ defmodule SelectoComponents.Router do
     # Check if any selected columns are missing from the base table
     # or are qualified column names (e.g., "film.description")
     source_columns = get_source_columns(selecto)
-    IO.puts("[PIVOT DEBUG] Source columns: #{inspect(source_columns)}")
-    
+
     result = Enum.any?(selected_columns, fn col ->
       col_str = to_string(col)
-      IO.puts("[PIVOT DEBUG] Checking column: #{col_str}")
-      
+
       # Check if it's a qualified column name (contains a dot)
       if String.contains?(col_str, ".") do
         # Qualified columns like "film.description" should trigger pivot
         parts = String.split(col_str, ".", parts: 2)
-        IO.puts("[PIVOT DEBUG] Qualified column parts: #{inspect(parts)}")
-        
+
         [table_name, _column_name] = parts
         # Pivot should be triggered for qualified names from joined tables
         should_pivot = table_name != "selecto_root" && table_name != ""
-        IO.puts("[PIVOT DEBUG] Qualified column #{col_str} should pivot: #{should_pivot}")
         should_pivot
       else
         # For simple column names, check if they exist in source
         exists = column_exists_in_source?(col, source_columns)
-        IO.puts("[PIVOT DEBUG] Simple column #{col} exists in source: #{exists}")
         not exists
       end
     end)
-    
-    IO.puts("[PIVOT DEBUG] Final should_auto_pivot result: #{result}")
+
     result
   end
 
@@ -283,9 +298,9 @@ defmodule SelectoComponents.Router do
     # Check if column exists in source (handle string/atom conversion)
     col_atom = if is_binary(column_name), do: String.to_atom(column_name), else: column_name
     col_string = if is_atom(column_name), do: Atom.to_string(column_name), else: column_name
-    
+
     Enum.any?(source_columns, fn source_col ->
-      source_col == col_atom or source_col == col_string or 
+      source_col == col_atom or source_col == col_string or
       Atom.to_string(source_col) == col_string
     end)
   end
@@ -293,18 +308,16 @@ defmodule SelectoComponents.Router do
   defp find_pivot_target(selecto, selected_columns) do
     # Find the first joined table that has all the selected columns
     # Handle both simple and qualified column names
-    
-    IO.puts("[PIVOT DEBUG] Finding pivot target for columns: #{inspect(selected_columns)}")
-    
+
+
     # Extract table names from qualified columns
-    table_targets = 
+    table_targets =
       selected_columns
       |> Enum.map(fn col ->
         col_str = to_string(col)
         if String.contains?(col_str, ".") do
           [table_name, _] = String.split(col_str, ".", parts: 2)
           result = String.to_atom(table_name)
-          IO.puts("[PIVOT DEBUG] Extracted table #{result} from #{col_str}")
           result
         else
           nil
@@ -312,32 +325,27 @@ defmodule SelectoComponents.Router do
       end)
       |> Enum.filter(&(&1 != nil))
       |> Enum.uniq()
-    
-    IO.puts("[PIVOT DEBUG] Table targets: #{inspect(table_targets)}")
-    
+
+
     # If we have explicit table references, use the first one
     if length(table_targets) > 0 do
       # Return the first table that was explicitly referenced
       target = hd(table_targets)
-      IO.puts("[PIVOT DEBUG] Using explicit table target: #{target}")
       target
     else
       # Fall back to original logic for simple column names
       schemas = Map.get(selecto.domain, :schemas, %{})
-      IO.puts("[PIVOT DEBUG] Checking schemas: #{inspect(Map.keys(schemas))}")
-      
+
       result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
         schema_columns = Map.keys(schema_config.columns || %{})
-        
+
         if has_all_columns?(selected_columns, schema_columns) do
-          IO.puts("[PIVOT DEBUG] Schema #{schema_name} has all columns")
           schema_name
         else
           nil
         end
       end)
-      
-      IO.puts("[PIVOT DEBUG] Schema search result: #{inspect(result)}")
+
       result
     end
   end
@@ -347,20 +355,20 @@ defmodule SelectoComponents.Router do
     # Handle both simple and qualified column names
     Enum.all?(selected_columns, fn col ->
       col_str = to_string(col)
-      
+
       # If it's a qualified column name, extract just the column part
-      col_name = 
+      col_name =
         if String.contains?(col_str, ".") do
           [_, column_name] = String.split(col_str, ".", parts: 2)
           column_name
         else
           col_str
         end
-      
+
       col_atom = if is_binary(col_name), do: String.to_atom(col_name), else: col_name
-      
+
       Enum.any?(schema_columns, fn schema_col ->
-        schema_col == col_atom or 
+        schema_col == col_atom or
         Atom.to_string(schema_col) == col_name
       end)
     end)
