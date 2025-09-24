@@ -578,17 +578,33 @@ defmodule SelectoComponents.Form do
                     actual_field
                   "" ->
                     # Try to find a suitable field from current group_by configuration
-                    current_group_by = socket.assigns.view_config.group_by || []
-                    case current_group_by do
-                      [first_group | _] -> first_group
-                      [] -> "id"  # Fallback to a basic field
+                    # The group_by is in the used_params, not view_config
+                    current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
+                    first_group = current_group_by
+                      |> Map.values()
+                      |> Enum.sort(fn a, b ->
+                        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
+                      end)
+                      |> List.first()
+
+                    case first_group do
+                      %{"field" => field} -> field
+                      _ -> "id"  # Fallback to a basic field
                     end
                   nil ->
                     # Try to find a suitable field from current group_by configuration
-                    current_group_by = socket.assigns.view_config.group_by || []
-                    case current_group_by do
-                      [first_group | _] -> first_group
-                      [] -> "id"  # Fallback to a basic field
+                    # The group_by is in the used_params, not view_config
+                    current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
+                    first_group = current_group_by
+                      |> Map.values()
+                      |> Enum.sort(fn a, b ->
+                        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
+                      end)
+                      |> List.first()
+
+                    case first_group do
+                      %{"field" => field} -> field
+                      _ -> "id"  # Fallback to a basic field
                     end
                   _ -> f
                 end
@@ -597,7 +613,7 @@ defmodule SelectoComponents.Form do
                 conf = Selecto.field(socket.assigns.selecto, field_name)
 
                 # Check if this is an age bucket field from group_by config
-                group_by_config = socket.assigns.view_config.group_by || %{}
+                group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
                 field_group_config = Enum.find_value(Map.values(group_by_config), fn config ->
                   if Map.get(config, "field") == field_name do
                     config
