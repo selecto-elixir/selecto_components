@@ -192,7 +192,7 @@ defmodule SelectoComponents.Form do
 
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
-            id={"tree_builder_#{hash_filter_structure(@view_config.filters)}"}
+            id={"#{@id}_tree_builder_#{hash_filter_structure(@view_config.filters)}"}
             available={build_filter_list(@selecto)}
             filters={@view_config.filters}
           >
