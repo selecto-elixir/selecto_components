@@ -8,7 +8,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   def render(assigns) do
     ~H"""
-    <div class="selecto-debug-panel" id={"debug-panel-#{@id}"} phx-hook="DebugClipboard">
+    <div class="selecto-debug-panel" id={"debug-panel-#{@id}"} phx-hook="SelectoComponents.Debug.DebugDisplay.DebugClipboard">
       <div :if={@show_debug} class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
@@ -115,6 +115,43 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           <.debug_metadata metadata={@metadata} />
         </div>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".DebugClipboard">
+      export default {
+        mounted() {
+          this.handleCopyEvent = (e) => {
+            const button = e.target.closest('button[phx-click="copy_sql"]');
+            if (button) {
+              const sqlQuery = this.el.querySelector('[data-sql-query]')?.textContent ||
+                              this.el.querySelector('pre')?.textContent || '';
+
+              if (sqlQuery) {
+                navigator.clipboard.writeText(sqlQuery).then(() => {
+                  const originalText = button.innerHTML;
+                  button.innerHTML = '✓ Copied!';
+                  button.classList.add('bg-green-500');
+                  button.classList.remove('bg-blue-500');
+
+                  setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('bg-green-500');
+                    button.classList.add('bg-blue-500');
+                  }, 2000);
+                });
+              }
+            }
+          };
+
+          this.el.addEventListener('click', this.handleCopyEvent);
+        },
+
+        destroyed() {
+          if (this.handleCopyEvent) {
+            this.el.removeEventListener('click', this.handleCopyEvent);
+          }
+        }
+      }
+    </script>
     </div>
     """
   end
@@ -161,88 +198,51 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           </div>
       <% end %>
     </div>
-    
-    <script :type={Phoenix.LiveView.ColocatedHook} name=".DebugClipboard">
-      export default {
-        mounted() {
-          // Listen for clipboard copy events from the server
-          this.handleEvent("copy-to-clipboard", ({ text }) => {
-            this.copyToClipboard(text);
-          });
-        },
+    """
+  end
 
-        copyToClipboard(text) {
-          // Modern clipboard API with fallback
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text)
-              .then(() => {
-                this.showCopyFeedback(true);
-              })
-              .catch((err) => {
-                console.error('Failed to copy text: ', err);
-                this.fallbackCopy(text);
-              });
-          } else {
-            this.fallbackCopy(text);
-          }
-        },
-
-        fallbackCopy(text) {
-          // Fallback for older browsers
-          const textArea = document.createElement("textarea");
-          textArea.value = text;
-          textArea.style.position = "fixed";
-          textArea.style.top = "-9999px";
-          textArea.style.left = "-9999px";
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-
-          try {
-            const successful = document.execCommand('copy');
-            this.showCopyFeedback(successful);
-          } catch (err) {
-            console.error('Fallback copy failed: ', err);
-            this.showCopyFeedback(false);
-          }
-
-          document.body.removeChild(textArea);
-        },
-
-        showCopyFeedback(success) {
-          // Find the copy button and show feedback
-          const button = this.el.querySelector('[phx-click="copy_sql"]');
-          if (button) {
-            const originalHTML = button.innerHTML;
-            const originalClasses = button.className;
-            
-            if (success) {
-              button.innerHTML = `
-                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-                Copied!
-              `;
-              button.className = button.className.replace('bg-blue-500', 'bg-green-500').replace('hover:bg-blue-600', 'hover:bg-green-600');
-            } else {
-              button.innerHTML = `
-                <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Failed
-              `;
-              button.className = button.className.replace('bg-blue-500', 'bg-red-500').replace('hover:bg-blue-600', 'hover:bg-red-600');
-            }
-
-            // Reset after 2 seconds
-            setTimeout(() => {
-              button.innerHTML = originalHTML;
-              button.className = originalClasses;
-            }, 2000);
-          }
-        }
-      }
-    </script>
+  def debug_section(assigns) do
+    ~H"""
+    <div class="border-t border-gray-200 pt-2">
+      <h5 class="font-medium text-gray-600 mb-1"><%= @title %></h5>
+      <%= case @type do %>
+        <% "code" -> %>
+          <%= if @title == "SQL Query" do %>
+            <div class="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
+              <%= Phoenix.HTML.raw(format_sql_with_makeup(@content)) %>
+            </div>
+          <% else %>
+            <pre class="bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
+              <code class="text-xs font-mono text-gray-800"><%= @content %></code>
+            </pre>
+          <% end %>
+        <% "list" -> %>
+          <%= if @title == "Parameters" do %>
+            <ul class="bg-white p-2 rounded border border-gray-200">
+              <%= for {item, index} <- Enum.with_index(@content, 1) do %>
+                <li class="text-xs font-mono">
+                  <span class="text-blue-600 font-semibold">$<%= index %></span>
+                  <span class="text-gray-500 mx-1">=</span>
+                  <span class="text-gray-800"><%= format_param_value(item) %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <ul class="bg-white p-2 rounded border border-gray-200">
+              <%= for {item, index} <- Enum.with_index(@content) do %>
+                <li class="text-xs">
+                  <span class="text-gray-500">[<%= index %>]</span>
+                  <%= inspect(item, pretty: true, limit: 50) %>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        <% _ -> %>
+          <div class="bg-white p-2 rounded border border-gray-200 text-xs">
+            <%= @content %>
+          </div>
+      <% end %>
+    </div>
     """
   end
 
@@ -475,4 +475,5 @@ defmodule SelectoComponents.Debug.DebugDisplay do
     <div class="highlight">#{html}</div>
     """
   end
+
 end

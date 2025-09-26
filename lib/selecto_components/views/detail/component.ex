@@ -171,7 +171,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
-      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook="RowClickable">
+      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook=".RowClickable">
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
         <thead>
         <tr>
@@ -295,6 +295,42 @@ defmodule SelectoComponents.Views.Detail.Component do
         </tbody>
       </table>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".RowClickable">
+      export default {
+        mounted() {
+          this.handleRowClick = (e) => {
+            const row = e.target.closest('tr[data-row-id]');
+            if (row && !e.target.closest('a, button, input, select, textarea')) {
+              const rowId = row.dataset.rowId;
+              const action = row.dataset.clickAction || 'row_clicked';
+
+              this.pushEvent(action, { row_id: rowId });
+            }
+          };
+
+          this.el.addEventListener('click', this.handleRowClick);
+
+          // Add hover effect
+          const rows = this.el.querySelectorAll('tr[data-row-id]');
+          rows.forEach(row => {
+            row.style.cursor = 'pointer';
+            row.addEventListener('mouseenter', () => {
+              row.classList.add('bg-gray-50', 'transition-colors');
+            });
+            row.addEventListener('mouseleave', () => {
+              row.classList.remove('bg-gray-50');
+            });
+          });
+        },
+
+        destroyed() {
+          if (this.handleRowClick) {
+            this.el.removeEventListener('click', this.handleRowClick);
+          }
+        }
+      }
+    </script>
     </div>
     """
   end
@@ -529,4 +565,5 @@ defmodule SelectoComponents.Views.Detail.Component do
         Phoenix.HTML.raw(error_html)
     end
   end
+
 end
