@@ -310,6 +310,10 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
   
   def handle_event("set_page", params, socket) do
+    IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
+    IO.inspect(params, label: "Params")
+    IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
+    
     # send(self(), {:set_detail_page, params["page"]})
     new_page = String.to_integer(params["page"])
     
@@ -318,6 +322,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         view_meta: %{socket.assigns.view_meta | page: new_page}
       )
 
+    IO.inspect(socket.assigns.view_meta, label: "Updated view_meta")
     {:noreply, socket}
   end
 
