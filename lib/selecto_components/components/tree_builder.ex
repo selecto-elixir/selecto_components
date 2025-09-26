@@ -23,29 +23,29 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook=".TreeBuilder" id="relay" class="grid grid-cols-2 gap-1 h-80" data-filter="">
+        <div phx-hook=".TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" data-filter="">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
-            <input type="text" id="filter-input" placeholder="Filter Available Items" class="sc-input" />
-            <button id="clear-filter" class="sc-x-button hidden">×</button>
+            <input type="text" id={"filter-input-#{@id}"} placeholder="Filter Available Items" class="sc-input" />
+            <button id={"clear-filter-#{@id}"} class="sc-x-button hidden">×</button>
           </div>
           <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100" id="available-items">
+          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100" id={"available-items-#{@id}"}>
 
 
 
             <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
-              draggable="true" data-item-id="__AND__" id="__AND__">AND group</div>
+              draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}>AND group</div>
             <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
-              draggable="true" data-item-id="__OR__" id="__OR__">OR group</div>
+              draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}>OR group</div>
 
 
-            <div :for={{id, name} <- @available} id={"available-#{id}"}>
+            <div :for={{id, name} <- @available} id={"#{@id}-available-#{id}"}>
               <div
                 class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
                 draggable="true" data-item-id={id}
-                id={id}><%= name %></div>
+                id={"#{@id}-#{id}"}><%= name %></div>
             </div>
 
           </div>
@@ -138,8 +138,9 @@ defmodule SelectoComponents.Components.TreeBuilder do
           },
           
           initializeFilter() {
-            const filterInput = this.el.querySelector('#filter-input');
-            const clearButton = this.el.querySelector('#clear-filter');
+            const componentId = this.el.id.replace('tree-builder-', '');
+            const filterInput = this.el.querySelector(`#filter-input-${componentId}`);
+            const clearButton = this.el.querySelector(`#clear-filter-${componentId}`);
             
             if (filterInput) {
               filterInput.addEventListener('input', (e) => {
