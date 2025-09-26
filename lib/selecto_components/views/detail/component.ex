@@ -349,16 +349,13 @@ defmodule SelectoComponents.Views.Detail.Component do
     IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
     IO.inspect(params, label: "Params")
     IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
-    
-    # send(self(), {:set_detail_page, params["page"]})
-    new_page = String.to_integer(params["page"])
-    
-    socket =
-      assign(socket,
-        view_meta: %{socket.assigns.view_meta | page: new_page}
-      )
 
-    IO.inspect(socket.assigns.view_meta, label: "Updated view_meta")
+    new_page = String.to_integer(params["page"])
+
+    # Notify parent to update the page in the form params (parent is authoritative)
+    send(self(), {:update_detail_page, new_page})
+
+    IO.puts("Sent update_detail_page to parent: #{new_page}")
     {:noreply, socket}
   end
 

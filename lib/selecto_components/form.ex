@@ -455,11 +455,13 @@ defmodule SelectoComponents.Form do
           )
 
         params = %{"saved_view" => view.name}
+        socket = assign(socket, :current_detail_page, 0)
         {:noreply, state_to_url(params, socket)}
       end
 
       def handle_event("view-apply", params, socket) do
         with_error_handling(socket, "view-apply", fn ->
+          socket = assign(socket, :current_detail_page, 0)
           {:noreply, view_from_params(params, state_to_url(params, socket))}
         end)
       end
@@ -1101,6 +1103,16 @@ defmodule SelectoComponents.Form do
         {:noreply, socket}
       end
 
+      @impl true
+      def handle_info({:update_detail_page, page}, socket) do
+        socket = assign(socket, :current_detail_page, page)
+
+        params = socket.assigns[:used_params] || view_config_to_params(socket.assigns.view_config)
+        params = Map.put(params, "detail_page", to_string(page))
+
+        {:noreply, view_from_params(params, state_to_url(params, socket))}
+      end
+
       # Helper function to execute view from current state
       defp execute_view_from_current_state(socket) do
         params = view_config_to_params(socket.assigns.view_config)
@@ -1263,6 +1275,13 @@ defmodule SelectoComponents.Form do
         Logger.debug("Filtered result from filter_recurse: #{inspect(filtered, pretty: true)}")
 
         selected_view = String.to_atom(Map.get(params, "view_mode"))
+
+        # Include the current detail page if we're in detail view
+        params = if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do
+          Map.put(params, "detail_page", to_string(socket.assigns.current_detail_page))
+        else
+          params
+        end
 
         # Handle case where view might not be found
         view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
