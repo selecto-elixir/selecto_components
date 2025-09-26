@@ -23,13 +23,11 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook="TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: '' }">
+        <div phx-hook=".TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" data-filter="">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
-            <div class="flex items-center gap-1">
-              <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="sc-input flex-1" />
-              <button x-on:click="filter = ''" x-show="filter != ''" class="sc-x-button" type="button">×</button>
-            </div>
+            <input type="text" id={"filter-input-#{@id}"} placeholder="Filter Available Items" class="sc-input" />
+            <button id={"clear-filter-#{@id}"} class="sc-x-button hidden">×</button>
           </div>
           <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
@@ -37,22 +35,18 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
 
 
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-              draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}
-              x-show="filter == '' || 'and group'.includes(filter.toLowerCase())"
-              x-transition>AND group</div>
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-              draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}
-              x-show="filter == '' || 'or group'.includes(filter.toLowerCase())"
-              x-transition>OR group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}>AND group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}>OR group</div>
 
 
-            <div :for={{{id, name}, idx} <- Enum.with_index(@available)}
-              class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
-              draggable="true" data-item-id={id}
-              id={"#{@id}-available-#{id}-#{idx}"}
-              x-show={"filter == '' || '#{String.downcase(name)}'.includes(filter.toLowerCase())"}
-              x-transition><%= name %></div>
+            <div :for={{id, name} <- @available} id={"#{@id}-available-#{id}"}>
+              <div
+                class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+                draggable="true" data-item-id={id}
+                id={"#{@id}-#{id}"}><%= name %></div>
+            </div>
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
@@ -60,6 +54,135 @@ defmodule SelectoComponents.Components.TreeBuilder do
           </div>
         </div>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".TreeBuilder">
+        export default {
+          draggedElement: null,
+          initialized: false,
+
+          initializeDragDrop() {
+            if (this.initialized) {
+              return;
+            }
+
+            const hook = this;
+            console.log('Initializing drag and drop');
+
+            this.el.addEventListener('dragstart', (e) => {
+              if (e.target.getAttribute('draggable') === 'true') {
+                hook.draggedElement = e.target.getAttribute('data-item-id') || e.target.id;
+                console.log('Dragging:', hook.draggedElement);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', hook.draggedElement);
+                e.target.style.opacity = '0.5';
+              }
+            });
+
+            this.el.addEventListener('dragend', (e) => {
+              if (e.target.getAttribute('draggable') === 'true') {
+                e.target.style.opacity = '';
+                console.log('Drag ended');
+              }
+            });
+
+            this.el.addEventListener('dblclick', (e) => {
+              if (e.target.getAttribute('draggable') === 'true') {
+                const elementId = e.target.getAttribute('data-item-id') || e.target.id;
+                console.log('Double click on:', elementId);
+                hook.pushEvent('treedrop', {
+                  target: 'filters',
+                  element: elementId
+                });
+              }
+            });
+
+            this.el.addEventListener('dragover', (e) => {
+              if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                e.target.classList.add('bg-blue-50');
+              }
+            });
+
+            this.el.addEventListener('dragleave', (e) => {
+              if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
+                if (!e.target.contains(e.relatedTarget)) {
+                  e.target.classList.remove('bg-blue-50');
+                }
+              }
+            });
+
+            this.el.addEventListener('drop', (e) => {
+              if (e.target.classList.contains('drop-zone') || e.target.hasAttribute('data-drop-zone')) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.target.classList.remove('bg-blue-50');
+
+                const draggedId = e.dataTransfer.getData('text/plain') || hook.draggedElement;
+                const targetId = e.target.getAttribute('data-drop-zone') || e.target.id;
+
+                console.log('Drop event - dragged:', draggedId, 'target:', targetId);
+
+                if (draggedId && targetId) {
+                  console.log('Pushing treedrop event');
+                  hook.pushEvent('treedrop', {
+                    target: targetId,
+                    element: draggedId
+                  });
+                }
+                hook.draggedElement = null;
+              }
+            });
+
+            this.initialized = true;
+          },
+
+          initializeFilter() {
+            const componentId = this.el.id.replace('tree-builder-', '');
+            const filterInput = this.el.querySelector(`#filter-input-${componentId}`);
+            const clearButton = this.el.querySelector(`#clear-filter-${componentId}`);
+
+            if (filterInput) {
+              filterInput.addEventListener('input', (e) => {
+                const filterValue = e.target.value.toUpperCase();
+                if (clearButton) {
+                  clearButton.style.display = filterValue ? '' : 'none';
+                }
+                
+                const filterableItems = this.el.querySelectorAll('.filterable-item');
+                filterableItems.forEach(item => {
+                  const text = item.textContent.toUpperCase();
+                  const shouldShow = !filterValue || text.includes(filterValue);
+                  item.style.display = shouldShow ? '' : 'none';
+                });
+              });
+            }
+
+            if (clearButton) {
+              clearButton.addEventListener('click', () => {
+                filterInput.value = '';
+                filterInput.dispatchEvent(new Event('input'));
+              });
+            }
+          },
+
+          mounted() {
+            console.log('TreeBuilderHook mounted');
+            this.initializeFilter();
+            this.initializeDragDrop();
+          },
+
+          updated() {
+            console.log('TreeBuilderHook updated');
+          },
+
+          destroyed() {
+            console.log('TreeBuilderHook destroyed');
+            this.draggedElement = null;
+            this.initialized = false;
+          }
+        }
+      </script>
     </div>
     """
   end
