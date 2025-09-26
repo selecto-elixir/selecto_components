@@ -41,12 +41,10 @@ defmodule SelectoComponents.Components.TreeBuilder do
               draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}>OR group</div>
 
 
-            <div :for={{id, name} <- @available} id={"#{@id}-available-#{id}"}>
-              <div
-                class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
-                draggable="true" data-item-id={id}
-                id={"#{@id}-#{id}"}><%= name %></div>
-            </div>
+            <div :for={{{id, name}, idx} <- Enum.with_index(@available)}
+              class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              draggable="true" data-item-id={id}
+              id={"#{@id}-available-#{id}-#{idx}"}><%= name %></div>
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
