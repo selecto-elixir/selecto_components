@@ -4,7 +4,6 @@ defmodule SelectoComponents.Filter.DynamicFilters do
   """
   
   use Phoenix.LiveComponent
-  import SelectoComponents.Components.Common
   
   # Generate unique IDs for filters
   defp generate_uuid do

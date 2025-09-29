@@ -4,7 +4,6 @@ defmodule SelectoComponents.Form do
   import SelectoComponents.Components.Common
   alias Phoenix.LiveView.JS
   alias SelectoComponents.ErrorHandling.ErrorDisplay
-  alias SelectoComponents.Modal.DetailModal
 
   @doc """
   Form for configuing Selecto View
@@ -15,6 +14,7 @@ defmodule SelectoComponents.Form do
 
   """
 
+  @impl true
   def render(assigns) do
     assigns =
       assign(assigns,
@@ -2604,7 +2604,7 @@ defmodule SelectoComponents.Form do
   def should_auto_pivot?(selecto, selected_columns) do
     # Check if selected columns justify a pivot
     source_columns = get_source_columns(selecto)
-    source_column_strs = Enum.map(source_columns, &to_string/1)
+    _source_column_strs = Enum.map(source_columns, &to_string/1)
 
     # Categorize columns
     {source_cols, qualified_cols_by_table} = Enum.reduce(selected_columns, {[], %{}}, fn col, {src, qualified} ->
@@ -2655,7 +2655,7 @@ defmodule SelectoComponents.Form do
 
           # Simple approach: try to pivot to the first table and assume it has access to others
           # More sophisticated would be to check the actual join hierarchy
-          pivot_target = hd(table_names)
+          _pivot_target = hd(table_names)
 
           # For now, allow pivot to the first table
           # This works for film -> language case

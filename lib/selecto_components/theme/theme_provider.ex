@@ -4,7 +4,6 @@ defmodule SelectoComponents.Theme.ThemeProvider do
   """
   
   use Phoenix.Component
-  alias Phoenix.LiveView.JS
   
   @default_themes %{
     light: %{

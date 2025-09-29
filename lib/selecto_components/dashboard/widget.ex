@@ -5,8 +5,6 @@ defmodule SelectoComponents.Dashboard.Widget do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
-  alias Phoenix.LiveView.JS
   
   @default_config %{
     title: "Widget",

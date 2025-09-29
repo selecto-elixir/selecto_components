@@ -3,7 +3,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
-  alias SelectoComponents.EnhancedTable.Sorting
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes

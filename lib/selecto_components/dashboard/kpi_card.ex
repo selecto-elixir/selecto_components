@@ -5,9 +5,6 @@ defmodule SelectoComponents.Dashboard.KpiCard do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
-  alias Phoenix.LiveView.JS
-  alias SelectoComponents.Dashboard.Sparkline
   
   @doc """
   Renders a KPI card with metric value, trend, and optional sparkline.
