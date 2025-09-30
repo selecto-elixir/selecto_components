@@ -455,11 +455,8 @@ defmodule SelectoComponents.Form do
             # Process all parameters including view-specific configs (aggregates, group_by, etc.)
             socket = params_to_state(params, socket)
 
-            # Mark as not executed so components show "Loading..." instead of stale data
-            # This prevents displaying mismatched headers and data when config changes
-            # Query will execute on form submit (view-apply) which updates URL params
-            socket = assign(socket, executed: false)
-
+            # Don't execute view on validation - only on submit
+            # This allows users to configure aggregates without immediate updates
             {:noreply, socket}
           end)
         end
