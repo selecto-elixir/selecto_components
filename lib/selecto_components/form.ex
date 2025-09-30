@@ -2541,24 +2541,31 @@ defmodule SelectoComponents.Form do
     Logger.debug("=== MAYBE_AUTO_PIVOT START ===")
     Logger.debug("selecto.set.filtered before pivot: #{inspect(selecto.set.filtered, pretty: true)}")
 
-    # Check if automatic pivot is needed based on selected columns
-    selected_columns = get_selected_columns_from_params(params)
+    view_mode = Map.get(params, "view_mode", "detail")
 
+    # Auto-pivot should only be used for detail views, not aggregate views
+    # Aggregate views handle joins naturally through GROUP BY
+    if view_mode != "aggregate" do
+      # Check if automatic pivot is needed based on selected columns
+      selected_columns = get_selected_columns_from_params(params)
 
-    if should_auto_pivot?(selecto, selected_columns) do
-      target_table = find_pivot_target(selecto, selected_columns)
+      if should_auto_pivot?(selecto, selected_columns) do
+        target_table = find_pivot_target(selecto, selected_columns)
 
-      if target_table do
-        Logger.debug("Applying pivot to target: #{inspect(target_table)}")
-        # Apply custom pivot for domain structure
+        if target_table do
+          Logger.debug("Applying pivot to target: #{inspect(target_table)}")
+          # Apply custom pivot for domain structure
 
-        # Find the join path to the target table
-        join_path = find_join_path_to_target(selecto.domain, target_table)
+          # Find the join path to the target table
+          join_path = find_join_path_to_target(selecto.domain, target_table)
 
-        if join_path do
-          # Apply the custom pivot transformation
-          pivoted = apply_custom_pivot(selecto, target_table, join_path)
-          pivoted
+          if join_path do
+            # Apply the custom pivot transformation
+            pivoted = apply_custom_pivot(selecto, target_table, join_path)
+            pivoted
+          else
+            selecto
+          end
         else
           selecto
         end
@@ -2566,6 +2573,7 @@ defmodule SelectoComponents.Form do
         selecto
       end
     else
+      Logger.debug("Skipping auto-pivot for aggregate view")
       selecto
     end
   end
