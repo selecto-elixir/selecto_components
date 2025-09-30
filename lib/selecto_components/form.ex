@@ -1309,7 +1309,7 @@ defmodule SelectoComponents.Form do
 
         # Apply automatic pivot if needed
         view_mode = Map.get(params, "view_mode", "detail")
-        selected_columns = get_selected_columns_from_params(params)
+        selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
         selecto = Selecto.AutoPivot.maybe_apply(selecto,
           view_mode: view_mode,
           selected: selected_columns
