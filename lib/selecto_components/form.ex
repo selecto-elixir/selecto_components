@@ -351,6 +351,8 @@ defmodule SelectoComponents.Form do
       import SelectoComponents.Helpers.Filters
       alias SelectoComponents.ErrorHandling.ErrorCategorizer
       alias SelectoComponents.Form.ParamsState
+      alias SelectoComponents.Form.ListPickerOperations
+      alias SelectoComponents.Form.DrillDownFilters
 
       # Error handling wrapper for handle_event callbacks
       defp with_error_handling(socket, operation_name, fun) do
@@ -563,266 +565,29 @@ defmodule SelectoComponents.Form do
 
       def handle_event("agg_add_filters", params, socket) do
         with_error_handling(socket, "agg_add_filters", fn ->
+          # Use helper module to build drill-down parameters
+          view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+
+          # Build filter tuples for view_config
+          filter_tuples = DrillDownFilters.build_filter_tuples(params, socket)
+
+          # Update view_config with new filters
           selected_view = String.to_atom(socket.assigns.view_config.view_mode)
-
-          {_, _, _, opt} =
-            Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
+          {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
           new_view_mode = Map.get(opt, :drill_down, "detail")
 
-          view_params =
-            %{socket.assigns.used_params | "view_mode" => "detail"}
-            |> Map.put(
-            "filters",
-            Enum.reduce(
-              params,
-              ### TODO remove existing section=filters uses of this filter
-              Map.get(socket.assigns.used_params, "filters", %{}),
-              fn {f, v}, acc ->
-                newid = UUID.uuid4()
+          # Remove existing filters for the same fields and add new ones
+          updated_filters =
+            Enum.filter(socket.assigns.view_config.filters, fn
+              {_id, "filters", %{} = f} -> !Map.has_key?(params, Map.get(f, "filter"))
+              _ -> true
+            end) ++ filter_tuples
 
-                # Extract the actual field name from phx-value-* parameters
-                field_name = case f do
-                  "phx-value-" <> actual_field ->
-                    actual_field
-                  "" ->
-                    # Try to find a suitable field from current group_by configuration
-                    # The group_by is in the used_params, not view_config
-                    current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
-                    first_group = current_group_by
-                      |> Map.values()
-                      |> Enum.sort(fn a, b ->
-                        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
-                      end)
-                      |> List.first()
-
-                    case first_group do
-                      %{"field" => field} -> field
-                      _ -> "id"  # Fallback to a basic field
-                    end
-                  nil ->
-                    # Try to find a suitable field from current group_by configuration
-                    # The group_by is in the used_params, not view_config
-                    current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
-                    first_group = current_group_by
-                      |> Map.values()
-                      |> Enum.sort(fn a, b ->
-                        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
-                      end)
-                      |> List.first()
-
-                    case first_group do
-                      %{"field" => field} -> field
-                      _ -> "id"  # Fallback to a basic field
-                    end
-                  _ -> f
-                end
-
-                conf = Selecto.field(socket.assigns.selecto, field_name)
-
-                # Check if this is an age bucket field from group_by config
-                group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
-                field_group_config = Enum.find_value(Map.values(group_by_config), fn config ->
-                  if Map.get(config, "field") == field_name do
-                    config
-                  else
-                    nil
-                  end
-                end)
-
-                is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
-
-                # Detect date format patterns and set appropriate comparison mode
-                {comp_mode, v1, v2} = cond do
-                  # Check for bucket range patterns like "1-10", "11+", "Other", etc.
-                  String.match?(v, ~r/^\d+-\d+$/) || String.match?(v, ~r/^\d+\+$/) || v == "Other" ->
-                    # This is a bucket range - parse it to create appropriate filter
-                    if is_age_bucket && conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-                      # For age buckets on date fields, convert age ranges to date ranges
-                      today = Date.utc_today()
-
-                      cond do
-                        # Range like "1-10" or "0-10" - convert to date range
-                        String.match?(v, ~r/^(\d+)-(\d+)$/) ->
-                          [min_days_str, max_days_str] = String.split(v, "-")
-                          max_days = String.to_integer(max_days_str)
-                          min_days = String.to_integer(min_days_str)
-                          # Dates are max_days ago to min_days ago
-                          start_date = Date.add(today, -(max_days + 1))
-                          end_date = Date.add(today, -min_days)
-                          {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
-
-                        # Open-ended range like "11+" - older than N days
-                        String.match?(v, ~r/^(\d+)\+$/) ->
-                          days = v |> String.replace("+", "") |> String.to_integer()
-                          cutoff_date = Date.add(today, -days)
-                          {"<=", Date.to_iso8601(cutoff_date), ""}
-
-                        # "Other" bucket - skip for now
-                        v == "Other" ->
-                          {"=", "", ""}
-
-                        true ->
-                          {"=", v, ""}
-                      end
-                    else
-                      # Not age bucket or not a date field - handle as numeric bucket
-                      cond do
-                        # Range like "1-10" or "0-10"
-                        String.match?(v, ~r/^(\d+)-(\d+)$/) ->
-                          [min_str, max_str] = String.split(v, "-")
-                          {"BETWEEN", min_str, max_str}
-
-                        # Open-ended range like "11+"
-                        String.match?(v, ~r/^(\d+)\+$/) ->
-                          min_str = String.replace(v, "+", "")
-                          {">=", min_str, ""}
-
-                        # "Other" bucket - skip creating a filter for now
-                        v == "Other" ->
-                          {"=", "", ""}  # This will be filtered out by empty value check
-
-                        true ->
-                          {"=", v, ""}
-                      end
-                    end
-
-                  # YYYY-MM-DD format - exact date match
-                  String.match?(v, ~r/^\d{4}-\d{2}-\d{2}$/) ->
-                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-                      {"DATE=", v, ""}
-                    else
-                      {"=", v, ""}
-                    end
-
-                  # YYYY-MM format - match entire month
-                  String.match?(v, ~r/^\d{4}-\d{2}$/) ->
-                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-                      # Convert to date range for the month
-                      [year_str, month_str] = String.split(v, "-")
-                      {year, _} = Integer.parse(year_str)
-                      {month, _} = Integer.parse(month_str)
-
-                      start_date = Date.new!(year, month, 1)
-                      # Get last day of the month
-                      days_in_month = Date.days_in_month(start_date)
-                      end_date = Date.new!(year, month, days_in_month) |> Date.add(1)
-
-                      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
-                    else
-                      {"=", v, ""}
-                    end
-
-                  # YYYY format - match entire year
-                  String.match?(v, ~r/^\d{4}$/) ->
-                    if conf && Map.get(conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-                      {year, _} = Integer.parse(v)
-                      start_date = Date.new!(year, 1, 1)
-                      end_date = Date.new!(year + 1, 1, 1)
-
-                      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
-                    else
-                      {"=", v, ""}
-                    end
-
-                  # Default handling for datetime fields
-                  conf != nil ->
-                    field_type = Map.get(conf, :type, :string)
-                    case field_type do
-                      x when x in [:utc_datetime, :naive_datetime] ->
-                        {v1_parsed, v2_parsed} = Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
-                        {"=", v1_parsed, v2_parsed}
-                      _ ->
-                        {"=", v, ""}
-                    end
-
-                  # No field configuration found
-                  true ->
-                    {"=", v, ""}
-                end
-
-                filter_config = %{
-                  "comp" => comp_mode,
-                  "filter" => field_name,
-                  "index" => "0",
-                  "section" => "filters",
-                  "uuid" => newid,
-                  "value" => v1,
-                  "value2" => v2,
-                  "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
-                  "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
-                }
-                # Check if we should use a different filter field (e.g., for full_name -> actor_id)
-                conf = Selecto.field(socket.assigns.selecto, field_name)
-                actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
-                  group_by_filter = Map.get(conf, :group_by_filter)
-                  group_by_filter
-                else
-                  field_name
-                end
-
-                # Update the filter config to use the correct field
-                filter_config = Map.put(filter_config, "filter", actual_filter_field)
-                Map.put(acc, newid, filter_config)
-              end
-            )
-          )
-
-        socket =
-          assign(socket,
+          socket = assign(socket,
             view_config: %{
               socket.assigns.view_config
               | view_mode: new_view_mode,
-                filters:
-                  Enum.filter(socket.assigns.view_config.filters, fn
-                    {_id, "filters", %{} = f} -> !Map.has_key?(params, Map.get(f, "filter"))
-                    _ -> true
-                  end) ++
-                    Enum.map(params, fn {f, v} ->
-                      # Extract the actual field name from phx-value-* parameters
-                      field_name = case f do
-                        "phx-value-" <> actual_field ->
-                          actual_field
-                        "" ->
-                          # Try to find a suitable field from current group_by configuration
-                          current_group_by = socket.assigns.view_config.group_by || []
-                          case current_group_by do
-                            [first_group | _] -> first_group
-                            [] -> "id"  # Fallback to a basic field
-                          end
-                        nil ->
-                          # Try to find a suitable field from current group_by configuration
-                          current_group_by = socket.assigns.view_config.group_by || []
-                          case current_group_by do
-                            [first_group | _] -> first_group
-                            [] -> "id"  # Fallback to a basic field
-                          end
-                        _ -> f
-                      end
-
-                      conf = Selecto.field(socket.assigns.selecto, field_name)
-
-                      result = if conf != nil do
-                        # Custom columns might not have a type field
-                        field_type = Map.get(conf, :type, :string)
-                        case field_type do
-                          x when x in [:utc_datetime, :naive_datetime] ->
-                            {v1, v2} =
-                              Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
-
-                            {UUID.uuid4(), "filters",
-                             %{"filter" => field_name, "value" => v1, "value2" => v2}}
-
-                          _ ->
-                            {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
-                        end
-                      else
-                        # Default handling if no configuration found
-                        {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
-                      end
-
-                      result
-                    end)
+                filters: updated_filters
             }
           )
 
@@ -924,136 +689,77 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_info({:list_picker_remove, view, list, item}, socket) do
-        view = String.to_atom(view)
-        list = String.to_atom(list)
-
-        view_config = socket.assigns.view_config
-        original_list = view_config.views[view][list]
-
-        filtered_list = Enum.filter(original_list, fn
-          {id, _, _} when is_binary(id) -> id != item
-          [id, _, _] when is_binary(id) -> id != item
-          {id, _, _} -> to_string(id) != item
-          [id, _, _] -> to_string(id) != item
-          _ -> true
-        end)
-
-        # Update the view_config
-        updated_view_config = put_in(
-          view_config.views[view][list],
-          filtered_list
+        # Use helper module to remove item
+        updated_view_config = ListPickerOperations.remove_item_from_list(
+          socket.assigns.view_config,
+          view,
+          list,
+          item
         )
 
-        socket =
-          assign(socket,
-            view_config: updated_view_config
-          )
+        socket = assign(socket, view_config: updated_view_config)
 
-        # Force update of the child component for this specific view
-        # Find the view module from the views list
-        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
+        # Find and update the view module
+        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} ->
+          id == String.to_atom(view)
+        end)
 
         if view_module do
-          {id, mod, _, _} = view_module
-          component_id = "view_#{id}_form"
-
-          # Send update to the specific view form component
-          send_update(String.to_existing_atom("#{mod}.Form"),
-            id: component_id,
-            view_config: updated_view_config,
-            columns: socket.assigns.columns,
-            view: view_module,
-            selecto: socket.assigns.selecto
-          )
+          ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
 
-        # Don't execute view - wait for submit
         {:noreply, socket}
       end
 
       @impl true
       def handle_info({:list_picker_move, view, list, uuid, direction}, socket) do
-        view = String.to_atom(view)
-        list = String.to_atom(list)
-        view_config = socket.assigns.view_config
-        item_list = view_config.views[view][list]
-        item_index = Enum.find_index(item_list, fn
-          {id, _, _} when is_binary(id) -> id == uuid
-          [id, _, _] when is_binary(id) -> id == uuid
-          {id, _, _} -> to_string(id) == uuid
-          [id, _, _] -> to_string(id) == uuid
-          _ -> false
-        end)
-
-        # Handle case where item not found
-        if item_index == nil do
-          {:noreply, socket}
-        else
-          {item, item_list} = List.pop_at(item_list, item_index)
-
-          item_list =
-            List.insert_at(
-              item_list,
-              case direction do
-                "up" -> item_index - 1
-                "down" -> item_index + 1
-              end,
-              item
-            )
-
-          updated_view_config = put_in(view_config.views[view][list], item_list)
-          socket = assign(socket, view_config: updated_view_config)
-
-          # Force update of the child component
-          view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
-          if view_module do
-            {id, mod, _, _} = view_module
-            component_id = "view_#{id}_form"
-            send_update(String.to_existing_atom("#{mod}.Form"),
-              id: component_id,
-              view_config: updated_view_config,
-              columns: socket.assigns.columns,
-              view: view_module,
-              selecto: socket.assigns.selecto
-            )
-          end
-
-          # Don't execute view - wait for submit
-          {:noreply, socket}
-        end
-      end
-
-      @impl true
-      def handle_info({:list_picker_add, view, list, item}, socket) do
-        view = String.to_atom(view)
-        list = String.to_atom(list)
-        config = %{}
-        id = UUID.uuid4()
-
-        view_config = socket.assigns.view_config
-
-        updated_view_config = put_in(
-          view_config.views[view][list],
-          Enum.uniq(view_config.views[view][list] ++ [{id, item, config}])
+        # Use helper module to move item
+        updated_view_config = ListPickerOperations.move_item_in_list(
+          socket.assigns.view_config,
+          view,
+          list,
+          uuid,
+          direction
         )
 
         socket = assign(socket, view_config: updated_view_config)
 
-        # Force update of the child component
-        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == view end)
+        # Find and update the view module
+        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} ->
+          id == String.to_atom(view)
+        end)
+
         if view_module do
-          {id, mod, _, _} = view_module
-          component_id = "view_#{id}_form"
-          send_update(String.to_existing_atom("#{mod}.Form"),
-            id: component_id,
-            view_config: updated_view_config,
-            columns: socket.assigns.columns,
-            view: view_module,
-            selecto: socket.assigns.selecto
-          )
+          ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
 
-        # Don't execute view - wait for submit
+        {:noreply, socket}
+      end
+
+      @impl true
+      def handle_info({:list_picker_add, view, list, item}, socket) do
+        # Create item tuple with UUID and empty config
+        item_tuple = {UUID.uuid4(), item, %{}}
+
+        # Use helper module to add item
+        updated_view_config = ListPickerOperations.add_item_to_list(
+          socket.assigns.view_config,
+          view,
+          list,
+          item_tuple
+        )
+
+        socket = assign(socket, view_config: updated_view_config)
+
+        # Find and update the view module
+        view_module = Enum.find(socket.assigns.views, fn {id, _, _, _} ->
+          id == String.to_atom(view)
+        end)
+
+        if view_module do
+          ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
+        end
+
         {:noreply, socket}
       end
 
