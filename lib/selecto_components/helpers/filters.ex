@@ -2,7 +2,15 @@ defmodule SelectoComponents.Helpers.Filters do
 
   import Ecto.Type ## For cast
 
-
+  # Sanitize LIKE pattern values to prevent SQL injection
+  # Escapes special SQL wildcard characters: %, _, \
+  defp sanitize_like_value(value) when is_binary(value) do
+    value
+    |> String.replace("\\", "\\\\")  # Escape backslash first
+    |> String.replace("%", "\\%")     # Escape percent
+    |> String.replace("_", "\\_")     # Escape underscore
+  end
+  defp sanitize_like_value(value), do: value
 
   defp parse_num(type, num) do
     {:ok, v} = cast(type, num)
@@ -56,10 +64,9 @@ defmodule SelectoComponents.Helpers.Filters do
           "null" -> nil
           "not_null" -> :not_null
           x when x in ~w( != <= >= < >) -> {x, value}
-          ### TODO sanitize like value
-          "starts" -> {:like, value <> "%"}
-          "ends" -> {:like, "%" <> value}
-          "contains" -> {:like, "%" <> value <> "%"}
+          "starts" -> {:like, sanitize_like_value(value) <> "%"}
+          "ends" -> {:like, "%" <> sanitize_like_value(value)}
+          "contains" -> {:like, "%" <> sanitize_like_value(value) <> "%"}
         end
 
         {filpart, valpart}

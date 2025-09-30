@@ -282,8 +282,8 @@ defmodule SelectoComponents.Form do
   def handle_event("datetime-filter-change", params, socket) do
     # This event is triggered when datetime filter comparison mode changes
     # We need to update the view config to reflect the change
-    IO.puts("\n=== DATETIME FILTER CHANGE (LiveComponent) ===")
-    IO.inspect(params, label: "Params received")
+    require Logger
+    Logger.debug("Datetime filter change event received")
 
     # Extract UUID from _target or params
     uuid = params["uuid"] ||
@@ -295,54 +295,40 @@ defmodule SelectoComponents.Form do
     # Get the new comparison value directly from filters
     new_comp = get_in(params, ["filters", uuid, "comp"])
 
-    IO.puts("UUID: #{uuid}")
-    IO.puts("New comparison: #{inspect(new_comp)}")
+    Logger.debug("UUID: #{uuid}, New comparison: #{new_comp}")
 
     # Update the view_config in the socket assigns
-    IO.inspect(socket.assigns.view_config.filters, label: "Current filters")
-
     updated_filters = socket.assigns.view_config.filters
       |> Enum.map(fn
         {u, section, filter} when u == uuid ->
-          IO.puts("Found matching filter to update: #{u}")
           # Update the comparison operator and reset value when changing modes
           updated_filter = case new_comp do
             "BETWEEN" ->
-              IO.puts("Switching to BETWEEN mode")
               # Reset to empty values for between mode
               Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
             "DATE_BETWEEN" ->
-              IO.puts("Switching to DATE_BETWEEN mode")
               # Reset to empty values for date between mode
               Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
             "DATE=" ->
-              IO.puts("Switching to DATE= mode")
               # Keep existing value or set to today's date
               Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
             "DATE!=" ->
-              IO.puts("Switching to DATE!= mode")
               # Keep existing value or set to today's date
               Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
             "SHORTCUT" ->
-              IO.puts("Switching to SHORTCUT mode")
               # Default to "today" for shortcuts
               Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
             "RELATIVE" ->
-              IO.puts("Switching to RELATIVE mode")
               # Default to empty for relative
               Map.merge(filter, %{"comp" => new_comp, "value" => ""})
             _ ->
-              IO.puts("Switching to standard mode: #{new_comp}")
               # Keep existing value for standard operators
               Map.put(filter, "comp", new_comp)
           end
-          IO.inspect(updated_filter, label: "Updated filter value")
           {u, section, updated_filter}
         other ->
           other
       end)
-
-    IO.inspect(updated_filters, label: "All filters after update")
 
     updated_config = put_in(socket.assigns.view_config, [:filters], updated_filters)
 
@@ -573,8 +559,6 @@ defmodule SelectoComponents.Form do
 
       def handle_event("agg_add_filters", params, socket) do
         with_error_handling(socket, "agg_add_filters", fn ->
-          IO.puts("\n=== AGG_ADD_FILTERS DEBUG ===")
-          IO.inspect(params, label: "Params received")
           selected_view = String.to_atom(socket.assigns.view_config.view_mode)
 
           {_, _, _, opt} =
@@ -630,7 +614,6 @@ defmodule SelectoComponents.Form do
                   _ -> f
                 end
 
-                IO.puts("Extracted field_name: #{field_name}")
                 conf = Selecto.field(socket.assigns.selecto, field_name)
 
                 # Check if this is an age bucket field from group_by config
@@ -1082,8 +1065,6 @@ defmodule SelectoComponents.Form do
 
       @impl true
       def handle_info({:update_view_config, updated_config}, socket) do
-        IO.puts("\n=== UPDATING VIEW CONFIG IN PARENT (handle_info) ===")
-        IO.inspect(updated_config.filters, label: "New filters")
         # Update the view config in the parent LiveView
         {:noreply, assign(socket, view_config: updated_config)}
       end
@@ -1780,10 +1761,6 @@ defmodule SelectoComponents.Form do
 
   ### Reorg these to use in pickers
   defp render_filter_form(assigns, uuid, index, section, filter_value) do
-    IO.puts("\n=== RENDER_FILTER_FORM called ===")
-    IO.puts("UUID: #{uuid}, Filter: #{filter_value["filter"]}")
-    IO.inspect(filter_value, label: "Filter value in render_filter_form")
-
     # Get the filter definition from the selecto
     filter_id = filter_value["filter"]
 
@@ -1865,10 +1842,6 @@ defmodule SelectoComponents.Form do
   defp render_datetime_filter(assigns) do
     # Check if value is a shortcut or relative date
     filter_value = assigns[:filter_value] || %{}
-
-    IO.puts("\n=== RENDER DATETIME FILTER ===")
-    IO.inspect(filter_value, label: "Filter value in render")
-    IO.puts("Comparison mode: #{filter_value["comp"]}")
 
     is_shortcut = is_date_shortcut(filter_value["value"])
     is_relative = is_relative_date(filter_value["value"])
