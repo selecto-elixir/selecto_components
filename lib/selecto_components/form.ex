@@ -467,7 +467,9 @@ defmodule SelectoComponents.Form do
       def handle_event("view-apply", params, socket) do
         with_error_handling(socket, "view-apply", fn ->
           socket = assign(socket, :current_detail_page, 0)
-          {:noreply, view_from_params(params, state_to_url(params, socket))}
+          # Execute query first, THEN update URL to prevent race condition
+          socket = view_from_params(params, socket)
+          {:noreply, state_to_url(params, socket)}
         end)
       end
 
@@ -822,7 +824,9 @@ defmodule SelectoComponents.Form do
             }
           )
 
-          {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+          # Execute query first, THEN update URL to prevent race condition
+          socket = view_from_params(view_params, socket)
+          {:noreply, state_to_url(view_params, socket)}
         end)
       end
 
@@ -905,7 +909,9 @@ defmodule SelectoComponents.Form do
           }
         )
 
-          {:noreply, view_from_params(view_params, state_to_url(view_params, socket))}
+          # Execute query first, THEN update URL to prevent race condition
+          socket = view_from_params(view_params, socket)
+          {:noreply, state_to_url(view_params, socket)}
         end)
       end
 
@@ -1110,7 +1116,9 @@ defmodule SelectoComponents.Form do
         params = socket.assigns[:used_params] || view_config_to_params(socket.assigns.view_config)
         params = Map.put(params, "detail_page", to_string(page))
 
-        {:noreply, view_from_params(params, state_to_url(params, socket))}
+        # Execute query first, THEN update URL to prevent race condition
+        socket = view_from_params(params, socket)
+        {:noreply, state_to_url(params, socket)}
       end
 
       # Helper function to execute view from current state

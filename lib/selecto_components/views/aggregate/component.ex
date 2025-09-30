@@ -14,279 +14,147 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     {:ok, socket}
   end
 
-  # Sorting disabled in aggregate view to prevent SQL errors with ROLLUP queries
-  # def handle_event("sort_column", %{"column" => column} = params, socket) do
-  #   multi = Map.get(params, "multi", "false") == "true"
-  #   socket = Sorting.handle_sort_click(column, socket, multi)
-  #
-  #   # Trigger re-execution with new sort
-  #   send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
-  #
-  #   {:noreply, socket}
-  # end
-
-  # # Helper function to determine styling level based on group values
-  # defp determine_level(group_values) do
-  #   # Count non-nil values to determine hierarchy level
-  #   non_nil_count = Enum.count(group_values, fn val -> val != nil end)
-
-  #   case non_nil_count do
-  #     0 -> 0  # Total row (all group values are nil)
-  #     1 -> 1  # First level grouping
-  #     2 -> 2  # Second level grouping
-  #     3 -> 3  # Third level grouping
-  #     _ -> 4  # Deeper levels
-  #   end
-  # end
-
-  ### TODO when a level has 1 and it's child has 1, combine them
-
-  def result_tree(results, group_by) do
-    descend(results, group_by)
+  # Determine the hierarchy level of a ROLLUP result row
+  # Level is determined by counting non-nil values in group columns
+  # Level 0 = grand total (all nils), Level 1 = first grouping, Level 2 = detail rows, etc.
+  defp rollup_level(row, num_group_by_cols) do
+    group_cols = Enum.take(row, num_group_by_cols)
+    non_nil_count = Enum.count(group_cols, fn col -> not is_nil(col) end)
+    non_nil_count
   end
 
-  defp descend(results, [_ | t]) do
-    #### what do do when a group-by is null? coalease and let the rollup row have the nulll?
-    Enum.chunk_by(
-      results,
-      ### OR-- change nulls to {:nil, uuid} so they don't chunk... then keep a list of them so
-      ### we can determine which nul is from the rollup vs from the data
-      fn r -> List.first(r) end
-    )
-    |> Enum.map(fn z ->
-      # we have to strip out the first item of each subarray. Is there a better way?
-      {
-        List.first(List.first(z)),
-        descend(Enum.map(z, fn [_ | lt] -> lt end), t)
-      }
+  # Prepare ROLLUP results with hierarchy metadata
+  defp prepare_rollup_rows(results, num_group_by_cols) do
+    results
+    |> Enum.map(fn row ->
+      level = rollup_level(row, num_group_by_cols)
+      {level, row}
     end)
   end
 
-  defp descend(results, _) do
-    results
+  # Format a value for display, handling tuples
+  defp format_value(value) do
+    case value do
+      {display_value, _id} -> display_value
+      tuple when is_tuple(tuple) -> elem(tuple, 0)
+      _ -> value
+    end
   end
 
-  defp tree_table(%{subs: {{gb, subs}, i}, groups: [first_group | groups]} = assigns) do
-    ## Carry the data to construct this group by forward until we get to the place we will actually draw the row
-    payload =
-      Map.get(assigns, :payload, []) ++
-        [{i, first_group, gb, Enum.count(Map.get(assigns, :payload, []))}]
+  # Format an aggregate value, applying format function if present
+  defp format_aggregate_value(value, coldef) do
+    formatted = case coldef do
+      %{format: fmt_fun} when is_function(fmt_fun) -> fmt_fun.(value)
+      _ -> value
+    end
 
-    assigns =
-      Map.put(assigns, :payload, payload)
-      |> Map.put(:subs, subs)
-      |> Map.put(:groups, groups)
-
-    ~H"""
-      <.tree_table :for={res <- Enum.with_index(@subs)} payload={@payload} subs={res} groups={@groups} aggregate={@aggregate} />
-    """
+    format_value(formatted)
   end
 
-  defp tree_table(%{subs: {subs, _}} = assigns) do
-    # subs should be a list containing the aggregate values for this row
-    # If it's a single row of data, it should be a list like [film_count, language_count]
-    # If it's multiple rows, each item would be such a list
+  # Build filter attributes for drill-down from group column values
+  defp build_filter_attrs(group_cols, group_by_defs, level) do
+    group_cols
+    |> Enum.zip(group_by_defs)
+    |> Enum.with_index()
+    |> Enum.filter(fn {{value, _def}, idx} ->
+      # Include all non-nil values up to current level
+      not is_nil(value) and idx < level
+    end)
+    |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, _idx}, acc ->
+      # Determine the filter field name
+      filter_field = case coldef do
+        %{group_by_filter: filter} when not is_nil(filter) ->
+          filter
+        %{"group_by_filter" => filter} when not is_nil(filter) ->
+          filter
+        _ ->
+          # Extract field name from field tuple
+          case field do
+            {:field, {:to_char, {field_name, _format}}, _} -> field_name
+            {:field, field_id, _} when is_atom(field_id) -> Atom.to_string(field_id)
+            {:field, field_id, _} when is_binary(field_id) -> field_id
+            _ -> "id"
+          end
+      end
 
-    # Handle both single row and multiple row cases
-    actual_subs = cond do
-      # If subs is a list of lists (multiple rows), take the first row for now
-      is_list(subs) and length(subs) > 0 and is_list(List.first(subs)) ->
-        List.first(subs)
+      # Extract the actual value (handle tuples)
+      filter_value = case value do
+        {_display, filter_val} -> filter_val
+        _ -> value
+      end
 
-      # If subs is a single list of values (single row)
-      is_list(subs) ->
-        subs
+      Map.put(acc, "phx-value-#{filter_field}", to_string(filter_value))
+    end)
+  end
 
-      # Fallback - convert to list
-      true ->
-        [subs]
+  # Render a single row with hierarchy styling
+  defp rollup_row(assigns) do
+    # Extract group columns and aggregate columns from the row
+    group_cols = Enum.take(assigns.row, assigns.num_group_by)
+    agg_cols = Enum.drop(assigns.row, assigns.num_group_by)
+
+    # Determine styling based on hierarchy level
+    {row_class, font_weight, indent_px} = case assigns.level do
+      0 -> {"bg-blue-50 border-t-2 border-blue-300", "font-bold", 0}  # Grand total
+      1 -> {"bg-gray-50", "font-semibold", 16}  # Level 1 subtotal
+      2 -> {"", "font-normal", 32}  # Level 2 (or detail if only 2 levels)
+      3 -> {"", "font-normal", 48}  # Level 3
+      _ -> {"", "font-normal", 64}  # Deeper levels
     end
 
-    # Ensure we have the same number of data values as aggregate configurations
-    aggs = cond do
-      length(actual_subs) == length(assigns.aggregate) ->
-        Enum.zip(actual_subs, assigns.aggregate)
+    # The maximum level is the number of group-by columns
+    # If we're at max level, it's a detail row (not a subtotal)
+    is_detail = assigns.level == assigns.num_group_by
 
-      length(actual_subs) > length(assigns.aggregate) ->
-        # More data than expected - take only what we need
-        truncated_subs = Enum.take(actual_subs, length(assigns.aggregate))
-        Enum.zip(truncated_subs, assigns.aggregate)
-
-      true ->
-        # Less data than expected - pad with nils
-        padded_subs = actual_subs ++ List.duplicate(nil, length(assigns.aggregate) - length(actual_subs))
-        Enum.zip(padded_subs, assigns.aggregate)
+    # For detail rows, use normal styling
+    {row_class, font_weight} = if is_detail do
+      {"", "font-normal"}
+    else
+      {row_class, font_weight}
     end
 
-    level =
-      Enum.count(assigns.payload) -
-        (Enum.filter(assigns.payload, fn
-           {_, _g, nil, _in} -> true
-           _ -> false
-         end)
-         |> Enum.count())
+    # Build filter attributes for drill-down (accumulated from all parent levels)
+    filter_attrs = build_filter_attrs(group_cols, assigns.group_by, assigns.level)
 
-    groups =
-      assigns.payload
-      |> Enum.reduce(
-        [],
-        fn {i, {_, {:group_by, field, coldef}}, v, _}, acc ->
-          ### make this use a with!
-          ### Filters from previous payload
-          prefil =
-            [List.last(acc)]
-            |> Enum.map(fn
-              nil -> %{}
-              {_i, _c, _v, fil} -> fil
-            end)
-            |> List.first()
-          # Handle rollup rows where coldef is :rollup atom instead of a map
-          newfil =
-            case {coldef, v} do
-              {:rollup, _} ->
-                # For rollup rows, don't create filters
-                %{}
-
-              {coldef, {display_val, filter_val}} when is_map(coldef) ->
-                # When v is a tuple (display_value, filter_value), use the configured filter field
-                # Custom columns use string keys, regular fields use atom keys
-                filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
-
-                # If no group_by_filter is specified, use colid (the actual field identifier)
-                filter_key = filter_key || Map.get(coldef, :colid) || Map.get(coldef, "colid")
-
-                if filter_key != nil do
-                  # Use the filter_val (second element of tuple) which should be the actor_id
-                  %{"phx-value-#{filter_key}" => filter_val}
-                else
-                  %{}
-                end
-
-              {coldef, v} when is_map(coldef) ->
-                # When v is not a tuple, use it directly
-                # Check if we're dealing with the full_name field that should use actor_id
-                filter_key = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
-
-                # If no group_by_filter is specified, extract field identifier from the field tuple
-                filter_key = if filter_key do
-                  filter_key
-                else
-                  # Extract field identifier from the field tuple
-                  extracted = case field do
-                    {:field, {:to_char, {field_name, _format}}, _alias} ->
-                      # Handle formatted date fields - use the actual field name, not the alias
-                      IO.puts("Extracting from to_char: field_name=#{field_name}")
-                      field_name
-                    {:field, field_id, _alias} when is_atom(field_id) ->
-                      Atom.to_string(field_id)
-                    {:field, field_id, _alias} when is_binary(field_id) ->
-                      field_id
-                    _ ->
-                      # Final fallback to coldef properties
-                      nil
-                  end
-
-                  # Only fall back to coldef properties if we couldn't extract from field
-                  if extracted do
-                    extracted
-                  else
-                    # Use colid (the actual field identifier), not the display name
-                    Map.get(coldef, :colid) || Map.get(coldef, "colid")
-                  end
-                end
-
-                if filter_key != nil do
-                  %{"phx-value-#{filter_key}" => v}
-                else
-                  %{}
-                end
-
-              _ ->
-                # Fallback for unexpected cases
-                # Try to get group_by_filter from coldef even if it's not a map
-                # or extract the proper filter field from the field tuple
-                filter_field = cond do
-                  # If coldef is a map-like structure with group_by_filter
-                  is_map(coldef) && Map.get(coldef, :group_by_filter) ->
-                    Map.get(coldef, :group_by_filter)
-
-                  is_map(coldef) && Map.get(coldef, "group_by_filter") ->
-                    Map.get(coldef, "group_by_filter")
-
-                  # If we have the field tuple with full_name, check if it should use actor_id
-                  match?({:field, :full_name, _}, field) ->
-                    # For full_name, we know it should filter by actor_id
-                    "actor_id"
-
-                  # Otherwise extract field name from the field tuple
-                  true ->
-                    case field do
-                      {:field, {:to_char, {field_name, _format}}, _} ->
-                        # Handle formatted date fields
-                        field_name
-                      {:field, fid, _} -> to_string(fid)
-                      _ -> "id"
-                    end
-                end
-
-                # Create the proper filter attribute
-                %{"phx-value-#{filter_field}" => to_string(v)}
-            end
-
-          acc ++
-            [{i, coldef, v, Map.merge(newfil, prefil)}]
-        end
-      )
-
-    assigns = Map.put(assigns, :aggs, aggs) |> Map.put(:level, level) |> Map.put(:subs, subs) |> Map.put(:ttgroups, groups)
-
+    assigns = assign(assigns,
+      group_cols: group_cols,
+      agg_cols: agg_cols,
+      row_class: row_class,
+      font_weight: font_weight,
+      indent_px: indent_px,
+      filter_attrs: filter_attrs
+    )
 
     ~H"""
-      <tr class={ case @level do
-        0 -> "bg-slate-500 text-left text-white"
-        1 -> "bg-slate-400 text-left text-black"
-        2 -> "bg-slate-300 text-left text-black"
-        3 -> "bg-slate-200 text-left text-black"
-        4 -> "bg-slate-100 text-left text-black"
-        _ -> "bg-slate-50 text-left text-black"
-        end
-      } >
-        <th :for={{{_i, coldef, v, filters}, c} <- Enum.with_index(@ttgroups) }  >
-
-
-          <div :if={ @level - 1 == c } phx-click="agg_add_filters" { filters } >
-            <%= case coldef do %>
-              <% :rollup -> %>
-                <%= case v do
-                  {display_value, _id} -> display_value
-                  tuple when is_tuple(tuple) -> elem(tuple, 0)
-                  _ -> v
-                end %>
-              <% %{group_by_format: comp} -> %>
-                <%= comp.(v, coldef) %>
-              <% _ -> %>
-                <%= case v do
-                  {display_value, _id} -> display_value
-                  tuple when is_tuple(tuple) -> elem(tuple, 0)
-                  _ -> v
-                end %>
+    <tr class={@row_class}>
+      <%!-- Render group by columns --%>
+      <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
+        <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
+          <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
+            <%= if is_nil(value) do %>
+              <%= if @level == 0 and idx == 0 do %>
+                <span class="text-gray-400 italic">Total</span>
+              <% end %>
+            <% else %>
+              <%!-- Show value only for the rightmost filled column at this level --%>
+              <%!-- For level N, show column at index N-1 (0-indexed) --%>
+              <%= if idx == @level - 1 do %>
+                <div phx-click="agg_add_filters" {@filter_attrs} class="cursor-pointer hover:underline">
+                  <%= format_value(value) %>
+                </div>
+              <% end %>
             <% end %>
           </div>
-        </th>
-        <td :for={ {col, {_alias, {:agg, _sel, coldef}}} <- @aggs }>
-          <%= case coldef do %>
-            <% %{format: fmt_fun} when is_function(fmt_fun) -> %>
-              <%= fmt_fun.(col) %>
-            <% _ -> %>
-              <%= case col do
-                {display_value, _id} -> display_value
-                tuple when is_tuple(tuple) -> elem(tuple, 0)
-                _ -> col
-              end %>
-          <% end %>
         </td>
-      </tr>
+      <% end %>
 
+      <%!-- Render aggregate columns --%>
+      <%= for {value, {_alias, {:agg, _agg, coldef}}} <- Enum.zip(@agg_cols, @aggregate) do %>
+        <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
+          <%= format_aggregate_value(value, coldef) %>
+        </td>
+      <% end %>
+    </tr>
     """
   end
 
@@ -487,42 +355,48 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         {alias, {:agg, agg, coldef}}
       end)
 
-    # The result_tree function expects just the group by field definitions, not the full tuple
-    # Extract just the field definitions from the group_by tuples
-    group_by_fields = Enum.map(group_by, fn {_alias, {:group_by, field, _coldef}} -> field end)
-
-    result_tree = result_tree(results, group_by_fields)
+    # Prepare rollup rows with hierarchy level metadata
+    num_group_by = length(group_by)
+    rollup_rows = prepare_rollup_rows(results, num_group_by)
 
     assigns =
       assign(assigns,
-        results: results,
-        results_tree: result_tree,
-        aliases: aliases,
+        rollup_rows: rollup_rows,
+        num_group_by: num_group_by,
         group_by: group_by,
         aggregate: aggregates_processed
       )
 
     ~H"""
     <div>
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
+      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+        <thead class="bg-gray-50">
+          <tr>
+            <%!-- Headers for group by columns --%>
+            <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <%= alias %>
+              </th>
+            <% end %>
 
-        <tr>
-          <%!-- Non-sortable headers for group by columns (sorting disabled in aggregate view) --%>
-          <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
-            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-              <%= alias %>
-            </th>
-          <% end %>
-
-          <%!-- Non-sortable headers for aggregate columns (sorting disabled in aggregate view) --%>
-          <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
-            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-              <%= alias %>
-            </th>
-          <% end %>
-
-        </tr>
-        <.tree_table :for={res <- Enum.with_index(@results_tree)} subs={res} groups={@group_by} aggregate={@aggregate}/>
+            <%!-- Headers for aggregate columns --%>
+            <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <%= alias %>
+              </th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 bg-white">
+          <.rollup_row
+            :for={{level, row} <- @rollup_rows}
+            level={level}
+            row={row}
+            num_group_by={@num_group_by}
+            group_by={@group_by}
+            aggregate={@aggregate}
+          />
+        </tbody>
       </table>
     </div>
     """
