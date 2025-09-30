@@ -4,7 +4,6 @@ defmodule SelectoComponents.EnhancedTable.EditCell do
   """
   
   use Phoenix.LiveComponent
-  alias SelectoComponents.EnhancedTable.InlineEdit
   
   @impl true
   def mount(socket) do

@@ -6,7 +6,6 @@ defmodule SelectoComponents.Filter.FilterSets do
   
   use Phoenix.LiveComponent
   import Phoenix.Component
-  import SelectoComponents.Components.Common
   
   def render(assigns) do
     ~H"""

@@ -5,7 +5,6 @@ defmodule SelectoComponents.EnhancedTable.ColumnManager do
   """
   
   use Phoenix.LiveComponent
-  alias Phoenix.LiveView.JS
   
   @default_min_width 50
   @default_max_width 500

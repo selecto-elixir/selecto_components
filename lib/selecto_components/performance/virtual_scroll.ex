@@ -5,7 +5,6 @@ defmodule SelectoComponents.Performance.VirtualScroll do
   """
   
   use Phoenix.LiveComponent
-  alias Phoenix.LiveView.JS
   
   @default_row_height 48
   @default_buffer_size 5

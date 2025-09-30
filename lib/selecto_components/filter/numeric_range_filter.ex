@@ -4,7 +4,6 @@ defmodule SelectoComponents.Filter.NumericRangeFilter do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
   
   @doc """
   Numeric range filter component with slider and inputs.

@@ -4,7 +4,6 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
   """
 
   use Phoenix.Component
-  import Phoenix.LiveView
 
   @doc """
   Displays query execution plan with analysis.

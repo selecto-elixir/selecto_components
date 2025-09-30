@@ -6,7 +6,6 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
   
   use Phoenix.LiveComponent
   import Phoenix.LiveView
-  alias Phoenix.LiveView.JS
   
   @impl true
   def mount(socket) do

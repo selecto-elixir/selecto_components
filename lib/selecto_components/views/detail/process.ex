@@ -80,7 +80,7 @@ defmodule SelectoComponents.Views.Detail.Process do
        denorm_groups: denorm_groups,  # Store the groups for building actual subselects
        denormalizing_columns: if(prevent_denorm, do: detail_columns -- selected_columns, else: [])
      }, %{
-       page: 0,
+       page: String.to_integer(Map.get(params, "detail_page", "0")),
        per_page: String.to_integer(params["per_page"]),
        prevent_denormalization: prevent_denorm,
        subselect_configs: subselect_configs

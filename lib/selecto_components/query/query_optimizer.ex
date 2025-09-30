@@ -4,7 +4,6 @@ defmodule SelectoComponents.Query.QueryOptimizer do
   """
   
   use Phoenix.Component
-  alias Phoenix.LiveView.JS
   
   @doc """
   Query optimizer component with performance analysis and suggestions.

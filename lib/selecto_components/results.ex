@@ -37,7 +37,7 @@ defmodule SelectoComponents.Results do
         <div :if={@applied_view}>
             <.live_component
               module={String.to_existing_atom("#{@module}.Component")}
-              id={"view_results_#{@applied_view}_#{Map.get(@view_meta, :exe_id, "default")}"}
+              id={"view_results_#{@applied_view}"}
               selecto={@selecto}
               query_results={@query_results}
               view_meta={@view_meta}

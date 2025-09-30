@@ -171,7 +171,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
-      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook="RowClickable">
+      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook=".RowClickable">
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
         <thead>
         <tr>
@@ -295,6 +295,42 @@ defmodule SelectoComponents.Views.Detail.Component do
         </tbody>
       </table>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".RowClickable">
+      export default {
+        mounted() {
+          this.handleRowClick = (e) => {
+            const row = e.target.closest('tr[data-row-id]');
+            if (row && !e.target.closest('a, button, input, select, textarea')) {
+              const rowId = row.dataset.rowId;
+              const action = row.dataset.clickAction || 'row_clicked';
+
+              this.pushEvent(action, { row_id: rowId });
+            }
+          };
+
+          this.el.addEventListener('click', this.handleRowClick);
+
+          // Add hover effect
+          const rows = this.el.querySelectorAll('tr[data-row-id]');
+          rows.forEach(row => {
+            row.style.cursor = 'pointer';
+            row.addEventListener('mouseenter', () => {
+              row.classList.add('bg-gray-50', 'transition-colors');
+            });
+            row.addEventListener('mouseleave', () => {
+              row.classList.remove('bg-gray-50');
+            });
+          });
+        },
+
+        destroyed() {
+          if (this.handleRowClick) {
+            this.el.removeEventListener('click', this.handleRowClick);
+          }
+        }
+      }
+    </script>
     </div>
     """
   end
@@ -310,14 +346,16 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
   
   def handle_event("set_page", params, socket) do
-    # send(self(), {:set_detail_page, params["page"]})
-    new_page = String.to_integer(params["page"])
-    
-    socket =
-      assign(socket,
-        view_meta: %{socket.assigns.view_meta | page: new_page}
-      )
+    IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
+    IO.inspect(params, label: "Params")
+    IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
 
+    new_page = String.to_integer(params["page"])
+
+    # Notify parent to update the page in the form params (parent is authoritative)
+    send(self(), {:update_detail_page, new_page})
+
+    IO.puts("Sent update_detail_page to parent: #{new_page}")
     {:noreply, socket}
   end
 
@@ -524,4 +562,5 @@ defmodule SelectoComponents.Views.Detail.Component do
         Phoenix.HTML.raw(error_html)
     end
   end
+
 end

@@ -5,8 +5,6 @@ defmodule SelectoComponents.Dashboard.Sparkline do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
-  alias Phoenix.LiveView.JS
   
   @doc """
   Renders a sparkline chart.

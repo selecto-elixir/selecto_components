@@ -5,7 +5,6 @@ defmodule SelectoComponents.EnhancedTable.ResponsiveWrapper do
   """
   
   use Phoenix.LiveComponent
-  alias Phoenix.LiveView.JS
   
   @breakpoints %{
     mobile: 640,

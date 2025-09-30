@@ -4,7 +4,6 @@ defmodule SelectoComponents.Filter.ExpressionBuilder do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
   
   @operators %{
     text: [

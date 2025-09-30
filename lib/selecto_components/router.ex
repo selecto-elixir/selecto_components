@@ -104,7 +104,9 @@ defmodule SelectoComponents.Router do
   # Private helper functions for business logic
 
   defp handle_save_view(_params, state) do
-    # TODO: Implement save view logic
+    # Placeholder: Save view logic should persist the current view configuration
+    # This will be implemented when router abstraction is completed
+    # Expected: Save params to saved_view_module with name, context, filters, etc.
     {:ok, state}
   end
 
@@ -160,37 +162,46 @@ defmodule SelectoComponents.Router do
   end
 
   defp handle_tree_drop(_params, state) do
-    # TODO: Implement tree drop logic
+    # Placeholder: Handle drag-and-drop reordering in filter tree
+    # Expected: Reorder filters based on dropped position, update state.view_config
     {:ok, state}
   end
 
   defp handle_filter_remove(_params, state) do
-    # TODO: Implement filter remove logic
+    # Placeholder: Remove filter from view configuration
+    # Expected: Extract filter UUID from params, remove from state.view_config.filters
     {:ok, state}
   end
 
   defp handle_agg_add_filters(_params, state) do
-    # TODO: Implement aggregate add filters logic
+    # Placeholder: Add filters when clicking aggregate view cells (drill-down)
+    # Expected: Extract phx-value-* params, create new filters, switch to detail view
+    # Current implementation in form.ex:560
     {:ok, state}
   end
 
   defp handle_list_picker_remove(_view, _list, _item, state) do
-    # TODO: Implement list picker remove logic
+    # Placeholder: Remove item from list picker (selected fields, group_by, etc.)
+    # Expected: Remove UUID from appropriate list in view_config
     {:ok, state}
   end
 
   defp handle_list_picker_move(_view, _list, _uuid, _direction, state) do
-    # TODO: Implement list picker move logic
+    # Placeholder: Reorder items in list picker
+    # Expected: Swap positions of items based on direction (:up/:down)
     {:ok, state}
   end
 
   defp handle_list_picker_add(_view, _list, _item, state) do
-    # TODO: Implement list picker add logic
+    # Placeholder: Add item to list picker
+    # Expected: Append new item with UUID to appropriate list in view_config
     {:ok, state}
   end
 
   defp apply_filters(selecto, _filters) do
-    # TODO: Implement filter application logic
+    # Placeholder: Apply filters to selecto query
+    # Expected: Call Selecto.filter() for each filter in list
+    # Current implementation in form.ex:filter_recurse
     selecto
   end
 
