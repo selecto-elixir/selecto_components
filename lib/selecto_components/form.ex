@@ -452,43 +452,12 @@ defmodule SelectoComponents.Form do
           {:noreply, assign(socket, skip_next_validation: false)}
         else
           with_error_handling(socket, "view-validate", fn ->
-            # Get old view config before updating
-            old_view_config = socket.assigns.view_config
-
             # Process all parameters including view-specific configs (aggregates, group_by, etc.)
             socket = params_to_state(params, socket)
-            new_view_config = socket.assigns.view_config
 
-            # Check if aggregate or group_by configuration changed
-            # If so, we need to re-execute the query to keep data in sync with headers
-            view_mode = String.to_atom(Map.get(params, "view_mode", "detail"))
-
-            should_reexecute = case view_mode do
-              :aggregate ->
-                old_agg = get_in(old_view_config, [:views, :aggregate])
-                new_agg = get_in(new_view_config, [:views, :aggregate])
-
-                # Check if aggregate fields or group_by fields changed
-                old_agg_fields = Map.get(old_agg || %{}, :aggregate, []) |> Enum.sort()
-                new_agg_fields = Map.get(new_agg || %{}, :aggregate, []) |> Enum.sort()
-                old_group_by = Map.get(old_agg || %{}, :group_by, []) |> Enum.sort()
-                new_group_by = Map.get(new_agg || %{}, :group_by, []) |> Enum.sort()
-
-                (old_agg_fields != new_agg_fields) || (old_group_by != new_group_by)
-
-              _ ->
-                # For other view modes, don't auto-execute on validate
-                false
-            end
-
-            if should_reexecute do
-              # Re-execute the view to keep data in sync with changed aggregates/groups
-              socket = assign(socket, :current_detail_page, 0)
-              {:noreply, view_from_params(params, socket)}
-            else
-              # Don't execute view on validation for other changes
-              {:noreply, socket}
-            end
+            # Don't execute view on validation - only on submit
+            # This allows users to configure aggregates without immediate updates
+            {:noreply, socket}
           end)
         end
       end
