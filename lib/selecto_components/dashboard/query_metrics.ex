@@ -189,7 +189,6 @@ defmodule SelectoComponents.Dashboard.QueryMetrics do
     {:noreply, socket}
   end
 
-  @impl true
   def handle_info({:refresh_metrics, id}, socket) when socket.assigns.id == id do
     socket = fetch_and_assign_metrics(socket)
     timer_ref = Process.send_after(self(), {:refresh_metrics, id}, 2000)

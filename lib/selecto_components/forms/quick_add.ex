@@ -460,7 +460,7 @@ defmodule SelectoComponents.Forms.QuickAdd do
     {:error, "This field is required"}
   end
   
-  defp validate_field(%{type: :email} = field, value) do
+  defp validate_field(%{type: :email} = _field, value) do
     if Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, value) do
       {:ok, value}
     else
@@ -481,7 +481,7 @@ defmodule SelectoComponents.Forms.QuickAdd do
   end
   
   defp build_fields_from_schema(nil), do: []
-  defp build_fields_from_schema(schema) do
+  defp build_fields_from_schema(_schema) do
     # This would extract fields from an Ecto schema
     # For now, return example fields
     [

@@ -38,7 +38,7 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   @doc """
   Get the configured debug features based on environment.
   """
-  def get_debug_config(domain_module, view_type, params \\ %{}, session \\ %{}) do
+  def get_debug_config(domain_module, _view_type, params \\ %{}, session \\ %{}) do
     if debug_enabled?(params, session) do
       # Use the existing ConfigReader to get debug configuration
       SelectoComponents.Debug.ConfigReader.get_config(domain_module)
