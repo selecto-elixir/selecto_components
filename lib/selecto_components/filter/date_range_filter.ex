@@ -4,19 +4,18 @@ defmodule SelectoComponents.Filter.DateRangeFilter do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
-  
-  @date_presets [
-    {"Today", :today},
-    {"Yesterday", :yesterday},
-    {"Last 7 days", :last_7_days},
-    {"Last 30 days", :last_30_days},
-    {"This month", :this_month},
-    {"Last month", :last_month},
-    {"This year", :this_year},
-    {"Last year", :last_year},
-    {"Custom", :custom}
-  ]
+
+  # @date_presets [
+  #   {"Today", :today},
+  #   {"Yesterday", :yesterday},
+  #   {"Last 7 days", :last_7_days},
+  #   {"Last 30 days", :last_30_days},
+  #   {"This month", :this_month},
+  #   {"Last month", :last_month},
+  #   {"This year", :this_year},
+  #   {"Last year", :last_year},
+  #   {"Custom", :custom}
+  # ]
   
   @doc """
   Date range filter component with presets.
@@ -141,8 +140,8 @@ defmodule SelectoComponents.Filter.DateRangeFilter do
   Format date range for display.
   """
   def format_date_range(nil, nil, _preset), do: ""
-  def format_date_range(start_date, end_date, :today), do: "Today"
-  def format_date_range(start_date, end_date, :yesterday), do: "Yesterday"
+  def format_date_range(_start_date, _end_date, :today), do: "Today"
+  def format_date_range(_start_date, _end_date, :yesterday), do: "Yesterday"
   def format_date_range(start_date, end_date, preset) when preset in [:last_7_days, :last_30_days] do
     "#{start_date} to #{end_date}"
   end
