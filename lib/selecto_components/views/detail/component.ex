@@ -4,12 +4,8 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.Common
-  import SelectoComponents.Components.NestedTable
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.EnhancedTable.Sorting
-  alias SelectoComponents.EnhancedTable.ColumnManager
-  alias SelectoComponents.EnhancedTable.ResponsiveWrapper
-  alias SelectoComponents.EnhancedTable.Virtualization
   use Phoenix.LiveComponent
 
   def mount(socket) do
@@ -359,40 +355,22 @@ defmodule SelectoComponents.Views.Detail.Component do
     {:noreply, socket}
   end
 
-  def handle_event("resize_column", %{"column_id" => column_id, "width" => width}, socket) do
-    new_width = String.to_integer(width)
+  def handle_event("resize_column", %{"column_id" => _column_id, "width" => _width}, socket) do
     # Column resize handled by client-side JS
     {:noreply, socket}
   end
 
-  def handle_event("reorder_columns", %{"columns" => column_order}, socket) do
-    # Get current columns to reset with new order
-    columns = socket.assigns[:columns] || []
+  def handle_event("reorder_columns", %{"columns" => _column_order}, socket) do
     # Column reorder handled by client-side JS
     {:noreply, socket}
   end
 
   def handle_event("reset_columns", _params, socket) do
-    # Get initial columns to reset
-    columns = if Map.has_key?(socket.assigns, :selecto) do
-      Map.get(socket.assigns.selecto.set, :columns, [])
-      |> Enum.map(fn col -> 
-        %{
-          id: col["field"],
-          name: col["alias"] || col["field"],
-          width: 150,
-          min_width: 50,
-          max_width: 500
-        }
-      end)
-    else
-      []
-    end
-    # Column reset
+    # Column reset handled by client-side JS
     {:noreply, socket}
   end
 
-  def handle_event("viewport_change", params, socket) do
+  def handle_event("viewport_change", _params, socket) do
     # Viewport change handled by client-side JS
     {:noreply, socket}
   end
@@ -402,12 +380,12 @@ defmodule SelectoComponents.Views.Detail.Component do
     {:noreply, socket}
   end
 
-  def handle_event("virtual_scroll", params, socket) do
+  def handle_event("virtual_scroll", _params, socket) do
     # Scroll handled by client-side JS
     {:noreply, socket}
   end
 
-  def handle_event("row_height_changed", %{"index" => index, "height" => height}, socket) do
+  def handle_event("row_height_changed", %{"index" => _index, "height" => _height}, socket) do
     # Row height update handled by client-side JS
     {:noreply, socket}
   end
@@ -417,19 +395,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     socket = assign(socket, virtual_scroll: Map.put(virtual, :viewport_height, height))
     {:noreply, socket}
   end
-  
-  # Helper function to initialize column configuration
-  defp init_columns_config(columns) do
-    Enum.map(columns, fn col ->
-      %{
-        id: col,
-        visible: true,
-        width: "auto",
-        locked: false
-      }
-    end)
-  end
-  
+
   def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
     index = String.to_integer(row_index)
 
@@ -473,9 +439,21 @@ defmodule SelectoComponents.Views.Detail.Component do
     send(self(), :load_more_virtual_data)
     {:noreply, socket}
   end
-  
+
+  # Helper function to initialize column configuration
+  defp init_columns_config(columns) do
+    Enum.map(columns, fn col ->
+      %{
+        id: col,
+        visible: true,
+        width: "auto",
+        locked: false
+      }
+    end)
+  end
+
   # Helper function to build related data configuration
-  defp build_related_data(record, socket) do
+  defp build_related_data(_record, _socket) do
     # This would be configured based on the domain/schema relationships
     # For now, return empty map - parent component can override
     %{}

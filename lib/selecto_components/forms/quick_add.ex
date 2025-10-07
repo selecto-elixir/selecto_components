@@ -4,7 +4,6 @@ defmodule SelectoComponents.Forms.QuickAdd do
   """
   
   use Phoenix.LiveComponent
-  alias Phoenix.LiveView.JS
   
   @impl true
   def mount(socket) do
@@ -408,7 +407,7 @@ defmodule SelectoComponents.Forms.QuickAdd do
   end
   
   def handle_event("submit_form", params, socket) do
-    if Map.size(socket.assigns.validation_errors) > 0 do
+    if map_size(socket.assigns.validation_errors) > 0 do
       {:noreply, assign(socket, error_message: "Please fix validation errors before submitting")}
     else
       {:noreply,
@@ -504,7 +503,6 @@ defmodule SelectoComponents.Forms.QuickAdd do
     end
   end
   
-  @impl true
   def handle_info({:save_complete, _id}, socket) do
     {:noreply,
       socket
@@ -517,14 +515,14 @@ defmodule SelectoComponents.Forms.QuickAdd do
       |> schedule_message_dismiss()
     }
   end
-  
+
+  def handle_info({:auto_dismiss_message, _id}, socket) do
+    {:noreply, assign(socket, success_message: nil, error_message: nil)}
+  end
+
   defp schedule_message_dismiss(socket) do
     Process.send_after(self(), {:auto_dismiss_message, socket.assigns.id}, 5000)
     socket
-  end
-  
-  def handle_info({:auto_dismiss_message, _id}, socket) do
-    {:noreply, assign(socket, success_message: nil, error_message: nil)}
   end
   
   @doc """

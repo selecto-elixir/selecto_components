@@ -5,7 +5,6 @@ defmodule SelectoComponents.Theme.ThemeSwitcher do
   
   use Phoenix.LiveComponent
   alias SelectoComponents.Theme.ThemeProvider
-  alias Phoenix.LiveView.JS
   
   @impl true
   def mount(socket) do
@@ -471,12 +470,12 @@ defmodule SelectoComponents.Theme.ThemeSwitcher do
     socket
   end
   
-  defp save_theme_preference(socket, theme) do
+  defp save_theme_preference(socket, _theme) do
     # Save to localStorage via hooks
     socket
   end
-  
-  defp save_custom_theme(socket, theme) do
+
+  defp save_custom_theme(socket, _theme) do
     # Save custom theme to storage
     socket
   end

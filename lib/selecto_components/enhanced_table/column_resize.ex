@@ -4,7 +4,6 @@ defmodule SelectoComponents.EnhancedTable.ColumnResize do
   """
   
   use Phoenix.Component
-  alias Phoenix.LiveView.JS
   
   @doc """
   Initialize column resize state.
@@ -149,7 +148,7 @@ defmodule SelectoComponents.EnhancedTable.ColumnResize do
   @doc """
   Load column configuration from storage.
   """
-  def load_column_configuration(socket, table_id) do
+  def load_column_configuration(socket, _table_id) do
     # In a real app, this would load from database or localStorage
     socket
   end

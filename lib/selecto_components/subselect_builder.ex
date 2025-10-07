@@ -84,28 +84,28 @@ defmodule SelectoComponents.SubselectBuilder do
     result
   end
 
-  defp build_subselect_alias(relationship_path) do
-    # Convert relationship path to a valid SQL alias
-    # e.g., "actor" -> "actors_data"
-    base = relationship_path
-    |> String.split(".")
-    |> List.last()
-    |> pluralize()
+  # defp build_subselect_alias(relationship_path) do
+  #   # Convert relationship path to a valid SQL alias
+  #   # e.g., "actor" -> "actors_data"
+  #   base = relationship_path
+  #   |> String.split(".")
+  #   |> List.last()
+  #   |> pluralize()
 
-    "#{base}_data"
-  end
+  #   "#{base}_data"
+  # end
 
-  defp pluralize(word) do
-    # Simple pluralization for common patterns
-    cond do
-      String.ends_with?(word, "y") ->
-        String.slice(word, 0..-2//1) <> "ies"
-      String.ends_with?(word, "s") ->
-        word
-      true ->
-        word <> "s"
-    end
-  end
+  # defp pluralize(word) do
+  #   # Simple pluralization for common patterns
+  #   cond do
+  #     String.ends_with?(word, "y") ->
+  #       String.slice(word, 0..-2//1) <> "ies"
+  #     String.ends_with?(word, "s") ->
+  #       word
+  #     true ->
+  #       word <> "s"
+  #   end
+  # end
 
   defp format_as_json_array(results) do
     # Format results as JSON array for nested display
@@ -148,7 +148,7 @@ defmodule SelectoComponents.SubselectBuilder do
   @doc """
   Optimizes subselects for performance
   """
-  def optimize_subselects(selecto, subselect_configs) do
+  def optimize_subselects(selecto, _subselect_configs) do
     # Apply optimizations like:
     # - Combining multiple subselects on same table
     # - Using lateral joins where appropriate
