@@ -4,7 +4,6 @@ defmodule SelectoComponents.EnhancedTable.ColumnReorder do
   """
   
   use Phoenix.Component
-  alias Phoenix.LiveView.JS
   
   @doc """
   Initialize column reorder state.

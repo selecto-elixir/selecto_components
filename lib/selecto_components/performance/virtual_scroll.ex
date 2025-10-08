@@ -232,19 +232,19 @@ defmodule SelectoComponents.Performance.VirtualScroll do
   end
   
   defp render_row(assigns, row, index) do
-    assigns = 
+    assigns =
       assigns
-      |> Map.put(:row, row)
-      |> Map.put(:index, index)
-    
+      |> assign(:row, row)
+      |> assign(:index, index)
+
     ~H"""
     <div class="flex items-center p-2 border-b border-gray-200 hover:bg-gray-50">
       <%= if @render_slot do %>
-        <%= render_slot(@render_slot, row) %>
+        <%= render_slot(@render_slot, @row) %>
       <% else %>
         <%= for column <- @columns do %>
           <div class="flex-1 px-2">
-            <%= Map.get(row, column.field) %>
+            <%= Map.get(@row, column.field) %>
           </div>
         <% end %>
       <% end %>

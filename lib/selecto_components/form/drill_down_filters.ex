@@ -20,7 +20,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     {_, _, _, opt} =
       Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-    new_view_mode = Map.get(opt, :drill_down, "detail")
+    _new_view_mode = Map.get(opt, :drill_down, "detail")
 
     view_params =
       %{socket.assigns.used_params | "view_mode" => "detail"}

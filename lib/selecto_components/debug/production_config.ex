@@ -1,5 +1,5 @@
 defmodule SelectoComponents.Debug.ProductionConfig do
-  use Bitwise
+  import Bitwise
   
   @moduledoc """
   Secure configuration for enabling debug panel in production.
@@ -38,10 +38,10 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   @doc """
   Get the configured debug features based on environment.
   """
-  def get_debug_config(domain_module, view_type, params \\ %{}, session \\ %{}) do
+  def get_debug_config(domain_module, _view_type, params \\ %{}, session \\ %{}) do
     if debug_enabled?(params, session) do
       # Use the existing ConfigReader to get debug configuration
-      SelectoComponents.Debug.ConfigReader.get_debug_config(domain_module, view_type)
+      SelectoComponents.Debug.ConfigReader.get_config(domain_module)
     else
       # Return empty config if debug is not enabled
       %{}

@@ -635,7 +635,19 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket) do
-    params = Plug.Conn.Query.encode(params)
-    Phoenix.LiveView.push_patch(socket, to: "#{socket.assigns.my_path}?#{params}")
+    require Logger
+    params_encoded = Plug.Conn.Query.encode(params)
+    my_path = socket.assigns.my_path
+    full_path = "#{my_path}?#{params_encoded}"
+
+    Logger.debug("=== STATE_TO_URL DEBUG ===")
+    Logger.debug("my_path from assigns: #{inspect(my_path)}")
+    Logger.debug("my_path type: #{inspect(is_binary(my_path))}")
+    Logger.debug("my_path starts with /?: #{inspect(String.starts_with?(my_path || "", "/"))}")
+    Logger.debug("params_encoded length: #{String.length(params_encoded)}")
+    Logger.debug("full_path: #{inspect(full_path)}")
+    Logger.debug("full_path starts with /?: #{inspect(String.starts_with?(full_path, "/"))}")
+
+    Phoenix.LiveView.push_patch(socket, to: full_path)
   end
 end

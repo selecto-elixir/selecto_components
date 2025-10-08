@@ -4,7 +4,6 @@ defmodule SelectoComponents.Performance.Dashboard do
   """
 
   use Phoenix.LiveComponent
-  alias Phoenix.LiveView.JS
 
   def render(assigns) do
     ~H"""

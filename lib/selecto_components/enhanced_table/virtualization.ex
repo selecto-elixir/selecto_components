@@ -8,7 +8,6 @@ defmodule SelectoComponents.EnhancedTable.Virtualization do
   
   @default_row_height 48
   @default_buffer_size 5
-  @default_page_size 50
   @default_overscan 3
   @default_viewport_height 600
   

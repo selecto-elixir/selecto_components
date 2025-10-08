@@ -366,15 +366,15 @@ defmodule SelectoComponents.Form do
     |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
   end
 
-  defp build_available_fields(selecto) do
-    Selecto.columns(selecto)
-    |> Enum.map(fn {field_id, column} ->
-      field_id_str = if is_atom(field_id), do: Atom.to_string(field_id), else: to_string(field_id)
-      field_name = Map.get(column, :name, field_id_str)
-      {field_id_str, %{name: field_name}}
-    end)
-    |> Map.new()
-  end
+  # defp build_available_fields(selecto) do
+  #   Selecto.columns(selecto)
+  #   |> Enum.map(fn {field_id, column} ->
+  #     field_id_str = if is_atom(field_id), do: Atom.to_string(field_id), else: to_string(field_id)
+  #     field_name = Map.get(column, :name, field_id_str)
+  #     {field_id_str, %{name: field_name}}
+  #   end)
+  #   |> Map.new()
+  # end
 
   # Helper to extract selected columns from params for pivot detection
   # This function is used both internally and by Selecto.AutoPivot

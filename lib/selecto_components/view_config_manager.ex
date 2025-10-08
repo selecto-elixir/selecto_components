@@ -5,7 +5,6 @@ defmodule SelectoComponents.ViewConfigManager do
   """
 
   use Phoenix.LiveComponent
-  import Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -52,7 +51,7 @@ defmodule SelectoComponents.ViewConfigManager do
         <div class="relative">
           <button
             type="button"
-            phx-click={toggle_load_menu()}
+            phx-click="toggle_load_menu"
             phx-target={@myself}
             class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
@@ -276,10 +275,6 @@ defmodule SelectoComponents.ViewConfigManager do
     end
   end
 
-  defp toggle_load_menu do
-    JS.push("toggle_load_menu")
-  end
-
   @impl true
   def handle_event("toggle_load_menu", _params, socket) do
     {:noreply, assign(socket, show_load_menu: !socket.assigns.show_load_menu)}
@@ -403,16 +398,16 @@ defmodule SelectoComponents.ViewConfigManager do
     end
   end
 
-  defp view_config_to_params(view_config) when is_struct(view_config) do
-    Map.from_struct(view_config)
-    |> Map.drop([:__struct__, :__meta__])
-    |> sanitize_for_json()
-  end
+  # defp view_config_to_params(view_config) when is_struct(view_config) do
+  #   Map.from_struct(view_config)
+  #   |> Map.drop([:__struct__, :__meta__])
+  #   |> sanitize_for_json()
+  # end
 
-  defp view_config_to_params(view_config) when is_map(view_config) do
-    view_config
-    |> sanitize_for_json()
-  end
+  # defp view_config_to_params(view_config) when is_map(view_config) do
+  #   view_config
+  #   |> sanitize_for_json()
+  # end
 
   # Convert tuples to lists for JSON encoding
   defp sanitize_for_json(data) when is_map(data) do
