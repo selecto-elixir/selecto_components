@@ -5,6 +5,7 @@ defmodule SelectoComponents.Dashboard.Widget do
   """
   
   use Phoenix.Component
+  alias Phoenix.LiveView.JS
   
   @default_config %{
     title: "Widget",
@@ -267,7 +268,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     assign(assigns, :config, config)
   end
   
-  defp render_widget_content(%{type: type, data: data} = assigns) do
+  defp render_widget_content(%{type: type, data: _data} = assigns) do
     case type do
       :chart -> render_chart_widget(assigns)
       :table -> render_table_widget(assigns)

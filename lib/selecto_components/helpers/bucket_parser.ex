@@ -104,7 +104,7 @@ defmodule SelectoComponents.Helpers.BucketParser do
   @doc """
   Generate filter for a specific bucket
   """
-  def generate_bucket_filter(field_name, bucket_label, bucket_ranges) do
+  def generate_bucket_filter(_field_name, bucket_label, bucket_ranges) do
     ranges = parse_bucket_ranges(bucket_ranges)
 
     case Enum.find(ranges, fn {_, _, label} -> label == bucket_label end) do

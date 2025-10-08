@@ -5,7 +5,6 @@ defmodule SelectoComponents.Slots.SlotProvider do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
   
   @doc """
   Defines a slot area that can accept custom content.
@@ -246,10 +245,10 @@ defmodule SelectoComponents.Slots.SlotProvider do
   end
   defp apply_validation(_, content), do: {:ok, content}
   
-  defp merge_slot_content(default, custom) when is_list(custom) do
+  defp merge_slot_content(_default, custom) when is_list(custom) do
     custom
   end
-  defp merge_slot_content(default, custom) when is_function(custom) do
+  defp merge_slot_content(_default, custom) when is_function(custom) do
     custom.()
   end
   defp merge_slot_content(default, _), do: default

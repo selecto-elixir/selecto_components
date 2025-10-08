@@ -4,7 +4,6 @@ defmodule SelectoComponents.EnhancedTable.InlineEdit do
   """
   
   use Phoenix.Component
-  alias Phoenix.LiveView.JS
   
   @doc """
   Initialize inline editing state for a component.
@@ -48,10 +47,10 @@ defmodule SelectoComponents.EnhancedTable.InlineEdit do
         |> assign(editing_cells: editing_cells)
         |> assign(validation_errors: Map.delete(socket.assigns.validation_errors, cell_id))
         
-      {:error, error_message} ->
-        assign(socket, 
-          validation_errors: Map.put(socket.assigns.validation_errors, cell_id, error_message)
-        )
+      # {:error, error_message} ->
+      #   assign(socket,
+      #     validation_errors: Map.put(socket.assigns.validation_errors, cell_id, error_message)
+      #   )
     end
   end
   
@@ -256,14 +255,14 @@ defmodule SelectoComponents.EnhancedTable.InlineEdit do
   end
   
   # Validation
-  defp validate_cell_value(socket, _cell_id, value) do
+  defp validate_cell_value(_socket, _cell_id, value) do
     # Get field configuration and apply validation rules
     # This would be customized based on domain/schema
     {:ok, value}
   end
-  
+
   # Apply optimistic update to UI
-  defp apply_optimistic_update(socket, cell_id, new_value) do
+  defp apply_optimistic_update(socket, _cell_id, _new_value) do
     # Update the data in the socket assigns
     # This would update the actual data being displayed
     socket

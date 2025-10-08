@@ -69,19 +69,17 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         {:noreply, socket}
       end
 
-      @doc """
-      Normalizes query results from list format to map format.
-
-      This ensures consistent result format throughout the application.
-      Results are converted from [[val1, val2], ...] format to
-      [%{col1 => val1, col2 => val2}, ...] format.
-
-      ## Parameters
-      - socket: LiveView socket
-
-      ## Returns
-      Socket with normalized query_results
-      """
+      # Normalizes query results from list format to map format.
+      #
+      # This ensures consistent result format throughout the application.
+      # Results are converted from [[val1, val2], ...] format to
+      # [%{col1 => val1, col2 => val2}, ...] format.
+      #
+      # ## Parameters
+      # - socket: LiveView socket
+      #
+      # ## Returns
+      # Socket with normalized query_results
       defp normalize_query_results(socket) do
         case socket.assigns[:query_results] do
           {rows, columns, aliases} when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
@@ -229,17 +227,15 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         {:noreply, socket}
       end
 
-      @doc """
-      Helper function to execute view from current state.
-
-      Converts current view_config to parameters and executes the query.
-
-      ## Parameters
-      - socket: LiveView socket
-
-      ## Returns
-      Socket with executed query results
-      """
+      # Helper function to execute view from current state.
+      #
+      # Converts current view_config to parameters and executes the query.
+      #
+      # ## Parameters
+      # - socket: LiveView socket
+      #
+      # ## Returns
+      # Socket with executed query results
       defp execute_view_from_current_state(socket) do
         params = ParamsState.view_config_to_params(socket.assigns.view_config)
         ParamsState.view_from_params(params, socket)

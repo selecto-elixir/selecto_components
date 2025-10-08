@@ -4,7 +4,6 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
   """
   
   use Phoenix.Component
-  import Phoenix.LiveView
   
   @doc """
   Multi-select filter component with search and checkboxes.
