@@ -12,7 +12,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
   import SelectoComponents.Components.Common
 
-  attr(:avail, :list, required: true)
+  attr(:available, :list, required: true)
   attr(:selected_items, :list, required: true)
   attr(:fieldname, :string, required: true)
 
@@ -20,7 +20,11 @@ defmodule SelectoComponents.Components.ListPicker do
   # TODO fix the selected items spacing ...
   def render(assigns) do
     {view_id, _, _, _} = assigns.view
-    assigns = assign(assigns, view_id: view_id)
+    # Sort available items alphabetically by display name (second element in tuple)
+    sorted_available = Enum.sort_by(assigns.available, fn {_id, name, _format} -> String.downcase(name) end)
+    assigns = assigns
+    |> assign(view_id: view_id)
+    |> assign(available: sorted_available)
 
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
