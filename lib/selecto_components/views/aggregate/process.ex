@@ -47,11 +47,25 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     group_by = group_by_params |> group_by(columns)
     Logger.debug("Processed group_by: #{inspect(group_by, pretty: true)}")
 
-    selected = Enum.map(group_by, fn {_c, sel} -> sel end) ++ aggregate
-    Logger.debug("Selected fields: #{inspect(selected, pretty: true)}")
+    # Wrap group-by fields in COALESCE to display '[NULL]' for NULL values
+    # This handles both data NULLs (from LEFT JOIN) and ROLLUP NULLs
+    group_by_with_coalesce = Enum.map(group_by, fn {col, sel} ->
+      # Wrap the selector in COALESCE
+      coalesced_sel = case sel do
+        {:field, field_expr, alias} ->
+          {:field, {:coalesce, [field_expr, {:literal, "[NULL]"}]}, alias}
+        other ->
+          # For already complex selectors, just return as-is
+          other
+      end
+      {col, coalesced_sel}
+    end)
+
+    selected = Enum.map(group_by_with_coalesce, fn {_c, sel} -> sel end) ++ aggregate
+    Logger.debug("Selected fields (with COALESCE): #{inspect(selected, pretty: true)}")
 
     view_set = %{
-       groups: group_by,
+       groups: group_by_with_coalesce,
        gb_params: group_by_params,
        aggregates: aggregate,
        selected: selected,

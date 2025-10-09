@@ -27,7 +27,13 @@ defmodule SelectoComponents.Helpers.Filters do
       "null" ->
         nil
 
+      "IS_EMPTY" ->
+        nil
+
       "not_null" ->
+        :not_null
+
+      "IS_NOT_EMPTY" ->
         :not_null
 
       "between" ->
@@ -47,7 +53,9 @@ defmodule SelectoComponents.Helpers.Filters do
 
     case comp do
       "null" -> {Map.get(filter, "filter"), nil}
+      "IS_EMPTY" -> {Map.get(filter, "filter"), nil}
       "not_null" -> {Map.get(filter, "filter"), :not_null}
+      "IS_NOT_EMPTY" -> {Map.get(filter, "filter"), :not_null}
       _ ->
         ignore_case = Map.get(filter, "ignore_case")
 
@@ -62,7 +70,9 @@ defmodule SelectoComponents.Helpers.Filters do
         valpart = case comp do
           "=" -> value
           "null" -> nil
+          "IS_EMPTY" -> nil
           "not_null" -> :not_null
+          "IS_NOT_EMPTY" -> :not_null
           x when x in ~w( != <= >= < >) -> {x, value}
           "starts" -> {:like, sanitize_like_value(value) <> "%"}
           "ends" -> {:like, "%" <> sanitize_like_value(value)}
@@ -218,7 +228,9 @@ defmodule SelectoComponents.Helpers.Filters do
               "=" -> {:between, start, stop}
               "!=" -> {:not, {:between, start, stop}}
               "IS NULL" -> :is_null
+              "IS_EMPTY" -> nil
               "IS NOT NULL" -> :is_not_null
+              "IS_NOT_EMPTY" -> :not_null
               _ -> {:between, start, stop}
             end
         end
