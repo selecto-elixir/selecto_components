@@ -15,29 +15,93 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   # Determine the hierarchy level of a ROLLUP result row
-  # Level is determined by counting non-nil values in group columns
-  # Level 0 = grand total (all nils), Level 1 = first grouping, Level 2 = detail rows, etc.
+  # With COALESCE, NULL values appear as "[NULL]" strings
+  # ROLLUP NULLs remain as nil or empty string
   defp rollup_level(row, num_group_by_cols) do
     group_cols = Enum.take(row, num_group_by_cols)
-    non_nil_count = Enum.count(group_cols, fn col -> not is_nil(col) end)
+    non_nil_count = Enum.count(group_cols, fn col ->
+      # Count as filled if:
+      # - Not nil
+      # - Not empty string (ROLLUP NULL)
+      # - Not "[NULL]" string (but this IS a filled value from COALESCE - data NULL)
+      not is_nil(col) and col != ""
+    end)
     non_nil_count
   end
 
   # Prepare ROLLUP results with hierarchy metadata
+  # With COALESCE, data NULLs show as "[NULL]", ROLLUP NULLs show as nil/empty
+  # Filter out redundant [NULL] rows that are identical to their rollup subtotal
   defp prepare_rollup_rows(results, num_group_by_cols) do
-    results
-    |> Enum.map(fn row ->
+    rows_with_metadata = results
+    |> Enum.with_index()
+    |> Enum.map(fn {row, idx} ->
       level = rollup_level(row, num_group_by_cols)
+      group_cols = Enum.take(row, num_group_by_cols)
+
+      # Check if this row has [NULL] at its current level (data NULL from LEFT JOIN)
+      # Level 0 = grand total (no [NULL] possible)
+      # Level N = first N columns filled, so check position N-1 for [NULL]
+      has_null_at_level = level > 0 && Enum.at(group_cols, level - 1) == "[NULL]"
+
+      {level, row, has_null_at_level, idx}
+    end)
+
+    # Filter out [NULL] rows if the next row (rollup subtotal) has identical aggregates
+    rows_with_metadata
+    |> Enum.with_index()
+    |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
+      if has_null_at_level do
+        # This is a row ending with [NULL] - check if next row is its rollup with same values
+        next_row = Enum.at(rows_with_metadata, current_idx + 1)
+        group_cols = Enum.take(row, num_group_by_cols)
+
+        case next_row do
+          {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
+            # Next row is at the right level - verify it's OUR rollup by checking group columns
+            current_group_prefix = Enum.take(group_cols, level - 1)
+            next_group_cols = Enum.take(next_row_data, num_group_by_cols)
+            next_group_prefix = Enum.take(next_group_cols, level - 1)
+
+            if current_group_prefix == next_group_prefix do
+              # Same group - this is our rollup subtotal, compare aggregates
+              current_aggs = Enum.drop(row, num_group_by_cols)
+              next_aggs = Enum.drop(next_row_data, num_group_by_cols)
+
+              # If aggregates are identical, skip this [NULL] row (redundant)
+              not (current_aggs == next_aggs)
+            else
+              # Different group - this must be end of our group, skip [NULL] row (redundant)
+              false
+            end
+
+          _ ->
+            # Next row is not at the right level or doesn't exist - skip [NULL] row
+            false
+        end
+      else
+        # Not a [NULL] row, always keep
+        true
+      end
+    end)
+    |> Enum.map(fn {{level, row, _has_null, _orig_idx}, _current_idx} ->
       {level, row}
     end)
   end
 
-  # Format a value for display, handling tuples
+  # Format a value for display
+  # With COALESCE, "[NULL]" strings are already in the data and should be displayed as-is
+  # ROLLUP NULLs (nil/empty) should also be shown as "[NULL]"
   defp format_value(value) do
     case value do
+      nil -> "[NULL]"
+      "" -> "[NULL]"  # Empty string from ROLLUP NULL
+      {display_value, _id} when is_nil(display_value) or display_value == "" -> "[NULL]"
       {display_value, _id} -> display_value
-      tuple when is_tuple(tuple) -> elem(tuple, 0)
-      _ -> value
+      tuple when is_tuple(tuple) ->
+        elem_val = elem(tuple, 0)
+        if is_nil(elem_val) or elem_val == "", do: "[NULL]", else: elem_val
+      _ -> value  # Includes "[NULL]" strings from COALESCE
     end
   end
 
@@ -52,13 +116,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   # Build filter attributes for drill-down from group column values
+  # Now includes special handling for NULL values - uses "__NULL__" marker for IS_EMPTY filter
   defp build_filter_attrs(group_cols, group_by_defs, level) do
     group_cols
     |> Enum.zip(group_by_defs)
     |> Enum.with_index()
-    |> Enum.filter(fn {{value, _def}, idx} ->
-      # Include all non-nil values up to current level
-      not is_nil(value) and idx < level
+    |> Enum.filter(fn {{_value, _def}, idx} ->
+      # Include all values (including nil) up to current level
+      idx < level
     end)
     |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, _idx}, acc ->
       # Determine the filter field name
@@ -68,17 +133,30 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         %{"group_by_filter" => filter} when not is_nil(filter) ->
           filter
         _ ->
-          # Extract field name from field tuple
+          # Extract field name from field tuple, handling COALESCE wrapper
           case field do
-            {:field, {:to_char, {field_name, _format}}, _} -> field_name
+            {:field, {:coalesce, [inner_field | _]}, _} ->
+              # Field is wrapped in COALESCE - extract the inner field
+              case inner_field do
+                {:to_char, {field_name, _format}} -> Atom.to_string(field_name)
+                field_id when is_atom(field_id) -> Atom.to_string(field_id)
+                field_id when is_binary(field_id) -> field_id
+                _ -> "id"
+              end
+            {:field, {:to_char, {field_name, _format}}, _} -> Atom.to_string(field_name)
             {:field, field_id, _} when is_atom(field_id) -> Atom.to_string(field_id)
             {:field, field_id, _} when is_binary(field_id) -> field_id
             _ -> "id"
           end
       end
 
-      # Extract the actual value (handle tuples)
+      # Extract the actual value (handle tuples and NULL)
       filter_value = case value do
+        nil -> "__NULL__"  # Special marker for IS_EMPTY filter (ROLLUP NULL)
+        "" -> "__NULL__"  # Empty string from ROLLUP NULL
+        "[NULL]" -> "__NULL__"  # COALESCE result for data NULL
+        {_display, "[NULL]"} -> "__NULL__"  # COALESCE result in tuple
+        {_display, filter_val} when is_nil(filter_val) or filter_val == "" -> "__NULL__"
         {_display, filter_val} -> filter_val
         _ -> value
       end
@@ -131,12 +209,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
         <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
           <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
-            <%= if is_nil(value) do %>
-              <%= if @level == 0 and idx == 0 do %>
-                <span class="text-gray-400 italic">Total</span>
-              <% end %>
+            <%= if @level == 0 and idx == 0 do %>
+              <%!-- Grand total row --%>
+              <span class="text-gray-400 italic">Total</span>
             <% else %>
-              <%!-- Show value only for the rightmost filled column at this level --%>
+              <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
               <%= if idx == @level - 1 do %>
                 <div phx-click="agg_add_filters" {@filter_attrs} class="cursor-pointer hover:underline">

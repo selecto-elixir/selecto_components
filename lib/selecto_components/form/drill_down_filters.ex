@@ -131,6 +131,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   Determine the appropriate comparison operator and values based on the clicked value format.
 
   Handles:
+  - NULL values (creates IS_EMPTY filter)
   - Bucket ranges (1-10, 11+, Other)
   - Date formats (YYYY-MM-DD, YYYY-MM, YYYY)
   - Age buckets on date fields
@@ -138,6 +139,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   """
   def determine_filter_comp_and_values(value, field_conf, is_age_bucket) do
     cond do
+      # Special marker for NULL values - create IS_EMPTY filter
+      value == "__NULL__" ->
+        {"IS_EMPTY", "", ""}
+
       # Bucket range patterns
       String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
         handle_bucket_range(value, field_conf, is_age_bucket)
