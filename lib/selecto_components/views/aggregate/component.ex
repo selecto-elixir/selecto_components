@@ -31,17 +31,68 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Prepare ROLLUP results with hierarchy metadata
   # With COALESCE, data NULLs show as "[NULL]", ROLLUP NULLs show as nil/empty
+  # Filter out redundant [NULL] rows that are identical to their rollup subtotal
   defp prepare_rollup_rows(results, num_group_by_cols) do
     require Logger
 
-    results
+    rows_with_metadata = results
     |> Enum.with_index()
     |> Enum.map(fn {row, idx} ->
       level = rollup_level(row, num_group_by_cols)
       group_cols = Enum.take(row, num_group_by_cols)
 
-      Logger.debug("ROLLUP Row #{idx}: level=#{level}, group_cols=#{inspect(group_cols)}")
+      # Check if this row has [NULL] at its current level (data NULL from LEFT JOIN)
+      # Level 0 = grand total (no [NULL] possible)
+      # Level N = first N columns filled, so check position N-1 for [NULL]
+      has_null_at_level = level > 0 && Enum.at(group_cols, level - 1) == "[NULL]"
 
+      Logger.debug("ROLLUP Row #{idx}: level=#{level}, has_null_at_level=#{has_null_at_level}, group_cols=#{inspect(group_cols)}")
+
+      {level, row, has_null_at_level, idx}
+    end)
+
+    # Filter out [NULL] rows if the next row (rollup subtotal) has identical aggregates
+    rows_with_metadata
+    |> Enum.with_index()
+    |> Enum.filter(fn {{level, row, has_null_at_level, orig_idx}, current_idx} ->
+      if has_null_at_level do
+        # This is a row ending with [NULL] - check if next row is its rollup with same values
+        next_row = Enum.at(rows_with_metadata, current_idx + 1)
+        group_cols = Enum.take(row, num_group_by_cols)
+
+        case next_row do
+          {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
+            # Next row is at the right level - verify it's OUR rollup by checking group columns
+            current_group_prefix = Enum.take(group_cols, level - 1)
+            next_group_cols = Enum.take(next_row_data, num_group_by_cols)
+            next_group_prefix = Enum.take(next_group_cols, level - 1)
+
+            if current_group_prefix == next_group_prefix do
+              # Same group - this is our rollup subtotal, compare aggregates
+              current_aggs = Enum.drop(row, num_group_by_cols)
+              next_aggs = Enum.drop(next_row_data, num_group_by_cols)
+
+              # If aggregates are identical, skip this [NULL] row (redundant)
+              skip = current_aggs == next_aggs
+              Logger.debug("Row #{orig_idx}: [NULL] row, next is our rollup, aggs equal=#{skip}")
+              not skip
+            else
+              # Different group - this must be end of our group, skip [NULL] row (redundant)
+              Logger.debug("Row #{orig_idx}: [NULL] row, different group next, skipping")
+              false
+            end
+
+          _ ->
+            # Next row is not at the right level or doesn't exist - skip [NULL] row
+            Logger.debug("Row #{orig_idx}: [NULL] row, no matching rollup, skipping")
+            false
+        end
+      else
+        # Not a [NULL] row, always keep
+        true
+      end
+    end)
+    |> Enum.map(fn {{level, row, _has_null, _orig_idx}, _current_idx} ->
       {level, row}
     end)
   end
