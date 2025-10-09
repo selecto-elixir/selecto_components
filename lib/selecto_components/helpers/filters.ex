@@ -240,8 +240,6 @@ defmodule SelectoComponents.Helpers.Filters do
   ## Build filters that can be sent to the selecto
   def filter_recurse(selecto, filters, section) do
     #### TODO handle errors
-    require Logger
-    Logger.debug("filter_recurse called with section: #{section}, filters: #{inspect(filters)}")
 
     # Filter out any bucket_ranges strings that shouldn't be filters
     section_filters = Map.get(filters, section, [])
@@ -341,7 +339,6 @@ defmodule SelectoComponents.Helpers.Filters do
           end
         end
     end)
-    Logger.debug("filter_recurse returning: #{inspect(result)}")
     result
   end
 

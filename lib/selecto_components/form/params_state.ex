@@ -166,28 +166,18 @@ defmodule SelectoComponents.Form.ParamsState do
         end)
       end)
 
-    Logger.debug("=== FILTER PROCESSING IN view_from_params ===")
-    Logger.debug("Raw filters from params: #{inspect(Map.get(params, "filters", %{}), pretty: true)}")
-
     filters_by_section =
       Map.get(params, "filters", %{})
       |> Map.values()
       |> Enum.filter(fn f ->
         # Only include actual filters with required fields
-        is_valid = is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp") && Map.has_key?(f, "section")
-        if not is_valid do
-          Logger.debug("Rejecting invalid filter entry: #{inspect(f, pretty: true)}")
-        end
-        is_valid
+        is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp") && Map.has_key?(f, "section")
       end)
       |> Enum.reduce(%{}, fn f, acc ->
         Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
       end)
 
-    Logger.debug("Filters by section after validation: #{inspect(filters_by_section, pretty: true)}")
-
     filtered = filter_recurse(selecto, filters_by_section, "filters")
-    Logger.debug("Filtered result from filter_recurse: #{inspect(filtered, pretty: true)}")
 
     selected_view = String.to_atom(Map.get(params, "view_mode"))
 
@@ -215,11 +205,7 @@ defmodule SelectoComponents.Form.ParamsState do
         raise "View mode '#{selected_view}' not found in configured views"
     end
 
-    Logger.debug("=== FORM VIEW_SET ASSIGNMENT ===")
-    Logger.debug("View_set being assigned to selecto.set: #{inspect(view_set, pretty: true)}")
-    Logger.debug("View_set.filtered field: #{inspect(Map.get(view_set, :filtered), pretty: true)}")
     selecto = Map.put(selecto, :set, view_set)
-    Logger.debug("selecto.set.filtered after assignment: #{inspect(selecto.set.filtered, pretty: true)}")
 
     # Apply automatic pivot if needed
     view_mode = Map.get(params, "view_mode", "detail")
@@ -635,18 +621,9 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket) do
-    require Logger
     params_encoded = Plug.Conn.Query.encode(params)
     my_path = socket.assigns.my_path
     full_path = "#{my_path}?#{params_encoded}"
-
-    Logger.debug("=== STATE_TO_URL DEBUG ===")
-    Logger.debug("my_path from assigns: #{inspect(my_path)}")
-    Logger.debug("my_path type: #{inspect(is_binary(my_path))}")
-    Logger.debug("my_path starts with /?: #{inspect(String.starts_with?(my_path || "", "/"))}")
-    Logger.debug("params_encoded length: #{String.length(params_encoded)}")
-    Logger.debug("full_path: #{inspect(full_path)}")
-    Logger.debug("full_path starts with /?: #{inspect(String.starts_with?(full_path, "/"))}")
 
     Phoenix.LiveView.push_patch(socket, to: full_path)
   end
