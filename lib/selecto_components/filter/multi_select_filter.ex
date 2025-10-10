@@ -1,211 +1,257 @@
 defmodule SelectoComponents.Filter.MultiSelectFilter do
   @moduledoc """
-  Provides multi-select filtering for categorical data with search and bulk actions.
+  Multi-select filter component for join mode fields (lookup, star, tag).
+
+  Loads ID+name pairs from the database and displays:
+  - Checkbox list for lookup mode (<50 items)
+  - Searchable dropdown for star/tag modes
+
+  Users select by name, but IDs are stored for efficient filtering.
   """
-  
-  use Phoenix.Component
-  
-  @doc """
-  Multi-select filter component with search and checkboxes.
-  """
-  def multi_select_filter(assigns) do
+
+  use Phoenix.LiveComponent
+
+  @impl true
+  def mount(socket) do
+    {:ok, assign(socket, options: [], selected_ids: [], loading: true, search: "")}
+  end
+
+  @impl true
+  def update(assigns, socket) do
+    socket = assign(socket, assigns)
+
+    # Load options on first mount or when field changes
+    socket = if socket.assigns.loading or should_reload?(socket, assigns) do
+      load_options(socket)
+    else
+      socket
+    end
+
+    {:ok, socket}
+  end
+
+  defp should_reload?(socket, new_assigns) do
+    # Reload if field or filter_id changed
+    Map.get(socket.assigns, :field) != Map.get(new_assigns, :field)
+  end
+
+  @impl true
+  def render(assigns) do
+    assigns = assign(assigns, :join_mode, get_in(assigns, [:field_config, :join_mode]) || :lookup)
+
     ~H"""
-    <div class="multi-select-filter" phx-hook="MultiSelectFilter" id={@id}>
-      <div class="relative">
-        <%!-- Selected items display --%>
-        <div 
-          class="min-h-[38px] px-3 py-2 border border-gray-300 rounded-md shadow-sm cursor-pointer bg-white hover:border-gray-400"
-          phx-click="toggle_dropdown"
-          phx-value-field={@field}
-        >
-          <%= if length(@selected) > 0 do %>
-            <div class="flex flex-wrap gap-1">
-              <%= for item <- Enum.take(@selected, 3) do %>
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                  <%= item %>
-                  <button
-                    type="button"
-                    class="ml-1 inline-flex text-blue-400 hover:text-blue-600"
-                    phx-click="remove_selected"
-                    phx-value-field={@field}
-                    phx-value-item={item}
-                  >
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                    </svg>
-                  </button>
-                </span>
-              <% end %>
-              <%= if length(@selected) > 3 do %>
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                  +<%= length(@selected) - 3 %> more
-                </span>
-              <% end %>
-            </div>
-          <% else %>
-            <span class="text-gray-400">Select <%= @label || "items" %>...</span>
-          <% end %>
+    <div class="multi-select-filter">
+      <%= if @loading do %>
+        <div class="text-sm text-gray-400 italic p-2">
+          Loading options...
         </div>
-        
-        <%!-- Dropdown menu --%>
-        <div 
-          class={"absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 #{if @dropdown_open, do: "", else: "hidden"}"}
-          id={@field <> "_dropdown"}
-        >
-          <%!-- Search input --%>
-          <div class="p-2 border-b border-gray-200">
-            <input
-              type="text"
-              placeholder="Search..."
-              class="w-full px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              phx-keyup="search_options"
-              phx-value-field={@field}
-              phx-debounce="300"
-            />
-          </div>
-          
-          <%!-- Bulk actions --%>
-          <div class="px-2 py-1 border-b border-gray-200 flex items-center justify-between">
-            <div class="text-xs text-gray-600">
-              <%= length(@selected) %> of <%= length(@options) %> selected
-            </div>
-            <div class="space-x-2">
-              <button
-                type="button"
-                class="text-xs text-blue-600 hover:text-blue-800"
-                phx-click="select_all"
-                phx-value-field={@field}
-              >
-                Select All
-              </button>
-              <button
-                type="button"
-                class="text-xs text-blue-600 hover:text-blue-800"
-                phx-click="clear_all"
-                phx-value-field={@field}
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-          
-          <%!-- Options list --%>
-          <div class="max-h-60 overflow-y-auto">
-            <%= for {option, count} <- @filtered_options do %>
-              <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  checked={option in @selected}
-                  phx-click="toggle_option"
-                  phx-value-field={@field}
-                  phx-value-option={option}
-                />
-                <span class="ml-2 text-sm text-gray-700 flex-1"><%= option %></span>
-                <%= if count do %>
-                  <span class="text-xs text-gray-500">(<%= count %>)</span>
-                <% end %>
-              </label>
-            <% end %>
-            
-            <%= if @filtered_options == [] do %>
-              <div class="px-3 py-2 text-sm text-gray-500">No options found</div>
-            <% end %>
-          </div>
-          
-          <%!-- Apply button --%>
-          <div class="p-2 border-t border-gray-200">
-            <button
-              type="button"
-              class="w-full px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              phx-click="apply_multi_select"
-              phx-value-field={@field}
-            >
-              Apply Filter
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <%!-- Visual indicator --%>
-      <%= if length(@selected) > 0 do %>
-        <div class="mt-1 text-xs text-blue-600">
-          Filtering by <%= length(@selected) %> <%= if length(@selected) == 1, do: "value", else: "values" %>
-        </div>
+      <% else %>
+        <%= if @join_mode == :lookup and length(@options) < 20 do %>
+          <.checkbox_list {assigns} />
+        <% else %>
+          <.searchable_dropdown {assigns} />
+        <% end %>
       <% end %>
     </div>
     """
   end
-  
-  @doc """
-  Build filter expression for Selecto.
-  """
-  def build_filter_expression(_field, []), do: nil
-  def build_filter_expression(field, selected_values) do
-    placeholders = Enum.map(selected_values, fn _ -> "?" end) |> Enum.join(", ")
-    ["#{field} IN (#{placeholders})"] ++ selected_values
+
+  # Checkbox list for small datasets
+  defp checkbox_list(assigns) do
+    ~H"""
+    <div class="space-y-1">
+      <div class="text-xs text-gray-600 mb-2">
+        Select <%= get_in(@field_config, [:display_field]) || "options" %>:
+      </div>
+
+      <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white space-y-1">
+        <%= for opt <- @options do %>
+          <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              phx-click="toggle"
+              phx-value-id={opt.id}
+              phx-target={@myself}
+              checked={opt.id in @selected_ids}
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+            />
+            <span class="text-sm text-gray-900 flex-1"><%= opt.name %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <div class="text-xs text-gray-500 mt-1">
+        <%= length(@selected_ids) %> of <%= length(@options) %> selected
+      </div>
+    </div>
+    """
   end
-  
-  @doc """
-  Get unique values with counts from data.
-  """
-  def get_options_with_counts(data, field) do
-    data
-    |> Enum.map(& Map.get(&1, field))
-    |> Enum.filter(& &1)
-    |> Enum.frequencies()
-    |> Enum.sort_by(fn {_value, count} -> -count end)
+
+  # Searchable dropdown for larger datasets
+  defp searchable_dropdown(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <input
+        type="text"
+        phx-keyup="search"
+        phx-target={@myself}
+        phx-debounce="300"
+        value={@search}
+        placeholder="Search..."
+        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+      />
+
+      <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white space-y-1">
+        <%= for opt <- filtered_options(@options, @search) do %>
+          <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              phx-click="toggle"
+              phx-value-id={opt.id}
+              phx-target={@myself}
+              checked={opt.id in @selected_ids}
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+            />
+            <span class="text-sm text-gray-900 flex-1"><%= opt.name %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <div class="text-xs text-gray-500">
+        <%= length(@selected_ids) %> selected
+      </div>
+    </div>
+    """
   end
-  
-  @doc """
-  Filter options based on search term.
-  """
-  def filter_options(options, search_term) when search_term in [nil, ""], do: options
-  def filter_options(options, search_term) do
-    term = String.downcase(search_term)
-    Enum.filter(options, fn {option, _count} ->
-      String.downcase(to_string(option)) |> String.contains?(term)
+
+  defp filtered_options(options, ""), do: options
+  defp filtered_options(options, search) when is_binary(search) do
+    search_lower = String.downcase(search)
+    Enum.filter(options, fn opt ->
+      String.contains?(String.downcase(to_string(opt.name)), search_lower)
     end)
   end
-  
-  @doc """
-  JavaScript hooks for multi-select filter.
-  """
-  def js_hooks do
-    """
-    export const MultiSelectFilter = {
-      mounted() {
-        this.dropdown = this.el.querySelector('[id$="_dropdown"]');
-        this.handleOutsideClick = this.handleOutsideClick.bind(this);
-        
-        // Close dropdown on outside click
-        document.addEventListener('click', this.handleOutsideClick);
-        
-        // Prevent dropdown from closing when clicking inside
-        if (this.dropdown) {
-          this.dropdown.addEventListener('click', (e) => {
-            e.stopPropagation();
-          });
-        }
-        
-        // Handle keyboard navigation
-        this.el.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && !this.dropdown?.classList.contains('hidden')) {
-            this.pushEvent('close_dropdown', {field: this.el.id});
-          }
-        });
-      },
-      
-      destroyed() {
-        document.removeEventListener('click', this.handleOutsideClick);
-      },
-      
-      handleOutsideClick(e) {
-        if (!this.el.contains(e.target) && !this.dropdown?.classList.contains('hidden')) {
-          this.pushEvent('close_dropdown', {field: this.el.id});
-        }
-      }
-    };
-    """
+
+  @impl true
+  def handle_event("toggle", %{"id" => id_str}, socket) do
+    id = String.to_integer(id_str)
+    selected_ids = socket.assigns.selected_ids
+
+    selected_ids = if id in selected_ids do
+      List.delete(selected_ids, id)
+    else
+      [id | selected_ids]
+    end
+
+    # Update parent component with new value (comma-separated IDs)
+    value = Enum.join(selected_ids, ",")
+    send(self(), {:multi_select_changed, socket.assigns.filter_id, value})
+
+    {:noreply, assign(socket, selected_ids: selected_ids)}
   end
+
+  @impl true
+  def handle_event("search", %{"value" => search}, socket) do
+    {:noreply, assign(socket, search: search)}
+  end
+
+  # Load options from database
+  defp load_options(socket) do
+    field_config = socket.assigns[:field_config] || %{}
+    field = socket.assigns[:field]
+    selecto = socket.assigns[:selecto]
+    repo = socket.assigns[:repo]
+
+    # Parse field name to get schema and field
+    if is_binary(field) && String.contains?(field, ".") do
+      [schema_name, _field_name] = String.split(field, ".", parts: 2)
+
+      # Get schema configuration from domain
+      domain = Selecto.domain(selecto)
+
+      schema_atom = try do
+        String.to_existing_atom(schema_name)
+      rescue
+        ArgumentError -> nil
+      end
+
+      if schema_atom do
+        schema_config = get_in(domain, [:schemas, schema_atom])
+
+        if schema_config do
+          # Get table and field info
+          table = schema_config[:source_table]
+          id_field = field_config[:id_field] || :id
+          display_field = field_config[:display_field] || :name
+          join_mode = field_config[:join_mode] || :lookup
+
+          # Determine limit based on join mode
+          limit = case join_mode do
+            :lookup -> 100
+            :star -> 500
+            :tag -> 100
+          end
+
+          # Query options
+          options = query_table_options(repo, table, id_field, display_field, limit)
+
+          # Parse currently selected IDs from value
+          current_value = socket.assigns[:value] || ""
+          selected_ids = parse_ids(current_value)
+
+          assign(socket, options: options, selected_ids: selected_ids, loading: false)
+        else
+          assign(socket, options: [], selected_ids: [], loading: false)
+        end
+      else
+        assign(socket, options: [], selected_ids: [], loading: false)
+      end
+    else
+      assign(socket, options: [], selected_ids: [], loading: false)
+    end
+  rescue
+    error ->
+      require Logger
+      Logger.warning("Error loading multi-select options: #{inspect(error)}")
+      assign(socket, options: [], selected_ids: [], loading: false)
+  end
+
+  # Query database for ID+name pairs
+  defp query_table_options(repo, table, id_field, display_field, limit) do
+    query = """
+    SELECT #{id_field} as id, #{display_field} as name
+    FROM #{table}
+    WHERE #{display_field} IS NOT NULL
+    ORDER BY #{display_field}
+    LIMIT $1
+    """
+
+    case repo.query(query, [limit]) do
+      {:ok, %{rows: rows}} ->
+        Enum.map(rows, fn [id, name] ->
+          %{id: id, name: to_string(name)}
+        end)
+
+      {:error, error} ->
+        require Logger
+        Logger.warning("Query error loading options: #{inspect(error)}")
+        []
+    end
+  end
+
+  # Parse comma-separated IDs from value string
+  defp parse_ids(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(fn id_str ->
+      case Integer.parse(id_str) do
+        {id, _} -> id
+        :error -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp parse_ids(_), do: []
 end

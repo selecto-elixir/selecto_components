@@ -4,6 +4,7 @@ defmodule SelectoComponents.Filter.FilterRow do
   """
   
   use Phoenix.Component
+  alias SelectoComponents.Filter.MultiSelectFilter
   
   def filter_row(assigns) do
     assigns = assign_new(assigns, :editing, fn -> false end)
@@ -139,26 +140,33 @@ defmodule SelectoComponents.Filter.FilterRow do
             # Check if this field uses multi-select ID filtering (lookup/star/tag join modes)
             field_config = Map.get(@available_fields, @field, %{})
             is_multi_select_id = Map.get(field_config, :filter_type) == :multi_select_id
-            placeholder = if is_multi_select_id do
-              "Enter IDs (comma-separated, e.g., 1,2,3)..."
-            else
-              "Enter value..."
-            end
           %>
-          <input
-            type="text"
-            phx-change="update_filter_value"
-            phx-value-filter-id={@filter_id}
-            phx-target={@target}
-            name="value"
-            value={@value}
-            placeholder={placeholder}
-            class="block flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-          />
           <%= if is_multi_select_id do %>
-            <span class="text-xs text-gray-500 ml-2">
-              💡 Tip: Use IDs, not names
-            </span>
+            <%!-- Multi-select filter component for lookup/star/tag join modes --%>
+            <div class="flex-1">
+              <.live_component
+                module={MultiSelectFilter}
+                id={"multi-select-#{@filter_id}"}
+                filter_id={@filter_id}
+                field={@field}
+                field_config={field_config}
+                selecto={Map.get(assigns, :selecto)}
+                repo={Map.get(assigns, :repo)}
+                value={@value}
+              />
+            </div>
+          <% else %>
+            <%!-- Standard text input for regular fields --%>
+            <input
+              type="text"
+              phx-change="update_filter_value"
+              phx-value-filter-id={@filter_id}
+              phx-target={@target}
+              name="value"
+              value={@value}
+              placeholder="Enter value..."
+              class="block flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            />
           <% end %>
         <% else %>
           <div class="flex-1 text-sm text-gray-500 italic">No value needed</div>
