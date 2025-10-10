@@ -127,11 +127,29 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     end)
     |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, _idx}, acc ->
       # Determine the filter field name
+      # Check for special join modes (lookup, star, tag) that use ID-based filtering
       filter_field = case coldef do
         %{group_by_filter: filter} when not is_nil(filter) ->
           filter
         %{"group_by_filter" => filter} when not is_nil(filter) ->
           filter
+        # Special join modes - use the configured ID field for filtering
+        %{join_mode: mode, id_field: id_field} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+          # Get the table/schema prefix from the field
+          table_prefix = case field do
+            {:field, {:coalesce, [inner_field | _]}, _} ->
+              extract_table_prefix(inner_field)
+            {:field, field_ref, _} ->
+              extract_table_prefix(field_ref)
+            _ -> nil
+          end
+
+          # Build the filter field as "table.id_field"
+          if table_prefix do
+            "#{table_prefix}.#{id_field}"
+          else
+            Atom.to_string(id_field)
+          end
         _ ->
           # Extract field name from field tuple, handling COALESCE wrapper
           case field do
@@ -163,6 +181,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       Map.put(acc, "phx-value-#{filter_field}", to_string(filter_value))
     end)
+  end
+
+  # Extract table prefix from a field reference
+  # Examples: "category.category_name" -> "category", :category_name -> nil
+  defp extract_table_prefix(field_ref) do
+    case field_ref do
+      field_str when is_binary(field_str) ->
+        case String.split(field_str, ".") do
+          [table, _field] -> table
+          _ -> nil
+        end
+      _ -> nil
+    end
   end
 
   # Render a single row with hierarchy styling
