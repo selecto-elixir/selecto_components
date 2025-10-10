@@ -436,9 +436,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             # Handle extracted fields (e.g., date parts)
             Selecto.field(assigns.selecto, field_id) || %{name: alias}
 
-          {:row, _selector, _alias} ->
-            # For row selectors, use a basic column definition
-            %{name: alias, format: nil}
+          {:row, [display_field | _rest], _alias} ->
+            # For row selectors (e.g., join mode columns), look up the actual column definition
+            # display_field is the first element (e.g., "category.category_name")
+            # This preserves join_mode metadata for ID-based filtering
+            result = Selecto.field(assigns.selecto, display_field)
+            if result == nil do
+              # Field not found - use basic definition
+              %{name: alias, format: nil}
+            else
+              result
+            end
 
           _ ->
             # Fallback to basic definition

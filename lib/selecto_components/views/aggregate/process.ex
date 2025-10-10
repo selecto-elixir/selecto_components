@@ -33,6 +33,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       coalesced_sel = case sel do
         {:field, field_expr, alias} ->
           {:field, {:coalesce, [field_expr, {:literal, "[NULL]"}]}, alias}
+
+        # For join mode ROW selectors, wrap only the display field (first element)
+        {:row, [display_field, id_field], alias} when is_binary(display_field) or is_atom(display_field) ->
+          # Wrap display field in COALESCE, keep ID as-is
+          {:row, [{:coalesce, [display_field, {:literal, "[NULL]"}]}, id_field], alias}
+
         other ->
           # For already complex selectors, just return as-is
           other
@@ -114,13 +120,52 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               end
 
             _ ->
-              # col.colid
-              {:field, col.colid, alias}
+              # Check for join mode (lookup, star, tag) to select both display and ID
+              case Map.get(col, :join_mode) do
+                mode when mode in [:lookup, :star, :tag] ->
+                  # Special join modes: select both display field and ID field as a row
+                  id_field = Map.get(col, :id_field)
+                  display_field = col.colid
+
+                  if id_field do
+                    # Extract table prefix from display field (e.g., "category.category_name" -> "category")
+                    {table_prefix, _field_name} = extract_table_and_field(display_field)
+
+                    # Build ID field reference
+                    id_colid = if table_prefix do
+                      "#{table_prefix}.#{id_field}"
+                    else
+                      id_field
+                    end
+
+                    # Return ROW(display_field, id_field) to get both values
+                    {:row, [display_field, id_colid], alias}
+                  else
+                    # Fallback if no id_field specified
+                    {:field, col.colid, alias}
+                  end
+
+                _ ->
+                  # Normal columns: just select the field
+                  {:field, col.colid, alias}
+              end
           end
         end
 
       {col, sel}
     end)
+  end
+
+  # Extract table and field name from a column ID
+  # Examples: "category.category_name" -> {"category", "category_name"}
+  #           :category_name -> {nil, "category_name"}
+  #           "category_name" -> {nil, "category_name"}
+  defp extract_table_and_field(colid) do
+    colid_str = to_string(colid)
+    case String.split(colid_str, ".", parts: 2) do
+      [table, field] -> {table, field}
+      [field] -> {nil, field}
+    end
   end
 
   defp datetime_gb_proc(col, config) do
