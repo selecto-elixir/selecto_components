@@ -135,15 +135,44 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         %{"group_by_filter" => filter} when not is_nil(filter) ->
           filter
         # Special join modes - use the configured ID field for filtering
-        %{join_mode: mode, id_field: id_field, colid: colid} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
-          # Get the table/schema prefix from the column ID
-          table_prefix = extract_table_prefix(colid)
+        %{join_mode: mode, id_field: id_field} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+          # colid might be nil, so extract table prefix from the field tuple
+          table_prefix = case field do
+            {:row, [display_field | _], _} ->
+              # ROW selector - extract from display field
+              case display_field do
+                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                _ -> extract_table_prefix(display_field)
+              end
+            {:field, field_ref, _} -> extract_table_prefix(field_ref)
+            _ -> nil
+          end
 
           # Build the filter field as "table.id_field"
           if table_prefix do
             "#{table_prefix}.#{id_field}"
           else
             Atom.to_string(id_field)
+          end
+        # Try with string keys too
+        %{"join_mode" => mode, "id_field" => id_field} when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
+          # colid might be nil, so extract table prefix from the field tuple
+          table_prefix = case field do
+            {:row, [display_field | _], _} ->
+              # ROW selector - extract from display field
+              case display_field do
+                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                _ -> extract_table_prefix(display_field)
+              end
+            {:field, field_ref, _} -> extract_table_prefix(field_ref)
+            _ -> nil
+          end
+
+          # Build the filter field as "table.id_field"
+          if table_prefix do
+            "#{table_prefix}.#{id_field}"
+          else
+            to_string(id_field)
           end
         _ ->
           # Extract field name from field tuple, handling COALESCE wrapper
