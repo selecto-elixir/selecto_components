@@ -88,7 +88,9 @@ defmodule SelectoComponents.Form.FilterRendering do
         section: section,
         index: index,
         filter_value: filter_value,
-        field_type: field_type
+        field_type: field_type,
+        column_def: column_def,
+        filter_def: filter_def
       })
 
       # Render different forms based on field type
@@ -280,6 +282,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   - Null checks (IS NULL, IS NOT NULL)
   """
   def render_standard_filter(assigns) do
+    # Check if this field uses multi-select ID filtering (lookup/star/tag join modes)
+    column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
+    is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
+
+    assigns = Map.put(assigns, :is_multi_select_id, is_multi_select_id)
+
     ~H"""
     <div class="grid grid-cols-3 gap-2">
       <select name={"filters[#{@uuid}][comp]"} class="sc-select">
@@ -295,15 +303,34 @@ defmodule SelectoComponents.Form.FilterRendering do
         <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
       </select>
 
-      <input
-        type="text"
-        name={"filters[#{@uuid}][value]"}
-        value={@filter_value["value"]}
-        placeholder="Enter value..."
-        class="sc-input col-span-2"
-        phx-debounce="300"
-        disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-      />
+      <%= if @is_multi_select_id do %>
+        <%!-- Multi-select ID filter input with helpful placeholder --%>
+        <div class="col-span-2">
+          <input
+            type="text"
+            name={"filters[#{@uuid}][value]"}
+            value={@filter_value["value"]}
+            placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
+            class="sc-input"
+            phx-debounce="300"
+            disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+          />
+          <div class="text-xs text-blue-600 mt-1">
+            💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
+          </div>
+        </div>
+      <% else %>
+        <%!-- Standard text input --%>
+        <input
+          type="text"
+          name={"filters[#{@uuid}][value]"}
+          value={@filter_value["value"]}
+          placeholder="Enter value..."
+          class="sc-input col-span-2"
+          phx-debounce="300"
+          disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+        />
+      <% end %>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
