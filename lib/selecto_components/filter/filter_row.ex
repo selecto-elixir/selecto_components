@@ -135,6 +135,16 @@ defmodule SelectoComponents.Filter.FilterRow do
         
         <%!-- Value input --%>
         <%= if @operator not in ["IS NULL", "IS NOT NULL"] do %>
+          <%
+            # Check if this field uses multi-select ID filtering (lookup/star/tag join modes)
+            field_config = Map.get(@available_fields, @field, %{})
+            is_multi_select_id = Map.get(field_config, :filter_type) == :multi_select_id
+            placeholder = if is_multi_select_id do
+              "Enter IDs (comma-separated, e.g., 1,2,3)..."
+            else
+              "Enter value..."
+            end
+          %>
           <input
             type="text"
             phx-change="update_filter_value"
@@ -142,9 +152,14 @@ defmodule SelectoComponents.Filter.FilterRow do
             phx-target={@target}
             name="value"
             value={@value}
-            placeholder="Enter value..."
+            placeholder={placeholder}
             class="block flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           />
+          <%= if is_multi_select_id do %>
+            <span class="text-xs text-gray-500 ml-2">
+              💡 Tip: Use IDs, not names
+            </span>
+          <% end %>
         <% else %>
           <div class="flex-1 text-sm text-gray-500 italic">No value needed</div>
         <% end %>
