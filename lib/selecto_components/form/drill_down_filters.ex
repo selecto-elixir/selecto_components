@@ -34,8 +34,87 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   @doc """
   Build filters map from drill-down parameters.
+
+  Supports two formats:
+  1. Legacy: phx-value-<fieldname> (doesn't work with dots in field names)
+  2. New indexed: phx-value-field0/phx-value-value0, field1/value1, etc.
   """
   def build_filter_map(params, socket) do
+    # Check if using new indexed format (field0, value0, field1, value1, etc.)
+    has_indexed_params = Map.has_key?(params, "field0") || Map.has_key?(params, "field")
+
+    if has_indexed_params do
+      build_filter_map_indexed(params, socket)
+    else
+      build_filter_map_legacy(params, socket)
+    end
+  end
+
+  # New indexed format: field0/value0, field1/value1
+  defp build_filter_map_indexed(params, socket) do
+    # Extract field/value pairs
+    field_value_pairs = extract_indexed_pairs(params)
+
+    Enum.reduce(
+      field_value_pairs,
+      Map.get(socket.assigns.used_params, "filters", %{}),
+      fn {field_name, v}, acc ->
+        newid = UUID.uuid4()
+
+        # Get field configuration
+        conf = Selecto.field(socket.assigns.selecto, field_name)
+
+        # Check if this is an age bucket field
+        group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
+        field_group_config = find_field_group_config(group_by_config, field_name)
+        is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+
+        # Determine comparison mode and values based on format
+        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
+
+        # Build filter configuration
+        filter_config = %{
+          "comp" => comp_mode,
+          "filter" => field_name,
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => newid,
+          "value" => v1,
+          "value2" => v2,
+          "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+          "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
+        }
+
+        # Use group_by_filter if configured
+        actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
+          Map.get(conf, :group_by_filter)
+        else
+          field_name
+        end
+
+        # Update the filter config to use the correct field
+        filter_config = Map.put(filter_config, "filter", actual_filter_field)
+        Map.put(acc, newid, filter_config)
+      end
+    )
+  end
+
+  # Extract field0/value0, field1/value1 pairs from params
+  defp extract_indexed_pairs(params) do
+    # Find all field<N> keys
+    params
+    |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field") end)
+    |> Enum.map(fn {field_key, field_name} ->
+      # Extract index from "field0" -> "0"
+      idx = String.replace_prefix(field_key, "field", "")
+      value_key = "value#{idx}"
+      value = Map.get(params, value_key, "")
+      {field_name, value}
+    end)
+  end
+
+  # Legacy format: phx-value-<fieldname>
+  defp build_filter_map_legacy(params, socket) do
     Enum.reduce(
       params,
       Map.get(socket.assigns.used_params, "filters", %{}),

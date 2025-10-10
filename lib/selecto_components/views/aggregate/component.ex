@@ -117,6 +117,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Build filter attributes for drill-down from group column values
   # Now includes special handling for NULL values - uses "__NULL__" marker for IS_EMPTY filter
+  # Uses indexed phx-value attributes to support multiple filter levels
   defp build_filter_attrs(group_cols, group_by_defs, level) do
     group_cols
     |> Enum.zip(group_by_defs)
@@ -125,7 +126,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       # Include all values (including nil) up to current level
       idx < level
     end)
-    |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, _idx}, acc ->
+    |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, idx}, acc ->
       # Determine the filter field name
       # Check for special join modes (lookup, star, tag) that use ID-based filtering
       filter_field = case coldef do
@@ -173,7 +174,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         _ -> value
       end
 
-      Map.put(acc, "phx-value-#{filter_field}", to_string(filter_value))
+      # Use indexed phx-value attributes to support multiple group levels
+      # phx-value-field0, phx-value-value0, phx-value-field1, phx-value1, etc.
+      acc
+      |> Map.put("phx-value-field#{idx}", filter_field)
+      |> Map.put("phx-value-value#{idx}", to_string(filter_value))
     end)
   end
 
