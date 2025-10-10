@@ -134,15 +134,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         %{"group_by_filter" => filter} when not is_nil(filter) ->
           filter
         # Special join modes - use the configured ID field for filtering
-        %{join_mode: mode, id_field: id_field} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
-          # Get the table/schema prefix from the field
-          table_prefix = case field do
-            {:field, {:coalesce, [inner_field | _]}, _} ->
-              extract_table_prefix(inner_field)
-            {:field, field_ref, _} ->
-              extract_table_prefix(field_ref)
-            _ -> nil
-          end
+        %{join_mode: mode, id_field: id_field, colid: colid} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+          # Get the table/schema prefix from the column ID
+          table_prefix = extract_table_prefix(colid)
 
           # Build the filter field as "table.id_field"
           if table_prefix do
