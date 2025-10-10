@@ -17,14 +17,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     }
   end
 
-  def view(_opt, params, columns, filtered, _selecto) do
+  def view(_opt, params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
 
     aggregate =
       Map.get(params, "aggregate", %{})
       |> aggregates(columns)
 
-    group_by = group_by_params |> group_by(columns)
+    group_by = group_by_params |> group_by(columns, selecto)
 
     # Wrap group-by fields in COALESCE to display '[NULL]' for NULL values
     # This handles both data NULLs (from LEFT JOIN) and ROLLUP NULLs
@@ -64,12 +64,44 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     {view_set, %{}}
   end
 
-  def group_by(group_by, columns) do
+  def group_by(group_by, columns, selecto) do
     group_by
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
     |> Enum.map(fn e ->
-      col = columns[Map.get(e, "field")]
+      field_name = Map.get(e, "field")
+
+      # Get column metadata - need to check domain schemas for join mode metadata
+      # Selecto.field() doesn't return custom metadata from joined schema columns
+      col = if selecto && String.contains?(to_string(field_name), ".") do
+        # This is a joined field like "category.category_name"
+        # Parse it to get schema and field name
+        [schema_name, field_only] = String.split(to_string(field_name), ".", parts: 2)
+        schema_atom = String.to_existing_atom(schema_name)
+        field_atom = String.to_existing_atom(field_only)
+
+        # Look up the column metadata from domain.schemas[schema].columns[field]
+        domain = Selecto.domain(selecto)
+        schema_col_metadata = get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+
+        if schema_col_metadata do
+          # Merge with basic field info and ensure colid is set
+          field_info = Selecto.field(selecto, field_name) || %{name: field_name, type: :string}
+          Map.merge(field_info, schema_col_metadata)
+          |> Map.put(:colid, field_name)
+        else
+          # Fall back to Selecto.field or columns map
+          field_info = Selecto.field(selecto, field_name)
+          if field_info do
+            Map.put_new(field_info, :colid, field_name)
+          else
+            columns[field_name]
+          end
+        end
+      else
+        # Source table field or no selecto - use columns map
+        columns[field_name]
+      end
       # ????
       alias =
         case Map.get(e, "alias") do

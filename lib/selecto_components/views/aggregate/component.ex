@@ -438,9 +438,39 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
           {:row, [display_field | _rest], _alias} ->
             # For row selectors (e.g., join mode columns), look up the actual column definition
-            # display_field is the first element (e.g., "category.category_name")
-            # This preserves join_mode metadata for ID-based filtering
-            result = Selecto.field(assigns.selecto, display_field)
+            # display_field might be wrapped in COALESCE - extract the original field name
+            field_name = case display_field do
+              {:coalesce, [inner_field | _]} -> inner_field
+              other -> other
+            end
+
+            # Look up metadata from domain.schemas for joined fields
+            result = if is_binary(field_name) && String.contains?(field_name, ".") do
+              [schema_name, field_only] = String.split(field_name, ".", parts: 2)
+
+              # Look up from domain.schemas[schema].columns[field]
+              domain = Selecto.domain(assigns.selecto)
+              schema_atom = try do
+                String.to_existing_atom(schema_name)
+              rescue
+                ArgumentError -> nil
+              end
+
+              field_atom = try do
+                String.to_existing_atom(field_only)
+              rescue
+                ArgumentError -> nil
+              end
+
+              if schema_atom && field_atom do
+                get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+              else
+                nil
+              end
+            else
+              Selecto.field(assigns.selecto, field_name)
+            end
+
             if result == nil do
               # Field not found - use basic definition
               %{name: alias, format: nil}
