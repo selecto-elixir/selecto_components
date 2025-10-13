@@ -64,6 +64,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         # Get field configuration
         conf = Selecto.field(socket.assigns.selecto, field_name)
 
+        # If filtering on a join mode ID field, find the display field with metadata
+        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
+
         # Check if this is an age bucket field
         group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
@@ -126,6 +129,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Get field configuration
         conf = Selecto.field(socket.assigns.selecto, field_name)
+
+        # If filtering on a join mode ID field, find the display field with metadata
+        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
         # Check if this is an age bucket field
         group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
@@ -364,5 +370,76 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
       end
     end)
+  end
+
+  @doc """
+  Find join mode field configuration when filtering on ID field.
+
+  When filtering on "category.id", we need to find "category.category_name"
+  which has the join_mode metadata (filter_type: :multi_select_id, etc).
+  """
+  defp find_join_mode_field(selecto, field_name, original_conf) do
+    # Only process if field_name ends with ".id" or similar ID field pattern
+    if is_binary(field_name) and String.contains?(field_name, ".") do
+      [schema_name, field_part] = String.split(field_name, ".", parts: 2)
+
+      # Check if this looks like an ID field
+      if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
+        # Get the domain to search for join_mode fields
+        domain = Selecto.domain(selecto)
+        schema_atom = try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
+
+        if schema_atom do
+          schema_config = get_in(domain, [:schemas, schema_atom])
+
+          if schema_config do
+            # Search through columns to find one with join_mode metadata matching this ID field
+            columns = Map.get(schema_config, :columns, %{})
+
+            found_field = Enum.find_value(columns, fn {col_name, col_config} ->
+              # Check if this column has join_mode and its id_field matches our field
+              join_mode = Map.get(col_config, :join_mode)
+              id_field = Map.get(col_config, :id_field)
+              filter_type = Map.get(col_config, :filter_type)
+
+              # Match if this column is configured for join mode and references our ID field
+              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                 (id_field == :id or Atom.to_string(id_field) == field_part) do
+                # Return the full field name for this display field
+                {col_name, col_config}
+              else
+                nil
+              end
+            end)
+
+            case found_field do
+              {display_col_name, display_col_config} ->
+                # Build the qualified field name
+                qualified_name = "#{schema_name}.#{display_col_name}"
+
+                # Merge the display field config with necessary metadata
+                Map.merge(original_conf || %{}, display_col_config)
+                |> Map.put(:_display_field_name, qualified_name)
+                |> Map.put(:_filter_on_field, field_name)  # Remember we're actually filtering on the ID field
+
+              nil ->
+                original_conf
+            end
+          else
+            original_conf
+          end
+        else
+          original_conf
+        end
+      else
+        original_conf
+      end
+    else
+      original_conf
+    end
   end
 end

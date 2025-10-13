@@ -139,6 +139,10 @@ defmodule SelectoComponents.Filter.FilterRow do
           <%
             # Check if this field uses multi-select ID filtering (lookup/star/tag join modes)
             field_config = Map.get(@available_fields, @field, %{})
+
+            # If filtering on an ID field (e.g. "category.id"), check if there's a display field with join_mode metadata
+            field_config = find_join_mode_metadata(@selecto, @field, field_config)
+
             is_multi_select_id = Map.get(field_config, :filter_type) == :multi_select_id
           %>
           <%= if is_multi_select_id do %>
@@ -296,4 +300,69 @@ defmodule SelectoComponents.Filter.FilterRow do
       }
     ]
   end
+
+  @doc """
+  Find join mode metadata when filtering on ID field.
+
+  When editing a filter on "category.id", look for "category.category_name"
+  which has the join_mode metadata (filter_type: :multi_select_id, etc).
+  """
+  defp find_join_mode_metadata(nil, _field, field_config), do: field_config
+  defp find_join_mode_metadata(selecto, field, field_config) when is_binary(field) do
+    # Only process if field_name contains "." (qualified field)
+    if String.contains?(field, ".") do
+      [schema_name, field_part] = String.split(field, ".", parts: 2)
+
+      # Check if this looks like an ID field
+      if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
+        # Get the domain to search for join_mode fields
+        domain = Selecto.domain(selecto)
+        schema_atom = try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
+
+        if schema_atom do
+          schema_config = get_in(domain, [:schemas, schema_atom])
+
+          if schema_config do
+            # Search through columns to find one with join_mode metadata matching this ID field
+            columns = Map.get(schema_config, :columns, %{})
+
+            found_field = Enum.find_value(columns, fn {_col_name, col_config} ->
+              # Check if this column has join_mode and its id_field matches our field
+              join_mode = Map.get(col_config, :join_mode)
+              id_field = Map.get(col_config, :id_field)
+              filter_type = Map.get(col_config, :filter_type)
+
+              # Match if this column is configured for join mode and references our ID field
+              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                 (id_field == :id or Atom.to_string(id_field) == field_part) do
+                col_config
+              else
+                nil
+              end
+            end)
+
+            if found_field do
+              # Merge the display field config with the original
+              Map.merge(field_config, found_field)
+            else
+              field_config
+            end
+          else
+            field_config
+          end
+        else
+          field_config
+        end
+      else
+        field_config
+      end
+    else
+      field_config
+    end
+  end
+  defp find_join_mode_metadata(_selecto, _field, field_config), do: field_config
 end
