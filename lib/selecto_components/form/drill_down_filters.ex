@@ -90,8 +90,12 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Use group_by_filter if configured
         actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
+          require Logger
+          Logger.info("DRILL_DOWN: Using group_by_filter for #{field_name}: #{inspect(Map.get(conf, :group_by_filter))}")
           Map.get(conf, :group_by_filter)
         else
+          require Logger
+          Logger.info("DRILL_DOWN: No group_by_filter for #{field_name}, conf: #{inspect(conf)}")
           field_name
         end
 
@@ -156,8 +160,12 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Use group_by_filter if configured
         actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
+          require Logger
+          Logger.info("DRILL_DOWN: Using group_by_filter for #{field_name}: #{inspect(Map.get(conf, :group_by_filter))}")
           Map.get(conf, :group_by_filter)
         else
+          require Logger
+          Logger.info("DRILL_DOWN: No group_by_filter for #{field_name}, conf: #{inspect(conf)}")
           field_name
         end
 
@@ -375,59 +383,64 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   @doc """
   Find join mode field configuration when filtering on ID field.
 
-  When filtering on "category.id", we need to find "category.category_name"
-  which has the join_mode metadata (filter_type: :multi_select_id, etc).
+  Handles two cases:
+  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
+  2. Filtering on "category_id" (foreign key) - searches all schemas for field with group_by_filter: "category_id"
   """
   defp find_join_mode_field(selecto, field_name, original_conf) do
-    # Only process if field_name ends with ".id" or similar ID field pattern
-    if is_binary(field_name) and String.contains?(field_name, ".") do
-      [schema_name, field_part] = String.split(field_name, ".", parts: 2)
+    cond do
+      # Case 1: field_name contains "." like "category.id"
+      is_binary(field_name) and String.contains?(field_name, ".") ->
+        [schema_name, field_part] = String.split(field_name, ".", parts: 2)
 
-      # Check if this looks like an ID field
-      if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
-        # Get the domain to search for join_mode fields
-        domain = Selecto.domain(selecto)
-        schema_atom = try do
-          String.to_existing_atom(schema_name)
-        rescue
-          ArgumentError -> nil
-        end
+        # Check if this looks like an ID field
+        if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
+          # Get the domain to search for join_mode fields
+          domain = Selecto.domain(selecto)
+          schema_atom = try do
+            String.to_existing_atom(schema_name)
+          rescue
+            ArgumentError -> nil
+          end
 
-        if schema_atom do
-          schema_config = get_in(domain, [:schemas, schema_atom])
+          if schema_atom do
+            schema_config = get_in(domain, [:schemas, schema_atom])
 
-          if schema_config do
-            # Search through columns to find one with join_mode metadata matching this ID field
-            columns = Map.get(schema_config, :columns, %{})
+            if schema_config do
+              # Search through columns to find one with join_mode metadata matching this ID field
+              columns = Map.get(schema_config, :columns, %{})
 
-            found_field = Enum.find_value(columns, fn {col_name, col_config} ->
-              # Check if this column has join_mode and its id_field matches our field
-              join_mode = Map.get(col_config, :join_mode)
-              id_field = Map.get(col_config, :id_field)
-              filter_type = Map.get(col_config, :filter_type)
+              found_field = Enum.find_value(columns, fn {col_name, col_config} ->
+                # Check if this column has join_mode and its id_field matches our field
+                join_mode = Map.get(col_config, :join_mode)
+                id_field = Map.get(col_config, :id_field)
+                filter_type = Map.get(col_config, :filter_type)
 
-              # Match if this column is configured for join mode and references our ID field
-              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
-                 (id_field == :id or Atom.to_string(id_field) == field_part) do
-                # Return the full field name for this display field
-                {col_name, col_config}
-              else
-                nil
+                # Match if this column is configured for join mode and references our ID field
+                if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                   (id_field == :id or Atom.to_string(id_field) == field_part) do
+                  # Return the full field name for this display field
+                  {col_name, col_config}
+                else
+                  nil
+                end
+              end)
+
+              case found_field do
+                {display_col_name, display_col_config} ->
+                  # Build the qualified field name
+                  qualified_name = "#{schema_name}.#{display_col_name}"
+
+                  # Merge the display field config with necessary metadata
+                  Map.merge(original_conf || %{}, display_col_config)
+                  |> Map.put(:_display_field_name, qualified_name)
+                  |> Map.put(:_filter_on_field, field_name)  # Remember we're actually filtering on the ID field
+
+                nil ->
+                  original_conf
               end
-            end)
-
-            case found_field do
-              {display_col_name, display_col_config} ->
-                # Build the qualified field name
-                qualified_name = "#{schema_name}.#{display_col_name}"
-
-                # Merge the display field config with necessary metadata
-                Map.merge(original_conf || %{}, display_col_config)
-                |> Map.put(:_display_field_name, qualified_name)
-                |> Map.put(:_filter_on_field, field_name)  # Remember we're actually filtering on the ID field
-
-              nil ->
-                original_conf
+            else
+              original_conf
             end
           else
             original_conf
@@ -435,11 +448,47 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         else
           original_conf
         end
-      else
+
+      # Case 2: field_name is a foreign key like "category_id" (no dot)
+      is_binary(field_name) and String.ends_with?(field_name, "_id") ->
+        domain = Selecto.domain(selecto)
+        schemas = Map.get(domain, :schemas, %{})
+
+        # Search all schemas for a field with group_by_filter matching this field_name
+        found_field = Enum.find_value(schemas, fn {schema_name, schema_config} ->
+          columns = Map.get(schema_config, :columns, %{})
+
+          Enum.find_value(columns, fn {col_name, col_config} ->
+            join_mode = Map.get(col_config, :join_mode)
+            filter_type = Map.get(col_config, :filter_type)
+            group_by_filter = Map.get(col_config, :group_by_filter)
+
+            # Match if this column has group_by_filter pointing to our field
+            if join_mode in [:lookup, :star, :tag] and
+               filter_type == :multi_select_id and
+               group_by_filter == field_name do
+              {schema_name, col_name, col_config}
+            else
+              nil
+            end
+          end)
+        end)
+
+        case found_field do
+          {schema_name, display_col_name, display_col_config} ->
+            qualified_name = "#{schema_name}.#{display_col_name}"
+
+            # Merge the display field config with necessary metadata
+            Map.merge(original_conf || %{}, display_col_config)
+            |> Map.put(:_display_field_name, qualified_name)
+            |> Map.put(:_filter_on_field, field_name)  # Filter stays on the foreign key field
+
+          nil ->
+            original_conf
+        end
+
+      true ->
         original_conf
-      end
-    else
-      original_conf
     end
   end
 end

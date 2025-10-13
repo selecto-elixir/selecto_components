@@ -448,53 +448,101 @@ defmodule SelectoComponents.Form.FilterRendering do
   @doc """
   Find join mode configuration for a filter field.
 
-  When filtering on "category.id", finds the "category.category_name" column
-  with join_mode metadata (filter_type: :multi_select_id, etc).
+  Handles two cases:
+  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
+  2. Filtering on "category_id" (product table) - finds the category schema field that has group_by_filter: "category_id"
   """
   defp find_join_mode_config(selecto, filter_id, column_def) do
+    require Logger
+    Logger.info("FILTER_RENDER: find_join_mode_config filter_id=#{inspect(filter_id)}")
+
     # Check if column_def already has join_mode
     if column_def && Map.get(column_def, :join_mode) in [:lookup, :star, :tag] &&
        Map.get(column_def, :filter_type) == :multi_select_id do
+      Logger.info("FILTER_RENDER: column_def already has join_mode")
       column_def
     else
-      # Check if filter_id is an ID field (e.g., "category.id")
-      if is_binary(filter_id) and String.contains?(filter_id, ".") do
-        [schema_name, field_part] = String.split(filter_id, ".", parts: 2)
+      domain = Selecto.domain(selecto)
 
-        if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
-          domain = Selecto.domain(selecto)
-          schema_atom = try do
-            String.to_existing_atom(schema_name)
-          rescue
-            ArgumentError -> nil
-          end
+      # Parse filter_id to get schema and field parts
+      {schema_name, field_part} = if is_binary(filter_id) and String.contains?(filter_id, ".") do
+        parts = String.split(filter_id, ".", parts: 2)
+        {Enum.at(parts, 0), Enum.at(parts, 1)}
+      else
+        # For fields without schema prefix (e.g., "category_id"), use source schema
+        source_table = get_in(domain, [:source, :source_table])
+        Logger.info("FILTER_RENDER: No dot, source_table=#{inspect(source_table)}, field=#{inspect(filter_id)}")
+        {source_table, filter_id}
+      end
 
-          if schema_atom do
-            schema_config = get_in(domain, [:schemas, schema_atom])
+      # Check if this is an ID field that might have join_mode configuration
+      Logger.info("FILTER_RENDER: Checking if ID field: field_part=#{inspect(field_part)}")
+      if field_part in ["id"] or String.ends_with?(field_part || "", "_id") do
+        Logger.info("FILTER_RENDER: Yes, it's an ID field")
+        schema_atom = try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
 
-            if schema_config do
-              columns = Map.get(schema_config, :columns, %{})
+        result_case1 = if schema_atom do
+          # Case 1: filtering on "category.id" - look in category schema for join_mode field
+          schema_config = get_in(domain, [:schemas, schema_atom])
 
-              Enum.find_value(columns, fn {_col_name, col_config} ->
-                join_mode = Map.get(col_config, :join_mode)
-                id_field = Map.get(col_config, :id_field)
-                filter_type = Map.get(col_config, :filter_type)
+          if schema_config do
+            columns = Map.get(schema_config, :columns, %{})
 
-                if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
-                   (id_field == :id or Atom.to_string(id_field) == field_part) do
-                  col_config
-                else
-                  nil
-                end
-              end)
-            else
-              nil
-            end
+            Enum.find_value(columns, fn {_col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              id_field = Map.get(col_config, :id_field)
+              filter_type = Map.get(col_config, :filter_type)
+
+              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                 (id_field == :id or Atom.to_string(id_field) == field_part) do
+                Logger.info("FILTER_RENDER: Found in Case 1")
+                # Include source_table from schema config so query_table_options knows which table to query
+                source_table = Map.get(schema_config, :source_table)
+                Logger.info("FILTER_RENDER: Adding source_table=#{inspect(source_table)} to config")
+                Map.put(col_config, :source_table, source_table)
+              else
+                nil
+              end
+            end)
           else
             nil
           end
         else
           nil
+        end
+
+        # Case 2: filtering on "category_id" (foreign key) - search all schemas for field with matching group_by_filter
+        if result_case1 == nil and String.ends_with?(field_part, "_id") do
+          Logger.info("FILTER_RENDER: Trying Case 2, searching for group_by_filter=#{inspect(field_part)}")
+          schemas = Map.get(domain, :schemas, %{})
+
+          Enum.find_value(schemas, fn {schema_name_atom, schema_config} ->
+            columns = Map.get(schema_config, :columns, %{})
+
+            Enum.find_value(columns, fn {col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              filter_type = Map.get(col_config, :filter_type)
+              group_by_filter = Map.get(col_config, :group_by_filter)
+
+              if join_mode in [:lookup, :star, :tag] and
+                 filter_type == :multi_select_id and
+                 group_by_filter == field_part do
+                Logger.info("FILTER_RENDER: Found! schema=#{inspect(schema_name_atom)}, col=#{inspect(col_name)}")
+                # Include source_table from schema config so query_table_options knows which table to query
+                source_table = Map.get(schema_config, :source_table)
+                Logger.info("FILTER_RENDER: Adding source_table=#{inspect(source_table)} to config")
+                Map.put(col_config, :source_table, source_table)
+              else
+                nil
+              end
+            end)
+          end)
+        else
+          result_case1
         end
       else
         nil
@@ -513,31 +561,17 @@ defmodule SelectoComponents.Form.FilterRendering do
     join_mode_config = assigns.join_mode_config
     filter_id = assigns.filter_value["filter"]
 
-    # Extract schema and table info
-    [schema_name, _field_part] = if is_binary(filter_id) and String.contains?(filter_id, ".") do
-      String.split(filter_id, ".", parts: 2)
-    else
-      [nil, nil]
-    end
+    require Logger
+    Logger.info("FILTER_RENDER: render_multiselect_filter join_mode_config=#{inspect(join_mode_config)}")
 
-    # Get table, id_field, and display_field from join_mode_config
-    domain = Selecto.domain(assigns.selecto)
-    schema_atom = try do
-      String.to_existing_atom(schema_name)
-    rescue
-      ArgumentError -> nil
-    end
-
-    table = if schema_atom do
-      schema_config = get_in(domain, [:schemas, schema_atom])
-      Map.get(schema_config || %{}, :source_table)
-    else
-      nil
-    end
-
+    # Get table from join_mode_config (added by find_join_mode_config)
+    # This is more reliable than parsing the filter_id
+    table = Map.get(join_mode_config, :source_table)
     id_field = Map.get(join_mode_config, :id_field, :id)
     display_field = Map.get(join_mode_config, :display_field, :name)
     join_mode = Map.get(join_mode_config, :join_mode, :lookup)
+
+    Logger.info("FILTER_RENDER: render_multiselect_filter table=#{inspect(table)}, id_field=#{inspect(id_field)}, display_field=#{inspect(display_field)}")
 
     # Query options from database using selecto's connection pool
     options = if table do
