@@ -453,13 +453,9 @@ defmodule SelectoComponents.Form.FilterRendering do
   2. Filtering on "category_id" (product table) - finds the category schema field that has group_by_filter: "category_id"
   """
   defp find_join_mode_config(selecto, filter_id, column_def) do
-    require Logger
-    Logger.info("FILTER_RENDER: find_join_mode_config filter_id=#{inspect(filter_id)}")
-
     # Check if column_def already has join_mode
     if column_def && Map.get(column_def, :join_mode) in [:lookup, :star, :tag] &&
        Map.get(column_def, :filter_type) == :multi_select_id do
-      Logger.info("FILTER_RENDER: column_def already has join_mode")
       column_def
     else
       domain = Selecto.domain(selecto)
@@ -471,14 +467,11 @@ defmodule SelectoComponents.Form.FilterRendering do
       else
         # For fields without schema prefix (e.g., "category_id"), use source schema
         source_table = get_in(domain, [:source, :source_table])
-        Logger.info("FILTER_RENDER: No dot, source_table=#{inspect(source_table)}, field=#{inspect(filter_id)}")
         {source_table, filter_id}
       end
 
       # Check if this is an ID field that might have join_mode configuration
-      Logger.info("FILTER_RENDER: Checking if ID field: field_part=#{inspect(field_part)}")
       if field_part in ["id"] or String.ends_with?(field_part || "", "_id") do
-        Logger.info("FILTER_RENDER: Yes, it's an ID field")
         schema_atom = try do
           String.to_existing_atom(schema_name)
         rescue
@@ -499,10 +492,8 @@ defmodule SelectoComponents.Form.FilterRendering do
 
               if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
                  (id_field == :id or Atom.to_string(id_field) == field_part) do
-                Logger.info("FILTER_RENDER: Found in Case 1")
                 # Include source_table from schema config so query_table_options knows which table to query
                 source_table = Map.get(schema_config, :source_table)
-                Logger.info("FILTER_RENDER: Adding source_table=#{inspect(source_table)} to config")
                 Map.put(col_config, :source_table, source_table)
               else
                 nil
@@ -517,7 +508,6 @@ defmodule SelectoComponents.Form.FilterRendering do
 
         # Case 2: filtering on "category_id" (foreign key) - search all schemas for field with matching group_by_filter
         if result_case1 == nil and String.ends_with?(field_part, "_id") do
-          Logger.info("FILTER_RENDER: Trying Case 2, searching for group_by_filter=#{inspect(field_part)}")
           schemas = Map.get(domain, :schemas, %{})
 
           Enum.find_value(schemas, fn {schema_name_atom, schema_config} ->
@@ -531,10 +521,8 @@ defmodule SelectoComponents.Form.FilterRendering do
               if join_mode in [:lookup, :star, :tag] and
                  filter_type == :multi_select_id and
                  group_by_filter == field_part do
-                Logger.info("FILTER_RENDER: Found! schema=#{inspect(schema_name_atom)}, col=#{inspect(col_name)}")
                 # Include source_table from schema config so query_table_options knows which table to query
                 source_table = Map.get(schema_config, :source_table)
-                Logger.info("FILTER_RENDER: Adding source_table=#{inspect(source_table)} to config")
                 Map.put(col_config, :source_table, source_table)
               else
                 nil
@@ -559,10 +547,6 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp render_multiselect_filter(assigns) do
     # Get the configuration
     join_mode_config = assigns.join_mode_config
-    filter_id = assigns.filter_value["filter"]
-
-    require Logger
-    Logger.info("FILTER_RENDER: render_multiselect_filter join_mode_config=#{inspect(join_mode_config)}")
 
     # Get table from join_mode_config (added by find_join_mode_config)
     # This is more reliable than parsing the filter_id
@@ -570,8 +554,6 @@ defmodule SelectoComponents.Form.FilterRendering do
     id_field = Map.get(join_mode_config, :id_field, :id)
     display_field = Map.get(join_mode_config, :display_field, :name)
     join_mode = Map.get(join_mode_config, :join_mode, :lookup)
-
-    Logger.info("FILTER_RENDER: render_multiselect_filter table=#{inspect(table)}, id_field=#{inspect(id_field)}, display_field=#{inspect(display_field)}")
 
     # Query options from database using selecto's connection pool
     options = if table do
@@ -663,24 +645,21 @@ defmodule SelectoComponents.Form.FilterRendering do
     LIMIT $1
     """
 
-    Logger.info("MULTISELECT: Querying table=#{inspect(table)}, id_field=#{inspect(id_field)}, display_field=#{inspect(display_field)}")
-
     # Use Repo.query directly - selecto.connection is the Repo module
     repo = selecto.connection
     case repo.query(query, [limit]) do
       {:ok, %{rows: rows}} ->
-        Logger.info("MULTISELECT: Got #{length(rows)} rows")
         Enum.map(rows, fn [id, name] ->
           %{id: id, name: to_string(name)}
         end)
 
       {:error, error} ->
-        Logger.warning("MULTISELECT: Query error: #{inspect(error)}")
+        Logger.warning("Failed to query options for multi-select filter: #{inspect(error)}")
         []
     end
   rescue
     e ->
-      Logger.warning("MULTISELECT: Exception: #{inspect(e)}")
+      Logger.warning("Exception querying options for multi-select filter: #{inspect(e)}")
       []
   end
 

@@ -90,12 +90,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Use group_by_filter if configured
         actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
-          require Logger
-          Logger.info("DRILL_DOWN: Using group_by_filter for #{field_name}: #{inspect(Map.get(conf, :group_by_filter))}")
           Map.get(conf, :group_by_filter)
         else
-          require Logger
-          Logger.info("DRILL_DOWN: No group_by_filter for #{field_name}, conf: #{inspect(conf)}")
           field_name
         end
 
@@ -160,12 +156,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Use group_by_filter if configured
         actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
-          require Logger
-          Logger.info("DRILL_DOWN: Using group_by_filter for #{field_name}: #{inspect(Map.get(conf, :group_by_filter))}")
           Map.get(conf, :group_by_filter)
         else
-          require Logger
-          Logger.info("DRILL_DOWN: No group_by_filter for #{field_name}, conf: #{inspect(conf)}")
           field_name
         end
 
