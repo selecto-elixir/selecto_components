@@ -349,8 +349,70 @@ defmodule SelectoComponents.Helpers.Filters do
           end
         end
     end)
+
+    # Handle POLYMORPHIC filters separately
+    result = result ++ handle_polymorphic_filters(section_filters)
     result
   end
+
+  # Handle polymorphic filters that need special OR condition generation
+  defp handle_polymorphic_filters(section_filters) do
+    Enum.flat_map(section_filters, fn
+      %{"comp" => "POLYMORPHIC"} = f ->
+        # Parse polymorphic selection: types and values for each type
+        selected_types = case Map.get(f, "selected_types") do
+          json when is_binary(json) -> Jason.decode!(json)
+          list when is_list(list) -> list
+          _ -> []
+        end
+
+        poly_values = Map.get(f, "poly_values", %{})
+
+        # Build OR conditions: (type='Product' AND id IN (1,2,3)) OR (type='Order' AND id IN (4,5))
+        type_conditions = Enum.flat_map(selected_types, fn entity_type ->
+          ids_str = Map.get(poly_values, entity_type, "")
+          ids = parse_poly_ids(ids_str)
+
+          if length(ids) > 0 do
+            # Generate condition: type = 'Product' AND id IN (1,2,3)
+            filter_name = Map.get(f, "filter")
+            type_field = "#{filter_name}_type"  # e.g., "commentable_type"
+            id_field = "#{filter_name}_id"      # e.g., "commentable_id"
+
+            [{:and, [
+              {type_field, entity_type},
+              {id_field, {:in, ids}}
+            ]}]
+          else
+            []
+          end
+        end)
+
+        if length(type_conditions) > 0 do
+          [{:or, type_conditions}]
+        else
+          []
+        end
+
+      _ -> []
+    end)
+  end
+
+  # Parse comma-separated IDs for polymorphic filters
+  defp parse_poly_ids(ids_str) when is_binary(ids_str) do
+    ids_str
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(fn id_str ->
+      case Integer.parse(id_str) do
+        {id, _} -> id
+        :error -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp parse_poly_ids(_), do: []
 
   # Process relative date patterns like "13-7" (13 to 7 days ago)
   defp process_relative_date_filter(pattern) do

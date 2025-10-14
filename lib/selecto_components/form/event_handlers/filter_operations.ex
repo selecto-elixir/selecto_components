@@ -15,6 +15,7 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
 
   - `treedrop` - Add filter via drag-and-drop from filter tree
   - `filter_remove` - Remove a filter from the filter list
+  - `polymorphic_type_toggle` - Toggle entity type selection in polymorphic filters
 
   ## Design Notes
 
@@ -100,6 +101,60 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
           assign(socket,
             view_config: %{socket.assigns.view_config | filters: updated_filters},
             # Set a flag to skip query execution on next validation
+            skip_next_validation: true
+          )
+
+        {:noreply, socket}
+      end
+
+      @doc """
+      Handles toggling entity type selection in polymorphic filters.
+
+      When a user checks/unchecks an entity type (Product, Order, Customer),
+      this event updates the filter's selected_types list in the view config.
+
+      ## Parameters
+      - params: Map containing:
+        - "filter-uuid" - The UUID of the polymorphic filter
+        - "entity-type" - The entity type being toggled
+        - "_target" - The checkbox input element
+      - socket: LiveView socket
+
+      ## Returns
+      `{:noreply, socket}` with updated filter configuration
+      """
+      def handle_event("polymorphic_type_toggle", params, socket) do
+        filter_uuid = Map.get(params, "filter-uuid")
+        entity_type = Map.get(params, "entity-type")
+
+        # Update the specific filter in the filters list
+        updated_filters =
+          Enum.map(socket.assigns.view_config.filters, fn
+            {uuid, section, filter_config} = filter_tuple when uuid == filter_uuid ->
+              # Get current polymorphic_selection or initialize it
+              current_selection = Map.get(filter_config, "polymorphic_selection", %{})
+              current_types = Map.get(current_selection, "types", [])
+
+              # Toggle the entity type
+              new_types = if entity_type in current_types do
+                List.delete(current_types, entity_type)
+              else
+                current_types ++ [entity_type]
+              end
+
+              # Update the filter config
+              new_selection = Map.put(current_selection, "types", new_types)
+              new_config = Map.put(filter_config, "polymorphic_selection", new_selection)
+
+              {uuid, section, new_config}
+
+            other_filter ->
+              other_filter
+          end)
+
+        socket =
+          assign(socket,
+            view_config: %{socket.assigns.view_config | filters: updated_filters},
             skip_next_validation: true
           )
 
