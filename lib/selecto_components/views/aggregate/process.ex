@@ -17,14 +17,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     }
   end
 
-  def view(_opt, params, columns, filtered, _selecto) do
+  def view(_opt, params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
 
     aggregate =
       Map.get(params, "aggregate", %{})
       |> aggregates(columns)
 
-    group_by = group_by_params |> group_by(columns)
+    group_by = group_by_params |> group_by(columns, selecto)
 
     # Wrap group-by fields in COALESCE to display '[NULL]' for NULL values
     # This handles both data NULLs (from LEFT JOIN) and ROLLUP NULLs
@@ -33,6 +33,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       coalesced_sel = case sel do
         {:field, field_expr, alias} ->
           {:field, {:coalesce, [field_expr, {:literal, "[NULL]"}]}, alias}
+
+        # For join mode ROW selectors, wrap only the display field (first element)
+        {:row, [display_field, id_field], alias} when is_binary(display_field) or is_atom(display_field) ->
+          # Wrap display field in COALESCE, keep ID as-is
+          {:row, [{:coalesce, [display_field, {:literal, "[NULL]"}]}, id_field], alias}
+
         other ->
           # For already complex selectors, just return as-is
           other
@@ -58,12 +64,44 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     {view_set, %{}}
   end
 
-  def group_by(group_by, columns) do
+  def group_by(group_by, columns, selecto) do
     group_by
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0")) end)
     |> Enum.map(fn e ->
-      col = columns[Map.get(e, "field")]
+      field_name = Map.get(e, "field")
+
+      # Get column metadata - need to check domain schemas for join mode metadata
+      # Selecto.field() doesn't return custom metadata from joined schema columns
+      col = if selecto && String.contains?(to_string(field_name), ".") do
+        # This is a joined field like "category.category_name"
+        # Parse it to get schema and field name
+        [schema_name, field_only] = String.split(to_string(field_name), ".", parts: 2)
+        schema_atom = String.to_existing_atom(schema_name)
+        field_atom = String.to_existing_atom(field_only)
+
+        # Look up the column metadata from domain.schemas[schema].columns[field]
+        domain = Selecto.domain(selecto)
+        schema_col_metadata = get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+
+        if schema_col_metadata do
+          # Merge with basic field info and ensure colid is set
+          field_info = Selecto.field(selecto, field_name) || %{name: field_name, type: :string}
+          Map.merge(field_info, schema_col_metadata)
+          |> Map.put(:colid, field_name)
+        else
+          # Fall back to Selecto.field or columns map
+          field_info = Selecto.field(selecto, field_name)
+          if field_info do
+            Map.put_new(field_info, :colid, field_name)
+          else
+            columns[field_name]
+          end
+        end
+      else
+        # Source table field or no selecto - use columns map
+        columns[field_name]
+      end
       # ????
       alias =
         case Map.get(e, "alias") do
@@ -114,13 +152,52 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               end
 
             _ ->
-              # col.colid
-              {:field, col.colid, alias}
+              # Check for join mode (lookup, star, tag) to select both display and ID
+              case Map.get(col, :join_mode) do
+                mode when mode in [:lookup, :star, :tag] ->
+                  # Special join modes: select both display field and ID field as a row
+                  id_field = Map.get(col, :id_field)
+                  display_field = col.colid
+
+                  if id_field do
+                    # Extract table prefix from display field (e.g., "category.category_name" -> "category")
+                    {table_prefix, _field_name} = extract_table_and_field(display_field)
+
+                    # Build ID field reference
+                    id_colid = if table_prefix do
+                      "#{table_prefix}.#{id_field}"
+                    else
+                      id_field
+                    end
+
+                    # Return ROW(display_field, id_field) to get both values
+                    {:row, [display_field, id_colid], alias}
+                  else
+                    # Fallback if no id_field specified
+                    {:field, col.colid, alias}
+                  end
+
+                _ ->
+                  # Normal columns: just select the field
+                  {:field, col.colid, alias}
+              end
           end
         end
 
       {col, sel}
     end)
+  end
+
+  # Extract table and field name from a column ID
+  # Examples: "category.category_name" -> {"category", "category_name"}
+  #           :category_name -> {nil, "category_name"}
+  #           "category_name" -> {nil, "category_name"}
+  defp extract_table_and_field(colid) do
+    colid_str = to_string(colid)
+    case String.split(colid_str, ".", parts: 2) do
+      [table, field] -> {table, field}
+      [field] -> {nil, field}
+    end
   end
 
   defp datetime_gb_proc(col, config) do

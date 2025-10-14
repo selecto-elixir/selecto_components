@@ -39,6 +39,16 @@ defmodule SelectoComponents.Helpers.Filters do
       "between" ->
         {:between, parse_num(type, Map.get(filter, "value")),parse_num(type, Map.get(filter, "value2"))}
 
+      "IN" ->
+        # Parse comma-separated IDs and convert to list
+        value = Map.get(filter, "value", "")
+        ids = value
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.map(&parse_num(type, &1))
+        {:in, ids}
+
       x when x in ~w( != <= >= < >) ->
         {x, parse_num(type, Map.get(filter, "value"))}
     end

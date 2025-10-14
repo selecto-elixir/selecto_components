@@ -117,6 +117,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Build filter attributes for drill-down from group column values
   # Now includes special handling for NULL values - uses "__NULL__" marker for IS_EMPTY filter
+  # Uses indexed phx-value attributes to support multiple filter levels
   defp build_filter_attrs(group_cols, group_by_defs, level) do
     group_cols
     |> Enum.zip(group_by_defs)
@@ -125,13 +126,54 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       # Include all values (including nil) up to current level
       idx < level
     end)
-    |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, _idx}, acc ->
+    |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, idx}, acc ->
       # Determine the filter field name
+      # Check for special join modes (lookup, star, tag) that use ID-based filtering
       filter_field = case coldef do
         %{group_by_filter: filter} when not is_nil(filter) ->
           filter
         %{"group_by_filter" => filter} when not is_nil(filter) ->
           filter
+        # Special join modes - use the configured ID field for filtering
+        %{join_mode: mode, id_field: id_field} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+          # colid might be nil, so extract table prefix from the field tuple
+          table_prefix = case field do
+            {:row, [display_field | _], _} ->
+              # ROW selector - extract from display field
+              case display_field do
+                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                _ -> extract_table_prefix(display_field)
+              end
+            {:field, field_ref, _} -> extract_table_prefix(field_ref)
+            _ -> nil
+          end
+
+          # Build the filter field as "table.id_field"
+          if table_prefix do
+            "#{table_prefix}.#{id_field}"
+          else
+            Atom.to_string(id_field)
+          end
+        # Try with string keys too
+        %{"join_mode" => mode, "id_field" => id_field} when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
+          # colid might be nil, so extract table prefix from the field tuple
+          table_prefix = case field do
+            {:row, [display_field | _], _} ->
+              # ROW selector - extract from display field
+              case display_field do
+                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                _ -> extract_table_prefix(display_field)
+              end
+            {:field, field_ref, _} -> extract_table_prefix(field_ref)
+            _ -> nil
+          end
+
+          # Build the filter field as "table.id_field"
+          if table_prefix do
+            "#{table_prefix}.#{id_field}"
+          else
+            to_string(id_field)
+          end
         _ ->
           # Extract field name from field tuple, handling COALESCE wrapper
           case field do
@@ -161,8 +203,25 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         _ -> value
       end
 
-      Map.put(acc, "phx-value-#{filter_field}", to_string(filter_value))
+      # Use indexed phx-value attributes to support multiple group levels
+      # phx-value-field0, phx-value-value0, phx-value-field1, phx-value1, etc.
+      acc
+      |> Map.put("phx-value-field#{idx}", filter_field)
+      |> Map.put("phx-value-value#{idx}", to_string(filter_value))
     end)
+  end
+
+  # Extract table prefix from a field reference
+  # Examples: "category.category_name" -> "category", :category_name -> nil
+  defp extract_table_prefix(field_ref) do
+    case field_ref do
+      field_str when is_binary(field_str) ->
+        case String.split(field_str, ".") do
+          [table, _field] -> table
+          _ -> nil
+        end
+      _ -> nil
+    end
   end
 
   # Render a single row with hierarchy styling
@@ -405,9 +464,47 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             # Handle extracted fields (e.g., date parts)
             Selecto.field(assigns.selecto, field_id) || %{name: alias}
 
-          {:row, _selector, _alias} ->
-            # For row selectors, use a basic column definition
-            %{name: alias, format: nil}
+          {:row, [display_field | _rest], _alias} ->
+            # For row selectors (e.g., join mode columns), look up the actual column definition
+            # display_field might be wrapped in COALESCE - extract the original field name
+            field_name = case display_field do
+              {:coalesce, [inner_field | _]} -> inner_field
+              other -> other
+            end
+
+            # Look up metadata from domain.schemas for joined fields
+            result = if is_binary(field_name) && String.contains?(field_name, ".") do
+              [schema_name, field_only] = String.split(field_name, ".", parts: 2)
+
+              # Look up from domain.schemas[schema].columns[field]
+              domain = Selecto.domain(assigns.selecto)
+              schema_atom = try do
+                String.to_existing_atom(schema_name)
+              rescue
+                ArgumentError -> nil
+              end
+
+              field_atom = try do
+                String.to_existing_atom(field_only)
+              rescue
+                ArgumentError -> nil
+              end
+
+              if schema_atom && field_atom do
+                get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+              else
+                nil
+              end
+            else
+              Selecto.field(assigns.selecto, field_name)
+            end
+
+            if result == nil do
+              # Field not found - use basic definition
+              %{name: alias, format: nil}
+            else
+              result
+            end
 
           _ ->
             # Fallback to basic definition

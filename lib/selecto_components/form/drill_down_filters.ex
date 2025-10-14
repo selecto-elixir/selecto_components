@@ -34,8 +34,90 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   @doc """
   Build filters map from drill-down parameters.
+
+  Supports two formats:
+  1. Legacy: phx-value-<fieldname> (doesn't work with dots in field names)
+  2. New indexed: phx-value-field0/phx-value-value0, field1/value1, etc.
   """
   def build_filter_map(params, socket) do
+    # Check if using new indexed format (field0, value0, field1, value1, etc.)
+    has_indexed_params = Map.has_key?(params, "field0") || Map.has_key?(params, "field")
+
+    if has_indexed_params do
+      build_filter_map_indexed(params, socket)
+    else
+      build_filter_map_legacy(params, socket)
+    end
+  end
+
+  # New indexed format: field0/value0, field1/value1
+  defp build_filter_map_indexed(params, socket) do
+    # Extract field/value pairs
+    field_value_pairs = extract_indexed_pairs(params)
+
+    Enum.reduce(
+      field_value_pairs,
+      Map.get(socket.assigns.used_params, "filters", %{}),
+      fn {field_name, v}, acc ->
+        newid = UUID.uuid4()
+
+        # Get field configuration
+        conf = Selecto.field(socket.assigns.selecto, field_name)
+
+        # If filtering on a join mode ID field, find the display field with metadata
+        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
+
+        # Check if this is an age bucket field
+        group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
+        field_group_config = find_field_group_config(group_by_config, field_name)
+        is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+
+        # Determine comparison mode and values based on format
+        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
+
+        # Build filter configuration
+        filter_config = %{
+          "comp" => comp_mode,
+          "filter" => field_name,
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => newid,
+          "value" => v1,
+          "value2" => v2,
+          "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+          "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
+        }
+
+        # Use group_by_filter if configured
+        actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
+          Map.get(conf, :group_by_filter)
+        else
+          field_name
+        end
+
+        # Update the filter config to use the correct field
+        filter_config = Map.put(filter_config, "filter", actual_filter_field)
+        Map.put(acc, newid, filter_config)
+      end
+    )
+  end
+
+  # Extract field0/value0, field1/value1 pairs from params
+  defp extract_indexed_pairs(params) do
+    # Find all field<N> keys
+    params
+    |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field") end)
+    |> Enum.map(fn {field_key, field_name} ->
+      # Extract index from "field0" -> "0"
+      idx = String.replace_prefix(field_key, "field", "")
+      value_key = "value#{idx}"
+      value = Map.get(params, value_key, "")
+      {field_name, value}
+    end)
+  end
+
+  # Legacy format: phx-value-<fieldname>
+  defp build_filter_map_legacy(params, socket) do
     Enum.reduce(
       params,
       Map.get(socket.assigns.used_params, "filters", %{}),
@@ -47,6 +129,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Get field configuration
         conf = Selecto.field(socket.assigns.selecto, field_name)
+
+        # If filtering on a join mode ID field, find the display field with metadata
+        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
         # Check if this is an age bucket field
         group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
@@ -285,5 +370,117 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
       end
     end)
+  end
+
+  @doc """
+  Find join mode field configuration when filtering on ID field.
+
+  Handles two cases:
+  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
+  2. Filtering on "category_id" (foreign key) - searches all schemas for field with group_by_filter: "category_id"
+  """
+  defp find_join_mode_field(selecto, field_name, original_conf) do
+    cond do
+      # Case 1: field_name contains "." like "category.id"
+      is_binary(field_name) and String.contains?(field_name, ".") ->
+        [schema_name, field_part] = String.split(field_name, ".", parts: 2)
+
+        # Check if this looks like an ID field
+        if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
+          # Get the domain to search for join_mode fields
+          domain = Selecto.domain(selecto)
+          schema_atom = try do
+            String.to_existing_atom(schema_name)
+          rescue
+            ArgumentError -> nil
+          end
+
+          if schema_atom do
+            schema_config = get_in(domain, [:schemas, schema_atom])
+
+            if schema_config do
+              # Search through columns to find one with join_mode metadata matching this ID field
+              columns = Map.get(schema_config, :columns, %{})
+
+              found_field = Enum.find_value(columns, fn {col_name, col_config} ->
+                # Check if this column has join_mode and its id_field matches our field
+                join_mode = Map.get(col_config, :join_mode)
+                id_field = Map.get(col_config, :id_field)
+                filter_type = Map.get(col_config, :filter_type)
+
+                # Match if this column is configured for join mode and references our ID field
+                if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                   (id_field == :id or Atom.to_string(id_field) == field_part) do
+                  # Return the full field name for this display field
+                  {col_name, col_config}
+                else
+                  nil
+                end
+              end)
+
+              case found_field do
+                {display_col_name, display_col_config} ->
+                  # Build the qualified field name
+                  qualified_name = "#{schema_name}.#{display_col_name}"
+
+                  # Merge the display field config with necessary metadata
+                  Map.merge(original_conf || %{}, display_col_config)
+                  |> Map.put(:_display_field_name, qualified_name)
+                  |> Map.put(:_filter_on_field, field_name)  # Remember we're actually filtering on the ID field
+
+                nil ->
+                  original_conf
+              end
+            else
+              original_conf
+            end
+          else
+            original_conf
+          end
+        else
+          original_conf
+        end
+
+      # Case 2: field_name is a foreign key like "category_id" (no dot)
+      is_binary(field_name) and String.ends_with?(field_name, "_id") ->
+        domain = Selecto.domain(selecto)
+        schemas = Map.get(domain, :schemas, %{})
+
+        # Search all schemas for a field with group_by_filter matching this field_name
+        found_field = Enum.find_value(schemas, fn {schema_name, schema_config} ->
+          columns = Map.get(schema_config, :columns, %{})
+
+          Enum.find_value(columns, fn {col_name, col_config} ->
+            join_mode = Map.get(col_config, :join_mode)
+            filter_type = Map.get(col_config, :filter_type)
+            group_by_filter = Map.get(col_config, :group_by_filter)
+
+            # Match if this column has group_by_filter pointing to our field
+            if join_mode in [:lookup, :star, :tag] and
+               filter_type == :multi_select_id and
+               group_by_filter == field_name do
+              {schema_name, col_name, col_config}
+            else
+              nil
+            end
+          end)
+        end)
+
+        case found_field do
+          {schema_name, display_col_name, display_col_config} ->
+            qualified_name = "#{schema_name}.#{display_col_name}"
+
+            # Merge the display field config with necessary metadata
+            Map.merge(original_conf || %{}, display_col_config)
+            |> Map.put(:_display_field_name, qualified_name)
+            |> Map.put(:_filter_on_field, field_name)  # Filter stays on the foreign key field
+
+          nil ->
+            original_conf
+        end
+
+      true ->
+        original_conf
+    end
   end
 end

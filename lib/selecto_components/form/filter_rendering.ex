@@ -88,14 +88,21 @@ defmodule SelectoComponents.Form.FilterRendering do
         section: section,
         index: index,
         filter_value: filter_value,
-        field_type: field_type
+        field_type: field_type,
+        column_def: column_def,
+        filter_def: filter_def
       })
 
-      # Render different forms based on field type
-      case field_type do
-        type when type in [:naive_datetime, :utc_datetime, :date] ->
+      # Check if this is a join_mode field (lookup/star/tag) - should render as multi-select
+      join_mode_config = find_join_mode_config(assigns.selecto, filter_id, column_def)
+
+      # Render different forms based on field type or join_mode
+      cond do
+        join_mode_config ->
+          render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
+        field_type in [:naive_datetime, :utc_datetime, :date] ->
           render_datetime_filter(assigns)
-        _ ->
+        true ->
           render_standard_filter(assigns)
       end
     end
@@ -280,6 +287,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   - Null checks (IS NULL, IS NOT NULL)
   """
   def render_standard_filter(assigns) do
+    # Check if this field uses multi-select ID filtering (lookup/star/tag join modes)
+    column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
+    is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
+
+    assigns = Map.put(assigns, :is_multi_select_id, is_multi_select_id)
+
     ~H"""
     <div class="grid grid-cols-3 gap-2">
       <select name={"filters[#{@uuid}][comp]"} class="sc-select">
@@ -295,15 +308,34 @@ defmodule SelectoComponents.Form.FilterRendering do
         <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
       </select>
 
-      <input
-        type="text"
-        name={"filters[#{@uuid}][value]"}
-        value={@filter_value["value"]}
-        placeholder="Enter value..."
-        class="sc-input col-span-2"
-        phx-debounce="300"
-        disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-      />
+      <%= if @is_multi_select_id do %>
+        <%!-- Multi-select ID filter input with helpful placeholder --%>
+        <div class="col-span-2">
+          <input
+            type="text"
+            name={"filters[#{@uuid}][value]"}
+            value={@filter_value["value"]}
+            placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
+            class="sc-input"
+            phx-debounce="300"
+            disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+          />
+          <div class="text-xs text-blue-600 mt-1">
+            💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
+          </div>
+        </div>
+      <% else %>
+        <%!-- Standard text input --%>
+        <input
+          type="text"
+          name={"filters[#{@uuid}][value]"}
+          value={@filter_value["value"]}
+          placeholder="Enter value..."
+          class="sc-input col-span-2"
+          phx-debounce="300"
+          disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+        />
+      <% end %>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
@@ -412,4 +444,238 @@ defmodule SelectoComponents.Form.FilterRendering do
       %{id: id} = c -> {id, c.name}
     end)
   end
+
+  @doc """
+  Find join mode configuration for a filter field.
+
+  Handles two cases:
+  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
+  2. Filtering on "category_id" (product table) - finds the category schema field that has group_by_filter: "category_id"
+  """
+  defp find_join_mode_config(selecto, filter_id, column_def) do
+    # Check if column_def already has join_mode
+    if column_def && Map.get(column_def, :join_mode) in [:lookup, :star, :tag] &&
+       Map.get(column_def, :filter_type) == :multi_select_id do
+      column_def
+    else
+      domain = Selecto.domain(selecto)
+
+      # Parse filter_id to get schema and field parts
+      {schema_name, field_part} = if is_binary(filter_id) and String.contains?(filter_id, ".") do
+        parts = String.split(filter_id, ".", parts: 2)
+        {Enum.at(parts, 0), Enum.at(parts, 1)}
+      else
+        # For fields without schema prefix (e.g., "category_id"), use source schema
+        source_table = get_in(domain, [:source, :source_table])
+        {source_table, filter_id}
+      end
+
+      # Check if this is an ID field that might have join_mode configuration
+      if field_part in ["id"] or String.ends_with?(field_part || "", "_id") do
+        schema_atom = try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
+
+        result_case1 = if schema_atom do
+          # Case 1: filtering on "category.id" - look in category schema for join_mode field
+          schema_config = get_in(domain, [:schemas, schema_atom])
+
+          if schema_config do
+            columns = Map.get(schema_config, :columns, %{})
+
+            Enum.find_value(columns, fn {_col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              id_field = Map.get(col_config, :id_field)
+              filter_type = Map.get(col_config, :filter_type)
+
+              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                 (id_field == :id or Atom.to_string(id_field) == field_part) do
+                # Include source_table from schema config so query_table_options knows which table to query
+                source_table = Map.get(schema_config, :source_table)
+                Map.put(col_config, :source_table, source_table)
+              else
+                nil
+              end
+            end)
+          else
+            nil
+          end
+        else
+          nil
+        end
+
+        # Case 2: filtering on "category_id" (foreign key) - search all schemas for field with matching group_by_filter
+        if result_case1 == nil and String.ends_with?(field_part, "_id") do
+          schemas = Map.get(domain, :schemas, %{})
+
+          Enum.find_value(schemas, fn {schema_name_atom, schema_config} ->
+            columns = Map.get(schema_config, :columns, %{})
+
+            Enum.find_value(columns, fn {col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              filter_type = Map.get(col_config, :filter_type)
+              group_by_filter = Map.get(col_config, :group_by_filter)
+
+              if join_mode in [:lookup, :star, :tag] and
+                 filter_type == :multi_select_id and
+                 group_by_filter == field_part do
+                # Include source_table from schema config so query_table_options knows which table to query
+                source_table = Map.get(schema_config, :source_table)
+                Map.put(col_config, :source_table, source_table)
+              else
+                nil
+              end
+            end)
+          end)
+        else
+          result_case1
+        end
+      else
+        nil
+      end
+    end
+  end
+
+  @doc """
+  Render multi-select filter for join_mode fields (lookup/star/tag).
+
+  Displays checkboxes for small datasets (lookup mode) or searchable dropdown
+  for larger datasets (star/tag modes).
+  """
+  defp render_multiselect_filter(assigns) do
+    # Get the configuration
+    join_mode_config = assigns.join_mode_config
+
+    # Get table from join_mode_config (added by find_join_mode_config)
+    # This is more reliable than parsing the filter_id
+    table = Map.get(join_mode_config, :source_table)
+    id_field = Map.get(join_mode_config, :id_field, :id)
+    display_field = Map.get(join_mode_config, :display_field, :name)
+    join_mode = Map.get(join_mode_config, :join_mode, :lookup)
+
+    # Query options from database using selecto's connection pool
+    options = if table do
+      query_table_options(assigns.selecto, table, id_field, display_field, 100)
+    else
+      []
+    end
+
+    # Parse selected IDs from filter value
+    current_value = assigns.filter_value["value"] || ""
+    selected_ids = parse_filter_ids(current_value)
+
+    assigns =
+      assigns
+      |> Map.put(:options, options)
+      |> Map.put(:selected_ids, selected_ids)
+      |> Map.put(:join_mode, join_mode)
+
+    ~H"""
+    <div class="space-y-2">
+      <label class="text-sm font-medium text-gray-700">
+        Select <%= display_field %>:
+      </label>
+
+      <%= if @join_mode == :lookup and length(@options) < 20 do %>
+        <%!-- Checkbox list for small datasets --%>
+        <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
+          <%= for opt <- @options do %>
+            <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
+              <input
+                type="checkbox"
+                name={"filters[#{@uuid}][selected_ids][]"}
+                value={opt.id}
+                checked={opt.id in @selected_ids}
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+              />
+              <span class="text-sm text-gray-900"><%= opt.name %></span>
+            </label>
+          <% end %>
+        </div>
+      <% else %>
+        <%!-- Simple multi-select for larger datasets --%>
+        <select
+          multiple
+          size="8"
+          phx-change="update_multiselect_dropdown"
+          phx-value-filter-uuid={@uuid}
+          class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+          <%= for opt <- @options do %>
+            <option value={opt.id} selected={opt.id in @selected_ids}>
+              <%= opt.name %>
+            </option>
+          <% end %>
+        </select>
+        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+      <% end %>
+
+      <div class="text-xs text-gray-500">
+        <%= length(@selected_ids) %> of <%= length(@options) %> selected
+      </div>
+
+      <%!-- Hidden inputs to preserve filter structure --%>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][comp]"} value="IN"/>
+
+      <%!-- Hidden field to store comma-separated IDs --%>
+      <input
+        id={"filter-value-#{@uuid}"}
+        type="hidden"
+        name={"filters[#{@uuid}][value]"}
+        value={Enum.join(@selected_ids, ",")}
+      />
+    </div>
+    """
+  end
+
+  # Query database for ID+name pairs using Selecto's connection (Repo)
+  defp query_table_options(selecto, table, id_field, display_field, limit) do
+    require Logger
+
+    query = """
+    SELECT #{id_field} as id, #{display_field} as name
+    FROM #{table}
+    WHERE #{display_field} IS NOT NULL
+    ORDER BY #{display_field}
+    LIMIT $1
+    """
+
+    # Use Repo.query directly - selecto.connection is the Repo module
+    repo = selecto.connection
+    case repo.query(query, [limit]) do
+      {:ok, %{rows: rows}} ->
+        Enum.map(rows, fn [id, name] ->
+          %{id: id, name: to_string(name)}
+        end)
+
+      {:error, error} ->
+        Logger.warning("Failed to query options for multi-select filter: #{inspect(error)}")
+        []
+    end
+  rescue
+    e ->
+      Logger.warning("Exception querying options for multi-select filter: #{inspect(e)}")
+      []
+  end
+
+  # Parse comma-separated IDs from value string
+  defp parse_filter_ids(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(fn id_str ->
+      case Integer.parse(id_str) do
+        {id, _} -> id
+        :error -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp parse_filter_ids(_), do: []
 end

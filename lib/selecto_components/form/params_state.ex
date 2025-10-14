@@ -96,6 +96,23 @@ defmodule SelectoComponents.Form.ParamsState do
       # Filters should have at least these keys: filter, comp, value, section
       is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp")
     end)
+    |> Enum.map(fn {uuid, f} ->
+      # Convert selected_ids array to comma-separated value for IN operator
+      f = if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") == "IN" do
+        selected_ids = case Map.get(f, "selected_ids") do
+          ids when is_list(ids) -> ids
+          ids when is_binary(ids) -> String.split(ids, ",")
+          _ -> []
+        end
+        value = Enum.join(selected_ids, ",")
+        f
+        |> Map.put("value", value)
+        |> Map.delete("selected_ids")
+      else
+        f
+      end
+      {uuid, f}
+    end)
     |> Enum.sort(fn {_, f1}, {_, f2} ->
       String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
     end)
