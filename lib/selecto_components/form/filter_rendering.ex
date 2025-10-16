@@ -96,8 +96,13 @@ defmodule SelectoComponents.Form.FilterRendering do
       # Check if this is a join_mode field (lookup/star/tag) - should render as multi-select
       join_mode_config = find_join_mode_config(assigns.selecto, filter_id, column_def)
 
+      # Check if this is a polymorphic join mode field
+      polymorphic_config = find_polymorphic_config(assigns.selecto, filter_id, column_def)
+
       # Render different forms based on field type or join_mode
       cond do
+        polymorphic_config ->
+          render_polymorphic_filter(Map.put(assigns, :polymorphic_config, polymorphic_config))
         join_mode_config ->
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
         field_type in [:naive_datetime, :utc_datetime, :date] ->
@@ -678,4 +683,156 @@ defmodule SelectoComponents.Form.FilterRendering do
     |> Enum.reject(&is_nil/1)
   end
   defp parse_filter_ids(_), do: []
+
+  @doc """
+  Find polymorphic join mode configuration for a filter field.
+
+  Looks for columns with join_mode: :polymorphic and returns the configuration
+  including the entity types that can be filtered.
+  """
+  defp find_polymorphic_config(selecto, filter_id, column_def) do
+    # Check if column_def already has polymorphic join_mode
+    if column_def && Map.get(column_def, :join_mode) == :polymorphic &&
+       Map.get(column_def, :filter_type) == :polymorphic do
+      column_def
+    else
+      domain = Selecto.domain(selecto)
+
+      # Parse filter_id to get schema and field parts
+      {schema_name, field_part} = if is_binary(filter_id) and String.contains?(filter_id, ".") do
+        parts = String.split(filter_id, ".", parts: 2)
+        {Enum.at(parts, 0), Enum.at(parts, 1)}
+      else
+        # For fields without schema prefix, use source schema
+        source_table = get_in(domain, [:source, :source_table])
+        {source_table, filter_id}
+      end
+
+      # Check if this is a type or id field that might have polymorphic configuration
+      if String.ends_with?(field_part || "", "_type") or String.ends_with?(field_part || "", "_id") do
+        schema_atom = try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
+
+        if schema_atom do
+          # Look in schema for polymorphic field
+          schema_config = get_in(domain, [:schemas, schema_atom])
+
+          if schema_config do
+            columns = Map.get(schema_config, :columns, %{})
+
+            Enum.find_value(columns, fn {_col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              filter_type = Map.get(col_config, :filter_type)
+
+              if join_mode == :polymorphic and filter_type == :polymorphic do
+                # Include source_table so we know which table to query
+                source_table = Map.get(schema_config, :source_table)
+                Map.put(col_config, :source_table, source_table)
+              else
+                nil
+              end
+            end)
+          else
+            nil
+          end
+        else
+          nil
+        end
+      else
+        nil
+      end
+    end
+  end
+
+  @doc """
+  Render polymorphic filter with type selector and dynamic value loading.
+
+  Allows users to:
+  1. Select which entity type(s) to filter (Product, Order, Customer)
+  2. For each type, select specific entities via multi-select
+  """
+  defp render_polymorphic_filter(assigns) do
+    # Get the configuration
+    polymorphic_config = assigns.polymorphic_config
+
+    # Get entity types from config
+    entity_types = Map.get(polymorphic_config, :entity_types, ["Product", "Order", "Customer"])
+    type_field = Map.get(polymorphic_config, :type_field, "commentable_type")
+    id_field = Map.get(polymorphic_config, :id_field, "commentable_id")
+
+    # Parse current selection
+    current_value = assigns.filter_value["polymorphic_selection"] || %{}
+    selected_types = Map.get(current_value, "types", [])
+
+    assigns =
+      assigns
+      |> Map.put(:entity_types, entity_types)
+      |> Map.put(:type_field, type_field)
+      |> Map.put(:id_field, id_field)
+      |> Map.put(:selected_types, selected_types)
+      |> Map.put(:current_selection, current_value)
+
+    ~H"""
+    <div class="space-y-3">
+      <label class="text-sm font-medium text-gray-700">
+        Select Entity Type(s):
+      </label>
+
+      <%!-- Type selection checkboxes --%>
+      <div class="border border-gray-300 rounded-md p-2 bg-white space-y-1">
+        <%= for entity_type <- @entity_types do %>
+          <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
+            <input
+              type="checkbox"
+              phx-change="polymorphic_type_toggle"
+              phx-value-filter-uuid={@uuid}
+              phx-value-entity-type={entity_type}
+              checked={entity_type in @selected_types}
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+            />
+            <span class="text-sm text-gray-900"><%= entity_type %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <%!-- Value selection for each selected type --%>
+      <%= if length(@selected_types) > 0 do %>
+        <div class="space-y-2 border-t pt-2">
+          <%= for entity_type <- @selected_types do %>
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-gray-600">
+                <%= entity_type %> IDs:
+              </label>
+              <input
+                type="text"
+                name={"filters[#{@uuid}][poly_values][#{entity_type}]"}
+                value={get_in(@current_selection, ["values", entity_type]) || ""}
+                placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
+                class="sc-input text-sm"
+                phx-debounce="300"
+              />
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%!-- Hidden inputs to preserve filter structure --%>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][comp]"} value="POLYMORPHIC"/>
+
+      <%!-- Store selected types as JSON --%>
+      <input
+        type="hidden"
+        name={"filters[#{@uuid}][selected_types]"}
+        value={Jason.encode!(@selected_types)}
+      />
+    </div>
+    """
+  end
 end
