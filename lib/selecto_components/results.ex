@@ -2,6 +2,7 @@ defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
   alias SelectoComponents.Debug.DebugDisplay
   alias SelectoComponents.Debug.ProductionConfig
+  alias SelectoComponents.SafeAtom
 
   def render(assigns) do
     assigns =
@@ -10,7 +11,7 @@ defmodule SelectoComponents.Results do
           assigns
 
         _ ->
-          selected_view = String.to_atom(assigns.applied_view)
+          selected_view = SafeAtom.to_view_mode(assigns.applied_view)
 
           {_, module, _, opt} =
             Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
@@ -30,7 +31,7 @@ defmodule SelectoComponents.Results do
           module={DebugDisplay}
           id="debug_display"
           domain_module={Map.get(assigns, :domain_module)}
-          view_type={if @applied_view, do: String.to_atom(@applied_view), else: :detail}
+          view_type={if @applied_view, do: SafeAtom.to_view_mode(@applied_view), else: :detail}
           debug_data={build_debug_data(assigns)}
         />
         

@@ -2,9 +2,10 @@ defmodule SelectoComponents.Responsive.ResponsiveTable do
   @moduledoc """
   Responsive table component that adapts to different screen sizes with mobile-friendly features.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.SafeAtom
   
   @doc """
   Initialize responsive table state.
@@ -254,8 +255,15 @@ defmodule SelectoComponents.Responsive.ResponsiveTable do
     |> String.split(".")
     |> Enum.reduce(row, fn key, acc ->
       case acc do
-        %{} = map -> Map.get(map, String.to_atom(key))
-        _ -> nil
+        %{} = map ->
+          # Use SafeAtom.to_existing to prevent atom table exhaustion
+          case SafeAtom.to_existing(key) do
+            nil -> nil
+            key_atom -> Map.get(map, key_atom)
+          end
+
+        _ ->
+          nil
       end
     end)
     |> format_value()

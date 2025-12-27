@@ -14,6 +14,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.Performance.MetricsCollector
   alias SelectoComponents.SubselectBuilder
   alias SelectoComponents.EnhancedTable.Sorting
+  alias SelectoComponents.SafeAtom
   require Logger
 
   @doc """
@@ -27,7 +28,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
     # Add view-specific parameters
     view_params =
-      case view_config.views[String.to_atom(view_config.view_mode)] do
+      case view_config.views[SafeAtom.to_view_mode(view_config.view_mode)] do
         nil ->
           %{}
 
@@ -196,7 +197,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
     filtered = filter_recurse(selecto, filters_by_section, "filters")
 
-    selected_view = String.to_atom(Map.get(params, "view_mode"))
+    selected_view = SafeAtom.to_view_mode(Map.get(params, "view_mode"))
 
     # Include the current detail page if we're in detail view
     params = if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do

@@ -2,8 +2,9 @@ defmodule SelectoComponents.Theme.ThemeProvider do
   @moduledoc """
   Comprehensive theming system using CSS variables for SelectoComponents customization.
   """
-  
+
   use Phoenix.Component
+  alias SelectoComponents.SafeAtom
   
   @default_themes %{
     light: %{
@@ -458,9 +459,8 @@ defmodule SelectoComponents.Theme.ThemeProvider do
   end
   
   defp atomize_keys(map) when is_map(map) do
-    Map.new(map, fn {k, v} ->
-      {String.to_atom(k), v}
-    end)
+    # Use SafeAtom to prevent atom table exhaustion from untrusted JSON keys
+    SafeAtom.atomize_keys(map, SafeAtom.valid_theme_properties())
   end
   
   @doc """

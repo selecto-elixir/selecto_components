@@ -5,6 +5,7 @@ defmodule SelectoComponents.Theme.ThemeSwitcher do
   
   use Phoenix.LiveComponent
   alias SelectoComponents.Theme.ThemeProvider
+  alias SelectoComponents.SafeAtom
   
   @impl true
   def mount(socket) do
@@ -340,7 +341,7 @@ defmodule SelectoComponents.Theme.ThemeSwitcher do
   end
   
   def handle_event("select_theme", %{"theme" => theme}, socket) do
-    theme_atom = String.to_atom(theme)
+    theme_atom = SafeAtom.to_theme(theme)
     
     send(self(), {:theme_changed, theme_atom})
     

@@ -4,6 +4,8 @@ defmodule SelectoComponents.SubselectBuilder do
   Converts one-to-many and many-to-many relationships into JSON aggregations.
   """
 
+  alias SelectoComponents.SafeAtom
+
   @doc """
   Builds a Selecto query with subselects for denormalizing columns.
 
@@ -71,9 +73,12 @@ defmodule SelectoComponents.SubselectBuilder do
     end)
 
     # Create a single config for all fields of this relationship
+    # Use SafeAtom.to_existing to prevent atom table exhaustion - schema names should exist
+    target_schema = SafeAtom.to_existing(relationship_path) || :unknown
+
     config = %{
       fields: field_names,
-      target_schema: String.to_atom(relationship_path),
+      target_schema: target_schema,
       format: :json_agg,
       alias: relationship_path  # Use the relationship path as the alias
     }

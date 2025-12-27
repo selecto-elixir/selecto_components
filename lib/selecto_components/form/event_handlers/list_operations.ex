@@ -35,6 +35,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.Form.ListPickerOperations
+      alias SelectoComponents.SafeAtom
 
       @doc """
       Handles adding an item to a list.
@@ -69,7 +70,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         # Find and update the view module
         view_module =
           Enum.find(socket.assigns.views, fn {id, _, _, _} ->
-            id == String.to_atom(view)
+            id == SafeAtom.to_view_mode(view)
           end)
 
         if view_module do
@@ -109,7 +110,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         # Find and update the view module
         view_module =
           Enum.find(socket.assigns.views, fn {id, _, _, _} ->
-            id == String.to_atom(view)
+            id == SafeAtom.to_view_mode(view)
           end)
 
         if view_module do
@@ -151,7 +152,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         # Find and update the view module
         view_module =
           Enum.find(socket.assigns.views, fn {id, _, _, _} ->
-            id == String.to_atom(view)
+            id == SafeAtom.to_view_mode(view)
           end)
 
         if view_module do

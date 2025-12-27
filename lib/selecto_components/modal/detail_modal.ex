@@ -2,10 +2,11 @@ defmodule SelectoComponents.Modal.DetailModal do
   @moduledoc """
   Modal component for displaying detailed record information with related data.
   """
-  
+
   use Phoenix.LiveComponent
   import SelectoComponents.Modal.ModalWrapper
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.SafeAtom
   
   @impl true
   def mount(socket) do
@@ -299,8 +300,16 @@ defmodule SelectoComponents.Modal.DetailModal do
   end
   
   def handle_event("update_field", %{"field" => field, "value" => value}, socket) do
-    updated_record = Map.put(socket.assigns.record, String.to_atom(field), value)
-    {:noreply, assign(socket, record: updated_record)}
+    # Use to_existing to only allow schema-defined field names (atoms already in table)
+    case SafeAtom.to_existing(field) do
+      nil ->
+        # Field name doesn't exist as an atom - ignore the update
+        {:noreply, socket}
+
+      field_atom ->
+        updated_record = Map.put(socket.assigns.record, field_atom, value)
+        {:noreply, assign(socket, record: updated_record)}
+    end
   end
   
   def handle_event("save_changes", _params, socket) do
@@ -353,8 +362,11 @@ defmodule SelectoComponents.Modal.DetailModal do
   end
   
   defp get_related_records(assigns, tab) do
-    if assigns[:related_data] && assigns[:related_data][String.to_atom(tab)] do
-      assigns.related_data[String.to_atom(tab)][:records] || []
+    # Use to_existing to only allow tab names that are already atoms (from related_data keys)
+    tab_atom = SafeAtom.to_existing(tab)
+
+    if tab_atom && assigns[:related_data] && assigns[:related_data][tab_atom] do
+      assigns.related_data[tab_atom][:records] || []
     else
       []
     end

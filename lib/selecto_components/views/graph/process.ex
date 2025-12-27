@@ -1,4 +1,6 @@
 defmodule SelectoComponents.Views.Graph.Process do
+  alias SelectoComponents.SafeAtom
+
   @doc """
   Converts form parameters to view state for form rendering
   """
@@ -134,7 +136,8 @@ defmodule SelectoComponents.Views.Graph.Process do
       end
 
       # Build aggregate function
-      aggregate_function = String.to_atom(
+      # Use SafeAtom to prevent atom table exhaustion from user input
+      aggregate_function = SafeAtom.to_aggregate_function(
         case field_config["function"] do
           nil -> "count"
           "" -> "count"

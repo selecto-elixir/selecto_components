@@ -9,13 +9,15 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   - Determining appropriate comparison operators for different field types
   """
 
+  alias SelectoComponents.SafeAtom
+
   @doc """
   Build filter parameters for aggregate drill-down.
 
   Takes the clicked parameters and socket assigns, returns a map ready for view_from_params.
   """
   def build_agg_drill_down_params(params, socket) do
-    selected_view = String.to_atom(socket.assigns.view_config.view_mode)
+    selected_view = SafeAtom.to_view_mode(socket.assigns.view_config.view_mode)
 
     {_, _, _, opt} =
       Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)

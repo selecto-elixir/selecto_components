@@ -2,8 +2,9 @@ defmodule SelectoComponents.Forms.QuickAdd do
   @moduledoc """
   Quick add forms for adding new records inline or in modals without leaving the current view.
   """
-  
+
   use Phoenix.LiveComponent
+  alias SelectoComponents.SafeAtom
   
   @impl true
   def mount(socket) do
@@ -382,7 +383,7 @@ defmodule SelectoComponents.Forms.QuickAdd do
   
   @impl true
   def handle_event("expand_form", %{"mode" => mode}, socket) do
-    {:noreply, assign(socket, mode: String.to_atom(mode))}
+    {:noreply, assign(socket, mode: SafeAtom.to_form_mode(mode))}
   end
   
   def handle_event("collapse_form", _params, socket) do
