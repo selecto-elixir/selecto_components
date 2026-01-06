@@ -9,14 +9,16 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   - Updating view configuration after list changes
   """
 
+  alias SelectoComponents.SafeAtom
+
   @doc """
   Remove an item from a picker list in the view configuration.
 
   Returns the updated view_config with the item removed from the specified list.
   """
   def remove_item_from_list(view_config, view, list, item) do
-    view = String.to_atom(view)
-    list = String.to_atom(list)
+    view = SafeAtom.to_view_mode(view)
+    list = SafeAtom.to_list_name(list)
 
     original_list = view_config.views[view][list]
 
@@ -39,8 +41,8 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   Returns the updated view_config with the item moved, or the original view_config if item not found.
   """
   def move_item_in_list(view_config, view, list, uuid, direction) do
-    view = String.to_atom(view)
-    list = String.to_atom(list)
+    view = SafeAtom.to_view_mode(view)
+    list = SafeAtom.to_list_name(list)
 
     item_list = view_config.views[view][list]
 
@@ -78,8 +80,8 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   Returns the updated view_config with the item appended to the specified list.
   """
   def add_item_to_list(view_config, view, list, item) do
-    view = String.to_atom(view)
-    list = String.to_atom(list)
+    view = SafeAtom.to_view_mode(view)
+    list = SafeAtom.to_list_name(list)
 
     # Get the current list
     current_list = view_config.views[view][list] || []

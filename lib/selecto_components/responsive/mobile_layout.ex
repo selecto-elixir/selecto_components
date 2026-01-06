@@ -2,9 +2,10 @@ defmodule SelectoComponents.Responsive.MobileLayout do
   @moduledoc """
   Mobile-optimized layout components for responsive tables and data views.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.SafeAtom
   
   @doc """
   Mobile stacked view for table data.
@@ -240,9 +241,16 @@ defmodule SelectoComponents.Responsive.MobileLayout do
   defp get_nested_value(data, []), do: data
   defp get_nested_value(nil, _), do: "-"
   defp get_nested_value(data, [key | rest]) do
-    case Map.get(data, String.to_atom(key)) do
-      nil -> "-"
-      value -> get_nested_value(value, rest)
+    # Use SafeAtom.to_existing to prevent atom table exhaustion
+    case SafeAtom.to_existing(key) do
+      nil ->
+        "-"
+
+      key_atom ->
+        case Map.get(data, key_atom) do
+          nil -> "-"
+          value -> get_nested_value(value, rest)
+        end
     end
   end
   

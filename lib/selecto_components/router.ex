@@ -7,6 +7,7 @@ defmodule SelectoComponents.Router do
   """
 
   alias SelectoComponents.State
+  alias SelectoComponents.SafeAtom
   alias UUID
 
   @doc """
@@ -340,7 +341,8 @@ defmodule SelectoComponents.Router do
 
   defp column_exists_in_source?(column_name, source_columns) do
     # Check if column exists in source (handle string/atom conversion)
-    col_atom = if is_binary(column_name), do: String.to_atom(column_name), else: column_name
+    # Use SafeAtom.to_existing to prevent atom table exhaustion from user input
+    col_atom = if is_binary(column_name), do: SafeAtom.to_existing(column_name), else: column_name
     col_string = if is_atom(column_name), do: Atom.to_string(column_name), else: column_name
 
     Enum.any?(source_columns, fn source_col ->
@@ -361,8 +363,8 @@ defmodule SelectoComponents.Router do
         col_str = to_string(col)
         if String.contains?(col_str, ".") do
           [table_name, _] = String.split(col_str, ".", parts: 2)
-          result = String.to_atom(table_name)
-          result
+          # Use SafeAtom.to_existing to prevent atom table exhaustion
+          SafeAtom.to_existing(table_name)
         else
           nil
         end
@@ -409,7 +411,8 @@ defmodule SelectoComponents.Router do
           col_str
         end
 
-      col_atom = if is_binary(col_name), do: String.to_atom(col_name), else: col_name
+      # Use SafeAtom.to_existing to prevent atom table exhaustion from user input
+      col_atom = if is_binary(col_name), do: SafeAtom.to_existing(col_name), else: col_name
 
       Enum.any?(schema_columns, fn schema_col ->
         schema_col == col_atom or

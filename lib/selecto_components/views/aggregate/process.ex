@@ -1,4 +1,6 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
+  alias SelectoComponents.SafeAtom
+
   def param_to_state(params, _v) do
     %{
       group_by: SelectoComponents.Views.view_param_process(params, "group_by", "field"),
@@ -416,7 +418,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
         format_str ->
           # Standard aggregates - return as single item list for consistency
-          [{:field, {String.to_atom(format_str), field}, alias}]
+          # Use SafeAtom to prevent atom table exhaustion from user input
+          [{:field, {SafeAtom.to_aggregate_function(format_str), field}, alias}]
       end
     end)
 

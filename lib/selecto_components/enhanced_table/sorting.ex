@@ -3,8 +3,9 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
   Provides sorting functionality for SelectoComponents tables.
   Supports single and multi-column sorting with visual indicators.
   """
-  
+
   use Phoenix.Component
+  alias SelectoComponents.SafeAtom
 
   @doc """
   Initialize sort state in the socket assigns.
@@ -225,10 +226,20 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
   """
   def deserialize_sort(nil), do: []
   def deserialize_sort(sort_data) when is_list(sort_data) do
-    Enum.map(sort_data, fn 
+    Enum.map(sort_data, fn
       %{"column" => col, "direction" => dir} ->
-        {String.to_atom(col), String.to_atom(dir)}
-      _ -> nil
+        # Use SafeAtom to prevent atom table exhaustion from user input
+        col_atom = SafeAtom.to_existing(col)
+        dir_atom = SafeAtom.to_sort_direction(dir)
+
+        if col_atom do
+          {col_atom, dir_atom}
+        else
+          nil
+        end
+
+      _ ->
+        nil
     end)
     |> Enum.reject(&is_nil/1)
   end

@@ -31,6 +31,7 @@ defmodule SelectoComponents.Form.EventHandlers.DrillDown do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.Form.{ParamsState, DrillDownFilters}
+      alias SelectoComponents.SafeAtom
       import SelectoComponents.Form.ErrorHandling
 
       @doc """
@@ -55,7 +56,7 @@ defmodule SelectoComponents.Form.EventHandlers.DrillDown do
           filter_tuples = DrillDownFilters.build_filter_tuples(params, socket)
 
           # Update view_config with new filters
-          selected_view = String.to_atom(socket.assigns.view_config.view_mode)
+          selected_view = SafeAtom.to_view_mode(socket.assigns.view_config.view_mode)
           {_, _, _, opt} = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
           new_view_mode = Map.get(opt, :drill_down, "detail")
 
@@ -157,7 +158,7 @@ defmodule SelectoComponents.Form.EventHandlers.DrillDown do
           updated_filters = socket.assigns.view_config.filters ++ [new_filter]
 
           # Switch to detail view (or configured drill_down view)
-          selected_view = String.to_atom(current_view_mode)
+          selected_view = SafeAtom.to_view_mode(current_view_mode)
 
           {_, _, _, opt} =
             Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end) ||

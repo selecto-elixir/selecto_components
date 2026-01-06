@@ -3,11 +3,12 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
   Manages dashboard layouts and widget positioning.
   Handles grid-based layouts, collision detection, and layout persistence.
   """
-  
+
   use Phoenix.LiveComponent
   import Phoenix.LiveView
   alias SelectoComponents.Dashboard.Widget
   alias SelectoComponents.Dashboard.WidgetRegistry
+  alias SelectoComponents.SafeAtom
   
   @grid_cols 12
   @grid_row_height 100
@@ -356,10 +357,11 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
   
   defp create_widget(type, existing_widgets) do
     position = find_free_position(existing_widgets)
-    
+    widget_type = SafeAtom.to_widget_type(type)
+
     %{
       id: "widget-#{System.unique_integer([:positive])}",
-      type: String.to_atom(type),
+      type: widget_type,
       config: Map.merge(
         %{
           title: "New #{String.capitalize(type)} Widget",
@@ -368,7 +370,7 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
           width: 4,
           height: 3
         },
-        default_widget_config(String.to_atom(type))
+        default_widget_config(widget_type)
       ),
       data: nil
     }
@@ -468,7 +470,7 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
     |> Enum.map(fn widget_data ->
       %{
         id: "widget-#{System.unique_integer([:positive])}",
-        type: String.to_atom(widget_data["type"]),
+        type: SafeAtom.to_widget_type(widget_data["type"]),
         config: widget_data["config"],
         data_config: widget_data["data_config"],
         data: nil
