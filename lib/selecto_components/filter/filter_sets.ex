@@ -330,8 +330,10 @@ defmodule SelectoComponents.Filter.FilterSets do
        show_save_dialog: false,
        show_manage_dialog: false,
        show_share_dialog: false,
+       show_import_dialog: false,
        share_url: "",
        share_json: "",
+       import_json: "",
        save_form: %{
          name: "",
          description: "",
@@ -525,9 +527,38 @@ defmodule SelectoComponents.Filter.FilterSets do
     {:noreply, assign(socket, show_share_dialog: false)}
   end
   
+  def handle_event("import_set", %{"json" => json_string}, socket) do
+    case import_filter_set(json_string, socket.assigns) do
+      {:ok, new_set} ->
+        {:noreply,
+         socket
+         |> assign(filter_sets_loaded: false)
+         |> maybe_load_filter_sets()
+         |> assign(
+           current_set_id: new_set.id,
+           current_set: new_set,
+           show_import_dialog: false
+         )
+         |> put_flash(:info, "Filter set imported successfully")}
+
+      {:error, :invalid_format} ->
+        {:noreply, put_flash(socket, :error, "Invalid filter set format")}
+
+      {:error, {:json_decode_failed, _}} ->
+        {:noreply, put_flash(socket, :error, "Invalid JSON format")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to import filter set")}
+    end
+  end
+
   def handle_event("import_set", _params, socket) do
-    # Implementation would handle JSON import
-    {:noreply, put_flash(socket, :info, "Import functionality coming soon")}
+    # No JSON provided - show the import dialog
+    {:noreply, assign(socket, show_import_dialog: true)}
+  end
+
+  def handle_event("close_import_dialog", _params, socket) do
+    {:noreply, assign(socket, show_import_dialog: false)}
   end
   
   def handle_event("export_set", %{"id" => id}, socket) do
@@ -712,15 +743,119 @@ defmodule SelectoComponents.Filter.FilterSets do
     end
   end
   
-  defp generate_share_data(_id, _assigns) do
-    # TODO: Implement share URL generation
-    {:error, :not_implemented}
+  defp generate_share_data(id, assigns) do
+    case get_filter_set(id, assigns) do
+      {:ok, filter_set} ->
+        # Generate shareable JSON representation
+        export_data = build_export_data(filter_set)
+        json = Jason.encode!(export_data, pretty: true)
+
+        # Generate share URL with encoded filter data
+        # The URL contains a base64-encoded, compressed version of the filters
+        encoded_filters = encode_filters_for_url(export_data.filters)
+
+        base_url = Map.get(assigns, :base_url, "")
+        domain = Map.get(assigns, :domain, "")
+
+        # Build the share URL with the encoded filters as a query parameter
+        share_url = "#{base_url}#{domain}?shared_filters=#{encoded_filters}"
+
+        {:ok, share_url, json}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
-  
-  defp export_filter_set(_id, _assigns) do
-    # TODO: Implement JSON export
-    {:error, :not_implemented}
+
+  defp export_filter_set(id, assigns) do
+    case get_filter_set(id, assigns) do
+      {:ok, filter_set} ->
+        export_data = build_export_data(filter_set)
+        json = Jason.encode!(export_data, pretty: true)
+        {:ok, json}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
+
+  # Build export-friendly data structure from a filter set
+  defp build_export_data(filter_set) do
+    %{
+      version: "1.0",
+      exported_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      filter_set: %{
+        name: filter_set.name,
+        description: Map.get(filter_set, :description, ""),
+        domain: filter_set.domain,
+        filters: filter_set.filters
+      }
+    }
+  end
+
+  # Encode filters for URL sharing (compressed base64)
+  defp encode_filters_for_url(filters) do
+    filters
+    |> Jason.encode!()
+    |> :zlib.compress()
+    |> Base.url_encode64(padding: false)
+  end
+
+  @doc """
+  Decode filters from a shared URL parameter.
+  Returns {:ok, filters} or {:error, reason}.
+  """
+  def decode_shared_filters(encoded) when is_binary(encoded) do
+    try do
+      filters =
+        encoded
+        |> Base.url_decode64!(padding: false)
+        |> :zlib.uncompress()
+        |> Jason.decode!()
+
+      {:ok, filters}
+    rescue
+      e in [ArgumentError, ErlangError, Jason.DecodeError] ->
+        {:error, {:decode_failed, e}}
+    end
+  end
+  def decode_shared_filters(_), do: {:error, :invalid_input}
+
+  @doc """
+  Import a filter set from JSON data.
+  Returns {:ok, filter_set} or {:error, reason}.
+  """
+  def import_filter_set(json_string, assigns) when is_binary(json_string) do
+    adapter = assigns[:filter_sets_adapter]
+    user_id = assigns[:user_id]
+
+    if adapter do
+      case Jason.decode(json_string) do
+        {:ok, %{"version" => _version, "filter_set" => filter_data}} ->
+          # Validate and import the filter set
+          import_attrs = %{
+            name: "#{filter_data["name"]} (Imported)",
+            description: filter_data["description"],
+            domain: filter_data["domain"],
+            filters: filter_data["filters"],
+            user_id: user_id,
+            is_shared: false,
+            is_default: false
+          }
+
+          adapter.create_filter_set(import_attrs)
+
+        {:ok, _} ->
+          {:error, :invalid_format}
+
+        {:error, reason} ->
+          {:error, {:json_decode_failed, reason}}
+      end
+    else
+      {:error, :no_adapter}
+    end
+  end
+  def import_filter_set(_, _), do: {:error, :invalid_input}
   
   # Flash helper removed - using Phoenix.LiveView.put_flash directly
   
