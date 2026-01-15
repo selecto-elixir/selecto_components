@@ -482,17 +482,132 @@ defmodule SelectoComponents.Forms.QuickAdd do
   end
   
   defp build_fields_from_schema(nil), do: []
-  defp build_fields_from_schema(_schema) do
-    # This would extract fields from an Ecto schema
-    # For now, return example fields
-    [
-      %{name: "name", label: "Name", type: :text, required: true, placeholder: "Enter name"},
-      %{name: "email", label: "Email", type: :email, required: true},
-      %{name: "amount", label: "Amount", type: :number, required: false, min: 0},
-      %{name: "date", label: "Date", type: :date, required: false},
-      %{name: "active", label: "Active", type: :boolean, description: "Is this record active?", default: true}
-    ]
+  defp build_fields_from_schema(schema) when is_atom(schema) do
+    # Extract fields from an Ecto schema module
+    if Code.ensure_loaded?(schema) and function_exported?(schema, :__schema__, 1) do
+      # Get all fields except primary key and timestamps
+      primary_key = schema.__schema__(:primary_key) |> List.wrap()
+      autogen_fields = [:inserted_at, :updated_at]
+
+      schema.__schema__(:fields)
+      |> Enum.reject(fn field -> field in primary_key or field in autogen_fields end)
+      |> Enum.map(fn field ->
+        field_type = schema.__schema__(:type, field)
+        build_field_config(field, field_type, schema)
+      end)
+    else
+      []
+    end
   end
+  defp build_fields_from_schema(%{columns: columns}) when is_map(columns) do
+    # Build fields from Selecto domain column configuration
+    columns
+    |> Enum.reject(fn {name, _config} ->
+      # Skip id and timestamp fields
+      name in [:id, :inserted_at, :updated_at] or
+      to_string(name) in ["id", "inserted_at", "updated_at"]
+    end)
+    |> Enum.map(fn {name, config} ->
+      build_field_from_column(name, config)
+    end)
+  end
+  defp build_fields_from_schema(_), do: []
+
+  defp build_field_config(field, field_type, schema) do
+    name = to_string(field)
+    label = humanize_field_name(name)
+
+    # Determine if field is required by checking associations or constraints
+    required = is_required_field?(field, schema)
+
+    # Map Ecto type to form field type
+    {form_type, extra_opts} = ecto_type_to_form_type(field_type)
+
+    base_config = %{
+      name: name,
+      label: label,
+      type: form_type,
+      required: required,
+      default: nil,
+      placeholder: "Enter #{String.downcase(label)}"
+    }
+
+    Map.merge(base_config, extra_opts)
+  end
+
+  defp build_field_from_column(name, config) do
+    name_str = to_string(name)
+    label = Map.get(config, :label) || Map.get(config, :name) || humanize_field_name(name_str)
+    field_type = Map.get(config, :type, :string)
+
+    # Map Selecto column type to form field type
+    {form_type, extra_opts} = selecto_type_to_form_type(field_type)
+
+    base_config = %{
+      name: name_str,
+      label: label,
+      type: form_type,
+      required: false,
+      default: nil,
+      placeholder: "Enter #{String.downcase(to_string(label))}"
+    }
+
+    Map.merge(base_config, extra_opts)
+  end
+
+  defp ecto_type_to_form_type(:string), do: {:text, %{}}
+  defp ecto_type_to_form_type(:integer), do: {:number, %{step: 1}}
+  defp ecto_type_to_form_type(:float), do: {:number, %{step: "any"}}
+  defp ecto_type_to_form_type(:decimal), do: {:number, %{step: "any"}}
+  defp ecto_type_to_form_type(:boolean), do: {:boolean, %{description: ""}}
+  defp ecto_type_to_form_type(:date), do: {:date, %{}}
+  defp ecto_type_to_form_type(:time), do: {:text, %{placeholder: "HH:MM:SS"}}
+  defp ecto_type_to_form_type(:naive_datetime), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp ecto_type_to_form_type(:utc_datetime), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp ecto_type_to_form_type(:utc_datetime_usec), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp ecto_type_to_form_type(:naive_datetime_usec), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp ecto_type_to_form_type({:array, _}), do: {:textarea, %{placeholder: "Enter values (one per line)"}}
+  defp ecto_type_to_form_type(:map), do: {:textarea, %{placeholder: "Enter JSON"}}
+  defp ecto_type_to_form_type(:binary), do: {:textarea, %{}}
+  defp ecto_type_to_form_type({:parameterized, Ecto.Enum, opts}) do
+    values = Keyword.get(opts, :values, [])
+    options = Enum.map(values, fn v -> {humanize_field_name(to_string(v)), v} end)
+    {:select, %{options: options}}
+  end
+  defp ecto_type_to_form_type(_), do: {:text, %{}}
+
+  defp selecto_type_to_form_type(:string), do: {:text, %{}}
+  defp selecto_type_to_form_type(:integer), do: {:number, %{step: 1}}
+  defp selecto_type_to_form_type(:float), do: {:number, %{step: "any"}}
+  defp selecto_type_to_form_type(:decimal), do: {:number, %{step: "any"}}
+  defp selecto_type_to_form_type(:boolean), do: {:boolean, %{description: ""}}
+  defp selecto_type_to_form_type(:date), do: {:date, %{}}
+  defp selecto_type_to_form_type(:datetime), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp selecto_type_to_form_type(:naive_datetime), do: {:text, %{placeholder: "YYYY-MM-DD HH:MM:SS"}}
+  defp selecto_type_to_form_type(:binary), do: {:textarea, %{}}
+  defp selecto_type_to_form_type(_), do: {:text, %{}}
+
+  defp is_required_field?(field, schema) do
+    # Check if field is a foreign key (usually required)
+    associations = schema.__schema__(:associations)
+    foreign_keys = Enum.flat_map(associations, fn assoc_name ->
+      case schema.__schema__(:association, assoc_name) do
+        %{owner_key: key} -> [key]
+        _ -> []
+      end
+    end)
+
+    field in foreign_keys
+  end
+
+  defp humanize_field_name(name) when is_binary(name) do
+    name
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
+  end
+  defp humanize_field_name(name) when is_atom(name), do: humanize_field_name(to_string(name))
   
   defp field_class(error) do
     base = "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2"
