@@ -248,9 +248,13 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   ## Build filters that can be sent to the selecto
-  def filter_recurse(selecto, filters, section) do
-    #### TODO handle errors
+  @doc """
+  Recursively build filters from form input that can be sent to Selecto.
 
+  Returns a list of filter tuples. Invalid or erroring filters are logged and skipped
+  rather than crashing the entire filter chain.
+  """
+  def filter_recurse(selecto, filters, section) do
     # Filter out any bucket_ranges strings that shouldn't be filters
     section_filters = Map.get(filters, section, [])
     |> Enum.reject(fn
@@ -261,98 +265,207 @@ defmodule SelectoComponents.Helpers.Filters do
         false
     end)
 
-    result = Enum.reduce(section_filters, [], fn
-      %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj}, acc ->
-        acc ++
-          [
-            {case conj do
-               "AND" -> :and
-               "OR" -> :or
-             end, filter_recurse(selecto, filters, uuid)}
-          ]
-
-      f, acc ->
-        if get_in(Selecto.filters(selecto), [Map.get(f, "filter"), :apply]) do
-          ## Change this to be called from Selecto instead, eg add a layer between FORM PROCESS and FILTER APPLY TODO???
-
-          acc ++ [Selecto.filters(selecto)[Map.get(f, "filter")].apply.(selecto, f)]
-
-        else
-          # Check if column exists before accessing its type
-          # Try to find the column - it might be under an alias or original name
-          filter_key = Map.get(f, "filter")
-          column = Selecto.columns(selecto)[filter_key]
-          
-          # If not found by direct key, try to find by matching colid or name
-          column = if column == nil do
-            Selecto.columns(selecto)
-            |> Enum.find(fn {_key, col} -> 
-              col.colid == filter_key || col.name == filter_key
-            end)
-            |> case do
-              {_key, col} -> col
-              nil -> nil
-            end
-          else
-            column
-          end
-          
-          if column == nil do
-            # Skip this filter if column not found
-            acc
-          else
-            case column.type do
-            x when x in [:id, :integer, :float, :decimal] ->
-              acc ++ [{Map.get(f, "filter"), _make_num_filter(x, f)}]
-
-            :tsvector ->
-              acc ++ [ make_text_search_filter(f) ]
-
-            :boolean ->
-              acc ++
-                [
-                  {Map.get(f, "filter"),
-                   case Map.get(f, "value") do
-                     "true" -> true
-                     _ -> false
-                   end}
-                ]
-
-            :string ->
-              acc ++ [ _make_string_filter(f) ]
-            
-            :custom_column ->
-              # Custom columns should be treated as strings for filtering purposes
-              acc ++ [ _make_string_filter(f) ]
-
-            x when x in [:naive_datetime, :utc_datetime, :date] ->
-              # Handle date filters, including multi-range OR conditions
-              date_filter_result = _make_date_filter(f)
-              case date_filter_result do
-                {:or, conditions} ->
-                  # Transform OR conditions to include field name
-                  field_name = Map.get(f, "filter")
-                  or_filters = Enum.map(conditions, fn filter_val ->
-                    {field_name, filter_val}
-                  end)
-                  acc ++ [{:or, or_filters}]
-
-                other ->
-                  # Regular date filter
-                  acc ++ [{Map.get(f, "filter"), other}]
-              end
-
-            {:parameterized, _, _enum_conf} ->
-              # TODO check selected against enum_conf.mappings!
-              acc ++ [{Map.get(f, "filter"), Map.get(f, "value")}]
-            end
-          end
-        end
+    result = Enum.reduce(section_filters, [], fn filter_item, acc ->
+      case process_single_filter(selecto, filters, filter_item) do
+        {:ok, filter_results} when is_list(filter_results) ->
+          acc ++ filter_results
+        {:ok, filter_result} ->
+          acc ++ [filter_result]
+        {:skip, _reason} ->
+          # Filter was intentionally skipped (e.g., column not found, invalid value)
+          acc
+        {:error, error} ->
+          # Log error but continue processing other filters
+          require Logger
+          Logger.warning("Filter processing error: #{inspect(error)}, filter: #{inspect(filter_item)}")
+          acc
+      end
     end)
 
     # Handle POLYMORPHIC filters separately
     result = result ++ handle_polymorphic_filters(section_filters)
     result
+  end
+
+  # Process a single filter with error handling
+  defp process_single_filter(selecto, filters, %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj}) do
+    conjunction_atom = case conj do
+      "AND" -> :and
+      "OR" -> :or
+      _ -> :and
+    end
+    nested_filters = filter_recurse(selecto, filters, uuid)
+    {:ok, [{conjunction_atom, nested_filters}]}
+  end
+
+  defp process_single_filter(selecto, _filters, f) when is_map(f) do
+    try do
+      filter_key = Map.get(f, "filter")
+
+      # Check for custom filter apply function
+      if get_in(Selecto.filters(selecto), [filter_key, :apply]) do
+        result = Selecto.filters(selecto)[filter_key].apply.(selecto, f)
+        {:ok, [result]}
+      else
+        process_column_filter(selecto, f, filter_key)
+      end
+    rescue
+      e ->
+        {:error, %{exception: Exception.message(e), filter: f}}
+    end
+  end
+
+  defp process_single_filter(_selecto, _filters, filter_item) do
+    {:skip, {:invalid_format, filter_item}}
+  end
+
+  # Process a filter based on column type
+  defp process_column_filter(selecto, f, filter_key) do
+    # Try to find the column - it might be under an alias or original name
+    column = find_column(selecto, filter_key)
+
+    if column == nil do
+      {:skip, {:column_not_found, filter_key}}
+    else
+      build_typed_filter(column, f, filter_key)
+    end
+  end
+
+  # Find column by key, colid, or name
+  defp find_column(selecto, filter_key) do
+    columns = Selecto.columns(selecto)
+
+    case columns[filter_key] do
+      nil ->
+        # Try to find by matching colid or name
+        columns
+        |> Enum.find(fn {_key, col} ->
+          col.colid == filter_key || col.name == filter_key
+        end)
+        |> case do
+          {_key, col} -> col
+          nil -> nil
+        end
+
+      column ->
+        column
+    end
+  end
+
+  # Build filter based on column type
+  defp build_typed_filter(column, f, filter_key) do
+    case column.type do
+      x when x in [:id, :integer, :float, :decimal] ->
+        case safe_make_num_filter(x, f) do
+          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
+          {:error, reason} -> {:skip, {:invalid_numeric, reason}}
+        end
+
+      :tsvector ->
+        {:ok, [make_text_search_filter(f)]}
+
+      :boolean ->
+        value = case Map.get(f, "value") do
+          "true" -> true
+          true -> true
+          _ -> false
+        end
+        {:ok, [{filter_key, value}]}
+
+      :string ->
+        {:ok, [_make_string_filter(f)]}
+
+      :custom_column ->
+        {:ok, [_make_string_filter(f)]}
+
+      x when x in [:naive_datetime, :utc_datetime, :date] ->
+        case safe_make_date_filter(f) do
+          {:ok, {:or, conditions}} ->
+            or_filters = Enum.map(conditions, fn filter_val ->
+              {filter_key, filter_val}
+            end)
+            {:ok, [{:or, or_filters}]}
+
+          {:ok, filter_val} ->
+            {:ok, [{filter_key, filter_val}]}
+
+          {:error, reason} ->
+            {:skip, {:invalid_date, reason}}
+        end
+
+      {:parameterized, _, enum_conf} ->
+        # Validate enum value against mappings
+        value = Map.get(f, "value")
+        case validate_enum_value(value, enum_conf) do
+          :ok -> {:ok, [{filter_key, value}]}
+          {:error, reason} -> {:skip, {:invalid_enum, reason}}
+        end
+
+      unknown_type ->
+        # For unknown types, try as string filter
+        require Logger
+        Logger.debug("Unknown column type #{inspect(unknown_type)} for filter #{filter_key}, treating as string")
+        {:ok, [_make_string_filter(f)]}
+    end
+  end
+
+  # Safe wrapper for numeric filter creation
+  defp safe_make_num_filter(type, filter) do
+    {:ok, _make_num_filter(type, filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  # Safe wrapper for date filter creation
+  defp safe_make_date_filter(filter) do
+    result = _make_date_filter(filter)
+    {:ok, result}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  # Validate enum value against allowed mappings
+  defp validate_enum_value(nil, _enum_conf), do: :ok
+  defp validate_enum_value("", _enum_conf), do: :ok
+
+  defp validate_enum_value(value, enum_conf) do
+    # Extract mappings from enum configuration
+    mappings = case enum_conf do
+      %{mappings: mappings} -> mappings
+      %{"mappings" => mappings} -> mappings
+      _ -> nil
+    end
+
+    case mappings do
+      nil ->
+        # No mappings defined, allow any value
+        :ok
+
+      mappings when is_map(mappings) ->
+        # Check if value is a valid key in mappings
+        valid_keys = Map.keys(mappings) |> Enum.map(&to_string/1)
+        if to_string(value) in valid_keys do
+          :ok
+        else
+          {:error, "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_keys, ", ")}"}
+        end
+
+      mappings when is_list(mappings) ->
+        # List of allowed values
+        valid_values = Enum.map(mappings, fn
+          {k, _v} -> to_string(k)
+          v -> to_string(v)
+        end)
+        if to_string(value) in valid_values do
+          :ok
+        else
+          {:error, "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_values, ", ")}"}
+        end
+
+      _ ->
+        # Unknown mappings format, allow any value
+        :ok
+    end
   end
 
   # Handle polymorphic filters that need special OR condition generation

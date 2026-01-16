@@ -104,11 +104,40 @@ defmodule SelectoComponents.Router do
 
   # Private helper functions for business logic
 
-  defp handle_save_view(_params, state) do
-    # Placeholder: Save view logic should persist the current view configuration
-    # This will be implemented when router abstraction is completed
-    # Expected: Save params to saved_view_module with name, context, filters, etc.
-    {:ok, state}
+  defp handle_save_view(params, state) do
+    # Extract save view params
+    view_name = get_in(params, ["view", "name"]) || get_in(params, ["name"])
+    view_params = %{
+      name: view_name,
+      context: state.context,
+      params: %{
+        view_config: state.view_config,
+        filters: Map.get(state.view_config, :filters, []),
+        selected: Map.get(state.view_config, :selected, %{}),
+        group_by: Map.get(state.view_config, :group_by, %{}),
+        aggregate: Map.get(state.view_config, :aggregate, %{}),
+        view_mode: Map.get(state.view_config, :view_mode)
+      }
+    }
+
+    # Use the saved view module if configured
+    case Map.get(state, :saved_view_module) do
+      nil ->
+        # No saved view module configured, store in state
+        saved_views = Map.get(state, :saved_views, [])
+        updated_saved_views = [view_params | saved_views]
+        updated_state = Map.put(state, :saved_views, updated_saved_views)
+        {:ok, updated_state}
+
+      module ->
+        # Call the module's save function
+        case apply(module, :save_view, [view_params]) do
+          {:ok, _saved_view} ->
+            {:ok, state}
+          {:error, reason} ->
+            {:ok, State.set_execution_error(state, "Failed to save view: #{inspect(reason)}")}
+        end
+    end
   end
 
   defp execute_query(params, state) do
@@ -169,48 +198,208 @@ defmodule SelectoComponents.Router do
     end
   end
 
-  defp handle_tree_drop(_params, state) do
-    # Placeholder: Handle drag-and-drop reordering in filter tree
-    # Expected: Reorder filters based on dropped position, update state.view_config
-    {:ok, state}
+  defp handle_tree_drop(params, state) do
+    # Handle drag-and-drop reordering in filter tree
+    source_uuid = Map.get(params, "source_uuid")
+    target_uuid = Map.get(params, "target_uuid")
+    position = Map.get(params, "position", "after") # "before", "after", or "inside"
+
+    filters = Map.get(state.view_config, :filters, [])
+
+    # Find and remove the source item
+    {source_item, remaining_filters} = extract_filter_by_uuid(filters, source_uuid)
+
+    if source_item do
+      # Insert at new position
+      updated_filters = insert_filter_at_position(remaining_filters, source_item, target_uuid, position)
+      updated_view_config = Map.put(state.view_config, :filters, updated_filters)
+      updated_state = State.update_view_config(state, updated_view_config)
+      {:ok, updated_state}
+    else
+      {:ok, state}
+    end
   end
 
-  defp handle_filter_remove(_params, state) do
-    # Placeholder: Remove filter from view configuration
-    # Expected: Extract filter UUID from params, remove from state.view_config.filters
-    {:ok, state}
+  defp handle_filter_remove(params, state) do
+    # Remove filter from view configuration
+    filter_uuid = Map.get(params, "uuid") || Map.get(params, "filter_uuid")
+
+    filters = Map.get(state.view_config, :filters, [])
+    updated_filters = remove_filter_by_uuid(filters, filter_uuid)
+
+    updated_view_config = Map.put(state.view_config, :filters, updated_filters)
+    updated_state = %{state | view_config: updated_view_config}
+    {:ok, updated_state}
   end
 
-  defp handle_agg_add_filters(_params, state) do
-    # Placeholder: Add filters when clicking aggregate view cells (drill-down)
-    # Expected: Extract phx-value-* params, create new filters, switch to detail view
-    # Current implementation in form.ex:560
-    {:ok, state}
+  defp handle_agg_add_filters(params, state) do
+    # Add filters when clicking aggregate view cells (drill-down)
+    # Extract field values from phx-value-* params
+    filter_values = params
+    |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field_") end)
+    |> Enum.map(fn {"field_" <> field_name, value} ->
+      %{
+        "uuid" => UUID.uuid4(),
+        "field" => field_name,
+        "value" => value,
+        "comp" => "="
+      }
+    end)
+
+    if length(filter_values) > 0 do
+      # Add new filters
+      existing_filters = Map.get(state.view_config, :filters, [])
+      updated_filters = existing_filters ++ filter_values
+
+      # Switch to detail view
+      updated_view_config = state.view_config
+      |> Map.put(:filters, updated_filters)
+      |> Map.put(:view_mode, "detail")
+
+      updated_state = %{state | view_config: updated_view_config}
+      {:ok, updated_state}
+    else
+      {:ok, state}
+    end
   end
 
-  defp handle_list_picker_remove(_view, _list, _item, state) do
-    # Placeholder: Remove item from list picker (selected fields, group_by, etc.)
-    # Expected: Remove UUID from appropriate list in view_config
-    {:ok, state}
+  defp handle_list_picker_remove(_view, list, item_uuid, state) do
+    # Remove item from list picker (selected fields, group_by, etc.)
+    list_key = String.to_existing_atom(list)
+    current_list = Map.get(state.view_config, list_key, %{})
+
+    updated_list = Map.delete(current_list, item_uuid)
+    updated_view_config = Map.put(state.view_config, list_key, updated_list)
+    updated_state = %{state | view_config: updated_view_config}
+    {:ok, updated_state}
   end
 
-  defp handle_list_picker_move(_view, _list, _uuid, _direction, state) do
-    # Placeholder: Reorder items in list picker
-    # Expected: Swap positions of items based on direction (:up/:down)
-    {:ok, state}
+  defp handle_list_picker_move(_view, list, uuid, direction, state) do
+    # Reorder items in list picker
+    list_key = String.to_existing_atom(list)
+    current_list = Map.get(state.view_config, list_key, %{})
+
+    # Convert map to ordered list
+    items = current_list
+    |> Enum.sort_by(fn {_k, v} -> Map.get(v, "order", 0) end)
+    |> Enum.map(fn {k, v} -> {k, v} end)
+
+    # Find current index
+    current_index = Enum.find_index(items, fn {k, _v} -> k == uuid end)
+
+    if current_index do
+      new_index = case direction do
+        :up -> max(0, current_index - 1)
+        :down -> min(length(items) - 1, current_index + 1)
+        _ -> current_index
+      end
+
+      if new_index != current_index do
+        # Swap items
+        reordered = items
+        |> List.delete_at(current_index)
+        |> List.insert_at(new_index, Enum.at(items, current_index))
+        |> Enum.with_index()
+        |> Enum.map(fn {{k, v}, idx} -> {k, Map.put(v, "order", idx)} end)
+        |> Enum.into(%{})
+
+        updated_view_config = Map.put(state.view_config, list_key, reordered)
+        updated_state = %{state | view_config: updated_view_config}
+        {:ok, updated_state}
+      else
+        {:ok, state}
+      end
+    else
+      {:ok, state}
+    end
   end
 
-  defp handle_list_picker_add(_view, _list, _item, state) do
-    # Placeholder: Add item to list picker
-    # Expected: Append new item with UUID to appropriate list in view_config
-    {:ok, state}
+  defp handle_list_picker_add(_view, list, item, state) do
+    # Add item to list picker
+    list_key = String.to_existing_atom(list)
+    current_list = Map.get(state.view_config, list_key, %{})
+
+    # Generate UUID for new item
+    item_uuid = UUID.uuid4()
+    order = map_size(current_list)
+    new_item = Map.put(item, "order", order)
+
+    updated_list = Map.put(current_list, item_uuid, new_item)
+    updated_view_config = Map.put(state.view_config, list_key, updated_list)
+    updated_state = %{state | view_config: updated_view_config}
+    {:ok, updated_state}
   end
 
-  defp apply_filters(selecto, _filters) do
-    # Placeholder: Apply filters to selecto query
-    # Expected: Call Selecto.filter() for each filter in list
-    # Current implementation in form.ex:filter_recurse
-    selecto
+  defp apply_filters(selecto, filters) when is_list(filters) do
+    # Apply filters to selecto query recursively
+    Enum.reduce(filters, selecto, fn filter, acc ->
+      apply_single_filter(acc, filter)
+    end)
+  end
+  defp apply_filters(selecto, _), do: selecto
+
+  defp apply_single_filter(selecto, %{"field" => field, "value" => value, "comp" => comp}) when not is_nil(field) and not is_nil(value) do
+    filter_tuple = case comp do
+      "=" -> {field, value}
+      "!=" -> {field, {:ne, value}}
+      ">" -> {field, {:gt, value}}
+      ">=" -> {field, {:gte, value}}
+      "<" -> {field, {:lt, value}}
+      "<=" -> {field, {:lte, value}}
+      "like" -> {field, {:like, value}}
+      "ilike" -> {field, {:ilike, value}}
+      "in" -> {field, {:in, value}}
+      "not_in" -> {field, {:not_in, value}}
+      "is_null" -> {field, {:is_null, true}}
+      "is_not_null" -> {field, {:is_null, false}}
+      _ -> {field, value}
+    end
+    Selecto.filter(selecto, filter_tuple)
+  end
+  defp apply_single_filter(selecto, %{"comp" => "AND", "filters" => nested_filters}) do
+    # AND group - apply all filters
+    apply_filters(selecto, nested_filters)
+  end
+  defp apply_single_filter(selecto, %{"comp" => "OR", "filters" => nested_filters}) do
+    # OR group - apply as OR filter
+    Selecto.filter(selecto, {:or, Enum.map(nested_filters, &filter_to_tuple/1)})
+  end
+  defp apply_single_filter(selecto, _), do: selecto
+
+  defp filter_to_tuple(%{"field" => field, "value" => value}) when not is_nil(field), do: {field, value}
+  defp filter_to_tuple(_), do: nil
+
+  # Helper functions for filter manipulation
+
+  defp extract_filter_by_uuid(filters, uuid) do
+    case Enum.find_index(filters, fn f -> Map.get(f, "uuid") == uuid end) do
+      nil -> {nil, filters}
+      index ->
+        {item, remaining} = List.pop_at(filters, index)
+        {item, remaining}
+    end
+  end
+
+  defp remove_filter_by_uuid(filters, uuid) do
+    Enum.reject(filters, fn filter ->
+      Map.get(filter, "uuid") == uuid
+    end)
+  end
+
+  defp insert_filter_at_position(filters, item, target_uuid, position) do
+    case Enum.find_index(filters, fn f -> Map.get(f, "uuid") == target_uuid end) do
+      nil ->
+        # Target not found, append at end
+        filters ++ [item]
+      target_index ->
+        insert_index = case position do
+          "before" -> target_index
+          "after" -> target_index + 1
+          "inside" -> target_index + 1  # For nested groups
+          _ -> target_index + 1
+        end
+        List.insert_at(filters, insert_index, item)
+    end
   end
 
   defp maybe_auto_pivot(selecto, view_config) do

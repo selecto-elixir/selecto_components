@@ -265,58 +265,116 @@ defmodule SelectoComponents.Form.DatetimeFilters do
         ]
 
       "ytd_vs_last" ->
-        # For simplicity, just show this year's YTD for now
-        # TODO: Implement proper OR support for comparing periods
-        start_of_year = Date.new!(today.year, 1, 1)
+        # This year YTD and last year YTD - returns OR group for period comparison
+        start_of_this_year = Date.new!(today.year, 1, 1)
+        start_of_last_year = Date.new!(today.year - 1, 1, 1)
         tomorrow = Date.add(today, 1)
-        [
-          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_year, ~T[00:00:00])},
-          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
-        ]
+
+        # Handle leap year edge case for Feb 29
+        same_day_last_year = safe_same_day_last_year(today)
+
+        # Return OR group with both date ranges
+        %{base_config |
+          "comp" => "OR",
+          "groups" => [
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+            ],
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_last_year, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+            ]
+          ]
+        }
 
       "last_ytd" ->
         # Last year's YTD to the same day
         start_of_last_year = Date.new!(today.year - 1, 1, 1)
-        # Handle leap year edge case for Feb 29
-        same_day_last_year = try do
-          Date.new!(today.year - 1, today.month, today.day)
-        rescue
-          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
-        end
+        same_day_last_year = safe_same_day_last_year(today)
         [
           %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_last_year, ~T[00:00:00])},
           %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
         ]
 
       "qtd_vs_last" ->
-        # For simplicity, just show this quarter's QTD for now
-        # TODO: Implement proper OR support for comparing periods
+        # This quarter QTD and same quarter last year QTD
         start_of_quarter = beginning_of_quarter(today)
         tomorrow = Date.add(today, 1)
-        [
-          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
-          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
-        ]
+
+        # Same quarter last year
+        last_year_quarter_start = Date.new!(today.year - 1, start_of_quarter.month, 1)
+        same_day_last_year = safe_same_day_last_year(today)
+
+        %{base_config |
+          "comp" => "OR",
+          "groups" => [
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_quarter, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+            ],
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(last_year_quarter_start, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+            ]
+          ]
+        }
 
       "mtd_vs_last" ->
-        # For simplicity, just show this month's MTD for now
-        # TODO: Implement proper OR support for comparing periods
+        # This month MTD and last month MTD
         start_of_month = Date.beginning_of_month(today)
         tomorrow = Date.add(today, 1)
-        [
-          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
-          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
-        ]
+
+        # Last month (handle January case)
+        {last_month_year, last_month_month} = if today.month == 1 do
+          {today.year - 1, 12}
+        else
+          {today.year, today.month - 1}
+        end
+
+        last_month_start = Date.new!(last_month_year, last_month_month, 1)
+
+        # Get same day last month (handle month-end edge cases)
+        days_in_last_month = Date.days_in_month(Date.new!(last_month_year, last_month_month, 1))
+        last_month_day = min(today.day, days_in_last_month)
+        same_day_last_month = Date.new!(last_month_year, last_month_month, last_month_day)
+
+        %{base_config |
+          "comp" => "OR",
+          "groups" => [
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+            ],
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(last_month_start, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(same_day_last_month, 1), ~T[00:00:00])}
+            ]
+          ]
+        }
 
       "mtd_vs_last_year" ->
-        # This month MTD - simplified for now
-        # TODO: Implement proper OR support for comparing periods
+        # This month MTD and same month last year MTD
         start_of_month = Date.beginning_of_month(today)
         tomorrow = Date.add(today, 1)
-        [
-          %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
-          %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
-        ]
+
+        # Same month last year
+        last_year_month_start = Date.new!(today.year - 1, today.month, 1)
+        same_day_last_year = safe_same_day_last_year(today)
+
+        %{base_config |
+          "comp" => "OR",
+          "groups" => [
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(start_of_month, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+            ],
+            [
+              %{base_config | "comp" => ">=", "value" => NaiveDateTime.new!(last_year_month_start, ~T[00:00:00])},
+              %{base_config | "comp" => "<", "value" => NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+            ]
+          ]
+        }
 
       _ ->
         # Unknown shortcut, return as-is
@@ -398,6 +456,16 @@ defmodule SelectoComponents.Form.DatetimeFilters do
     # Use the server's local date from Erlang calendar functions
     {{year, month, day}, _time} = :calendar.local_time()
     Date.new!(year, month, day)
+  end
+
+  # Safely get the same day last year, handling leap year edge case for Feb 29
+  defp safe_same_day_last_year(today) do
+    try do
+      Date.new!(today.year - 1, today.month, today.day)
+    rescue
+      # Feb 29 doesn't exist in non-leap years, fall back to Feb 28
+      _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+    end
   end
 
   # Parse datetime value from string

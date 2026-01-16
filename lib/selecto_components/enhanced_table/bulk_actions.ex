@@ -401,22 +401,118 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   # Helper functions
   
   defp process_batch(action, batch_ids) do
-    # This would call the actual action handler
-    # For now, simulate processing
-    Process.sleep(500)
-    
-    case action.id do
-      "delete" -> {:ok, batch_ids}
-      "export" -> {:ok, batch_ids}
-      "update" -> {:ok, batch_ids}
-      _ -> {:ok, batch_ids}
+    # Call the configured action handler if available, otherwise return success
+    case action do
+      %{handler: handler} when is_function(handler, 1) ->
+        # Call custom handler function
+        handler.(batch_ids)
+
+      %{handler: {module, function}} when is_atom(module) and is_atom(function) ->
+        # Call module function
+        apply(module, function, [batch_ids])
+
+      %{id: action_id} ->
+        # Send to parent process for handling
+        send(self(), {:bulk_action_process_batch, action_id, batch_ids})
+        # Return success - actual processing happens in parent
+        {:ok, batch_ids}
+
+      _ ->
+        {:ok, batch_ids}
     end
   end
-  
+
   defp get_all_row_ids(socket) do
-    # This would get IDs from the parent component
-    # For now, return example IDs
-    socket.assigns[:all_row_ids] || []
+    # Get row IDs from various possible sources
+    cond do
+      # Explicitly provided all_row_ids
+      is_list(socket.assigns[:all_row_ids]) and length(socket.assigns[:all_row_ids]) > 0 ->
+        socket.assigns[:all_row_ids]
+
+      # Extract from rows data (list of maps with id field)
+      is_list(socket.assigns[:rows]) ->
+        extract_ids_from_rows(socket.assigns[:rows])
+
+      # Extract from query results (Selecto format)
+      is_map(socket.assigns[:query_results]) ->
+        extract_ids_from_query_results(socket.assigns[:query_results])
+
+      # Extract from stream data
+      is_map(socket.assigns[:streams]) and is_map(socket.assigns[:streams][:rows]) ->
+        # Streams store data differently, try to extract
+        extract_ids_from_stream(socket.assigns[:streams][:rows])
+
+      # Ask parent component for IDs
+      true ->
+        send(self(), {:request_all_row_ids, self()})
+        # Return empty list, parent will send back the IDs
+        []
+    end
+  end
+
+  defp extract_ids_from_rows(rows) when is_list(rows) do
+    rows
+    |> Enum.map(fn
+      %{id: id} -> id
+      %{"id" => id} -> id
+      row when is_map(row) ->
+        Map.get(row, :id) || Map.get(row, "id") || Map.get(row, :_id) || Map.get(row, "_id")
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp extract_ids_from_rows(_), do: []
+
+  defp extract_ids_from_query_results(%{rows: rows, columns: columns}) do
+    # Find id column index
+    id_index = Enum.find_index(columns, fn col ->
+      col_str = to_string(col)
+      col_str in ["id", "_id", "pk", "primary_key"]
+    end) || 0
+
+    rows
+    |> Enum.map(fn row ->
+      case row do
+        row when is_list(row) -> Enum.at(row, id_index)
+        row when is_tuple(row) -> elem(row, id_index)
+        _ -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp extract_ids_from_query_results(_), do: []
+
+  defp extract_ids_from_stream(stream_data) when is_map(stream_data) do
+    # Phoenix streams store items with DOM IDs as keys
+    stream_data
+    |> Map.values()
+    |> Enum.map(fn
+      %{id: id} -> id
+      %{"id" => id} -> id
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+  defp extract_ids_from_stream(_), do: []
+
+  @doc """
+  Set all row IDs for selection operations.
+
+  Call this from the parent component to provide IDs for select all functionality.
+
+  ## Example
+
+      def handle_info({:request_all_row_ids, pid}, socket) do
+        ids = Enum.map(socket.assigns.rows, & &1.id)
+        send_update(SelectoComponents.EnhancedTable.BulkActions,
+          id: "bulk-actions",
+          all_row_ids: ids
+        )
+        {:noreply, socket}
+      end
+  """
+  def set_all_row_ids(component_id, row_ids) do
+    Phoenix.LiveView.send_update(__MODULE__, id: component_id, all_row_ids: row_ids)
   end
   
   defp default_actions do
