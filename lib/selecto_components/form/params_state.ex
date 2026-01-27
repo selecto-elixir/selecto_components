@@ -94,8 +94,9 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.get(params, item_name, %{})
     |> Enum.filter(fn {_uuid, f} ->
       # Only include actual filters, not aggregate/group_by configurations
-      # Filters should have at least these keys: filter, comp, value, section
-      is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp")
+      # Standard filters should have: filter + comp
+      # Custom component filters only need: filter (no comp required)
+      is_map(f) && Map.has_key?(f, "filter")
     end)
     |> Enum.map(fn {uuid, f} ->
       # Convert selected_ids array to comma-separated value for IN operator
@@ -189,7 +190,8 @@ defmodule SelectoComponents.Form.ParamsState do
       |> Map.values()
       |> Enum.filter(fn f ->
         # Only include actual filters with required fields
-        is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "comp") && Map.has_key?(f, "section")
+        # Custom component filters don't have "comp" - they only need "filter" and "section"
+        is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "section")
       end)
       |> Enum.reduce(%{}, fn f, acc ->
         Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
