@@ -107,6 +107,8 @@ defmodule SelectoComponents.Form.FilterRendering do
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
         field_type in [:naive_datetime, :utc_datetime, :date] ->
           render_datetime_filter(assigns)
+        field_type == :tsvector ->
+          render_text_search_filter(assigns)
         true ->
           render_standard_filter(assigns)
       end
@@ -341,6 +343,44 @@ defmodule SelectoComponents.Form.FilterRendering do
           disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
         />
       <% end %>
+
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+    </div>
+    """
+  end
+
+  @doc """
+  Render text search filter for tsvector columns.
+
+  This filter type uses PostgreSQL's full-text search with websearch_to_tsquery,
+  which supports natural language search queries including:
+  - Simple words: "matrix" finds documents containing "matrix"
+  - Phrases: "the matrix" finds documents with those words near each other
+  - OR searches: "matrix OR reloaded" finds documents with either word
+  - Exclusions: "matrix -reloaded" excludes documents with "reloaded"
+  """
+  def render_text_search_filter(assigns) do
+    ~H"""
+    <div class="grid grid-cols-1 gap-2">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          name={"filters[#{@uuid}][value]"}
+          value={@filter_value["value"]}
+          placeholder="Search... (e.g., matrix, 'the matrix', matrix OR reloaded)"
+          class="sc-input flex-1"
+          phx-debounce="300"
+        />
+      </div>
+      <div class="text-xs text-gray-500">
+        Full-text search supports phrases in quotes, OR for alternatives, and - to exclude terms
+      </div>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
