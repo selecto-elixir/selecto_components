@@ -644,8 +644,8 @@ defmodule SelectoComponents.Form.FilterRendering do
         <select
           multiple
           size="8"
-          phx-change="update_multiselect_dropdown"
-          phx-value-filter-uuid={@uuid}
+          name={"filters[#{@uuid}][selected_ids][]"}
+          phx-debounce="blur"
           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
           <%= for opt <- @options do %>
             <option value={opt.id} selected={opt.id in @selected_ids}>
@@ -653,7 +653,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             </option>
           <% end %>
         </select>
-        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Click outside when done.</p>
       <% end %>
 
       <div class="text-xs text-gray-500">
