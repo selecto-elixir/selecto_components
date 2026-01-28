@@ -30,10 +30,16 @@ defmodule SelectoComponents.Helpers.Filters do
       "IS_EMPTY" ->
         nil
 
+      "IS NULL" ->
+        nil
+
       "not_null" ->
         :not_null
 
       "IS_NOT_EMPTY" ->
+        :not_null
+
+      "IS NOT NULL" ->
         :not_null
 
       "between" ->
@@ -48,6 +54,16 @@ defmodule SelectoComponents.Helpers.Filters do
           |> Enum.reject(&(&1 == ""))
           |> Enum.map(&parse_num(type, &1))
         {:in, ids}
+
+      "NOT IN" ->
+        # Parse comma-separated IDs and convert to NOT IN list
+        value = Map.get(filter, "value", "")
+        ids = value
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.map(&parse_num(type, &1))
+        {:not_in, ids}
 
       x when x in ~w( != <= >= < >) ->
         {x, parse_num(type, Map.get(filter, "value"))}
@@ -64,8 +80,10 @@ defmodule SelectoComponents.Helpers.Filters do
     case comp do
       "null" -> {Map.get(filter, "filter"), nil}
       "IS_EMPTY" -> {Map.get(filter, "filter"), nil}
+      "IS NULL" -> {Map.get(filter, "filter"), nil}
       "not_null" -> {Map.get(filter, "filter"), :not_null}
       "IS_NOT_EMPTY" -> {Map.get(filter, "filter"), :not_null}
+      "IS NOT NULL" -> {Map.get(filter, "filter"), :not_null}
       _ ->
         ignore_case = Map.get(filter, "ignore_case")
 
@@ -81,12 +99,16 @@ defmodule SelectoComponents.Helpers.Filters do
           "=" -> value
           "null" -> nil
           "IS_EMPTY" -> nil
+          "IS NULL" -> nil
           "not_null" -> :not_null
           "IS_NOT_EMPTY" -> :not_null
+          "IS NOT NULL" -> :not_null
           x when x in ~w( != <= >= < >) -> {x, value}
           "starts" -> {:like, sanitize_like_value(value) <> "%"}
           "ends" -> {:like, "%" <> sanitize_like_value(value)}
           "contains" -> {:like, "%" <> sanitize_like_value(value) <> "%"}
+          "LIKE" -> {:like, "%" <> sanitize_like_value(value) <> "%"}
+          "NOT LIKE" -> {:not_like, "%" <> sanitize_like_value(value) <> "%"}
         end
 
         {filpart, valpart}
@@ -147,8 +169,23 @@ defmodule SelectoComponents.Helpers.Filters do
           {:not, {:between, start, stop}}
         end
 
+      "BETWEEN" ->
+        # For BETWEEN datetime, use the start and end values
+        start_str = Map.get(filter, "value_start") || Map.get(filter, "value")
+        end_str = Map.get(filter, "value_end") || Map.get(filter, "value2")
+
+        if start_str && end_str do
+          start_dt = parse_datetime_preserving_time(start_str)
+          end_dt = parse_datetime_preserving_time(end_str)
+          {:between, start_dt, end_dt}
+        else
+          # Fallback to original behavior
+          {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
+          {:between, start, stop}
+        end
+
       "DATE_BETWEEN" ->
-        # For DATE_BETWEEN, use the start and end dates
+        # For DATE_BETWEEN, use the start and end dates (ignoring time)
         start_str = Map.get(filter, "value_start") || Map.get(filter, "value")
         end_str = Map.get(filter, "value_end") || Map.get(filter, "value2")
 
@@ -237,9 +274,9 @@ defmodule SelectoComponents.Helpers.Filters do
             case comp do
               "=" -> {:between, start, stop}
               "!=" -> {:not, {:between, start, stop}}
-              "IS NULL" -> :is_null
+              "IS NULL" -> nil
               "IS_EMPTY" -> nil
-              "IS NOT NULL" -> :is_not_null
+              "IS NOT NULL" -> :not_null
               "IS_NOT_EMPTY" -> :not_null
               _ -> {:between, start, stop}
             end

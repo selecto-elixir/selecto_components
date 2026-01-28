@@ -23,11 +23,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
     ~H"""
     <div class="tree-builder-component">
       <div class="">
-        <div phx-hook=".TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" data-filter="">
+        <div phx-hook=".TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" x-data="{ filter: '' }">
 
           <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
-            <input type="text" id={"filter-input-#{@id}"} placeholder="Filter Available Items" class="sc-input" />
-            <button id={"clear-filter-#{@id}"} class="sc-x-button hidden">×</button>
+            <div class="flex items-center gap-1">
+              <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="sc-input flex-1" />
+              <button x-on:click="filter = ''" x-show="filter != ''" class="sc-x-button" type="button">×</button>
+            </div>
           </div>
           <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
@@ -35,16 +37,22 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
 
 
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
-              draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}>AND group</div>
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
-              draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}>OR group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
+              draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}
+              x-show="filter == '' || 'and group'.includes(filter.toLowerCase())"
+              x-transition>AND group</div>
+            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
+              draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}
+              x-show="filter == '' || 'or group'.includes(filter.toLowerCase())"
+              x-transition>OR group</div>
 
 
             <div :for={{{id, name}, idx} <- Enum.with_index(@available)}
-              class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer"
               draggable="true" data-item-id={id}
-              id={"#{@id}-available-#{id}-#{idx}"}><%= name %></div>
+              id={"#{@id}-available-#{id}-#{idx}"}
+              x-show={"filter == '' || '#{String.downcase(name)}'.includes(filter.toLowerCase())"}
+              x-transition><%= name %></div>
 
           </div>
           <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
@@ -135,41 +143,11 @@ defmodule SelectoComponents.Components.TreeBuilder do
             this.initialized = true;
           },
           
-          initializeFilter() {
-            const componentId = this.el.id.replace('tree-builder-', '');
-            const filterInput = this.el.querySelector(`#filter-input-${componentId}`);
-            const clearButton = this.el.querySelector(`#clear-filter-${componentId}`);
-            
-            if (filterInput) {
-              filterInput.addEventListener('input', (e) => {
-                const filterValue = e.target.value.toUpperCase();
-                if (clearButton) {
-                  clearButton.style.display = filterValue ? '' : 'none';
-                }
-                
-                const filterableItems = this.el.querySelectorAll('.filterable-item');
-                filterableItems.forEach(item => {
-                  const text = item.textContent.toUpperCase();
-                  const shouldShow = !filterValue || text.includes(filterValue);
-                  item.style.display = shouldShow ? '' : 'none';
-                });
-              });
-            }
-            
-            if (clearButton) {
-              clearButton.addEventListener('click', () => {
-                filterInput.value = '';
-                filterInput.dispatchEvent(new Event('input'));
-              });
-            }
-          },
-          
           mounted() {
             console.log('TreeBuilderHook mounted');
-            this.initializeFilter();
             this.initializeDragDrop();
           },
-          
+
           updated() {
             console.log('TreeBuilderHook updated');
           },

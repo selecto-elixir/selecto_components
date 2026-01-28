@@ -99,8 +99,8 @@ defmodule SelectoComponents.Form.ParamsState do
       is_map(f) && Map.has_key?(f, "filter")
     end)
     |> Enum.map(fn {uuid, f} ->
-      # Convert selected_ids array to comma-separated value for IN operator
-      f = if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") == "IN" do
+      # Convert selected_ids array to comma-separated value for IN/NOT IN operators
+      f = if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") in ["IN", "NOT IN"] do
         selected_ids = case Map.get(f, "selected_ids") do
           ids when is_list(ids) -> ids
           ids when is_binary(ids) -> String.split(ids, ",")
