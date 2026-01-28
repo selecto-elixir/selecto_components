@@ -10,7 +10,22 @@ defmodule SelectoComponents.MixProject do
       description: "LiveView Components for Selecto",
       aliases: aliases(),
       package: package(),
-      deps: deps()
+      deps: deps(),
+
+      # Test coverage
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ]
     ]
   end
 
@@ -37,10 +52,7 @@ defmodule SelectoComponents.MixProject do
       {:ecto_sql, "~> 3.11"},
       {:makeup, "~> 1.1"},
       {:makeup_sql, "~> 0.1.0"},
-
-
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:excoveralls, "~> 0.18", only: :test}
     ]
   end
 
