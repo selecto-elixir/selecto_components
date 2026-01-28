@@ -611,69 +611,90 @@ defmodule SelectoComponents.Form.FilterRendering do
     current_value = assigns.filter_value["value"] || ""
     selected_ids = parse_filter_ids(current_value)
 
+    # Get current comparison operator, default to IN
+    current_comp = assigns.filter_value["comp"] || "IN"
+
     assigns =
       assigns
       |> Map.put(:options, options)
       |> Map.put(:selected_ids, selected_ids)
       |> Map.put(:join_mode, join_mode)
+      |> Map.put(:current_comp, current_comp)
 
     ~H"""
     <div class="space-y-2">
-      <label class="text-sm font-medium text-gray-700">
-        Select <%= display_field %>:
-      </label>
+      <%!-- Comparison operator selector --%>
+      <div class="flex items-center gap-2">
+        <select name={"filters[#{@uuid}][comp]"} class="sc-select text-sm">
+          <option value="IN" selected={@current_comp == "IN"}>Is One Of</option>
+          <option value="NOT IN" selected={@current_comp == "NOT IN"}>Is Not One Of</option>
+          <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
+          <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>Is Not Empty</option>
+        </select>
+      </div>
 
-      <%= if @join_mode == :lookup and length(@options) < 20 do %>
-        <%!-- Checkbox list for small datasets --%>
-        <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
-          <%= for opt <- @options do %>
-            <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
-              <input
-                type="checkbox"
-                name={"filters[#{@uuid}][selected_ids][]"}
-                value={opt.id}
-                checked={opt.id in @selected_ids}
-                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-              />
-              <span class="text-sm text-gray-900"><%= opt.name %></span>
-            </label>
-          <% end %>
+      <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
+        <div class="text-sm text-gray-500 italic">
+          No value selection needed
         </div>
       <% else %>
-        <%!-- Simple multi-select for larger datasets --%>
-        <select
-          multiple
-          size="8"
-          name={"filters[#{@uuid}][selected_ids][]"}
-          phx-debounce="blur"
-          class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-          <%= for opt <- @options do %>
-            <option value={opt.id} selected={opt.id in @selected_ids}>
-              <%= opt.name %>
-            </option>
-          <% end %>
-        </select>
-        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Click outside when done.</p>
-      <% end %>
+        <label class="text-sm font-medium text-gray-700">
+          Select <%= display_field %>:
+        </label>
 
-      <div class="text-xs text-gray-500">
-        <%= length(@selected_ids) %> of <%= length(@options) %> selected
-      </div>
+        <%= if @join_mode == :lookup and length(@options) < 20 do %>
+          <%!-- Checkbox list for small datasets --%>
+          <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
+            <%= for opt <- @options do %>
+              <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  name={"filters[#{@uuid}][selected_ids][]"}
+                  value={opt.id}
+                  checked={opt.id in @selected_ids}
+                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <span class="text-sm text-gray-900"><%= opt.name %></span>
+              </label>
+            <% end %>
+          </div>
+        <% else %>
+          <%!-- Simple multi-select for larger datasets --%>
+          <select
+            multiple
+            size="8"
+            name={"filters[#{@uuid}][selected_ids][]"}
+            phx-debounce="blur"
+            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+            <%= for opt <- @options do %>
+              <option value={opt.id} selected={opt.id in @selected_ids}>
+                <%= opt.name %>
+              </option>
+            <% end %>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Click outside when done.</p>
+        <% end %>
+
+        <div class="text-xs text-gray-500">
+          <%= length(@selected_ids) %> of <%= length(@options) %> selected
+        </div>
+      <% end %>
 
       <%!-- Hidden inputs to preserve filter structure --%>
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
-      <input type="hidden" name={"filters[#{@uuid}][comp]"} value="IN"/>
 
-      <%!-- Hidden field to store comma-separated IDs --%>
-      <input
-        id={"filter-value-#{@uuid}"}
-        type="hidden"
-        name={"filters[#{@uuid}][value]"}
-        value={Enum.join(@selected_ids, ",")}
-      />
+      <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
+      <%= if @current_comp in ["IN", "NOT IN"] do %>
+        <input
+          id={"filter-value-#{@uuid}"}
+          type="hidden"
+          name={"filters[#{@uuid}][value]"}
+          value={Enum.join(@selected_ids, ",")}
+        />
+      <% end %>
     </div>
     """
   end
