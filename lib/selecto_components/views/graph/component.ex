@@ -37,7 +37,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_error_state(assigns) do
     assigns = assign(assigns, :error, assigns[:execution_error])
-    
+
     ~H"""
     <div class="flex items-center justify-center min-h-64 bg-red-50 rounded-lg border border-red-300 p-6">
       <div class="text-center max-w-2xl">
@@ -95,7 +95,7 @@ defmodule SelectoComponents.Views.Graph.Component do
     </div>
     """
   end
-  
+
   defp render_loading_state(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
@@ -142,12 +142,13 @@ defmodule SelectoComponents.Views.Graph.Component do
     # Generate unique ID for this chart instance
     chart_id = "graph-#{assigns[:id] || :rand.uniform(10000)}"
 
-    assigns = assign(assigns,
-      chart_data: chart_data,
-      chart_options: chart_options,
-      chart_type: chart_type,
-      chart_id: chart_id
-    )
+    assigns =
+      assign(assigns,
+        chart_data: chart_data,
+        chart_options: chart_options,
+        chart_type: chart_type,
+        chart_id: chart_id
+      )
 
     ~H"""
     <div class="bg-white rounded-lg border border-gray-200 p-6">
@@ -323,35 +324,40 @@ defmodule SelectoComponents.Views.Graph.Component do
       "scatter" ->
         prepare_scatter_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
 
-      _ -> # Default to bar chart
+      # Default to bar chart
+      _ ->
         prepare_bar_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
     end
   end
 
   defp prepare_bar_data(results, _aliases, _x_axis_groups, y_axis_aggregates, series_groups) do
-    num_x_fields = 1  # Simplified for now
+    # Simplified for now
+    num_x_fields = 1
     num_series_fields = Enum.count(series_groups)
 
     # Simple case: single X-axis, single or multiple Y-axis, no series
     if num_series_fields == 0 do
       labels = results |> Enum.map(fn row -> format_chart_label(Enum.at(row, 0)) end)
 
-      datasets = y_axis_aggregates
-      |> Enum.with_index()
-      |> Enum.map(fn {y_agg, index} ->
-        data = results |> Enum.map(fn row ->
-          value = Enum.at(row, num_x_fields + index)
-          format_numeric_value(value)
-        end)
+      datasets =
+        y_axis_aggregates
+        |> Enum.with_index()
+        |> Enum.map(fn {y_agg, index} ->
+          data =
+            results
+            |> Enum.map(fn row ->
+              value = Enum.at(row, num_x_fields + index)
+              format_numeric_value(value)
+            end)
 
-        %{
-          label: format_aggregate_label(y_agg),
-          data: data,
-          backgroundColor: generate_color(index, 0.7),
-          borderColor: generate_color(index, 1.0),
-          borderWidth: 1
-        }
-      end)
+          %{
+            label: format_aggregate_label(y_agg),
+            data: data,
+            backgroundColor: generate_color(index, 0.7),
+            borderColor: generate_color(index, 1.0),
+            borderWidth: 1
+          }
+        end)
 
       %{labels: labels, datasets: datasets}
     else
@@ -360,22 +366,31 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  defp prepare_line_data(results, _aliases, _x_axis_groups, _y_axis_aggregates, _series_groups) do
-    # Simplified line data preparation
-    labels = results |> Enum.with_index() |> Enum.map(fn {_, i} -> "Point #{i + 1}" end)
-    data = results |> Enum.map(fn row -> format_numeric_value(Enum.at(row, 1)) end)
+  defp prepare_line_data(results, _aliases, _x_axis_groups, y_axis_aggregates, _series_groups) do
+    labels = Enum.map(results, fn row -> format_chart_label(Enum.at(row, 0)) end)
 
-    %{
-      labels: labels,
-      datasets: [%{
-        label: "Line Data",
-        data: data,
-        borderColor: generate_color(0, 1.0),
-        backgroundColor: generate_color(0, 0.1),
-        borderWidth: 2,
-        fill: false
-      }]
-    }
+    datasets =
+      y_axis_aggregates
+      |> Enum.with_index()
+      |> Enum.map(fn {y_agg, index} ->
+        data =
+          Enum.map(results, fn row ->
+            value = Enum.at(row, index + 1)
+            format_numeric_value(value)
+          end)
+
+        %{
+          label: format_aggregate_label(y_agg),
+          data: data,
+          borderColor: generate_color(index, 1.0),
+          backgroundColor: generate_color(index, 0.1),
+          borderWidth: 2,
+          fill: false,
+          tension: 0.4
+        }
+      end)
+
+    %{labels: labels, datasets: datasets}
   end
 
   defp prepare_pie_data(results, _aliases, _x_axis_groups, _y_axis_aggregates) do
@@ -384,24 +399,36 @@ defmodule SelectoComponents.Views.Graph.Component do
 
     %{
       labels: labels,
-      datasets: [%{
-        data: data,
-        backgroundColor: Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 0.8) end),
-        borderColor: Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 1.0) end),
-        borderWidth: 1
-      }]
+      datasets: [
+        %{
+          data: data,
+          backgroundColor:
+            Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 0.8) end),
+          borderColor:
+            Enum.with_index(labels) |> Enum.map(fn {_, i} -> generate_color(i, 1.0) end),
+          borderWidth: 1
+        }
+      ]
     }
   end
 
-  defp prepare_scatter_data(_results, _aliases, _x_axis_groups, _y_axis_aggregates, _series_groups) do
+  defp prepare_scatter_data(
+         _results,
+         _aliases,
+         _x_axis_groups,
+         _y_axis_aggregates,
+         _series_groups
+       ) do
     # Simplified scatter data
     %{
-      datasets: [%{
-        label: "Scatter Data",
-        data: [%{x: 0, y: 0}],
-        backgroundColor: generate_color(0, 0.7),
-        borderColor: generate_color(0, 1.0)
-      }]
+      datasets: [
+        %{
+          label: "Scatter Data",
+          data: [%{x: 0, y: 0}],
+          backgroundColor: generate_color(0, 0.7),
+          borderColor: generate_color(0, 1.0)
+        }
+      ]
     }
   end
 
@@ -409,14 +436,21 @@ defmodule SelectoComponents.Views.Graph.Component do
   Prepare Chart.js options from view configuration
   """
   def prepare_chart_options(assigns) do
-    %{
+    chart_type = get_chart_type(assigns)
+
+    base_options = %{
       responsive: true,
       maintainAspectRatio: false,
       plugins: %{
         legend: %{position: get_legend_position(assigns)},
         tooltip: %{mode: "index", intersect: false}
-      },
-      scales: %{
+      }
+    }
+
+    if chart_type in ["pie", "doughnut"] do
+      base_options
+    else
+      Map.put(base_options, :scales, %{
         x: %{
           title: %{display: true, text: get_x_axis_label(assigns)},
           beginAtZero: false,
@@ -427,12 +461,14 @@ defmodule SelectoComponents.Views.Graph.Component do
           beginAtZero: true,
           grid: %{display: get_show_grid(assigns)}
         }
-      }
-    }
+      })
+    end
   end
 
-  defp get_chart_type(assigns) do
-    assigns[:chart_type] || "bar"
+  def get_chart_type(assigns) do
+    chart_type = assigns[:chart_type] || get_in(assigns, [:selecto, :set, :chart_type]) || "bar"
+
+    if is_atom(chart_type), do: Atom.to_string(chart_type), else: chart_type
   end
 
   defp get_legend_position(_assigns), do: "bottom"
@@ -440,106 +476,136 @@ defmodule SelectoComponents.Views.Graph.Component do
   defp get_x_axis_label(_assigns), do: ""
   defp get_y_axis_label(_assigns), do: ""
 
-  defp format_aggregate_label(aggregate) do
-    case aggregate do
-      {:field, {:count, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
-        "Count of #{display_name}"
-      {:field, {:count, field_name}, _} when is_binary(field_name) ->
-        "Count of #{field_name}"
-      {:field, {:sum, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
-        "Sum of #{display_name}"
-      {:field, {:sum, field_name}, _} when is_binary(field_name) ->
-        "Sum of #{field_name}"
-      {:field, {:avg, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
-        "Average of #{display_name}"
-      {:field, {:avg, field_name}, _} when is_binary(field_name) ->
-        "Average of #{field_name}"
-      {:field, {:min, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
-        "Minimum of #{display_name}"
-      {:field, {:min, field_name}, _} when is_binary(field_name) ->
-        "Minimum of #{field_name}"
-      {:field, {:max, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
-        "Maximum of #{display_name}"
-      {:field, {:max, field_name}, _} when is_binary(field_name) ->
-        "Maximum of #{field_name}"
-      {:field, _field_spec, field_name} when is_binary(field_name) ->
-        field_name
-      {:field, _field_spec} ->
-        "Field"
-      {:count, field_name} when is_binary(field_name) ->
-        "Count of #{field_name}"
-      {:count, _} ->
-        "Count"
-      {:sum, field_name} when is_binary(field_name) ->
-        "Sum of #{field_name}"
-      {:sum, _} ->
-        "Sum"
-      {:avg, field_name} when is_binary(field_name) ->
-        "Average of #{field_name}"
-      {:avg, _} ->
-        "Average"
-      {:min, field_name} when is_binary(field_name) ->
-        "Minimum of #{field_name}"
-      {:min, _} ->
-        "Minimum"
-      {:max, field_name} when is_binary(field_name) ->
-        "Maximum of #{field_name}"
-      {:max, _} ->
-        "Maximum"
-      _ ->
-        to_string(aggregate)
-    end
+  def format_aggregate_label(aggregate) do
+    get_aggregate_label(aggregate)
   end
 
-  defp format_chart_label(value) when is_nil(value), do: "N/A"
-  defp format_chart_label(value) when is_tuple(value) do
+  def get_aggregate_label({:field, {_fn, _field_name}, display_name})
+      when is_binary(display_name) and display_name != "",
+      do: display_name
+
+  def get_aggregate_label({:field, {fn_name, field_name}, _display_name})
+      when is_atom(fn_name) and is_binary(field_name),
+      do: "#{fn_name}(#{field_name})"
+
+  def get_aggregate_label({:field, _field_spec, display_name})
+      when is_binary(display_name) and display_name != "",
+      do: display_name
+
+  def get_aggregate_label({:count, field_name}) when is_binary(field_name),
+    do: "count(#{field_name})"
+
+  def get_aggregate_label({:sum, field_name}) when is_binary(field_name), do: "sum(#{field_name})"
+  def get_aggregate_label({:avg, field_name}) when is_binary(field_name), do: "avg(#{field_name})"
+  def get_aggregate_label({:min, field_name}) when is_binary(field_name), do: "min(#{field_name})"
+  def get_aggregate_label({:max, field_name}) when is_binary(field_name), do: "max(#{field_name})"
+  def get_aggregate_label(_), do: "Value"
+
+  def format_chart_label(value) when is_nil(value), do: "N/A"
+
+  def format_chart_label({value, _meta}) when is_binary(value) or is_number(value),
+    do: to_string(value)
+
+  def format_chart_label(value) when is_tuple(value) do
     case value do
-      {:field, {:count, field_name}, display_name} when is_binary(field_name) and is_binary(display_name) ->
+      {:field, {:count, field_name}, display_name}
+      when is_binary(field_name) and is_binary(display_name) ->
         display_name
+
       {:field, {:count, field_name}, _} when is_binary(field_name) ->
         field_name
+
       {:field, _field_spec, field_name} when is_binary(field_name) ->
         field_name
+
       {:field, _field_spec} ->
         "Field"
+
       _ ->
         to_string(value)
     end
   end
-  defp format_chart_label(value), do: to_string(value)
 
-  defp format_numeric_value(value) when is_number(value), do: value
-  defp format_numeric_value(_), do: 0
+  def format_chart_label(value), do: to_string(value)
 
-  defp generate_color(index, alpha) do
+  def format_numeric_value(value) when is_number(value), do: value
+  def format_numeric_value({value, _meta}), do: format_numeric_value(value)
+
+  def format_numeric_value(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int_value, ""} ->
+        int_value
+
+      _ ->
+        case Float.parse(value) do
+          {float_value, ""} -> float_value
+          _ -> 0
+        end
+    end
+  end
+
+  def format_numeric_value(_), do: 0
+
+  def generate_color(index, alpha) do
     colors = [
-      "59, 130, 246",   # blue
-      "16, 185, 129",   # green
-      "245, 101, 101",  # red
-      "251, 191, 36",   # yellow
-      "139, 92, 246",   # purple
-      "236, 72, 153",   # pink
-      "6, 182, 212",    # cyan
-      "251, 146, 60",   # orange
-      "34, 197, 94",    # lime
-      "168, 85, 247"    # violet
+      # blue
+      "59, 130, 246",
+      # green
+      "16, 185, 129",
+      # red
+      "245, 101, 101",
+      # yellow
+      "251, 191, 36",
+      # purple
+      "139, 92, 246",
+      # pink
+      "236, 72, 153",
+      # cyan
+      "6, 182, 212",
+      # orange
+      "251, 146, 60",
+      # lime
+      "34, 197, 94",
+      # violet
+      "168, 85, 247"
     ]
 
     color = Enum.at(colors, rem(index, length(colors)))
     "rgba(#{color}, #{alpha})"
   end
 
-  defp chart_summary(chart_data, _chart_type) do
+  def chart_summary(chart_data, chart_type) do
     dataset_count = length(chart_data[:datasets] || [])
     label_count = length(chart_data[:labels] || [])
-    "#{dataset_count} series, #{label_count} data points"
+
+    case chart_type do
+      type when type in ["pie", "doughnut"] -> "#{label_count} categories"
+      "scatter" -> "#{label_count} data points"
+      _ -> "#{label_count} categories, #{dataset_count} series"
+    end
   end
 
   defp get_x_axis_field(x_axis_groups) when is_list(x_axis_groups) do
     case x_axis_groups do
-      [{_id, field, _config} | _] -> to_string(field)
-      _ -> ""
+      [{_column, {:field, field_name, _alias}} | _] when is_binary(field_name) ->
+        field_name
+
+      [{_column, {:field, field_name, _alias}} | _] when is_atom(field_name) ->
+        Atom.to_string(field_name)
+
+      [{_column, {:field, field_name}} | _] when is_binary(field_name) ->
+        field_name
+
+      [{_column, {:field, field_name}} | _] when is_atom(field_name) ->
+        Atom.to_string(field_name)
+
+      [{_id, field, _config} | _] ->
+        to_string(field)
+
+      _ ->
+        ""
     end
   end
+
   defp get_x_axis_field(_), do: ""
 end

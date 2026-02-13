@@ -1,5 +1,6 @@
 defmodule SelectoComponents.Views.Graph.ComponentTest do
   use ExUnit.Case, async: true
+  import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias SelectoComponents.Views.Graph.Component
 
@@ -50,7 +51,8 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
               {:field, {:count, "film_id"}, "Films"},
               {:field, {:avg, "rating"}, "Avg Rating"}
             ],
-            series_groups: []
+            series_groups: [],
+            chart_type: "line"
           }
         }
       }
@@ -88,7 +90,8 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
             aggregates: [
               {:field, {:count, "film_id"}, "Count"}
             ],
-            series_groups: []
+            series_groups: [],
+            chart_type: "pie"
           }
         }
       }
@@ -213,8 +216,12 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
 
   describe "get_aggregate_label/1" do
     test "extracts labels from aggregate field structures" do
-      assert Component.get_aggregate_label({:field, {:count, "film_id"}, "Film Count"}) == "Film Count"
-      assert Component.get_aggregate_label({:field, {:sum, "revenue"}, "Total Revenue"}) == "Total Revenue"
+      assert Component.get_aggregate_label({:field, {:count, "film_id"}, "Film Count"}) ==
+               "Film Count"
+
+      assert Component.get_aggregate_label({:field, {:sum, "revenue"}, "Total Revenue"}) ==
+               "Total Revenue"
+
       assert Component.get_aggregate_label({:field, "category", "Category"}) == "Category"
       assert Component.get_aggregate_label({:field, {:avg, "rating"}, nil}) == "avg(rating)"
       assert Component.get_aggregate_label({:unknown, "field"}) == "Value"
@@ -225,10 +232,13 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
     test "generates consistent colors for indices" do
       color1 = Component.generate_color(0, 0.7)
       color2 = Component.generate_color(1, 0.7)
-      color3 = Component.generate_color(0, 0.7)  # Should be same as color1
+      # Should be same as color1
+      color3 = Component.generate_color(0, 0.7)
 
-      assert color1 == color3  # Same index should produce same color
-      refute color1 == color2  # Different indices should produce different colors
+      # Same index should produce same color
+      assert color1 == color3
+      # Different indices should produce different colors
+      refute color1 == color2
 
       assert color1 =~ ~r/rgba\(\d+, \d+, \d+, 0\.7\)/
       assert color2 =~ ~r/rgba\(\d+, \d+, \d+, 0\.7\)/
@@ -239,7 +249,8 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
       color_0 = Component.generate_color(0, 1.0)
       color_10 = Component.generate_color(10, 1.0)
 
-      assert color_0 == color_10  # Should be the same color
+      # Should be the same color
+      assert color_0 == color_10
     end
 
     test "respects alpha parameter" do
@@ -335,8 +346,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
     test "renders loading state when not executed" do
       assigns = %{executed: false, query_results: nil}
 
-      html = Component.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      html_string = render_component_html(assigns)
 
       assert html_string =~ "Loading chart..."
       assert html_string =~ "animate-spin"
@@ -345,8 +355,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
     test "renders no results state when executed but no results" do
       assigns = %{executed: true, query_results: nil}
 
-      html = Component.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      html_string = render_component_html(assigns)
 
       assert html_string =~ "No Data Available"
       assert html_string =~ "📊"
@@ -367,10 +376,9 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
         id: "test-chart"
       }
 
-      html = Component.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      html_string = render_component_html(assigns)
 
-      assert html_string =~ "phx-hook=\".GraphViewHook\""
+      assert html_string =~ ~r/phx-hook=\"[^\"]*GraphComponent\"/
       assert html_string =~ "data-chart-type=\"bar\""
       assert html_string =~ "canvas"
       assert html_string =~ "Export"
@@ -380,11 +388,16 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
     test "renders unknown state for unexpected conditions" do
       assigns = %{executed: :unknown, query_results: :invalid}
 
-      html = Component.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      html_string = render_component_html(assigns)
 
       assert html_string =~ "Unknown Chart State"
       assert html_string =~ "Executed: :unknown"
     end
+  end
+
+  defp render_component_html(assigns) do
+    assigns
+    |> Map.put_new(:id, "graph-component-test")
+    |> then(&render_component(Component, &1))
   end
 end
