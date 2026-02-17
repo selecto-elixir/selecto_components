@@ -345,7 +345,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
     IO.inspect(params, label: "Params")
     IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
-
     new_page = String.to_integer(params["page"])
 
     # Notify parent to update the page in the form params (parent is authoritative)
