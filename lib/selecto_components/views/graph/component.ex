@@ -466,7 +466,17 @@ defmodule SelectoComponents.Views.Graph.Component do
   end
 
   def get_chart_type(assigns) do
-    chart_type = assigns[:chart_type] || get_in(assigns, [:selecto, :set, :chart_type]) || "bar"
+    selecto_set =
+      case assigns[:selecto] do
+        %{set: set} when is_map(set) -> set
+        _ -> %{}
+      end
+
+    chart_type =
+      assigns[:chart_type] ||
+        Map.get(selecto_set, :chart_type) ||
+        Map.get(selecto_set, "chart_type") ||
+        "bar"
 
     if is_atom(chart_type), do: Atom.to_string(chart_type), else: chart_type
   end
