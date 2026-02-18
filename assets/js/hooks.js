@@ -85,12 +85,22 @@ export const ColumnResize = {
 
     // Store for cleanup
     this.handleMouseDown = handleMouseDown;
+    this.handleMouseMove = handleMouseMove;
+    this.handleMouseUp = handleMouseUp;
   },
 
   destroyed() {
+    if (this.handleMouseMove) {
+      document.removeEventListener('mousemove', this.handleMouseMove);
+    }
+    if (this.handleMouseUp) {
+      document.removeEventListener('mouseup', this.handleMouseUp);
+    }
     if (this.handleMouseDown) {
       this.el.removeEventListener('mousedown', this.handleMouseDown);
     }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
   }
 };
 
