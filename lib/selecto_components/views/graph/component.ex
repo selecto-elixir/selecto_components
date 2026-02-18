@@ -187,49 +187,32 @@ defmodule SelectoComponents.Views.Graph.Component do
         chart: null,
         
         mounted() {
-          console.log('GraphHook mounted');
           this.initializeChart();
         },
 
         updated() {
-          console.log('GraphHook updated');
           this.updateChart();
         },
 
         destroyed() {
-          console.log('GraphHook destroyed');
           if (this.chart) {
             this.chart.destroy();
+            this.chart = null;
           }
         },
 
         initializeChart() {
           const canvas = this.el.querySelector('canvas');
-          if (!canvas) {
-            console.error('Canvas not found for chart');
-            return;
-          }
+          if (!canvas) return;
 
           if (!window.Chart) {
-            console.error('Chart.js not loaded. Please ensure Chart.js is included before this hook.');
-            // Show an error message in the chart container
-            this.el.innerHTML = `
-              <div class="flex items-center justify-center h-64 bg-red-50 rounded-lg border border-red-200">
-                <div class="text-center text-red-500">
-                  <div class="text-4xl mb-2">⚠️</div>
-                  <div class="font-semibold">Chart.js Not Loaded</div>
-                  <div class="text-sm mt-1">Chart.js library is required to display charts.</div>
-                </div>
-              </div>
-            `;
+            // Leave server-rendered content intact if Chart.js is unavailable.
             return;
           }
 
           const chartData = JSON.parse(this.el.dataset.chartData || '{}');
           const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
           const chartType = this.el.dataset.chartType || 'bar';
-
-          console.log('Initializing chart with:', { chartType, chartData, chartOptions });
 
           const pushEvent = (event, payload) => {
             this.pushEvent(event, payload);
@@ -264,7 +247,6 @@ defmodule SelectoComponents.Views.Graph.Component do
                 }
               }
             });
-            console.log('Chart initialized successfully');
           } catch (error) {
             console.error('Error initializing chart:', error);
           }
@@ -278,9 +260,7 @@ defmodule SelectoComponents.Views.Graph.Component do
             this.chart.data = chartData;
             this.chart.options = chartOptions;
             this.chart.update();
-            console.log('Chart updated');
           } else {
-            console.log('No chart to update, initializing...');
             this.initializeChart();
           }
         }

@@ -306,18 +306,6 @@ defmodule SelectoComponents.Views.Detail.Component do
           };
 
           this.el.addEventListener('click', this.handleRowClick);
-
-          // Add hover effect
-          const rows = this.el.querySelectorAll('tr[data-row-id]');
-          rows.forEach(row => {
-            row.style.cursor = 'pointer';
-            row.addEventListener('mouseenter', () => {
-              row.classList.add('bg-gray-50', 'transition-colors');
-            });
-            row.addEventListener('mouseleave', () => {
-              row.classList.remove('bg-gray-50');
-            });
-          });
         },
 
         destroyed() {
