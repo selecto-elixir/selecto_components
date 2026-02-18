@@ -452,11 +452,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   but not when filter values or comparisons change.
   """
   def hash_filter_structure(filters) do
-    # Include the entire filter structure in the hash so changes to comp, value, etc.
-    # will trigger a re-render of the TreeBuilder component
+    # Only hash UUIDs, sections, and filter field IDs so the component remounts
+    # when filters are added/removed but NOT when values/comparisons change
     filters
     |> Enum.map(fn
-      {uuid, section, config} -> {uuid, section, config}
+      {uuid, section, config} when is_map(config) -> {uuid, section, Map.get(config, "filter")}
+      {uuid, section, conj} when is_binary(conj) -> {uuid, section, conj}
     end)
     |> :erlang.phash2()
   end
