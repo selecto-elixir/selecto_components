@@ -10,6 +10,7 @@ defmodule SelectoComponents.MixProject do
       description: "LiveView Components for Selecto",
       aliases: aliases(),
       package: package(),
+      compilers: [:phoenix_live_view] ++ Mix.compilers(),
       deps: deps(),
 
       # Test coverage
