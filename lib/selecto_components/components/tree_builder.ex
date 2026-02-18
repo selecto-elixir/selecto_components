@@ -142,6 +142,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
             if (filterInput) {
               this.onFilterInput = (e) => {
+                e.stopPropagation();
                 const filterValue = e.target.value.toUpperCase();
                 if (clearButton) {
                   clearButton.style.display = filterValue ? '' : 'none';
