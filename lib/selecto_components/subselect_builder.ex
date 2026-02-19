@@ -4,8 +4,6 @@ defmodule SelectoComponents.SubselectBuilder do
   Converts one-to-many and many-to-many relationships into JSON aggregations.
   """
 
-  alias SelectoComponents.SafeAtom
-
   @doc """
   Builds a Selecto query with subselects for denormalizing columns.
 
@@ -63,30 +61,28 @@ defmodule SelectoComponents.SubselectBuilder do
     # Generate a subselect for a group of related columns
     # All columns for a relationship should be in ONE subselect that returns JSON objects
 
-    # Extract just the field names without the table prefix
-    field_names = Enum.map(columns, fn col ->
-      # Remove table prefix if present (e.g., "film.description" -> "description")
-      case String.split(col, ".", parts: 2) do
-        [_table, field] -> field
-        [field] -> field
-      end
-    end)
+    normalized_path = to_string(relationship_path)
 
-    # Create a single config for all fields of this relationship
-    # Use SafeAtom.to_existing to prevent atom table exhaustion - schema names should exist
-    target_schema = SafeAtom.to_existing(relationship_path) || :unknown
+    field_names =
+      columns
+      |> Enum.map(&extract_field_name/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
 
-    config = %{
-      fields: field_names,
-      target_schema: target_schema,
-      format: :json_agg,
-      alias: relationship_path  # Use the relationship path as the alias
-    }
+    target_schema = resolve_target_schema(selecto, normalized_path)
 
-    # Apply a single subselect for all fields of this relationship
-    result = Selecto.subselect(selecto, [config])
+    if is_nil(target_schema) or field_names == [] do
+      selecto
+    else
+      config = %{
+        fields: field_names,
+        target_schema: target_schema,
+        format: :json_agg,
+        alias: normalized_path
+      }
 
-    result
+      Selecto.subselect(selecto, [config])
+    end
   end
 
   # defp build_subselect_alias(relationship_path) do
@@ -236,11 +232,8 @@ defmodule SelectoComponents.SubselectBuilder do
 
   defp prepare_nested_columns(columns) do
     Enum.map(columns, fn col ->
-      # Extract the actual column name from formats like "actor[name]"
-      display_name = case String.split(col, ["[", "]"], trim: true) do
-        [_table, field] -> field
-        [field] -> field
-      end
+      # Extract the actual column name from formats like "table[field]" or "table.field"
+      display_name = extract_field_name(col) || to_string(col)
 
       %{
         field: col,
@@ -248,5 +241,70 @@ defmodule SelectoComponents.SubselectBuilder do
         sortable: false
       }
     end)
+  end
+
+  defp extract_field_name({_, field, _}), do: extract_field_name(field)
+
+  defp extract_field_name(field) when is_atom(field) do
+    field |> Atom.to_string() |> extract_field_name()
+  end
+
+  defp extract_field_name(field) when is_binary(field) do
+    case Regex.run(~r/^[^[]+\[([^]]+)\]$/, field, capture: :all_but_first) do
+      [inner] ->
+        inner
+        |> String.split(",", parts: 2)
+        |> hd()
+        |> String.trim()
+
+      _ ->
+        field
+        |> String.split(".")
+        |> List.last()
+        |> String.trim()
+    end
+  end
+
+  defp extract_field_name(_), do: nil
+
+  defp resolve_target_schema(selecto, relationship_path) do
+    schemas =
+      selecto
+      |> Map.get(:domain, %{})
+      |> Map.get(:schemas, %{})
+
+    join_segment = relationship_path |> String.split(".") |> List.last()
+
+    Enum.find_value(Map.keys(schemas), fn schema_name ->
+      if to_string(schema_name) in [relationship_path, join_segment], do: schema_name
+    end) || resolve_target_schema_from_join(selecto, join_segment)
+  end
+
+  defp resolve_target_schema_from_join(selecto, join_segment) do
+    joins =
+      selecto
+      |> Map.get(:config, %{})
+      |> Map.get(:joins, %{})
+
+    join_config =
+      Enum.find_value(joins, fn {join_id, config} ->
+        if to_string(join_id) == join_segment, do: config
+      end)
+
+    case join_config do
+      %{source: source_table} ->
+        schemas =
+          selecto
+          |> Map.get(:domain, %{})
+          |> Map.get(:schemas, %{})
+
+        Enum.find_value(schemas, fn {schema_name, schema_config} ->
+          if to_string(Map.get(schema_config, :source_table)) == to_string(source_table),
+            do: schema_name
+        end)
+
+      _ ->
+        nil
+    end
   end
 end
