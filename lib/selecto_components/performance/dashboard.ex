@@ -457,7 +457,7 @@ defmodule SelectoComponents.Performance.Dashboard do
     queries = [
       %{
         id: Ecto.UUID.generate(),
-        sql: "SELECT * FROM films f JOIN film_actor fa ON f.film_id = fa.film_id WHERE f.rating = 'PG-13'",
+        sql: "SELECT * FROM orders o JOIN order_items oi ON o.order_id = oi.order_id WHERE o.status = 'processing'",
         execution_time: 1250,
         row_count: 5234,
         table_scans: 2,
@@ -478,13 +478,13 @@ defmodule SelectoComponents.Performance.Dashboard do
 
   defp load_index_usage(socket) do
     most_used = [
-      %{name: "idx_film_title", usage_count: 1523},
+      %{name: "idx_orders_created_at", usage_count: 1523},
       %{name: "idx_customer_email", usage_count: 892},
       %{name: "idx_rental_date", usage_count: 654}
     ]
     
     unused = [
-      %{name: "idx_actor_first_name", usage_count: 0},
+      %{name: "idx_order_items_product_id", usage_count: 0},
       %{name: "idx_address_postal_code", usage_count: 0}
     ]
     

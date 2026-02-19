@@ -79,7 +79,7 @@ defmodule SelectoComponents.DenormalizationDetector do
     # Extract join path from field definition
     # Check various field formats for join indicators
 
-    # Try field name first (e.g., "actor[name]" or "film.title")
+    # Try field name first (e.g., "entity[name]" or "orders.total")
     field_name = Map.get(field, :field) || Map.get(field, :qualified_name) || ""
 
     cond do
@@ -124,23 +124,19 @@ defmodule SelectoComponents.DenormalizationDetector do
 
     last_segment = List.last(join_path)
 
-    # Example relationships:
-    # - source -> target could be many-to-many (through intermediate table)
-    # - target -> source could be many-to-many (through intermediate table)
-    # When joining from one context to another with many-to-many relationship, it's denormalizing
-
-    # Common patterns that indicate multiple rows
-    # These should be configured based on your domain
     denormalizing_patterns = [
-      # Add patterns specific to your domain here
-      # e.g., "items", "orders", "details"
-      "inventory",  # film -> inventory (one-to-many)
-      "rental",     # customer -> rentals (one-to-many)
-      "rentals",
-      "payment",    # customer -> payments (one-to-many)
+      # Common one-to-many and many-to-many indicators
+      "items",
+      "details",
+      "events",
+      "logs",
       "payments",
-      "film_actor", # junction table
-      "film_category" # junction table
+      "rentals",
+      "orders",
+      "line_items",
+      "mapping",
+      "junction",
+      "link"
     ]
 
     result = Enum.any?(denormalizing_patterns, fn pattern ->
@@ -156,15 +152,15 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   defp get_relationship_type(_selecto, join_path) do
     # Determine the type of relationship
-    last_segment = List.last(join_path)
+    last_segment = List.last(join_path) |> to_string() |> String.downcase()
 
     cond do
-      String.contains?(String.downcase(last_segment), "film") -> :many_to_many  # actor->film is many-to-many
-      String.contains?(String.downcase(last_segment), "actor") -> :many_to_many
-      String.contains?(String.downcase(last_segment), "category") -> :many_to_many
-      String.contains?(String.downcase(last_segment), "inventory") -> :one_to_many
-      String.contains?(String.downcase(last_segment), "rental") -> :one_to_many
-      String.contains?(String.downcase(last_segment), "payment") -> :one_to_many
+      Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(last_segment, &1)) ->
+        :many_to_many
+
+      String.ends_with?(last_segment, "s") ->
+        :one_to_many
+
       true -> :one_to_one
     end
   end
@@ -199,17 +195,21 @@ defmodule SelectoComponents.DenormalizationDetector do
   end
 
   defp is_one_to_many_relationship?(join) do
-    # This would ideally check actual schema relationships
-    # For now using pattern matching on table names
-    denormalizing_tables = ~w(actors categories inventory rentals payments film_actor film_category)
-    Enum.any?(denormalizing_tables, &String.contains?(String.downcase(join.table), &1))
+    # This would ideally check actual schema relationships.
+    # For now, use common naming patterns for fan-out tables.
+    table = join.table |> to_string() |> String.downcase()
+
+    Enum.any?(~w(items details events logs payments rentals orders line_items), &String.contains?(table, &1))
   end
 
   defp estimate_join_cardinality(join) do
+    table = join.table |> to_string() |> String.downcase()
+
     # Estimate whether this join produces 1:1, 1:N, or M:N results
     cond do
-      String.contains?(join.table, "film_actor") -> :many_to_many
-      String.contains?(join.table, "film_category") -> :many_to_many
+      Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(table, &1)) ->
+        :many_to_many
+
       is_one_to_many_relationship?(join) -> :one_to_many
       true -> :one_to_one
     end

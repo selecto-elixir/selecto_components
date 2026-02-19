@@ -238,7 +238,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
       type: "join",
       cost: 1250.5,
       rows: 523,
-      details: "Inner join on film_id",
+      details: "Inner join on order_id",
       warning: nil,
       children: [
         %{
@@ -246,7 +246,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
           type: "index_scan",
           cost: 125.3,
           rows: 100,
-          details: "Using idx_film_title",
+          details: "Using idx_orders_created_at",
           warning: nil,
           children: []
         },
@@ -255,7 +255,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
           type: "scan",
           cost: 892.1,
           rows: 423,
-          details: "On film_actor",
+          details: "On order_items",
           warning: "Full table scan detected",
           children: []
         }
@@ -275,14 +275,14 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     [
       %{
         title: "Convert Sequential Scan to Index Scan",
-        description: "The query is performing a full table scan on 'film_actor'. An index on 'film_id' would improve performance.",
-        example: "CREATE INDEX idx_film_actor_film_id ON film_actor(film_id);",
+        description: "The query is performing a full table scan on 'order_items'. An index on 'order_id' would improve performance.",
+        example: "CREATE INDEX idx_order_items_order_id ON order_items(order_id);",
         improvement: 65
       },
       %{
         title: "Use Covering Index",
-        description: "Including 'actor_id' in the index would eliminate the need for table lookups.",
-        example: "CREATE INDEX idx_film_actor_covering ON film_actor(film_id, actor_id);",
+        description: "Including 'product_id' in the index would eliminate additional table lookups.",
+        example: "CREATE INDEX idx_order_items_covering ON order_items(order_id, product_id);",
         improvement: 25
       }
     ]
@@ -291,9 +291,9 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
   defp recommend_indexes(_plan) do
     [
       %{
-        name: "idx_film_actor_film_id",
-        table: "film_actor",
-        columns: ["film_id"]
+        name: "idx_order_items_order_id",
+        table: "order_items",
+        columns: ["order_id"]
       }
     ]
   end
