@@ -22,7 +22,7 @@ defmodule SelectoComponents.Components.NestedTable do
 
   def nested_table(assigns) do
     assigns = assigns
-      |> Map.put(:parsed_data, parse_subselect_data(assigns.data))
+      |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
       |> Map.put(:table_id, "nested_#{assigns.row_id}")
       |> Map.put(:column_headers, get_column_headers(assigns))
     
@@ -114,16 +114,21 @@ defmodule SelectoComponents.Components.NestedTable do
 
   # Helper functions (made public for inline rendering)
 
-  def parse_subselect_data(nil), do: []
-  def parse_subselect_data(data) when is_list(data), do: data
-  def parse_subselect_data(data) when is_binary(data) do
+  def parse_subselect_data(data, config \\ %{})
+  def parse_subselect_data(nil, _config), do: []
+
+  def parse_subselect_data(data, config) when is_list(data) do
+    normalize_subselect_rows(data, config)
+  end
+
+  def parse_subselect_data(data, config) when is_binary(data) do
     # Try to parse JSON string
     case Jason.decode(data) do
-      {:ok, parsed} when is_list(parsed) -> parsed
+      {:ok, parsed} when is_list(parsed) -> normalize_subselect_rows(parsed, config)
       _ -> []
     end
   end
-  def parse_subselect_data(_), do: []
+  def parse_subselect_data(_, _config), do: []
 
   # defp get_nested_value(item, field) do
   #   # Extract value from nested data
@@ -145,7 +150,7 @@ defmodule SelectoComponents.Components.NestedTable do
 
   defp get_column_headers(assigns) do
     # Try to get headers from the first data item or config
-    case parse_subselect_data(assigns.data) do
+    case parse_subselect_data(assigns.data, assigns.config) do
       [first | _] when is_map(first) ->
         Map.keys(first)
         |> Enum.map(&humanize_key/1)
@@ -155,6 +160,7 @@ defmodule SelectoComponents.Components.NestedTable do
           columns when is_list(columns) and length(columns) > 0 ->
             Enum.map(columns, fn 
               {_, field, _} -> humanize_key(extract_field_name(field))
+              %{field: field} -> humanize_key(extract_field_name(field))
               field when is_binary(field) -> humanize_key(extract_field_name(field))
               _ -> "Column"
             end)
@@ -179,9 +185,54 @@ defmodule SelectoComponents.Components.NestedTable do
   def humanize_key(key), do: to_string(key)
 
   defp extract_field_name(field) when is_binary(field) do
-    case String.split(field, ".", parts: 2) do
-      [_, name] -> name
-      [name] -> name
+    case Regex.run(~r/^[^[]+\[([^]]+)\]$/, field, capture: :all_but_first) do
+      [inner] ->
+        inner
+        |> String.split(",", parts: 2)
+        |> hd()
+        |> String.trim()
+
+      _ ->
+        field
+        |> String.split(".")
+        |> List.last()
+        |> String.trim()
+    end
+  end
+
+  defp normalize_subselect_rows([], _config), do: []
+
+  defp normalize_subselect_rows([first | _] = rows, _config) when is_map(first), do: rows
+
+  defp normalize_subselect_rows(rows, config) do
+    scalar_key = infer_scalar_column_key(config)
+
+    Enum.map(rows, fn
+      item when is_map(item) -> item
+      item -> %{scalar_key => item}
+    end)
+  end
+
+  defp infer_scalar_column_key(config) when not is_map(config), do: "value"
+
+  defp infer_scalar_column_key(config) do
+    field_name =
+      case Map.get(config, :columns, []) do
+        [first_column | _] ->
+          case first_column do
+            {_, field, _} -> extract_field_name(field)
+            %{field: field} -> extract_field_name(field)
+            field when is_binary(field) -> extract_field_name(field)
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    case field_name do
+      name when is_binary(name) and name != "" -> name
+      _ -> "value"
     end
   end
 
@@ -200,7 +251,7 @@ defmodule SelectoComponents.Components.NestedTable do
 
   def inline_nested_table(assigns) do
     assigns = assigns
-      |> Map.put(:parsed_data, parse_subselect_data(assigns.data))
+      |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
     
     ~H"""
     <div class="inline-nested-table">

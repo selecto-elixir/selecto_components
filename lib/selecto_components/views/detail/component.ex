@@ -254,7 +254,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                 <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
                 <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
                   <% # Parse the data here to ensure it's fresh %>
-                  <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data) %>
+                  <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
                   <div id={"nested_#{unique_id}"}>
                     <%= if length(parsed_data) > 0 do %>
                       <table class="min-w-full border border-gray-300 rounded">
