@@ -132,10 +132,22 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   defp get_relationship_type(selecto, join_path) do
     # Determine the type of relationship
-    last_segment = List.last(join_path) |> to_string()
+    join_segment = List.last(join_path) |> to_string()
 
-    relationship_type_from_config(selecto, last_segment) ||
-      relationship_type_from_name(last_segment)
+    base_type =
+      relationship_type_from_config(selecto, join_segment) ||
+        relationship_type_from_name(join_segment)
+
+    if base_type in [:one_to_many, :many_to_many] do
+      base_type
+    else
+      # A descendant join can still denormalize if any ancestor join fans out.
+      if ancestor_fans_out?(selecto, join_segment, MapSet.new([join_segment])) do
+        :one_to_many
+      else
+        base_type
+      end
+    end
   end
 
   defp relationship_type_from_config(selecto, join_segment) do
@@ -224,6 +236,35 @@ defmodule SelectoComponents.DenormalizationDetector do
           nil
       end
     end)
+  end
+
+  defp ancestor_fans_out?(selecto, join_segment, visited) do
+    case find_join_config(selecto, join_segment) do
+      nil ->
+        false
+
+      join_config ->
+        parent = Map.get(join_config, :requires_join)
+
+        cond do
+          parent in [nil, :selecto_root, "selecto_root"] ->
+            false
+
+          true ->
+            parent_segment = to_string(parent)
+
+            if MapSet.member?(visited, parent_segment) do
+              false
+            else
+              parent_type =
+                relationship_type_from_config(selecto, parent_segment) ||
+                  relationship_type_from_name(parent_segment)
+
+              parent_type in [:one_to_many, :many_to_many] ||
+                ancestor_fans_out?(selecto, parent_segment, MapSet.put(visited, parent_segment))
+            end
+        end
+    end
   end
 
   @doc """
