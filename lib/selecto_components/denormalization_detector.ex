@@ -13,7 +13,7 @@ defmodule SelectoComponents.DenormalizationDetector do
   def detect_and_group_columns(selecto, selected_columns) do
     columns_with_info = Enum.map(selected_columns, fn col_name ->
       field = Selecto.field(selecto, col_name)
-      {col_name, field, analyze_column(selecto, field)}
+      {col_name, field, analyze_column(selecto, field, col_name)}
     end)
 
     # Separate normal columns from denormalizing ones
@@ -51,7 +51,7 @@ defmodule SelectoComponents.DenormalizationDetector do
     columns
     |> Enum.map(fn col_name ->
       field = Selecto.field(selecto, col_name)
-      info = analyze_column(selecto, field)
+      info = analyze_column(selecto, field, col_name)
       {col_name, info.relationship_path}
     end)
     |> Enum.group_by(fn {_, path} -> path end, fn {name, _} -> name end)
@@ -59,9 +59,9 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   # Private functions
 
-  defp analyze_column(selecto, field) do
+  defp analyze_column(selecto, field, fallback_field_name \\ nil) do
     # Get the join path for this field
-    join_path = get_join_path(field)
+    join_path = get_join_path(field, fallback_field_name)
 
     # Check if this involves a one-to-many or many-to-many relationship
     causes_denormalization = is_denormalizing_join?(selecto, join_path)
@@ -75,12 +75,19 @@ defmodule SelectoComponents.DenormalizationDetector do
     }
   end
 
-  defp get_join_path(field) do
+  defp get_join_path(field, fallback_field_name) do
     # Extract join path from field definition
     # Check various field formats for join indicators
+    normalized_field = field || %{}
 
-    # Try field name first (e.g., "entity[name]" or "orders.total")
-    field_name = Map.get(field, :field) || Map.get(field, :qualified_name) || ""
+    # Try richer identifiers first (colid/qualified_name) before bare field names
+    field_name =
+      Map.get(normalized_field, :colid) ||
+        Map.get(normalized_field, :qualified_name) ||
+        Map.get(normalized_field, :field) ||
+        fallback_field_name ||
+        ""
+      |> to_string()
 
     cond do
       # Check for bracket notation: "table[column]"
@@ -95,9 +102,9 @@ defmodule SelectoComponents.DenormalizationDetector do
         Enum.take(parts, length(parts) - 1)
 
       # Check requires_join field
-      Map.get(field, :requires_join) not in [nil, :selecto_root] ->
+      Map.get(normalized_field, :requires_join) not in [nil, :selecto_root] ->
         # If it requires a join, use that as the path
-        [to_string(Map.get(field, :requires_join))]
+        [to_string(Map.get(normalized_field, :requires_join))]
 
       true ->
         # No join required
@@ -115,54 +122,108 @@ defmodule SelectoComponents.DenormalizationDetector do
     false
   end
 
-  defp is_denormalizing_join?(_selecto, join_path) do
-    # Check if this join represents a one-to-many or many-to-many relationship
-    # This is determined by checking if multiple rows could be returned
-
-    # For now, we'll use a heuristic based on common patterns
-    # In a real implementation, this would check the actual schema relationships
-
-    last_segment = List.last(join_path)
-
-    denormalizing_patterns = [
-      # Common one-to-many and many-to-many indicators
-      "items",
-      "details",
-      "events",
-      "logs",
-      "payments",
-      "rentals",
-      "orders",
-      "line_items",
-      "mapping",
-      "junction",
-      "link"
-    ]
-
-    result = Enum.any?(denormalizing_patterns, fn pattern ->
-      String.contains?(String.downcase(last_segment), pattern)
-    end)
-
-    result
+  defp is_denormalizing_join?(selecto, join_path) do
+    get_relationship_type(selecto, join_path) in [:one_to_many, :many_to_many]
   end
 
   defp get_relationship_type(_selecto, []) do
     :none
   end
 
-  defp get_relationship_type(_selecto, join_path) do
+  defp get_relationship_type(selecto, join_path) do
     # Determine the type of relationship
-    last_segment = List.last(join_path) |> to_string() |> String.downcase()
+    last_segment = List.last(join_path) |> to_string()
+
+    relationship_type_from_config(selecto, last_segment) ||
+      relationship_type_from_name(last_segment)
+  end
+
+  defp relationship_type_from_config(selecto, join_segment) do
+    join_config = find_join_config(selecto, join_segment)
+
+    if is_map(join_config) do
+      cond do
+        many_to_many_join?(join_segment, join_config) ->
+          :many_to_many
+
+        one_to_many_join?(selecto, join_segment, join_config) ->
+          :one_to_many
+
+        true ->
+          :one_to_one
+      end
+    end
+  end
+
+  defp relationship_type_from_name(join_segment) do
+    downcased = join_segment |> to_string() |> String.downcase()
 
     cond do
-      Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(last_segment, &1)) ->
+      Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(downcased, &1)) ->
         :many_to_many
 
-      String.ends_with?(last_segment, "s") ->
+      String.ends_with?(downcased, "s") ->
         :one_to_many
 
       true -> :one_to_one
     end
+  end
+
+  defp find_join_config(selecto, join_segment) do
+    joins =
+      selecto
+      |> Map.get(:config, %{})
+      |> Map.get(:joins, %{})
+
+    Enum.find_value(joins, fn {join_id, join_config} ->
+      if to_string(join_id) == join_segment, do: join_config
+    end)
+  end
+
+  defp many_to_many_join?(join_segment, join_config) do
+    join_type = Map.get(join_config, :join_type)
+
+    descriptor =
+      [join_segment, Map.get(join_config, :source, "")]
+      |> Enum.join(" ")
+      |> String.downcase()
+
+    join_type in [:tagging, :many_to_many] ||
+      Enum.any?(["mapping", "junction", "link", "_join", "_map", "tags"], &String.contains?(descriptor, &1))
+  end
+
+  defp one_to_many_join?(selecto, join_segment, join_config) do
+    target_primary_key = find_target_primary_key(selecto, join_segment, join_config)
+    join_target_key = Map.get(join_config, :my_key)
+
+    cond do
+      not is_nil(target_primary_key) and not is_nil(join_target_key) ->
+        to_string(join_target_key) != to_string(target_primary_key)
+
+      true ->
+        relationship_type_from_name(join_segment) == :one_to_many
+    end
+  end
+
+  defp find_target_primary_key(selecto, join_segment, join_config) do
+    schemas =
+      selecto
+      |> Map.get(:domain, %{})
+      |> Map.get(:schemas, %{})
+    target_source_table = to_string(Map.get(join_config, :source, ""))
+
+    Enum.find_value(schemas, fn {schema_name, schema_config} ->
+      cond do
+        to_string(schema_name) == join_segment ->
+          Map.get(schema_config, :primary_key)
+
+        to_string(Map.get(schema_config, :source_table)) == target_source_table ->
+          Map.get(schema_config, :primary_key)
+
+        true ->
+          nil
+      end
+    end)
   end
 
   @doc """

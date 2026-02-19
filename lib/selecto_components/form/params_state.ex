@@ -510,7 +510,9 @@ defmodule SelectoComponents.Form.ParamsState do
     # The saved params look like: %{"detail" => %{selected: [...], order_by: [...], ...}}
     # We need to convert to params format that params_to_state expects
 
-    view_config = Map.get(saved_params, view_type, %{})
+    view_config =
+      saved_params
+      |> get_map_value(view_type, %{})
 
     # Convert the view-specific lists to params format
     params = %{
@@ -518,7 +520,7 @@ defmodule SelectoComponents.Form.ParamsState do
     }
 
     # Convert selected items
-    params = if selected = Map.get(view_config, :selected) do
+    params = if selected = get_map_value(view_config, :selected) do
       selected_params = selected
       |> Enum.with_index()
       |> Enum.reduce(%{}, fn
@@ -539,7 +541,7 @@ defmodule SelectoComponents.Form.ParamsState do
     end
 
     # Convert order_by items - always set this to ensure replacement
-    order_by = Map.get(view_config, :order_by, [])
+    order_by = get_map_value(view_config, :order_by, [])
     order_by_params = order_by
     |> Enum.with_index()
     |> Enum.reduce(%{}, fn
@@ -572,8 +574,11 @@ defmodule SelectoComponents.Form.ParamsState do
 
     # Add other view-specific params
     params
-    |> Map.put("per_page", to_string(Map.get(view_config, :per_page, "30")))
-    |> Map.put("prevent_denormalization", to_string(Map.get(view_config, :prevent_denormalization, true)))
+    |> Map.put("per_page", to_string(get_map_value(view_config, :per_page, "30")))
+    |> Map.put(
+      "prevent_denormalization",
+      to_string(get_map_value(view_config, :prevent_denormalization, true))
+    )
   end
 
   @doc """
@@ -647,4 +652,12 @@ defmodule SelectoComponents.Form.ParamsState do
 
     Phoenix.LiveView.push_patch(socket, to: full_path)
   end
+
+  defp get_map_value(map, key, default \\ nil)
+
+  defp get_map_value(map, key, default) when is_map(map) do
+    Map.get(map, key, Map.get(map, to_string(key), default))
+  end
+
+  defp get_map_value(_map, _key, default), do: default
 end
