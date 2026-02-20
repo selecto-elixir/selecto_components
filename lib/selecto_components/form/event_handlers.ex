@@ -145,6 +145,7 @@ defmodule SelectoComponents.Form.EventHandlers do
           columns: columns_list,
           field_filters: Selecto.filters(selecto),
           executed: false,
+          execution_error: nil,
           query_results: [],
           applied_view: nil,
           active_tab: "view",

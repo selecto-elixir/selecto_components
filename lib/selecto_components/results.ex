@@ -39,10 +39,10 @@ defmodule SelectoComponents.Results do
 
     ~H"""
       <div>
-        <div :if={@execution_error && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div :if={Map.get(assigns, :execution_error) && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <strong class="font-bold">View Error:</strong>
           <span class="block sm:inline ml-1">
-            <%= case @execution_error do %>
+            <%= case Map.get(assigns, :execution_error) do %>
               <% %{message: msg} -> %>
                 <%= msg %>
               <% error when is_binary(error) -> %>
