@@ -62,6 +62,23 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
           </select>
         </div>
 
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Series Type</label>
+          <select name={"#{@prefix}[series_type]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="auto" selected={Map.get(@config, "series_type", "auto") == "auto"}>Auto</option>
+            <option value="bar" selected={Map.get(@config, "series_type") == "bar"}>Bar</option>
+            <option value="line" selected={Map.get(@config, "series_type") == "line"}>Line</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Axis</label>
+          <select name={"#{@prefix}[axis]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="left" selected={Map.get(@config, "axis", "left") == "left"}>Left (Y)</option>
+            <option value="right" selected={Map.get(@config, "axis") == "right"}>Right (Y2)</option>
+          </select>
+        </div>
+
         <!-- Color (for multiple Y-axis series) -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">Color</label>
