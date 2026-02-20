@@ -53,16 +53,16 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
           <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="w-full bg-base-200 border-solid border rounded-md border-base-300 relative p-2 hover:bg-base-300 min-h-10 text-base-content">
-
-            <div class="w-full pr-24">
-              <%= render_slot(@item_form, {id, item, conf, index}) %>
-            </div>
-
-            <div class="absolute top-1 right-1 flex gap-1">
-              <.sc_up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
-              <.sc_down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
-              <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
+            class="w-full rounded-lg border border-base-300 bg-base-200 p-2.5 text-base-content shadow-sm transition hover:border-base-400 hover:bg-base-300/60">
+            <div class="flex items-start gap-2">
+              <div class="min-w-0 flex-1">
+                <%= render_slot(@item_form, {id, item, conf, index}) %>
+              </div>
+              <div class="flex shrink-0 items-center gap-1.5 pt-0.5">
+                <.sc_up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
+                <.sc_down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
+                <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
+              </div>
             </div>
           </div>
         </div>

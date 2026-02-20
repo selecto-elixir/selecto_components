@@ -55,7 +55,17 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
           end
       end
 
-    assigns = Map.put(assigns, :display_name, display_name)
+    col_type = Map.get(assigns[:col] || %{}, :type, :string)
+    configure_component = Map.get(assigns[:col] || %{}, :configure_component)
+
+    show_options =
+      col_type in [:int, :id, :float, :decimal, :naive_datetime, :utc_datetime] or
+        is_function(configure_component)
+
+    assigns =
+      assigns
+      |> Map.put(:display_name, display_name)
+      |> Map.put(:show_options, show_options)
 
     ~H"""
       <div class="space-y-2">
@@ -71,7 +81,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
           </div>
         </div>
 
-        <div>
+        <div :if={@show_options}>
           <div class="font-medium text-sm text-gray-700">Options:</div>
           <div class="pl-2">
             <%= case Map.get(@col, :type, :string) do%>
@@ -84,12 +94,6 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                   options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
-
-              <% x when x in [:string] -> %>
-                <span class="text-sm text-gray-500">No additional options</span>
-
-              <% :boolean -> %>
-                <span class="text-sm text-gray-500">Boolean values are displayed as true/false.</span>
 
               <% x when x in [:naive_datetime, :utc_datetime] -> %>
                 <label>Format
@@ -104,8 +108,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                       config: @config,
                       prefix: @prefix
                     }) %>
-                  <% nil -> %>
-                    <span class="text-sm text-gray-500">No additional options</span>
+                  <% _ -> %>
                 <% end %>
             <% end %>
           </div>
