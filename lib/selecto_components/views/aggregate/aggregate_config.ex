@@ -52,76 +52,84 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
     assigns = Map.put(assigns, :display_name, display_name)
 
     ~H"""
-      <div class="relative">
+      <div class="space-y-2">
         <div>
-          <%= @display_name %>
+          <div class="font-medium text-sm text-gray-700">Name:</div>
+          <div class="pl-2"><%= @display_name %></div>
         </div>
-        <div class="pl-4">
-          <%= case Map.get(@col, :type, :string) do%>
-            <% x when x in [:integer, :id, :decimal] -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  Enum.map(~w(count avg sum min max buckets), fn o -> {o, o} end)
-                }/>
-              </label>
-              <%= if Map.get(@config, "format") == "buckets" do %>
-                <label>Bucket Ranges
-                  <.sc_input name={"#{@prefix}[bucket_ranges]"}
-                           value={Map.get(@config, "bucket_ranges", "")}
-                           placeholder="e.g., 0-10, 11-50, 51-100, 101+"/>
-                </label>
-              <% end %>
-            <% x when x in [:float] -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  Enum.map(~w(avg sum min max buckets), fn o -> {o, o} end)
-                }/>
-              </label>
-              <%= if Map.get(@config, "format") == "buckets" do %>
-                <label>Bucket Ranges
-                  <.sc_input name={"#{@prefix}[bucket_ranges]"}
-                           value={Map.get(@config, "bucket_ranges", "")}
-                           placeholder="e.g., 0-10, 11-50, 51-100, 101+"/>
-                </label>
-              <% end %>
-            <% x when x in [:string] -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  Enum.map(~w(count min max), fn o -> {o, o} end)
-                }/>
-              </label>
-            <% :boolean -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  [{"count", "Count"}, {"true_count", "True Count"}, {"false_count", "False Count"}]
-                }/>
-              </label>
 
-            <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
-              <label>Format
-                <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
-                  [{"count", "Count"}, {"min", "Min"}, {"max", "Max"}, {"age_buckets", "Age Buckets"}]
-                }/>
-              </label>
-              <%= if Map.get(@config, "format") == "age_buckets" do %>
-                <label>Bucket Ranges (days)
-                  <.sc_input name={"#{@prefix}[bucket_ranges]"}
-                           value={Map.get(@config, "bucket_ranges", "")}
-                           placeholder="e.g., 0, 1-7, 8-30, 31-90, 91+"/>
-                </label>
-              <% end %>
-
-            <% _ -> %>
-              <%= Map.get(@col, :type, :string) %>
-
-          <% end %>
+        <div>
+          <div class="font-medium text-sm text-gray-700">Alias:</div>
+          <div class="pl-2">
+            <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
+          </div>
         </div>
-        <div class="absolute top-0 right-20">
-          <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Alias"/>
+
+        <div :if={Map.get(@col || %{}, :type, :string) in [:integer, :id, :decimal, :float, :string, :boolean, :naive_datetime, :utc_datetime, :date]}>
+          <div class="font-medium text-sm text-gray-700">Options:</div>
+          <div class="pl-2">
+            <%= case Map.get(@col, :type, :string) do%>
+              <% x when x in [:integer, :id, :decimal] -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                    Enum.map(~w(count avg sum min max buckets), fn o -> {o, o} end)
+                  }/>
+                </label>
+                <%= if Map.get(@config, "format") == "buckets" do %>
+                  <label>Bucket Ranges
+                    <.sc_input name={"#{@prefix}[bucket_ranges]"}
+                             value={Map.get(@config, "bucket_ranges", "")}
+                             placeholder="e.g., 0-10, 11-50, 51-100, 101+"/>
+                  </label>
+                <% end %>
+
+              <% x when x in [:float] -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                    Enum.map(~w(avg sum min max buckets), fn o -> {o, o} end)
+                  }/>
+                </label>
+                <%= if Map.get(@config, "format") == "buckets" do %>
+                  <label>Bucket Ranges
+                    <.sc_input name={"#{@prefix}[bucket_ranges]"}
+                             value={Map.get(@config, "bucket_ranges", "")}
+                             placeholder="e.g., 0-10, 11-50, 51-100, 101+"/>
+                  </label>
+                <% end %>
+
+              <% x when x in [:string] -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                    Enum.map(~w(count min max), fn o -> {o, o} end)
+                  }/>
+                </label>
+
+              <% :boolean -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                    [{"count", "Count"}, {"true_count", "True Count"}, {"false_count", "False Count"}]
+                  }/>
+                </label>
+
+              <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
+                <label>Format
+                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={
+                    [{"count", "Count"}, {"min", "Min"}, {"max", "Max"}, {"age_buckets", "Age Buckets"}]
+                  }/>
+                </label>
+                <%= if Map.get(@config, "format") == "age_buckets" do %>
+                  <label>Bucket Ranges (days)
+                    <.sc_input name={"#{@prefix}[bucket_ranges]"}
+                             value={Map.get(@config, "bucket_ranges", "")}
+                             placeholder="e.g., 0, 1-7, 8-30, 31-90, 91+"/>
+                  </label>
+                <% end %>
+
+              <% _ -> %>
+            <% end %>
+          </div>
         </div>
       </div>
-
-
     """
   end
 end

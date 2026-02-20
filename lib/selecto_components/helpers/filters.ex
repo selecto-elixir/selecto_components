@@ -20,7 +20,9 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp _make_num_filter(type, filter)  do
     comp = Map.get(filter, "comp")
-    case comp do
+    comp_norm = to_string(comp || "=") |> String.upcase()
+
+    case comp_norm do
       "=" ->
         parse_num(type, Map.get(filter, "value"))
 
@@ -42,8 +44,26 @@ defmodule SelectoComponents.Helpers.Filters do
       "IS NOT NULL" ->
         :not_null
 
-      "between" ->
-        {:between, parse_num(type, Map.get(filter, "value")),parse_num(type, Map.get(filter, "value2"))}
+      "BETWEEN" ->
+        start_raw = Map.get(filter, "value_start") || Map.get(filter, "value")
+        end_raw = Map.get(filter, "value_end") || Map.get(filter, "value2")
+
+        {start_raw, end_raw} =
+          cond do
+            is_binary(start_raw) and start_raw != "" and is_binary(end_raw) and end_raw != "" ->
+              {start_raw, end_raw}
+
+            is_binary(start_raw) and String.contains?(start_raw, ",") ->
+              case String.split(start_raw, ",", parts: 2) do
+                [left, right] -> {left, right}
+                _ -> {start_raw, end_raw}
+              end
+
+            true ->
+              {start_raw, end_raw}
+          end
+
+        {:between, parse_num(type, start_raw), parse_num(type, end_raw)}
 
       "IN" ->
         # Parse comma-separated IDs and convert to list

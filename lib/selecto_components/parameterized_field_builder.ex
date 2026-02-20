@@ -73,16 +73,17 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
   parameterized joins with specific parameter values.
   """
   def build_parameterized_field_suggestions(selecto) do
-    selecto.config.joins
+    selecto
+    |> join_configs()
     |> Enum.filter(fn {_join_name, join_config} ->
       # Only include joins that have parameters defined
       Map.has_key?(join_config, :parameters) and
-      is_list(join_config.parameters) and
-      length(join_config.parameters) > 0
+      is_list(Map.get(join_config, :parameters)) and
+      length(Map.get(join_config, :parameters, [])) > 0
     end)
     |> Enum.flat_map(fn {join_name, join_config} ->
       # Generate example parameterized fields for each join
-      example_params = generate_example_parameters(join_config.parameters)
+      example_params = generate_example_parameters(Map.get(join_config, :parameters, []))
       join_fields = Map.get(join_config, :fields, %{})
 
       Enum.flat_map(join_fields, fn {field_key, field_config} ->
@@ -96,7 +97,7 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
             colid: dot_notation,
             name: field_name,
             qualified_name: dot_notation,
-            display_name: "#{join_config.name || join_name} (#{param_display}).#{field_name}",
+            display_name: "#{Map.get(join_config, :name, join_name)} (#{param_display}).#{field_name}",
             join: join_name,
             parameters: param_signature,
             parameter_display: param_display,
@@ -117,7 +118,7 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
     build_parameterized_field_suggestions(selecto)
     |> Enum.filter(fn field ->
       Map.get(field, :make_filter, false) or
-      field.type in [:string, :integer, :float, :boolean, :date, :datetime]
+      Map.get(field, :type) in [:string, :integer, :float, :boolean, :date, :datetime]
     end)
   end
 
@@ -173,6 +174,16 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
     end)
     |> Enum.sort_by(&String.jaro_distance(&1, partial_field), :desc)
     |> Enum.take(10)
+  end
+
+  defp join_configs(selecto) do
+    selecto
+    |> Map.get(:config, %{})
+    |> Map.get(:joins, %{})
+    |> case do
+      joins when is_map(joins) -> joins
+      _ -> %{}
+    end
   end
 
   # Private implementation

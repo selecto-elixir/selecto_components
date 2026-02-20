@@ -6,7 +6,13 @@ defmodule SelectoComponents.Results do
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   def render(assigns) do
-    assigns = assign_new(assigns, :component_module, fn -> nil end)
+    assigns =
+      assigns
+      |> Map.put_new(:component_module, nil)
+      |> Map.put_new(:execution_error, nil)
+      |> Map.put_new(:applied_view, nil)
+      |> Map.put_new(:executed, false)
+      |> Map.put_new(:query_results, nil)
 
     assigns =
       case assigns.applied_view do
@@ -21,10 +27,9 @@ defmodule SelectoComponents.Results do
 
           case view_tuple do
             {_id, _module, _name, opt} ->
-              assign(assigns,
-                component_module: ViewRuntime.result_component(view_tuple),
-                view_opts: opt
-              )
+              assigns
+              |> Map.put(:component_module, ViewRuntime.result_component(view_tuple))
+              |> Map.put(:view_opts, opt)
 
             nil ->
               assigns
@@ -33,9 +38,9 @@ defmodule SelectoComponents.Results do
     
     # Check debug permissions using params and session from socket
     show_debug = should_show_debug?(assigns)
-    assigns = assign(assigns, :show_debug, show_debug)
+    assigns = Map.put(assigns, :show_debug, show_debug)
     has_component_errors = match?([_ | _], Map.get(assigns, :component_errors, []))
-    assigns = assign(assigns, :has_component_errors, has_component_errors)
+    assigns = Map.put(assigns, :has_component_errors, has_component_errors)
 
     ~H"""
       <div>

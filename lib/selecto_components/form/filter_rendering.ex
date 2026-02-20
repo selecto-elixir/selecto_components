@@ -298,7 +298,14 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
-    assigns = Map.put(assigns, :is_multi_select_id, is_multi_select_id)
+    between_start = assigns.filter_value["value_start"] || assigns.filter_value["value"] || ""
+    between_end = assigns.filter_value["value_end"] || assigns.filter_value["value2"] || ""
+
+    assigns =
+      assigns
+      |> Map.put(:is_multi_select_id, is_multi_select_id)
+      |> Map.put(:between_start, between_start)
+      |> Map.put(:between_end, between_end)
 
     ~H"""
     <div class="grid grid-cols-3 gap-2">
@@ -309,39 +316,62 @@ defmodule SelectoComponents.Form.FilterRendering do
         <option value=">=" selected={@filter_value["comp"] == ">="}>Greater or Equal</option>
         <option value="<" selected={@filter_value["comp"] == "<"}>Less Than</option>
         <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
+        <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
         <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
         <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
         <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
         <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
       </select>
 
-      <%= if @is_multi_select_id do %>
+      <%= cond do %>
+        <% @filter_value["comp"] == "BETWEEN" -> %>
+          <div class="col-span-2 grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              name={"filters[#{@uuid}][value_start]"}
+              value={@between_start}
+              placeholder="Start"
+              class="sc-input"
+              phx-debounce="300"
+            />
+            <input
+              type="text"
+              name={"filters[#{@uuid}][value_end]"}
+              value={@between_end}
+              placeholder="End"
+              class="sc-input"
+              phx-debounce="300"
+            />
+          </div>
+
+        <% @is_multi_select_id -> %>
         <%!-- Multi-select ID filter input with helpful placeholder --%>
-        <div class="col-span-2">
+          <div class="col-span-2">
+            <input
+              type="text"
+              name={"filters[#{@uuid}][value]"}
+              value={@filter_value["value"]}
+              placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
+              class="sc-input"
+              phx-debounce="300"
+              disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+            />
+            <div class="text-xs text-blue-600 mt-1">
+              💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
+            </div>
+          </div>
+
+        <% true -> %>
+        <%!-- Standard text input --%>
           <input
             type="text"
             name={"filters[#{@uuid}][value]"}
             value={@filter_value["value"]}
-            placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
-            class="sc-input"
+            placeholder="Enter value..."
+            class="sc-input col-span-2"
             phx-debounce="300"
             disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
           />
-          <div class="text-xs text-blue-600 mt-1">
-            💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
-          </div>
-        </div>
-      <% else %>
-        <%!-- Standard text input --%>
-        <input
-          type="text"
-          name={"filters[#{@uuid}][value]"}
-          value={@filter_value["value"]}
-          placeholder="Enter value..."
-          class="sc-input col-span-2"
-          phx-debounce="300"
-          disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
-        />
       <% end %>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
