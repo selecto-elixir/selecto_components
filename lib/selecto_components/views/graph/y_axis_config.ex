@@ -2,6 +2,21 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
   use Phoenix.LiveComponent
 
   def render(assigns) do
+    col =
+      case Map.get(assigns, :col) do
+        %{} = col -> col
+        _ -> %{name: Map.get(assigns, :item, "Unknown field"), type: :string}
+      end
+
+    config =
+      case Map.get(assigns, :config) do
+        %{} = config -> config
+        _ -> %{}
+      end
+
+    assigns = assign(assigns, :col, col)
+    assigns = assign(assigns, :config, config)
+
     ~H"""
     <div class="border border-gray-200 rounded-lg p-3 bg-blue-50">
       <div class="flex items-center justify-between mb-2">
