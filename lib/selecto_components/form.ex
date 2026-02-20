@@ -5,6 +5,7 @@ defmodule SelectoComponents.Form do
   alias Phoenix.LiveView.JS
   alias SelectoComponents.ErrorHandling.ErrorDisplay
   alias SelectoComponents.Form.FilterRendering
+  alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   @doc """
   Form for configuing Selecto View
@@ -156,9 +157,9 @@ defmodule SelectoComponents.Form do
             view_mode={@view_config.view_mode}
             options={@views}
           >
-            <:section :let={{id, mod, _, _} = view}>
+            <:section :let={{id, _mod, _, _} = view}>
               <.live_component
-                module={String.to_existing_atom("#{mod}.Form")}
+                module={ViewRuntime.form_component(view)}
                 id={"view_#{id}_form"}
                 columns={@columns}
                 view_config={@view_config}

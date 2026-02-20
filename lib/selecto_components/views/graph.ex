@@ -6,6 +6,8 @@ defmodule SelectoComponents.Views.Graph do
   It supports various chart types including bar, line, pie, scatter, and area charts.
   """
 
-  # This module serves as a namespace for the Graph view components
-  # The actual implementation is in the Process, Form, and Component modules
+  use SelectoComponents.Views.System,
+    process: SelectoComponents.Views.Graph.Process,
+    form: SelectoComponents.Views.Graph.Form,
+    component: SelectoComponents.Views.Graph.Component
 end

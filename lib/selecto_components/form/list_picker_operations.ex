@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   """
 
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   @doc """
   Remove an item from a picker list in the view configuration.
@@ -99,11 +100,11 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   This ensures the UI reflects the latest view_config state.
   """
   def send_view_update(view_module, updated_view_config, socket_assigns) do
-    {id, mod, _, _} = view_module
+    {id, _mod, _, _} = view_module
     component_id = "view_#{id}_form"
 
     # Send update to the specific view form component
-    Phoenix.LiveView.send_update(String.to_existing_atom("#{mod}.Form"),
+    Phoenix.LiveView.send_update(ViewRuntime.form_component(view_module),
       id: component_id,
       view_config: updated_view_config,
       columns: socket_assigns.columns,

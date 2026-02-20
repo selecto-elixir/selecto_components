@@ -108,6 +108,7 @@ defmodule SelectoComponents.Form.EventHandlers do
       alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.Form.ListPickerOperations
       alias SelectoComponents.Form.DrillDownFilters
+      alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
       @doc """
       Sets up initial state for SelectoComponents form.
@@ -124,9 +125,9 @@ defmodule SelectoComponents.Form.EventHandlers do
       """
       def get_initial_state(views, selecto) do
         view_configs =
-          Enum.reduce(views, %{}, fn {view, module, name, opt}, acc ->
+          Enum.reduce(views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
             Map.merge(acc, %{
-              view => String.to_existing_atom("#{module}.Process").initial_state(selecto, opt)
+              view => ViewRuntime.initial_state(view_tuple, selecto)
             })
           end)
 

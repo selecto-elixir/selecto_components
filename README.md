@@ -169,6 +169,128 @@ end
 - `SelectoComponents.Views.Aggregate` - Aggregated data view with grouping capabilities
 - `SelectoComponents.Views.Graph` - Chart visualization using Chart.js
 
+### Custom View Systems
+
+SelectoComponents now supports a formal view-system contract via
+`SelectoComponents.Views.System`.
+
+You can publish external view packages (for example
+`selecto_components_workflow` or `selecto_components_faceted_product`) by
+exposing a top-level view module that implements the behavior.
+
+```elixir
+defmodule SelectoComponentsWorkflow.Views.Workflow do
+  use SelectoComponents.Views.System,
+    process: SelectoComponentsWorkflow.Views.Workflow.Process,
+    form: SelectoComponentsWorkflow.Views.Workflow.Form,
+    component: SelectoComponentsWorkflow.Views.Workflow.Component
+end
+```
+
+Then register it like any built-in view:
+
+```elixir
+views = [
+  SelectoComponents.Views.spec(
+    :workflow,
+    SelectoComponentsWorkflow.Views.Workflow,
+    "Workflow",
+    %{drill_down: :detail}
+  ),
+  SelectoComponents.Views.spec(
+    :faceted_product,
+    SelectoComponentsFacetedProduct.Views.FacetedProduct,
+    "Faceted Product",
+    %{}
+  )
+]
+```
+
+Legacy namespace-style modules (`MyView.Process`, `MyView.Form`,
+`MyView.Component`) are still supported.
+
+### Implementing A New View System
+
+Use this process for any new view package (for example
+`selecto_components_view_workflow_inbox` or
+`selecto_components_view_faceted_product`).
+
+1. Create a package with name `selecto_components_view_<slug>`.
+2. Add dependency on `selecto_components` (path dep for local/vendor, Hex dep for published use).
+3. Implement a top-level view module that `use`s `SelectoComponents.Views.System`.
+4. Implement the three modules referenced by the top-level view:
+   `Process`, `Form`, `Component`.
+5. Register the view in your LiveView `views` list with
+   `SelectoComponents.Views.spec/4`.
+6. Add the new view type to saved-view validation in your host app
+   (if your app validates allowed view types).
+7. Compile and test the LiveView by switching to the new tab and submitting.
+
+Expected package layout:
+
+```text
+vendor/selecto_components_view_<slug>/
+  mix.exs
+  lib/selecto_components_view_<slug>.ex
+  lib/selecto_components_view_<slug>/views/<slug>.ex
+  lib/selecto_components_view_<slug>/views/<slug>/process.ex
+  lib/selecto_components_view_<slug>/views/<slug>/form.ex
+  lib/selecto_components_view_<slug>/views/<slug>/component.ex
+```
+
+Top-level view module:
+
+```elixir
+defmodule SelectoComponentsViewWorkflowInbox.Views.WorkflowInbox do
+  use SelectoComponents.Views.System,
+    process: SelectoComponentsViewWorkflowInbox.Views.WorkflowInbox.Process,
+    form: SelectoComponentsViewWorkflowInbox.Views.WorkflowInbox.Form,
+    component: SelectoComponentsViewWorkflowInbox.Views.WorkflowInbox.Component
+end
+```
+
+`Process` callback contract:
+
+```elixir
+@callback initial_state(selecto :: term(), options :: map()) :: map()
+@callback param_to_state(params :: map(), options :: map()) :: map()
+@callback view(
+  options :: map(),
+  params :: map(),
+  columns_map :: map(),
+  filtered :: term(),
+  selecto :: term()
+) :: {view_set :: map(), view_meta :: map()}
+```
+
+Minimal registration in a LiveView:
+
+```elixir
+views = [
+  SelectoComponents.Views.spec(:detail, SelectoComponents.Views.Detail, "Detail View", %{}),
+  SelectoComponents.Views.spec(
+    :workflow_inbox,
+    SelectoComponentsViewWorkflowInbox.Views.WorkflowInbox,
+    "Workflow Inbox",
+    %{}
+  )
+]
+```
+
+If your app persists saved views by type, include your new type. Example:
+
+```elixir
+@view_types ~w(detail aggregate graph workflow_inbox faceted_product)
+```
+
+Verification checklist:
+
+1. `mix compile` succeeds after adding deps and modules.
+2. Open the LiveView, toggle View Controller, confirm your tab appears.
+3. Select the tab, submit config, confirm results render.
+4. Save and reload a saved view for the new type.
+5. Confirm invalid/missing config shows a user-visible error state.
+
 ### Core Components
 - `SelectoComponents.Components.TreeBuilder` - Drag-and-drop query builder with colocated JavaScript hook
 - `SelectoComponents.Components.ListPicker` - Reorderable list selection component

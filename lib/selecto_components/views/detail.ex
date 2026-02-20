@@ -6,6 +6,8 @@ defmodule SelectoComponents.Views.Detail do
   It supports column selection, sorting, pagination, and individual record display.
   """
 
-  # This module serves as a namespace for the Detail view components
-  # The actual implementation is in the Process, Form, and Component modules
+  use SelectoComponents.Views.System,
+    process: SelectoComponents.Views.Detail.Process,
+    form: SelectoComponents.Views.Detail.Form,
+    component: SelectoComponents.Views.Detail.Component
 end

@@ -15,6 +15,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.SubselectBuilder
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
   @doc """
@@ -212,9 +213,9 @@ defmodule SelectoComponents.Form.ParamsState do
     view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
     {view_set, view_meta} = case view_tuple do
-      {_, module, _, opt} ->
-        String.to_existing_atom("#{module}.Process").view(
-          opt,
+      {_id, _module, _name, _opt} = tuple ->
+        ViewRuntime.view(
+          tuple,
           params,
           columns_map,
           filtered,
@@ -485,9 +486,9 @@ defmodule SelectoComponents.Form.ParamsState do
     filters = view_filter_process(params, "filters")
 
     view_configs =
-      Enum.reduce(socket.assigns.views, %{}, fn {view, module, _name, opt}, acc ->
+      Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
         Map.merge(acc, %{
-          view => String.to_existing_atom("#{module}.Process").param_to_state(params, opt)
+          view => ViewRuntime.param_to_state(view_tuple, params)
         })
       end)
 

@@ -6,6 +6,8 @@ defmodule SelectoComponents.Views.Aggregate do
   It supports grouping, aggregation functions (count, sum, avg, etc.), and drill-down functionality.
   """
 
-  # This module serves as a namespace for the Aggregate view components
-  # The actual implementation is in the Process, Form, and Component modules
+  use SelectoComponents.Views.System,
+    process: SelectoComponents.Views.Aggregate.Process,
+    form: SelectoComponents.Views.Aggregate.Form,
+    component: SelectoComponents.Views.Aggregate.Component
 end

@@ -16,12 +16,13 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
 
     assigns = assign(assigns, :col, col)
     assigns = assign(assigns, :config, config)
+    assigns = assign(assigns, :col_type_label, format_type(Map.get(col, :type, :string)))
 
     ~H"""
     <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
       <div class="flex items-center justify-between mb-2">
         <span class="font-medium text-sm text-gray-700"><%= @col.name %></span>
-        <span class="text-xs text-gray-500"><%= Map.get(@col, :type, :string) %></span>
+        <span class="text-xs text-gray-500"><%= @col_type_label %></span>
       </div>
       
       <div class="grid grid-cols-1 gap-3">
@@ -75,4 +76,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
     </div>
     """
   end
+
+  defp format_type(type) when is_atom(type), do: Atom.to_string(type)
+  defp format_type(type), do: inspect(type)
 end
