@@ -520,6 +520,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   def format_numeric_value(value) when is_number(value), do: value
   def format_numeric_value({value, _meta}), do: format_numeric_value(value)
+  def format_numeric_value(%Decimal{} = value), do: Decimal.to_float(value)
 
   def format_numeric_value(value) when is_binary(value) do
     case Integer.parse(value) do
