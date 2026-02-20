@@ -169,6 +169,46 @@ end
 - `SelectoComponents.Views.Aggregate` - Aggregated data view with grouping capabilities
 - `SelectoComponents.Views.Graph` - Chart visualization using Chart.js
 
+### Custom View Systems
+
+SelectoComponents now supports a formal view-system contract via
+`SelectoComponents.Views.System`.
+
+You can publish external view packages (for example
+`selecto_components_workflow` or `selecto_components_faceted_product`) by
+exposing a top-level view module that implements the behavior.
+
+```elixir
+defmodule SelectoComponentsWorkflow.Views.Workflow do
+  use SelectoComponents.Views.System,
+    process: SelectoComponentsWorkflow.Views.Workflow.Process,
+    form: SelectoComponentsWorkflow.Views.Workflow.Form,
+    component: SelectoComponentsWorkflow.Views.Workflow.Component
+end
+```
+
+Then register it like any built-in view:
+
+```elixir
+views = [
+  SelectoComponents.Views.spec(
+    :workflow,
+    SelectoComponentsWorkflow.Views.Workflow,
+    "Workflow",
+    %{drill_down: :detail}
+  ),
+  SelectoComponents.Views.spec(
+    :faceted_product,
+    SelectoComponentsFacetedProduct.Views.FacetedProduct,
+    "Faceted Product",
+    %{}
+  )
+]
+```
+
+Legacy namespace-style modules (`MyView.Process`, `MyView.Form`,
+`MyView.Component`) are still supported.
+
 ### Core Components
 - `SelectoComponents.Components.TreeBuilder` - Drag-and-drop query builder with colocated JavaScript hook
 - `SelectoComponents.Components.ListPicker` - Reorderable list selection component

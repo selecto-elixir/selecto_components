@@ -31,6 +31,29 @@ interface:
 - form - provides configuration panel
 """
 
+  @type view_id :: atom()
+  @type view_module :: module()
+  @type view_name :: String.t()
+  @type view_options :: map()
+  @type view_tuple :: {view_id(), view_module(), view_name(), view_options()}
+
+  @doc """
+  Canonical constructor for a view tuple used by SelectoComponents.
+
+      views = [
+        SelectoComponents.Views.spec(
+          :workflow,
+          SelectoComponentsWorkflow.Views.Workflow,
+          "Workflow View",
+          %{drill_down: :detail}
+        )
+      ]
+  """
+  @spec spec(view_id(), view_module(), view_name(), view_options()) :: view_tuple()
+  def spec(id, module, name, options \\ %{}) when is_atom(id) and is_atom(module) and is_binary(name) and is_map(options) do
+    {id, module, name, options}
+  end
+
   ## Agg and Det forms use a common format for their subsections. This function reformats the parameters to use as state for form drawing
   def view_param_process(params, item_name, section) do
     Map.get(params, item_name, %{})

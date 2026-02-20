@@ -3,8 +3,11 @@ defmodule SelectoComponents.Results do
   alias SelectoComponents.Debug.DebugDisplay
   alias SelectoComponents.Debug.ProductionConfig
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   def render(assigns) do
+    assigns = assign_new(assigns, :component_module, fn -> nil end)
+
     assigns =
       case assigns.applied_view do
         nil ->
@@ -13,10 +16,19 @@ defmodule SelectoComponents.Results do
         _ ->
           selected_view = SafeAtom.to_view_mode(assigns.applied_view)
 
-          {_, module, _, opt} =
+          view_tuple =
             Enum.find(assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-          assign(assigns, module: module, view_opts: opt)
+          case view_tuple do
+            {_id, _module, _name, opt} ->
+              assign(assigns,
+                component_module: ViewRuntime.result_component(view_tuple),
+                view_opts: opt
+              )
+
+            nil ->
+              assigns
+          end
       end
     
     # Check debug permissions using params and session from socket
@@ -56,9 +68,9 @@ defmodule SelectoComponents.Results do
           debug_data={build_debug_data(assigns)}
         />
         
-        <div :if={@applied_view}>
+        <div :if={@applied_view && @component_module}>
             <.live_component
-              module={String.to_existing_atom("#{@module}.Component")}
+              module={@component_module}
               id={"view_results_#{@applied_view}"}
               selecto={@selecto}
               query_results={@query_results}
