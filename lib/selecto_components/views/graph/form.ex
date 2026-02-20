@@ -127,6 +127,15 @@ defmodule SelectoComponents.Views.Graph.Form do
                 placeholder="Y-axis label"/>
             </div>
             <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Y2-Axis Label</label>
+              <input
+                name="options[y2_axis_label]"
+                type="text"
+                value={get_in(@view_config.views.graph.options, ["y2_axis_label"]) || ""}
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Secondary Y-axis label"/>
+            </div>
+            <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Legend Position</label>
               <select name="options[legend_position]" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="top" selected={get_in(@view_config.views.graph.options, ["legend_position"]) == "top"}>Top</option>

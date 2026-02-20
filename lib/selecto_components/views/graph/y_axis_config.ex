@@ -2,6 +2,21 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
   use Phoenix.LiveComponent
 
   def render(assigns) do
+    col =
+      case Map.get(assigns, :col) do
+        %{} = col -> col
+        _ -> %{name: Map.get(assigns, :item, "Unknown field"), type: :string}
+      end
+
+    config =
+      case Map.get(assigns, :config) do
+        %{} = config -> config
+        _ -> %{}
+      end
+
+    assigns = assign(assigns, :col, col)
+    assigns = assign(assigns, :config, config)
+
     ~H"""
     <div class="border border-gray-200 rounded-lg p-3 bg-blue-50">
       <div class="flex items-center justify-between mb-2">
@@ -47,22 +62,31 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
           </select>
         </div>
 
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Series Type</label>
+          <select name={"#{@prefix}[series_type]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="auto" selected={Map.get(@config, "series_type", "auto") == "auto"}>Auto</option>
+            <option value="bar" selected={Map.get(@config, "series_type") == "bar"}>Bar</option>
+            <option value="line" selected={Map.get(@config, "series_type") == "line"}>Line</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Axis</label>
+          <select name={"#{@prefix}[axis]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="left" selected={Map.get(@config, "axis", "left") == "left"}>Left (Y)</option>
+            <option value="right" selected={Map.get(@config, "axis") == "right"}>Right (Y2)</option>
+          </select>
+        </div>
+
         <!-- Color (for multiple Y-axis series) -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">Color</label>
-          <div class="flex gap-2">
-            <input 
-              name={"#{@prefix}[color]"}
-              type="color" 
-              value={Map.get(@config, "color", "#3b82f6")}
-              class="w-8 h-6 border border-gray-300 rounded cursor-pointer"/>
-            <input 
-              name={"#{@prefix}[color]"}
-              type="text" 
-              value={Map.get(@config, "color", "#3b82f6")}
-              placeholder="#3b82f6"
-              class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-          </div>
+          <input
+            name={"#{@prefix}[color]"}
+            type="color"
+            value={Map.get(@config, "color", "#3b82f6")}
+            class="w-12 h-8 border border-gray-300 rounded cursor-pointer"/>
         </div>
       </div>
     </div>

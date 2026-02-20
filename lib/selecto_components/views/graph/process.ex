@@ -45,7 +45,8 @@ defmodule SelectoComponents.Views.Graph.Process do
     x_axis_fields = x_axis_params |> group_by_fields(columns)
 
     # Process Y-axis (aggregate fields)
-    y_axis_fields = y_axis_params |> aggregate_fields(columns)
+    y_axis_defs = y_axis_params |> aggregate_defs(columns)
+    y_axis_fields = Enum.map(y_axis_defs, & &1.select_field)
 
     # Process Series (optional secondary grouping)
     series_fields = series_params |> group_by_fields(columns)
@@ -61,9 +62,11 @@ defmodule SelectoComponents.Views.Graph.Process do
       x_axis_groups: x_axis_fields,
       series_groups: series_fields,
       aggregates: y_axis_fields,
+      graph_series_defs: y_axis_defs,
       selected: selected_fields,
       filtered: filtered,
       chart_type: chart_type,
+      graph_options: Map.get(params, "options", %{}),
       group_by: case all_group_by do
         [] -> []
         group_fields -> [
@@ -123,7 +126,13 @@ defmodule SelectoComponents.Views.Graph.Process do
   @doc """
   Process aggregate fields (for Y-axis)
   """
-  def aggregate_fields(aggregate_params, _columns) do
+  def aggregate_fields(aggregate_params, columns) do
+    aggregate_params
+    |> aggregate_defs(columns)
+    |> Enum.map(& &1.select_field)
+  end
+
+  def aggregate_defs(aggregate_params, _columns) do
     aggregate_params
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
@@ -145,7 +154,34 @@ defmodule SelectoComponents.Views.Graph.Process do
         end
       )
 
-      {:field, {aggregate_function, field_config["field"]}, alias_name}
+      series_type =
+        case field_config["series_type"] do
+          "line" -> "line"
+          "bar" -> "bar"
+          _ -> "auto"
+        end
+
+      axis =
+        case field_config["axis"] do
+          "right" -> "right"
+          _ -> "left"
+        end
+
+      color =
+        case field_config["color"] do
+          x when is_binary(x) and x != "" -> x
+          _ -> nil
+        end
+
+      %{
+        select_field: {:field, {aggregate_function, field_config["field"]}, alias_name},
+        alias: alias_name,
+        field: field_config["field"],
+        function: aggregate_function,
+        series_type: series_type,
+        axis: axis,
+        color: color
+      }
     end)
   end
 

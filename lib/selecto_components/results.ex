@@ -22,9 +22,30 @@ defmodule SelectoComponents.Results do
     # Check debug permissions using params and session from socket
     show_debug = should_show_debug?(assigns)
     assigns = assign(assigns, :show_debug, show_debug)
+    has_component_errors = match?([_ | _], Map.get(assigns, :component_errors, []))
+    assigns = assign(assigns, :has_component_errors, has_component_errors)
 
     ~H"""
       <div>
+        <div :if={@execution_error && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong class="font-bold">View Error:</strong>
+          <span class="block sm:inline ml-1">
+            <%= case @execution_error do %>
+              <% %{message: msg} -> %>
+                <%= msg %>
+              <% error when is_binary(error) -> %>
+                <%= error %>
+              <% error -> %>
+                <%= inspect(error) %>
+            <% end %>
+          </span>
+        </div>
+        <div :if={@has_component_errors && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong class="font-bold">View Error:</strong>
+          <span class="block sm:inline ml-1">
+            Saved view could not be applied. Open the View Controller and resubmit after adjusting fields.
+          </span>
+        </div>
         <!-- Debug Display Panel (only shown if debug is enabled) -->
         <.live_component
           :if={@show_debug && @executed && @query_results}

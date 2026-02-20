@@ -292,25 +292,26 @@ defmodule SelectoComponents.Views.Graph.Component do
     selecto_set = assigns.selecto.set
     x_axis_groups = selecto_set[:x_axis_groups] || []
     y_axis_aggregates = selecto_set[:aggregates] || []
+    metric_defs = build_metric_defs(selecto_set[:graph_series_defs], y_axis_aggregates)
     series_groups = selecto_set[:series_groups] || []
 
     case chart_type do
       type when type in ["pie", "doughnut"] ->
-        prepare_pie_data(results, aliases, x_axis_groups, y_axis_aggregates)
+        prepare_pie_data(results, aliases, x_axis_groups, metric_defs)
 
       type when type in ["line", "area"] ->
-        prepare_line_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+        prepare_line_data(results, aliases, x_axis_groups, metric_defs, series_groups, chart_type)
 
       "scatter" ->
-        prepare_scatter_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+        prepare_scatter_data(results, aliases, x_axis_groups, metric_defs, series_groups)
 
       # Default to bar chart
       _ ->
-        prepare_bar_data(results, aliases, x_axis_groups, y_axis_aggregates, series_groups)
+        prepare_bar_data(results, aliases, x_axis_groups, metric_defs, series_groups, chart_type)
     end
   end
 
-  defp prepare_bar_data(results, _aliases, _x_axis_groups, y_axis_aggregates, series_groups) do
+  defp prepare_bar_data(results, _aliases, _x_axis_groups, metric_defs, series_groups, chart_type) do
     # Simplified for now
     num_x_fields = 1
     num_series_fields = Enum.count(series_groups)
@@ -320,9 +321,9 @@ defmodule SelectoComponents.Views.Graph.Component do
       labels = results |> Enum.map(fn row -> format_chart_label(Enum.at(row, 0)) end)
 
       datasets =
-        y_axis_aggregates
+        metric_defs
         |> Enum.with_index()
-        |> Enum.map(fn {y_agg, index} ->
+        |> Enum.map(fn {metric_def, index} ->
           data =
             results
             |> Enum.map(fn row ->
@@ -330,13 +331,28 @@ defmodule SelectoComponents.Views.Graph.Component do
               format_numeric_value(value)
             end)
 
-          %{
-            label: format_aggregate_label(y_agg),
+          series_type = dataset_type(metric_def, chart_type)
+          dataset = %{
+            label: metric_def.alias,
             data: data,
-            backgroundColor: generate_color(index, 0.7),
-            borderColor: generate_color(index, 1.0),
-            borderWidth: 1
+            yAxisID: axis_id(metric_def),
+            borderColor: metric_color(metric_def, index, 1.0),
+            borderWidth: 2
           }
+
+          case series_type do
+            "line" ->
+              dataset
+              |> Map.put(:type, "line")
+              |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.15))
+              |> Map.put(:fill, false)
+              |> Map.put(:tension, 0.35)
+
+            _ ->
+              dataset
+              |> Map.put(:type, "bar")
+              |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.7))
+          end
         end)
 
       %{labels: labels, datasets: datasets}
@@ -346,34 +362,47 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  defp prepare_line_data(results, _aliases, _x_axis_groups, y_axis_aggregates, _series_groups) do
+  defp prepare_line_data(results, _aliases, _x_axis_groups, metric_defs, _series_groups, chart_type) do
     labels = Enum.map(results, fn row -> format_chart_label(Enum.at(row, 0)) end)
 
     datasets =
-      y_axis_aggregates
+      metric_defs
       |> Enum.with_index()
-      |> Enum.map(fn {y_agg, index} ->
+      |> Enum.map(fn {metric_def, index} ->
         data =
           Enum.map(results, fn row ->
             value = Enum.at(row, index + 1)
             format_numeric_value(value)
           end)
 
-        %{
-          label: format_aggregate_label(y_agg),
+        series_type = dataset_type(metric_def, chart_type)
+        dataset = %{
+          label: metric_def.alias,
           data: data,
-          borderColor: generate_color(index, 1.0),
-          backgroundColor: generate_color(index, 0.1),
-          borderWidth: 2,
-          fill: false,
-          tension: 0.4
+          yAxisID: axis_id(metric_def),
+          borderColor: metric_color(metric_def, index, 1.0),
+          borderWidth: 2
         }
+
+        case series_type do
+          "bar" ->
+            dataset
+            |> Map.put(:type, "bar")
+            |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.7))
+
+          _ ->
+            dataset
+            |> Map.put(:type, "line")
+            |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.1))
+            |> Map.put(:fill, false)
+            |> Map.put(:tension, 0.4)
+        end
       end)
 
     %{labels: labels, datasets: datasets}
   end
 
-  defp prepare_pie_data(results, _aliases, _x_axis_groups, _y_axis_aggregates) do
+  defp prepare_pie_data(results, _aliases, _x_axis_groups, _metric_defs) do
     labels = results |> Enum.map(fn row -> format_chart_label(Enum.at(row, 0)) end)
     data = results |> Enum.map(fn row -> format_numeric_value(Enum.at(row, 1)) end)
 
@@ -396,7 +425,7 @@ defmodule SelectoComponents.Views.Graph.Component do
          _results,
          _aliases,
          _x_axis_groups,
-         _y_axis_aggregates,
+         _metric_defs,
          _series_groups
        ) do
     # Simplified scatter data
@@ -417,12 +446,22 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   def prepare_chart_options(assigns) do
     chart_type = get_chart_type(assigns)
+    selecto_set =
+      case assigns[:selecto] do
+        %{set: set} when is_map(set) -> set
+        _ -> %{}
+      end
+
+    metric_defs = build_metric_defs(selecto_set[:graph_series_defs], selecto_set[:aggregates] || [])
+    graph_options = selecto_set[:graph_options] || %{}
+    uses_right_axis? = Enum.any?(metric_defs, &(&1.axis == "right"))
 
     base_options = %{
-      responsive: true,
+      title: Map.get(graph_options, "title"),
+      responsive: truthy?(Map.get(graph_options, "responsive"), true),
       maintainAspectRatio: false,
       plugins: %{
-        legend: %{position: get_legend_position(assigns)},
+        legend: %{position: Map.get(graph_options, "legend_position", "bottom")},
         tooltip: %{mode: "index", intersect: false}
       }
     }
@@ -430,18 +469,35 @@ defmodule SelectoComponents.Views.Graph.Component do
     if chart_type in ["pie", "doughnut"] do
       base_options
     else
-      Map.put(base_options, :scales, %{
+      scales = %{
         x: %{
-          title: %{display: true, text: get_x_axis_label(assigns)},
+          title: %{display: true, text: Map.get(graph_options, "x_axis_label", "")},
           beginAtZero: false,
-          grid: %{display: get_show_grid(assigns)}
+          grid: %{display: truthy?(Map.get(graph_options, "show_grid"), true)}
         },
         y: %{
-          title: %{display: true, text: get_y_axis_label(assigns)},
+          type: "linear",
+          position: "left",
+          title: %{display: true, text: Map.get(graph_options, "y_axis_label", "")},
           beginAtZero: true,
-          grid: %{display: get_show_grid(assigns)}
+          grid: %{display: truthy?(Map.get(graph_options, "show_grid"), true)}
         }
-      })
+      }
+
+      scales =
+        if uses_right_axis? do
+          Map.put(scales, :y1, %{
+            type: "linear",
+            position: "right",
+            title: %{display: true, text: Map.get(graph_options, "y2_axis_label", "Secondary Axis")},
+            beginAtZero: true,
+            grid: %{drawOnChartArea: false}
+          })
+        else
+          scales
+        end
+
+      Map.put(base_options, :scales, scales)
     end
   end
 
@@ -461,10 +517,9 @@ defmodule SelectoComponents.Views.Graph.Component do
     if is_atom(chart_type), do: Atom.to_string(chart_type), else: chart_type
   end
 
-  defp get_legend_position(_assigns), do: "bottom"
-  defp get_show_grid(_assigns), do: true
-  defp get_x_axis_label(_assigns), do: ""
-  defp get_y_axis_label(_assigns), do: ""
+  defp truthy?(nil, default), do: default
+  defp truthy?(v, _default) when v in [true, "true", "on", 1], do: true
+  defp truthy?(_, _default), do: false
 
   def format_aggregate_label(aggregate) do
     get_aggregate_label(aggregate)
@@ -520,6 +575,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   def format_numeric_value(value) when is_number(value), do: value
   def format_numeric_value({value, _meta}), do: format_numeric_value(value)
+  def format_numeric_value(%Decimal{} = value), do: Decimal.to_float(value)
 
   def format_numeric_value(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -598,4 +654,51 @@ defmodule SelectoComponents.Views.Graph.Component do
   end
 
   defp get_x_axis_field(_), do: ""
+
+  defp build_metric_defs(graph_series_defs, y_axis_aggregates) when is_list(graph_series_defs) do
+    graph_series_defs
+    |> Enum.map(fn defn ->
+      %{
+        alias: Map.get(defn, :alias) || "Value",
+        series_type: Map.get(defn, :series_type, "auto"),
+        axis: Map.get(defn, :axis, "left"),
+        color: Map.get(defn, :color)
+      }
+    end)
+  end
+
+  defp build_metric_defs(_, y_axis_aggregates) do
+    Enum.map(y_axis_aggregates, fn agg ->
+      %{
+        alias: format_aggregate_label(agg),
+        series_type: "auto",
+        axis: "left",
+        color: nil
+      }
+    end)
+  end
+
+  defp dataset_type(metric_def, chart_type) do
+    case metric_def.series_type do
+      "bar" -> "bar"
+      "line" -> "line"
+      _ -> if(chart_type in ["line", "area"], do: "line", else: "bar")
+    end
+  end
+
+  defp axis_id(%{axis: "right"}), do: "y1"
+  defp axis_id(_), do: "y"
+
+  defp metric_color(%{color: <<?#, _::binary>> = hex}, _index, alpha), do: hex_to_rgba(hex, alpha)
+  defp metric_color(_, index, alpha), do: generate_color(index, alpha)
+
+  defp hex_to_rgba("#" <> hex, alpha) when byte_size(hex) == 6 do
+    <<r::binary-size(2), g::binary-size(2), b::binary-size(2)>> = hex
+    {ri, _} = Integer.parse(r, 16)
+    {gi, _} = Integer.parse(g, 16)
+    {bi, _} = Integer.parse(b, 16)
+    "rgba(#{ri}, #{gi}, #{bi}, #{alpha})"
+  end
+
+  defp hex_to_rgba(_, alpha), do: generate_color(0, alpha)
 end

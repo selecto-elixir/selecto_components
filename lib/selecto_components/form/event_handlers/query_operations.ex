@@ -49,12 +49,30 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
-        view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
-        socket = assign(socket, page_title: "View: #{view.name}")
-        # Normalize any existing query results before processing
-        socket = normalize_query_results(socket)
-        socket = ParamsState.params_to_state(view.params, socket)
-        {:noreply, ParamsState.view_from_params(view.params, socket)}
+        with_error_handling(socket, "load_saved_view", fn ->
+          view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
+
+          if is_nil(view) do
+            error = %{
+              type: :saved_view_not_found,
+              message: "Saved view '#{name}' was not found for this page.",
+              details: %{saved_view: name}
+            }
+
+            {:noreply,
+             assign(socket,
+               page_title: "Saved View Error",
+               executed: false,
+               applied_view: nil,
+               execution_error: error
+             )}
+          else
+            socket = assign(socket, page_title: "View: #{view.name}")
+            socket = normalize_query_results(socket)
+            socket = ParamsState.params_to_state(view.params, socket)
+            {:noreply, ParamsState.view_from_params(view.params, socket)}
+          end
+        end)
       end
 
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
