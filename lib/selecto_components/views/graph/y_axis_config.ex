@@ -82,19 +82,11 @@ defmodule SelectoComponents.Views.Graph.YAxisConfig do
         <!-- Color (for multiple Y-axis series) -->
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">Color</label>
-          <div class="flex gap-2">
-            <input 
-              name={"#{@prefix}[color]"}
-              type="color" 
-              value={Map.get(@config, "color", "#3b82f6")}
-              class="w-8 h-6 border border-gray-300 rounded cursor-pointer"/>
-            <input 
-              name={"#{@prefix}[color]"}
-              type="text" 
-              value={Map.get(@config, "color", "#3b82f6")}
-              placeholder="#3b82f6"
-              class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-          </div>
+          <input
+            name={"#{@prefix}[color]"}
+            type="color"
+            value={Map.get(@config, "color", "#3b82f6")}
+            class="w-12 h-8 border border-gray-300 rounded cursor-pointer"/>
         </div>
       </div>
     </div>
