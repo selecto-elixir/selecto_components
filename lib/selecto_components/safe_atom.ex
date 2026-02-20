@@ -43,7 +43,10 @@ defmodule SelectoComponents.SafeAtom do
   @valid_form_modes ~w(collapsed inline modal expanded)a
   @valid_widget_types ~w(chart table metric filter summary kpi gauge list text html iframe)a
   @valid_aggregate_functions ~w(count sum avg min max array_agg string_agg median mode stddev variance first last)a
-  @valid_list_names ~w(group_by aggregate selected order_by columns fields filters joins having)a
+  @valid_list_names ~w(
+    group_by aggregate selected order_by columns fields filters joins having
+    x_axis y_axis series
+  )a
 
   # Theme property keys for atomize_keys
   @valid_theme_properties ~w(

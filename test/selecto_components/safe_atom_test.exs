@@ -132,6 +132,9 @@ defmodule SelectoComponents.SafeAtomTest do
       assert SafeAtom.to_list_name("aggregate") == :aggregate
       assert SafeAtom.to_list_name("selected") == :selected
       assert SafeAtom.to_list_name("order_by") == :order_by
+      assert SafeAtom.to_list_name("x_axis") == :x_axis
+      assert SafeAtom.to_list_name("y_axis") == :y_axis
+      assert SafeAtom.to_list_name("series") == :series
     end
 
     test "returns default for invalid strings" do
