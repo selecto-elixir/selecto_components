@@ -7,7 +7,7 @@ defmodule SelectoComponents.MixProject do
       version: "0.3.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      description: "LiveView Components for Selecto",
+      description: "ALPHA: LiveView components for Selecto",
       aliases: aliases(),
       package: package(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),

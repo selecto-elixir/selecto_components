@@ -1,5 +1,10 @@
 # SelectoComponents
 
+> ⚠️ **Alpha Quality Software**
+>
+> `selecto_components` is under active development. Expect breaking changes,
+> behavior changes, incomplete features, and potentially major bugs.
+
 Phoenix LiveView components for building interactive data query interfaces with [Selecto](https://github.com/selecto-elixir/selecto).
 
 ## Overview
@@ -10,6 +15,15 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 - **Data Views**: Multiple visualization options (Detail, Aggregate, Graph)
 - **Colocated JavaScript**: Phoenix LiveView 1.1+ colocated hooks for drag-and-drop and charts
 - **Tailwind CSS**: Pre-styled components using Tailwind CSS
+
+## Release Status (0.3.x)
+
+- **Alpha**: Core query UI flows (`SelectoComponents.Form`, result rendering,
+  built-in views) are usable but not yet stable.
+- **High Risk / Experimental**: Graph/dashboard and advanced integration paths
+  may change significantly and can require project-specific hardening.
+- **Not Included**: Turnkey production analytics/data-backend integration is
+  outside current package scope.
 
 ## Requirements
 
