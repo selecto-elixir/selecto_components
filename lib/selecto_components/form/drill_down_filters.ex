@@ -72,7 +72,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         # Check if this is an age bucket field
         group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
-        is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+
+        is_age_bucket =
+          field_group_config && Map.get(field_group_config, "format") == "age_buckets"
 
         # Determine comparison mode and values based on format
         {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
@@ -91,11 +93,12 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         }
 
         # Use group_by_filter if configured
-        actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
-          Map.get(conf, :group_by_filter)
-        else
-          field_name
-        end
+        actual_filter_field =
+          if conf && Map.get(conf, :group_by_filter) do
+            Map.get(conf, :group_by_filter)
+          else
+            field_name
+          end
 
         # Update the filter config to use the correct field
         filter_config = Map.put(filter_config, "filter", actual_filter_field)
@@ -138,7 +141,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         # Check if this is an age bucket field
         group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
-        is_age_bucket = field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+
+        is_age_bucket =
+          field_group_config && Map.get(field_group_config, "format") == "age_buckets"
 
         # Determine comparison mode and values based on format
         {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
@@ -157,11 +162,12 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         }
 
         # Use group_by_filter if configured
-        actual_filter_field = if conf && Map.get(conf, :group_by_filter) do
-          Map.get(conf, :group_by_filter)
-        else
-          field_name
-        end
+        actual_filter_field =
+          if conf && Map.get(conf, :group_by_filter) do
+            Map.get(conf, :group_by_filter)
+          else
+            field_name
+          end
 
         # Update the filter config to use the correct field
         filter_config = Map.put(filter_config, "filter", actual_filter_field)
@@ -191,7 +197,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   defp fallback_field_from_group_by(socket) do
     current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
-    first_group = current_group_by
+
+    first_group =
+      current_group_by
       |> Map.values()
       |> Enum.sort(fn a, b ->
         String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
@@ -200,7 +208,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
     case first_group do
       %{"field" => field} -> field
-      _ -> "id"  # Fallback to basic field
+      # Fallback to basic field
+      _ -> "id"
     end
   end
 
@@ -230,10 +239,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       value == "__NULL__" ->
         {"IS_EMPTY", "", ""}
 
-      # Bucket range patterns
-      String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
-        handle_bucket_range(value, field_conf, is_age_bucket)
-
       # YYYY-MM-DD format
       String.match?(value, ~r/^\d{4}-\d{2}-\d{2}$/) ->
         if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
@@ -250,6 +255,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       String.match?(value, ~r/^\d{4}$/) ->
         handle_year_format(value, field_conf)
 
+      # Bucket range patterns
+      String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
+        handle_bucket_range(value, field_conf, is_age_bucket)
+
       # Default datetime handling
       field_conf != nil ->
         handle_datetime_field(value, field_conf)
@@ -261,7 +270,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_bucket_range(value, field_conf, is_age_bucket) do
-    if is_age_bucket && field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if is_age_bucket && field_conf &&
+         Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
       # Age buckets on date fields - convert to date ranges
       today = Date.utc_today()
 
@@ -341,10 +351,14 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   defp handle_datetime_field(value, field_conf) do
     field_type = Map.get(field_conf, :type, :string)
+
     case field_type do
       x when x in [:utc_datetime, :naive_datetime] ->
-        {v1_parsed, v2_parsed} = Selecto.Helpers.Date.val_to_dates(%{"value" => value, "value2" => ""})
+        {v1_parsed, v2_parsed} =
+          Selecto.Helpers.Date.val_to_dates(%{"value" => value, "value2" => ""})
+
         {"=", v1_parsed, v2_parsed}
+
       _ ->
         {"=", value, ""}
     end
@@ -360,6 +374,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       if conf != nil do
         field_type = Map.get(conf, :type, :string)
+
         case field_type do
           x when x in [:utc_datetime, :naive_datetime] ->
             {v1, v2} = Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
@@ -374,13 +389,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end)
   end
 
-  @doc """
-  Find join mode field configuration when filtering on ID field.
-
-  Handles two cases:
-  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
-  2. Filtering on "category_id" (foreign key) - searches all schemas for field with group_by_filter: "category_id"
-  """
   defp find_join_mode_field(selecto, field_name, original_conf) do
     cond do
       # Case 1: field_name contains "." like "category.id"
@@ -388,14 +396,17 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         [schema_name, field_part] = String.split(field_name, ".", parts: 2)
 
         # Check if this looks like an ID field
-        if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or String.ends_with?(field_part, "_id") do
+        if field_part in ["id", "category_id", "supplier_id", "shipper_id"] or
+             String.ends_with?(field_part, "_id") do
           # Get the domain to search for join_mode fields
           domain = Selecto.domain(selecto)
-          schema_atom = try do
-            String.to_existing_atom(schema_name)
-          rescue
-            ArgumentError -> nil
-          end
+
+          schema_atom =
+            try do
+              String.to_existing_atom(schema_name)
+            rescue
+              ArgumentError -> nil
+            end
 
           if schema_atom do
             schema_config = get_in(domain, [:schemas, schema_atom])
@@ -404,21 +415,22 @@ defmodule SelectoComponents.Form.DrillDownFilters do
               # Search through columns to find one with join_mode metadata matching this ID field
               columns = Map.get(schema_config, :columns, %{})
 
-              found_field = Enum.find_value(columns, fn {col_name, col_config} ->
-                # Check if this column has join_mode and its id_field matches our field
-                join_mode = Map.get(col_config, :join_mode)
-                id_field = Map.get(col_config, :id_field)
-                filter_type = Map.get(col_config, :filter_type)
+              found_field =
+                Enum.find_value(columns, fn {col_name, col_config} ->
+                  # Check if this column has join_mode and its id_field matches our field
+                  join_mode = Map.get(col_config, :join_mode)
+                  id_field = Map.get(col_config, :id_field)
+                  filter_type = Map.get(col_config, :filter_type)
 
-                # Match if this column is configured for join mode and references our ID field
-                if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
-                   (id_field == :id or Atom.to_string(id_field) == field_part) do
-                  # Return the full field name for this display field
-                  {col_name, col_config}
-                else
-                  nil
-                end
-              end)
+                  # Match if this column is configured for join mode and references our ID field
+                  if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                       (id_field == :id or Atom.to_string(id_field) == field_part) do
+                    # Return the full field name for this display field
+                    {col_name, col_config}
+                  else
+                    nil
+                  end
+                end)
 
               case found_field do
                 {display_col_name, display_col_config} ->
@@ -428,7 +440,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
                   # Merge the display field config with necessary metadata
                   Map.merge(original_conf || %{}, display_col_config)
                   |> Map.put(:_display_field_name, qualified_name)
-                  |> Map.put(:_filter_on_field, field_name)  # Remember we're actually filtering on the ID field
+                  # Remember we're actually filtering on the ID field
+                  |> Map.put(:_filter_on_field, field_name)
 
                 nil ->
                   original_conf
@@ -449,24 +462,25 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         schemas = Map.get(domain, :schemas, %{})
 
         # Search all schemas for a field with group_by_filter matching this field_name
-        found_field = Enum.find_value(schemas, fn {schema_name, schema_config} ->
-          columns = Map.get(schema_config, :columns, %{})
+        found_field =
+          Enum.find_value(schemas, fn {schema_name, schema_config} ->
+            columns = Map.get(schema_config, :columns, %{})
 
-          Enum.find_value(columns, fn {col_name, col_config} ->
-            join_mode = Map.get(col_config, :join_mode)
-            filter_type = Map.get(col_config, :filter_type)
-            group_by_filter = Map.get(col_config, :group_by_filter)
+            Enum.find_value(columns, fn {col_name, col_config} ->
+              join_mode = Map.get(col_config, :join_mode)
+              filter_type = Map.get(col_config, :filter_type)
+              group_by_filter = Map.get(col_config, :group_by_filter)
 
-            # Match if this column has group_by_filter pointing to our field
-            if join_mode in [:lookup, :star, :tag] and
-               filter_type == :multi_select_id and
-               group_by_filter == field_name do
-              {schema_name, col_name, col_config}
-            else
-              nil
-            end
+              # Match if this column has group_by_filter pointing to our field
+              if join_mode in [:lookup, :star, :tag] and
+                   filter_type == :multi_select_id and
+                   group_by_filter == field_name do
+                {schema_name, col_name, col_config}
+              else
+                nil
+              end
+            end)
           end)
-        end)
 
         case found_field do
           {schema_name, display_col_name, display_col_config} ->
@@ -475,7 +489,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
             # Merge the display field config with necessary metadata
             Map.merge(original_conf || %{}, display_col_config)
             |> Map.put(:_display_field_name, qualified_name)
-            |> Map.put(:_filter_on_field, field_name)  # Filter stays on the foreign key field
+            # Filter stays on the foreign key field
+            |> Map.put(:_filter_on_field, field_name)
 
           nil ->
             original_conf

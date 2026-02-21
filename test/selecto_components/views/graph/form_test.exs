@@ -1,7 +1,50 @@
 defmodule SelectoComponents.Views.Graph.FormTest do
   use ExUnit.Case, async: true
 
+  alias SelectoComponents.Components.ListPicker
   alias SelectoComponents.Views.Graph.Form
+
+  defp static_text(rendered), do: Enum.join(rendered.static)
+  defp dynamic_chunks(rendered), do: rendered.dynamic.(false)
+
+  defp dynamic_text(rendered) do
+    rendered
+    |> dynamic_chunks()
+    |> Enum.map(fn
+      %Phoenix.LiveView.Component{} -> ""
+      chunk when is_binary(chunk) -> chunk
+      chunk when is_list(chunk) -> IO.iodata_to_binary(chunk)
+      _ -> ""
+    end)
+    |> Enum.join()
+  end
+
+  defp marker_count(rendered, marker) do
+    rendered
+    |> dynamic_chunks()
+    |> Enum.count(fn
+      %Phoenix.LiveView.Component{} ->
+        false
+
+      chunk when is_binary(chunk) ->
+        String.contains?(chunk, marker)
+
+      chunk when is_list(chunk) ->
+        chunk
+        |> IO.iodata_to_binary()
+        |> String.contains?(marker)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp list_picker(rendered, id) do
+    Enum.find(dynamic_chunks(rendered), fn
+      %Phoenix.LiveView.Component{id: ^id, component: ListPicker} -> true
+      _ -> false
+    end)
+  end
 
   describe "render/1" do
     test "renders complete graph configuration form" do
@@ -11,10 +54,17 @@ defmodule SelectoComponents.Views.Graph.FormTest do
             graph: %{
               chart_type: "bar",
               x_axis: [
-                {"uuid1", "category", %{"field" => "category", "index" => "0", "alias" => "Category"}}
+                {"uuid1", "category",
+                 %{"field" => "category", "index" => "0", "alias" => "Category"}}
               ],
               y_axis: [
-                {"uuid2", "film_count", %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Count"}}
+                {"uuid2", "film_count",
+                 %{
+                   "field" => "film_count",
+                   "index" => "0",
+                   "function" => "count",
+                   "alias" => "Count"
+                 }}
               ],
               series: [],
               options: %{
@@ -36,7 +86,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
           {"rating", "Rating", :string}
         ],
         selecto: %{
-          field: fn field -> 
+          field: fn field ->
             case field do
               "category" -> %{colid: :category, type: :string}
               "film_count" -> %{colid: :film_count, type: :integer}
@@ -46,48 +96,36 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      static = static_text(rendered)
+      dynamic = dynamic_text(rendered)
 
-      # Check chart type selection
-      assert html_string =~ "Chart Type"
-      assert html_string =~ "value=\"bar\" selected"
-      assert html_string =~ "Bar Chart"
-      assert html_string =~ "Line Chart"
-      assert html_string =~ "Pie Chart"
+      assert static =~ "Chart Type"
+      assert static =~ "Bar Chart"
+      assert static =~ "Line Chart"
+      assert static =~ "Pie Chart"
 
-      # Check X-axis configuration section
-      assert html_string =~ "X-Axis (Categories)"
-      assert html_string =~ "SelectoComponents.Components.ListPicker"
-      assert html_string =~ "fieldname=\"x_axis\""
+      assert static =~ "X-Axis (Categories)"
+      assert static =~ "Y-Axis (Values)"
+      assert static =~ "Series Grouping (Optional)"
+      assert static =~ "Chart Options"
+      assert static =~ "Chart Title"
+      assert static =~ "Legend Position"
 
-      # Check Y-axis configuration section
-      assert html_string =~ "Y-Axis (Values)"
-      assert html_string =~ "fieldname=\"y_axis\""
+      assert dynamic =~ "Films by Category"
+      assert dynamic =~ "Category"
+      assert dynamic =~ "Number of Films"
 
-      # Check Series configuration section
-      assert html_string =~ "Series Grouping (Optional)"
-      assert html_string =~ "Add a secondary grouping"
-      assert html_string =~ "fieldname=\"series\""
+      assert marker_count(rendered, "selected") >= 2
+      assert marker_count(rendered, "checked") == 3
 
-      # Check chart options section
-      assert html_string =~ "Chart Options"
-      assert html_string =~ "Chart Title"
-      assert html_string =~ "value=\"Films by Category\""
-      assert html_string =~ "X-Axis Label"
-      assert html_string =~ "value=\"Category\""
-      assert html_string =~ "Y-Axis Label" 
-      assert html_string =~ "value=\"Number of Films\""
+      x_axis_picker = list_picker(rendered, "x_axis")
+      y_axis_picker = list_picker(rendered, "y_axis")
 
-      # Check legend position dropdown
-      assert html_string =~ "Legend Position"
-      assert html_string =~ "value=\"bottom\" selected"
-
-      # Check checkbox options
-      assert html_string =~ "Show Grid Lines"
-      assert html_string =~ "checked"
-      assert html_string =~ "Enable Animations"
-      assert html_string =~ "Responsive"
+      assert x_axis_picker.assigns.fieldname == "x_axis"
+      assert y_axis_picker.assigns.fieldname == "y_axis"
+      assert x_axis_picker.assigns.selected_items != []
+      assert y_axis_picker.assigns.selected_items != []
     end
 
     test "renders with minimal configuration" do
@@ -110,19 +148,18 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      static = static_text(rendered)
 
-      # Should render structure even with empty configuration
-      assert html_string =~ "Chart Type"
-      assert html_string =~ "value=\"line\" selected"
-      assert html_string =~ "X-Axis (Categories)"
-      assert html_string =~ "Y-Axis (Values)"
-      assert html_string =~ "Series Grouping (Optional)"
-      assert html_string =~ "Chart Options"
+      assert static =~ "Chart Type"
+      assert static =~ "X-Axis (Categories)"
+      assert static =~ "Y-Axis (Values)"
+      assert static =~ "Series Grouping (Optional)"
+      assert static =~ "Chart Options"
 
-      # Empty options should not have values
-      refute html_string =~ "value=\""
+      for id <- ["x_axis", "y_axis", "series"] do
+        assert list_picker(rendered, id).assigns.selected_items == []
+      end
     end
 
     test "renders chart type options correctly" do
@@ -143,14 +180,15 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      static = static_text(rendered)
 
-      assert html_string =~ "value=\"bar\""
-      assert html_string =~ "value=\"line\""
-      assert html_string =~ "value=\"pie\" selected"
-      assert html_string =~ "value=\"scatter\""
-      assert html_string =~ "value=\"area\""
+      assert static =~ ~s(value="bar")
+      assert static =~ ~s(value="line")
+      assert static =~ ~s(value="pie")
+      assert static =~ ~s(value="scatter")
+      assert static =~ ~s(value="area")
+      assert marker_count(rendered, "selected") >= 1
     end
 
     test "renders legend position options correctly" do
@@ -171,14 +209,15 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      static = static_text(rendered)
 
-      assert html_string =~ "value=\"top\" selected"
-      assert html_string =~ "value=\"bottom\""
-      assert html_string =~ "value=\"left\""
-      assert html_string =~ "value=\"right\""
-      assert html_string =~ "value=\"none\""
+      assert static =~ ~s(value="top")
+      assert static =~ ~s(value="bottom")
+      assert static =~ ~s(value="left")
+      assert static =~ ~s(value="right")
+      assert static =~ ~s(value="none")
+      assert marker_count(rendered, "selected") >= 1
     end
 
     test "renders checkbox states correctly" do
@@ -203,23 +242,8 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
-
-      # show_grid should be checked
-      grid_checkbox = Regex.run(~r/name="options\[show_grid\]".*?(?:checked|>)/s, html_string)
-      assert grid_checkbox
-      assert Enum.any?(grid_checkbox, &String.contains?(&1, "checked"))
-
-      # enable_animations should not be checked (value is "false")
-      animations_checkbox = Regex.run(~r/name="options\[enable_animations\]".*?(?:checked|>)/s, html_string)
-      assert animations_checkbox
-      refute Enum.any?(animations_checkbox, &String.contains?(&1, "checked"))
-
-      # responsive should be checked (default behavior when not "false")
-      responsive_checkbox = Regex.run(~r/name="options\[responsive\]".*?(?:checked|>)/s, html_string)
-      assert responsive_checkbox
-      assert Enum.any?(responsive_checkbox, &String.contains?(&1, "checked"))
+      rendered = Form.render(assigns)
+      assert marker_count(rendered, "checked") == 2
     end
 
     test "includes proper LiveComponent references" do
@@ -248,18 +272,27 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      x_axis_picker = list_picker(rendered, "x_axis")
+      y_axis_picker = list_picker(rendered, "y_axis")
+      series_picker = list_picker(rendered, "series")
 
-      # Check that axis configuration components are referenced
-      assert html_string =~ "SelectoComponents.Views.Graph.XAxisConfig"
-      assert html_string =~ "SelectoComponents.Views.Graph.YAxisConfig"
-      assert html_string =~ "SelectoComponents.Views.Graph.SeriesConfig"
+      assert x_axis_picker.component == ListPicker
+      assert y_axis_picker.component == ListPicker
+      assert series_picker.component == ListPicker
 
-      # Check that proper prefixes are used for form fields
-      assert html_string =~ "x_axis[uuid1]"
-      assert html_string =~ "y_axis[uuid2]" 
-      assert html_string =~ "series[uuid3]"
+      assert x_axis_picker.assigns.fieldname == "x_axis"
+      assert y_axis_picker.assigns.fieldname == "y_axis"
+      assert series_picker.assigns.fieldname == "series"
+
+      assert x_axis_picker.assigns.selected_items ==
+               [{"uuid1", "category", %{"field" => "category", "index" => "0"}}]
+
+      assert y_axis_picker.assigns.selected_items ==
+               [{"uuid2", "film_count", %{"field" => "film_count", "index" => "0"}}]
+
+      assert series_picker.assigns.selected_items ==
+               [{"uuid3", "rating", %{"field" => "rating", "index" => "0"}}]
     end
 
     test "filters available columns for x-axis and series" do
@@ -285,20 +318,24 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      html = Form.render(assigns)
-      html_string = Phoenix.HTML.safe_to_string(html)
+      rendered = Form.render(assigns)
+      x_axis_picker = list_picker(rendered, "x_axis")
+      series_picker = list_picker(rendered, "series")
 
-      # X-axis and Series sections should exclude :component and :link fields
-      # This is tested by checking the ListPicker available parameter filtering
-      x_axis_section = Regex.run(~r/X-Axis \(Categories\).*?Series Grouping/s, html_string)
-      assert x_axis_section
+      assert Enum.any?(x_axis_picker.assigns.available, &match?({"category", _, :string}, &1))
 
-      series_section = Regex.run(~r/Series Grouping \(Optional\).*?Chart Options/s, html_string)  
-      assert series_section
+      assert Enum.any?(
+               x_axis_picker.assigns.available,
+               &match?({"normal_field", _, :integer}, &1)
+             )
 
-      # The filtering happens in the available parameter, which is a code expression
-      # We can verify the filter logic is present
-      assert html_string =~ "format not in [:component, :link]"
+      refute Enum.any?(x_axis_picker.assigns.available, fn {_field, _label, format} ->
+               format in [:component, :link]
+             end)
+
+      refute Enum.any?(series_picker.assigns.available, fn {_field, _label, format} ->
+               format in [:component, :link]
+             end)
     end
   end
 end

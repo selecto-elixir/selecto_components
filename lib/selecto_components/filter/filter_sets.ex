@@ -3,10 +3,11 @@ defmodule SelectoComponents.Filter.FilterSets do
   LiveComponent for managing saved filter sets.
   Provides UI for saving, loading, and managing filter configurations.
   """
-  
+
   use Phoenix.LiveComponent
   import Phoenix.Component
-  
+  require Logger
+
   def render(assigns) do
     ~H"""
     <div class="filter-sets-component">
@@ -20,32 +21,32 @@ defmodule SelectoComponents.Filter.FilterSets do
           class="select select-bordered select-sm"
         >
           <option value="">-- Select Filter Set --</option>
-          
+
           <%= if length(@personal_sets) > 0 do %>
             <optgroup label="Personal">
               <option :for={set <- @personal_sets} value={set.id} selected={@current_set_id == set.id}>
-                <%= set.name %><%= if set.is_default, do: " (Default)" %>
+                {set.name}{if set.is_default, do: " (Default)"}
               </option>
             </optgroup>
           <% end %>
-          
+
           <%= if length(@shared_sets) > 0 do %>
             <optgroup label="Shared">
               <option :for={set <- @shared_sets} value={set.id} selected={@current_set_id == set.id}>
-                <%= set.name %>
+                {set.name}
               </option>
             </optgroup>
           <% end %>
-          
+
           <%= if length(@system_sets) > 0 do %>
             <optgroup label="System">
               <option :for={set <- @system_sets} value={set.id} selected={@current_set_id == set.id}>
-                <%= set.name %>
+                {set.name}
               </option>
             </optgroup>
           <% end %>
         </select>
-        
+
         <button
           phx-click="toggle_save_dialog"
           phx-target={@myself}
@@ -54,7 +55,7 @@ defmodule SelectoComponents.Filter.FilterSets do
         >
           Save
         </button>
-        
+
         <button
           phx-click="toggle_manage_dialog"
           phx-target={@myself}
@@ -65,13 +66,18 @@ defmodule SelectoComponents.Filter.FilterSets do
         </button>
       </div>
       
-      <!-- Save Dialog -->
+    <!-- Save Dialog -->
       <%= if @show_save_dialog do %>
         <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 class="text-lg font-semibold mb-4">Save Filter Set</h3>
 
-            <.form for={%{}} as={:filter_set_form} phx-change="update_filter_set_form" phx-target={@myself}>
+            <.form
+              for={%{}}
+              as={:filter_set_form}
+              phx-change="update_filter_set_form"
+              phx-target={@myself}
+            >
               <div class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -85,11 +91,11 @@ defmodule SelectoComponents.Filter.FilterSets do
                     placeholder="Enter filter set name (required)"
                     required
                   />
-                <%= if @save_form.name == "" || is_nil(@save_form.name) do %>
-                  <p class="mt-1 text-sm text-red-600">Name is required</p>
-                <% end %>
-              </div>
-              
+                  <%= if @save_form.name == "" || is_nil(@save_form.name) do %>
+                    <p class="mt-1 text-sm text-red-600">Name is required</p>
+                  <% end %>
+                </div>
+
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">
                     Description
@@ -101,7 +107,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                     placeholder="Optional description"
                   ><%= @save_form.description %></textarea>
                 </div>
-              
+
                 <div class="flex items-center gap-4">
                   <label class="flex items-center gap-2">
                     <input
@@ -127,7 +133,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 </div>
               </div>
             </.form>
-            
+
             <div class="mt-6 flex justify-end gap-2">
               <button
                 type="button"
@@ -151,24 +157,29 @@ defmodule SelectoComponents.Filter.FilterSets do
         </div>
       <% end %>
       
-      <!-- Manage Dialog -->
+    <!-- Manage Dialog -->
       <%= if @show_manage_dialog do %>
         <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <h3 class="text-lg font-semibold mb-4">Manage Filter Sets</h3>
-            
+
             <%= if length(@personal_sets) > 0 do %>
               <div class="mb-6">
                 <h4 class="font-medium mb-2">Personal Filter Sets</h4>
                 <div class="space-y-2">
-                  <div :for={set <- @personal_sets} class="flex items-center justify-between p-2 border rounded">
+                  <div
+                    :for={set <- @personal_sets}
+                    class="flex items-center justify-between p-2 border rounded"
+                  >
                     <div>
-                      <span class="font-medium"><%= set.name %></span>
+                      <span class="font-medium">{set.name}</span>
                       <%= if set.is_default do %>
-                        <span class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Default</span>
+                        <span class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                          Default
+                        </span>
                       <% end %>
                       <%= if set.description do %>
-                        <p class="text-sm text-gray-600"><%= set.description %></p>
+                        <p class="text-sm text-gray-600">{set.description}</p>
                       <% end %>
                     </div>
                     <div class="flex gap-1">
@@ -216,16 +227,19 @@ defmodule SelectoComponents.Filter.FilterSets do
                 </div>
               </div>
             <% end %>
-            
+
             <%= if length(@shared_sets) > 0 do %>
               <div class="mb-6">
                 <h4 class="font-medium mb-2">Shared Filter Sets</h4>
                 <div class="space-y-2">
-                  <div :for={set <- @shared_sets} class="flex items-center justify-between p-2 border rounded">
+                  <div
+                    :for={set <- @shared_sets}
+                    class="flex items-center justify-between p-2 border rounded"
+                  >
                     <div>
-                      <span class="font-medium"><%= set.name %></span>
+                      <span class="font-medium">{set.name}</span>
                       <%= if set.description do %>
-                        <p class="text-sm text-gray-600"><%= set.description %></p>
+                        <p class="text-sm text-gray-600">{set.description}</p>
                       <% end %>
                     </div>
                     <div class="flex gap-1">
@@ -243,7 +257,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 </div>
               </div>
             <% end %>
-            
+
             <div class="mt-6 flex justify-between">
               <div class="flex gap-2">
                 <button
@@ -267,12 +281,12 @@ defmodule SelectoComponents.Filter.FilterSets do
         </div>
       <% end %>
       
-      <!-- Share Dialog -->
+    <!-- Share Dialog -->
       <%= if @show_share_dialog do %>
         <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 class="text-lg font-semibold mb-4">Share Filter Set</h3>
-            
+
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -286,7 +300,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                   onclick="this.select()"
                 />
               </div>
-              
+
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                   Export as JSON
@@ -298,7 +312,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 ><%= @share_json %></textarea>
               </div>
             </div>
-            
+
             <div class="mt-6 flex justify-end">
               <button
                 type="button"
@@ -315,7 +329,7 @@ defmodule SelectoComponents.Filter.FilterSets do
     </div>
     """
   end
-  
+
   def mount(socket) do
     {:ok,
      socket
@@ -342,7 +356,7 @@ defmodule SelectoComponents.Filter.FilterSets do
        }
      )}
   end
-  
+
   def update(assigns, socket) do
     {:ok,
      socket
@@ -360,42 +374,42 @@ defmodule SelectoComponents.Filter.FilterSets do
       |> assign(filter_sets_loaded: true)
     end
   end
-  
+
   def handle_event("load_filter_set", params, socket) do
     # Handle both "value" and direct parameter access
     set_id = params["value"] || params["filter-set-select-#{socket.assigns.id}"] || ""
-    
+
     if set_id == "" or is_nil(set_id) do
       {:noreply, socket}
     else
       case get_filter_set(set_id, socket.assigns) do
         {:ok, filter_set} ->
           send(self(), {:apply_filter_set, filter_set})
-          
+
           {:noreply,
            socket
            |> assign(
              current_set_id: filter_set.id,
              current_set: filter_set
            )}
-        
+
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to load filter set")}
       end
     end
   end
-  
+
   def handle_event("toggle_save_dialog", _params, socket) do
     {:noreply,
      socket
      |> assign(show_save_dialog: !socket.assigns.show_save_dialog)
      |> reset_save_form()}
   end
-  
+
   def handle_event("toggle_manage_dialog", _params, socket) do
     {:noreply, assign(socket, show_manage_dialog: !socket.assigns.show_manage_dialog)}
   end
-  
+
   def handle_event("update_filter_set_form", %{"filter_set_form" => form_params}, socket) do
     save_form = %{
       name: form_params["name"] || "",
@@ -403,19 +417,22 @@ defmodule SelectoComponents.Filter.FilterSets do
       is_default: socket.assigns.save_form.is_default,
       is_shared: socket.assigns.save_form.is_shared
     }
+
     {:noreply, assign(socket, save_form: save_form)}
   end
-  
+
   def handle_event("toggle_default", _params, socket) do
-    save_form = Map.put(socket.assigns.save_form, :is_default, !socket.assigns.save_form.is_default)
+    save_form =
+      Map.put(socket.assigns.save_form, :is_default, !socket.assigns.save_form.is_default)
+
     {:noreply, assign(socket, save_form: save_form)}
   end
-  
+
   def handle_event("toggle_shared", _params, socket) do
     save_form = Map.put(socket.assigns.save_form, :is_shared, !socket.assigns.save_form.is_shared)
     {:noreply, assign(socket, save_form: save_form)}
   end
-  
+
   def handle_event("do_save_filter_set", _params, socket) do
     params = %{
       "name" => socket.assigns.save_form.name,
@@ -447,19 +464,22 @@ defmodule SelectoComponents.Filter.FilterSets do
            |> put_flash(:info, "Filter set saved successfully")}
 
         {:error, changeset} ->
-          error_msg = case changeset do
-            %Ecto.Changeset{errors: errors} ->
-              errors
-              |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
-              |> Enum.join(", ")
-            _ ->
-              "Failed to save filter set"
-          end
+          error_msg =
+            case changeset do
+              %Ecto.Changeset{errors: errors} ->
+                errors
+                |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+                |> Enum.join(", ")
+
+              _ ->
+                "Failed to save filter set"
+            end
+
           {:noreply, put_flash(socket, :error, error_msg)}
       end
     end
   end
-  
+
   def handle_event("delete_set", %{"id" => id}, socket) do
     case delete_filter_set(id, socket.assigns) do
       {:ok, _} ->
@@ -469,12 +489,12 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> maybe_load_filter_sets()
          |> clear_current_if_deleted(id)
          |> put_flash(:info, "Filter set deleted")}
-      
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete filter set")}
     end
   end
-  
+
   def handle_event("set_default", %{"id" => id}, socket) do
     case set_default_filter_set(id, socket.assigns) do
       {:ok, _} ->
@@ -483,12 +503,12 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> assign(filter_sets_loaded: false)
          |> maybe_load_filter_sets()
          |> put_flash(:info, "Default filter set updated")}
-      
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to set default")}
     end
   end
-  
+
   def handle_event("duplicate_set", %{"id" => id}, socket) do
     case duplicate_filter_set(id, socket.assigns) do
       {:ok, new_set} ->
@@ -501,12 +521,12 @@ defmodule SelectoComponents.Filter.FilterSets do
            current_set: new_set
          )
          |> put_flash(:info, "Filter set duplicated")}
-      
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to duplicate filter set")}
     end
   end
-  
+
   def handle_event("share_filter_set", %{"id" => id}, socket) do
     case generate_share_data(id, socket.assigns) do
       {:ok, url, json} ->
@@ -517,16 +537,16 @@ defmodule SelectoComponents.Filter.FilterSets do
            share_url: url,
            share_json: json
          )}
-      
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to generate share data")}
     end
   end
-  
+
   def handle_event("close_share_dialog", _params, socket) do
     {:noreply, assign(socket, show_share_dialog: false)}
   end
-  
+
   def handle_event("import_set", %{"json" => json_string}, socket) do
     case import_filter_set(json_string, socket.assigns) do
       {:ok, new_set} ->
@@ -560,20 +580,20 @@ defmodule SelectoComponents.Filter.FilterSets do
   def handle_event("close_import_dialog", _params, socket) do
     {:noreply, assign(socket, show_import_dialog: false)}
   end
-  
+
   def handle_event("export_set", %{"id" => id}, socket) do
     case export_filter_set(id, socket.assigns) do
       {:ok, json} ->
         send(self(), {:download_json, "filter_set_#{id}.json", json})
         {:noreply, put_flash(socket, :info, "Filter set exported")}
-      
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to export filter set")}
     end
   end
-  
+
   # Helper functions
-  
+
   defp load_filter_sets(socket) do
     %{user_id: user_id, domain: domain} = socket.assigns
     adapter = socket.assigns[:filter_sets_adapter]
@@ -584,23 +604,25 @@ defmodule SelectoComponents.Filter.FilterSets do
     personal_sets = list_personal_filter_sets(user_id, normalized_domain, adapter)
     shared_sets = list_shared_filter_sets(user_id, normalized_domain, adapter)
     system_sets = list_system_filter_sets(normalized_domain, adapter)
-    
+
     assign(socket,
       personal_sets: personal_sets,
       shared_sets: shared_sets,
       system_sets: system_sets
     )
   end
-  
+
   defp reset_save_form(socket) do
-    assign(socket, save_form: %{
-      name: "",
-      description: "",
-      is_default: false,
-      is_shared: false
-    })
+    assign(socket,
+      save_form: %{
+        name: "",
+        description: "",
+        is_default: false,
+        is_shared: false
+      }
+    )
   end
-  
+
   defp clear_current_if_deleted(socket, deleted_id) do
     if socket.assigns.current_set_id == deleted_id do
       assign(socket, current_set_id: nil, current_set: nil)
@@ -608,56 +630,63 @@ defmodule SelectoComponents.Filter.FilterSets do
       socket
     end
   end
-  
+
   # Adapter delegation functions
-  
+
   defp list_personal_filter_sets(user_id, domain, adapter) when not is_nil(adapter) do
     adapter.list_personal_filter_sets(user_id, domain)
   end
+
   defp list_personal_filter_sets(_, _, _), do: []
-  
+
   defp list_shared_filter_sets(user_id, domain, adapter) when not is_nil(adapter) do
     adapter.list_shared_filter_sets(user_id, domain)
   end
+
   defp list_shared_filter_sets(_, _, _), do: []
-  
+
   defp list_system_filter_sets(domain, adapter) when not is_nil(adapter) do
     adapter.list_system_filter_sets(domain)
   end
+
   defp list_system_filter_sets(_, _), do: []
-  
+
   defp get_filter_set(id, assigns) do
     adapter = assigns[:filter_sets_adapter]
     user_id = assigns[:user_id]
-    
+
     if adapter do
       adapter.get_filter_set(id, user_id)
     else
       {:error, :no_adapter}
     end
   end
-  
+
   defp save_filter_set(params, assigns) do
     require Logger
     adapter = assigns[:filter_sets_adapter]
     Logger.debug("Adapter: #{inspect(adapter)}")
-    
+
     if adapter do
       # Convert filters from list format to map format
-      filters_map = case assigns.current_filters do
-        filters when is_list(filters) ->
-          Enum.reduce(filters, %{}, fn
-            {uuid, _section, filter_data}, acc ->
-              Map.put(acc, uuid, filter_data)
-            _, acc ->
-              acc
-          end)
-        filters when is_map(filters) ->
-          filters
-        _ ->
-          %{}
-      end
-      
+      filters_map =
+        case assigns.current_filters do
+          filters when is_list(filters) ->
+            Enum.reduce(filters, %{}, fn
+              {uuid, _section, filter_data}, acc ->
+                Map.put(acc, uuid, filter_data)
+
+              _, acc ->
+                acc
+            end)
+
+          filters when is_map(filters) ->
+            filters
+
+          _ ->
+            %{}
+        end
+
       # Normalize domain by removing leading slash for consistent storage
       normalized_domain = String.trim_leading(to_string(assigns.domain), "/")
 
@@ -669,7 +698,7 @@ defmodule SelectoComponents.Filter.FilterSets do
         user_id: assigns.user_id,
         is_shared: params["is_shared"] == "true"
       }
-      
+
       Logger.debug("Creating filter set with attrs: #{inspect(attrs)}")
       result = adapter.create_filter_set(attrs)
       Logger.debug("Create result: #{inspect(result)}")
@@ -679,51 +708,35 @@ defmodule SelectoComponents.Filter.FilterSets do
       {:error, :no_adapter}
     end
   rescue
-    e -> 
+    e ->
       Logger.error("Error creating filter set: #{inspect(e)}")
       {:error, :adapter_error}
   end
-  
-  defp update_filter_set(id, params, assigns) do
-    adapter = assigns[:filter_sets_adapter]
-    
-    if adapter do
-      attrs = %{
-        name: params["name"],
-        description: params["description"],
-        is_shared: params["is_shared"] == "true"
-      }
-      
-      adapter.update_filter_set(id, attrs, assigns.user_id)
-    else
-      {:error, :no_adapter}
-    end
-  end
-  
+
   defp delete_filter_set(id, assigns) do
     adapter = assigns[:filter_sets_adapter]
-    
+
     if adapter do
       adapter.delete_filter_set(id, assigns.user_id)
     else
       {:error, :no_adapter}
     end
   end
-  
+
   defp set_default_filter_set(id, assigns) do
     adapter = assigns[:filter_sets_adapter]
-    
+
     if adapter do
       adapter.set_default_filter_set(id, assigns.user_id)
     else
       {:error, :no_adapter}
     end
   end
-  
+
   defp duplicate_filter_set(id, assigns) do
     adapter = assigns[:filter_sets_adapter]
     user_id = assigns[:user_id]
-    
+
     if adapter do
       with {:ok, original} <- adapter.get_filter_set(id, user_id) do
         attrs = %{
@@ -735,14 +748,14 @@ defmodule SelectoComponents.Filter.FilterSets do
           is_shared: false,
           is_default: false
         }
-        
+
         adapter.create_filter_set(attrs)
       end
     else
       {:error, :no_adapter}
     end
   end
-  
+
   defp generate_share_data(id, assigns) do
     case get_filter_set(id, assigns) do
       {:ok, filter_set} ->
@@ -752,7 +765,7 @@ defmodule SelectoComponents.Filter.FilterSets do
 
         # Generate share URL with encoded filter data
         # The URL contains a base64-encoded, compressed version of the filters
-        encoded_filters = encode_filters_for_url(export_data.filters)
+        encoded_filters = encode_filters_for_url(export_data.filter_set.filters)
 
         base_url = Map.get(assigns, :base_url, "")
         domain = Map.get(assigns, :domain, "")
@@ -819,6 +832,7 @@ defmodule SelectoComponents.Filter.FilterSets do
         {:error, {:decode_failed, e}}
     end
   end
+
   def decode_shared_filters(_), do: {:error, :invalid_input}
 
   @doc """
@@ -855,9 +869,8 @@ defmodule SelectoComponents.Filter.FilterSets do
       {:error, :no_adapter}
     end
   end
+
   def import_filter_set(_, _), do: {:error, :invalid_input}
-  
+
   # Flash helper removed - using Phoenix.LiveView.put_flash directly
-  
-  defp increment_usage(_id), do: :ok
 end

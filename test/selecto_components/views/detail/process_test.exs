@@ -49,8 +49,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
   defp view_columns do
     %{
       "name" => %{type: :string, colid: "name"},
-      "posts.title" => %{type: :string, colid: "posts.title"},
-      "posts[title]" => %{type: :string, colid: "posts[title]"}
+      "posts.title" => %{type: :string, colid: "posts.title"}
     }
   end
 
@@ -99,13 +98,13 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert view_meta.subselect_configs == []
   end
 
-  test "checked prevent_denormalization supports bracket column names" do
+  test "checked prevent_denormalization supports dotted relationship column names" do
     selecto = test_selecto()
 
     params = %{
       "selected" => %{
         "c1" => %{"field" => "name", "index" => "0", "alias" => "", "uuid" => "c1"},
-        "c2" => %{"field" => "posts[title]", "index" => "1", "alias" => "", "uuid" => "c2"}
+        "c2" => %{"field" => "posts.title", "index" => "1", "alias" => "", "uuid" => "c2"}
       },
       "order_by" => %{},
       "per_page" => "30",
@@ -117,7 +116,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     selected_fields = Enum.map(view_set.columns, & &1["field"])
 
     assert selected_fields == ["name"]
-    assert view_set.denorm_groups == %{"posts" => ["posts[title]"]}
+    assert view_set.denorm_groups == %{"posts" => ["posts.title"]}
     assert [%{key: "posts"}] = view_meta.subselect_configs
   end
 end

@@ -101,19 +101,24 @@ defmodule SelectoComponents.Form.ParamsState do
     end)
     |> Enum.map(fn {uuid, f} ->
       # Convert selected_ids array to comma-separated value for IN/NOT IN operators
-      f = if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") in ["IN", "NOT IN"] do
-        selected_ids = case Map.get(f, "selected_ids") do
-          ids when is_list(ids) -> ids
-          ids when is_binary(ids) -> String.split(ids, ",")
-          _ -> []
+      f =
+        if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") in ["IN", "NOT IN"] do
+          selected_ids =
+            case Map.get(f, "selected_ids") do
+              ids when is_list(ids) -> ids
+              ids when is_binary(ids) -> String.split(ids, ",")
+              _ -> []
+            end
+
+          value = Enum.join(selected_ids, ",")
+
+          f
+          |> Map.put("value", value)
+          |> Map.delete("selected_ids")
+        else
+          f
         end
-        value = Enum.join(selected_ids, ",")
-        f
-        |> Map.put("value", value)
-        |> Map.delete("selected_ids")
-      else
-        f
-      end
+
       {uuid, f}
     end)
     |> Enum.sort(fn {_, f1}, {_, f2} ->
@@ -154,284 +159,303 @@ defmodule SelectoComponents.Form.ParamsState do
           execution_error: nil
         )
 
-    # Create a fresh Selecto structure instead of reusing the cached one
-    # This ensures any internal state is properly reset for the new view
-    old_selecto = socket.assigns.selecto
-    selecto = Selecto.configure(old_selecto.domain, old_selecto.postgrex_opts)
-    raw_columns = Selecto.columns(selecto)
+      # Create a fresh Selecto structure instead of reusing the cached one
+      # This ensures any internal state is properly reset for the new view
+      old_selecto = socket.assigns.selecto
+      selecto = Selecto.configure(old_selecto.domain, old_selecto.postgrex_opts)
+      raw_columns = Selecto.columns(selecto)
 
-    # Convert columns to the format expected by ListPicker components
-    # ListPicker expects a list of {id, name, format} tuples
-    columns_list =
-      raw_columns
-      |> Enum.map(fn {key, col} ->
-        {key, col.name, col.type}
-      end)
-
-    # Create columns lookup map for the process functions
-    # This map has both column IDs and field names as keys pointing to column structs
-    columns_map =
-      raw_columns
-      |> Enum.into(%{}, fn {key, col} ->
-        # Preserve the original field identifier as colid
-        col_with_metadata = col
-          |> Map.put(:field, col.name)
-          |> Map.put(:colid, key)  # Store the actual field identifier
-        {key, col_with_metadata}
-      end)
-      |> then(fn cols ->
-        # Also add entries by display name for lookup convenience
-        Enum.reduce(cols, cols, fn {_colid, col}, acc ->
-          Map.put(acc, col.name, col)
-        end)
-      end)
-
-    filters_by_section =
-      Map.get(params, "filters", %{})
-      |> Map.values()
-      |> Enum.filter(fn f ->
-        # Only include actual filters with required fields
-        # Custom component filters don't have "comp" - they only need "filter" and "section"
-        is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "section")
-      end)
-      |> Enum.reduce(%{}, fn f, acc ->
-        Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
-      end)
-
-    filtered = filter_recurse(selecto, filters_by_section, "filters")
-
-    selected_view = SafeAtom.to_view_mode(Map.get(params, "view_mode"))
-
-    # Include the current detail page if we're in detail view
-    params = if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do
-      Map.put(params, "detail_page", to_string(socket.assigns.current_detail_page))
-    else
-      params
-    end
-
-    # Handle case where view might not be found
-    view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
-    {view_set, view_meta} = case view_tuple do
-      {_id, _module, _name, _opt} = tuple ->
-        ViewRuntime.view(
-          tuple,
-          params,
-          columns_map,
-          filtered,
-          selecto
-        )
-      nil ->
-        # View not found - raise error that will be caught
-        raise "View mode '#{selected_view}' not found in configured views"
-    end
-
-    selecto = Map.put(selecto, :set, view_set)
-
-    # Apply automatic pivot if needed
-    view_mode = Map.get(params, "view_mode", "detail")
-    selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
-    selecto = Selecto.AutoPivot.maybe_apply(selecto,
-      view_mode: view_mode,
-      selected: selected_columns
-    )
-
-
-    # Apply subselects if denorm_groups were configured
-    selecto = if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and map_size(selecto.set.denorm_groups) > 0 do
-      denorm_groups = selecto.set.denorm_groups
-
-      # The selecto already has the selected columns set, we just need to add subselects
-      # Use SubselectBuilder to add subselects for denormalizing columns
-      try do
-        # Add subselects for each denormalizing group
-        result = Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-          # Add subselect for #{relationship_path} with columns: #{inspect(columns)}
-          SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
+      # Convert columns to the format expected by ListPicker components
+      # ListPicker expects a list of {id, name, format} tuples
+      columns_list =
+        raw_columns
+        |> Enum.map(fn {key, col} ->
+          {key, col.name, col.type}
         end)
 
-        result
-      rescue
-        e ->
-          # Failed to apply subselects: #{inspect(e)}
-          # Fall back to original selecto if subselects fail
-          selecto
-      end
-    else
-      # No denorm_groups to process
-      selecto
-    end
+      # Create columns lookup map for the process functions
+      # This map has both column IDs and field names as keys pointing to column structs
+      columns_map =
+        raw_columns
+        |> Enum.into(%{}, fn {key, col} ->
+          # Preserve the original field identifier as colid
+          col_with_metadata =
+            col
+            |> Map.put(:field, col.name)
+            # Store the actual field identifier
+            |> Map.put(:colid, key)
 
-    # Apply sorting if provided
-    selecto = if socket.assigns[:sort_by] do
-      Sorting.apply_sort_to_query(selecto, socket.assigns.sort_by)
-    else
-      selecto
-    end
-
-    # Execute query using the new metadata-returning function
-    # This handles errors gracefully and won't crash the LiveView
-    query_result = try do
-      Selecto.execute_with_metadata(selecto)
-    rescue
-      error ->
-        # Catch any errors during execution to prevent LiveView crashes
-        {:error, Selecto.Error.from_reason(error)}
-    catch
-      :exit, reason ->
-        # Catch exits (like connection failures) to prevent LiveView crashes
-        {:error, Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
-    end
-
-    case query_result do
-      {:ok, {rows, columns, aliases}, metadata} ->
-        # Extract metadata from the new execute function
-        query_sql = Map.get(metadata, :sql)
-        query_params = Map.get(metadata, :params, [])
-        execution_time = Map.get(metadata, :execution_time, 0)
-
-        # Record query metrics
-        MetricsCollector.record_query(
-          query_sql,
-          execution_time,
-          %{
-            rows_returned: length(rows),
-            columns_count: length(columns),
-            view_mode: socket.assigns.view_config.view_mode,
-            has_filters: length(selecto.set.filtered) > 0,
-            has_grouping: length(selecto.set.group_by) > 0,
-            params: query_params
-          }
-        )
-
-        # Convert rows to maps if they're lists (happens with subselects)
-        # But only for detail views - aggregate views need list format
-        normalized_rows = if socket.assigns.view_config.view_mode == "detail" and
-                            length(rows) > 0 and is_list(hd(rows)) do
-          # Converting list rows to maps for detail view
-          Enum.map(rows, fn row ->
-            Enum.zip(columns, row) |> Map.new()
+          {key, col_with_metadata}
+        end)
+        |> then(fn cols ->
+          # Also add entries by display name for lookup convenience
+          Enum.reduce(cols, cols, fn {_colid, col}, acc ->
+            Map.put(acc, col.name, col)
           end)
+        end)
+
+      filters_by_section =
+        Map.get(params, "filters", %{})
+        |> Map.values()
+        |> Enum.filter(fn f ->
+          # Only include actual filters with required fields
+          # Custom component filters don't have "comp" - they only need "filter" and "section"
+          is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "section")
+        end)
+        |> Enum.reduce(%{}, fn f, acc ->
+          Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
+        end)
+
+      filtered = filter_recurse(selecto, filters_by_section, "filters")
+
+      selected_view = SafeAtom.to_view_mode(Map.get(params, "view_mode"))
+
+      # Include the current detail page if we're in detail view
+      params =
+        if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do
+          Map.put(params, "detail_page", to_string(socket.assigns.current_detail_page))
         else
-          rows
+          params
         end
 
-        # Check if any rows have subselect data
-        # Debug inspection removed - data structure validated elsewhere
+      # Handle case where view might not be found
+      view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
 
-        view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
+      {view_set, view_meta} =
+        case view_tuple do
+          {_id, _module, _name, _opt} = tuple ->
+            ViewRuntime.view(
+              tuple,
+              params,
+              columns_map,
+              filtered,
+              selecto
+            )
 
-        # Store query info in component state
-        socket = Phoenix.Component.assign(socket,
-          selecto: selecto,
-          columns: columns_list,
-          field_filters: Selecto.filters(selecto),
-          query_results: {normalized_rows, columns, aliases},
-          used_params: params,
-          applied_view: Map.get(params, "view_mode"),
-          view_meta: view_meta,
-          executed: true,
-          execution_error: nil,
-          last_query_info: %{
-            sql: query_sql,
-            params: query_params,
-            timing: execution_time
-          }
+          nil ->
+            # View not found - raise error that will be caught
+            raise "View mode '#{selected_view}' not found in configured views"
+        end
+
+      selecto = Map.put(selecto, :set, view_set)
+
+      # Apply automatic pivot if needed
+      view_mode = Map.get(params, "view_mode", "detail")
+      selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
+
+      selecto =
+        Selecto.AutoPivot.maybe_apply(selecto,
+          view_mode: view_mode,
+          selected: selected_columns
         )
 
-        # Send query info to parent LiveView so it can pass to Results component
-        send(self(), {:query_executed, %{
-          query_results: {normalized_rows, columns, aliases},
-          last_query_info: %{
-            sql: query_sql,
-            params: query_params,
-            timing: execution_time
-          },
-          view_meta: view_meta,
-          applied_view: Map.get(params, "view_mode")
-        }})
+      # Apply subselects if denorm_groups were configured
+      selecto =
+        if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and
+             map_size(selecto.set.denorm_groups) > 0 do
+          denorm_groups = selecto.set.denorm_groups
 
-        socket
+          # The selecto already has the selected columns set, we just need to add subselects
+          # Use SubselectBuilder to add subselects for denormalizing columns
+          try do
+            # Add subselects for each denormalizing group
+            result =
+              Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
+                # Add subselect for #{relationship_path} with columns: #{inspect(columns)}
+                SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
+              end)
 
-      {:error, %Selecto.Error{} = error} ->
-        sanitized_error = SelectoComponents.Form.sanitize_error_for_environment(error)
-        if SelectoComponents.Form.dev_mode?() do
-          # Selecto.Error occurred
-        end
-
-        # Try to extract SQL even in error case for debugging
-        {error_sql, error_params} = try do
-          case Selecto.to_sql(selecto) do
-            {sql, params} -> {sql, params}
-            _ -> {nil, []}
+            result
+          rescue
+            _e ->
+              # Failed to apply subselects: #{inspect(e)}
+              # Fall back to original selecto if subselects fail
+              selecto
           end
+        else
+          # No denorm_groups to process
+          selecto
+        end
+
+      # Apply sorting if provided
+      selecto =
+        if socket.assigns[:sort_by] do
+          Sorting.apply_sort_to_query(selecto, socket.assigns.sort_by)
+        else
+          selecto
+        end
+
+      # Execute query using the new metadata-returning function
+      # This handles errors gracefully and won't crash the LiveView
+      query_result =
+        try do
+          Selecto.execute_with_metadata(selecto)
         rescue
-          _ -> {nil, []}
+          error ->
+            # Catch any errors during execution to prevent LiveView crashes
+            {:error, Selecto.Error.from_reason(error)}
+        catch
+          :exit, reason ->
+            # Catch exits (like connection failures) to prevent LiveView crashes
+            {:error,
+             Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
         end
 
-        Phoenix.Component.assign(socket,
-          selecto: selecto,
-          columns: columns_list,
-          field_filters: Selecto.filters(selecto),
-          query_results: nil,
-          used_params: params,
-          applied_view: Map.get(params, "view_mode"),
-          view_meta: view_meta,
-          executed: false,
-          execution_error: sanitized_error,
-          last_query_info: %{
-            sql: error_sql,
-            params: error_params,
-            timing: nil
-          }
-        )
+      case query_result do
+        {:ok, {rows, columns, aliases}, metadata} ->
+          # Extract metadata from the new execute function
+          query_sql = Map.get(metadata, :sql)
+          query_params = Map.get(metadata, :params, [])
+          execution_time = Map.get(metadata, :execution_time, 0)
 
-      {:error, error} ->
-        sanitized_error = SelectoComponents.Form.sanitize_error_for_environment(%Selecto.Error{
-          type: :query_error,
-          message: inspect(error),
-          details: %{original_error: error}
-        })
+          # Record query metrics
+          MetricsCollector.record_query(
+            query_sql,
+            execution_time,
+            %{
+              rows_returned: length(rows),
+              columns_count: length(columns),
+              view_mode: socket.assigns.view_config.view_mode,
+              has_filters: length(selecto.set.filtered) > 0,
+              has_grouping: length(selecto.set.group_by) > 0,
+              params: query_params
+            }
+          )
 
-        if SelectoComponents.Form.dev_mode?() do
-          # Generic error occurred
-        end
+          # Convert rows to maps if they're lists (happens with subselects)
+          # But only for detail views - aggregate views need list format
+          normalized_rows =
+            if socket.assigns.view_config.view_mode == "detail" and
+                 length(rows) > 0 and is_list(hd(rows)) do
+              # Converting list rows to maps for detail view
+              Enum.map(rows, fn row ->
+                Enum.zip(columns, row) |> Map.new()
+              end)
+            else
+              rows
+            end
 
-        # Try to extract SQL even in error case for debugging
-        {error_sql, error_params} = try do
-          case Selecto.to_sql(selecto) do
-            {sql, params} -> {sql, params}
-            _ -> {nil, []}
+          # Check if any rows have subselect data
+          # Debug inspection removed - data structure validated elsewhere
+
+          view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
+
+          # Store query info in component state
+          socket =
+            Phoenix.Component.assign(socket,
+              selecto: selecto,
+              columns: columns_list,
+              field_filters: Selecto.filters(selecto),
+              query_results: {normalized_rows, columns, aliases},
+              used_params: params,
+              applied_view: Map.get(params, "view_mode"),
+              view_meta: view_meta,
+              executed: true,
+              execution_error: nil,
+              last_query_info: %{
+                sql: query_sql,
+                params: query_params,
+                timing: execution_time
+              }
+            )
+
+          # Send query info to parent LiveView so it can pass to Results component
+          send(
+            self(),
+            {:query_executed,
+             %{
+               query_results: {normalized_rows, columns, aliases},
+               last_query_info: %{
+                 sql: query_sql,
+                 params: query_params,
+                 timing: execution_time
+               },
+               view_meta: view_meta,
+               applied_view: Map.get(params, "view_mode")
+             }}
+          )
+
+          socket
+
+        {:error, %Selecto.Error{} = error} ->
+          sanitized_error = SelectoComponents.Form.sanitize_error_for_environment(error)
+
+          if SelectoComponents.Form.dev_mode?() do
+            # Selecto.Error occurred
           end
-        rescue
-          _ -> {nil, []}
-        end
 
-        Phoenix.Component.assign(socket,
-          selecto: selecto,
-          columns: columns_list,
-          field_filters: Selecto.filters(selecto),
-          query_results: nil,
-          used_params: params,
-          applied_view: Map.get(params, "view_mode"),
-          view_meta: view_meta,
-          executed: false,
-          execution_error: sanitized_error,
-          last_query_info: %{
-            sql: error_sql,
-            params: error_params,
-            timing: nil
-          }
-        )
-    end
+          # Try to extract SQL even in error case for debugging
+          {error_sql, error_params} =
+            try do
+              case Selecto.to_sql(selecto) do
+                {sql, params} -> {sql, params}
+                _ -> {nil, []}
+              end
+            rescue
+              _ -> {nil, []}
+            end
+
+          Phoenix.Component.assign(socket,
+            selecto: selecto,
+            columns: columns_list,
+            field_filters: Selecto.filters(selecto),
+            query_results: nil,
+            used_params: params,
+            applied_view: Map.get(params, "view_mode"),
+            view_meta: view_meta,
+            executed: false,
+            execution_error: sanitized_error,
+            last_query_info: %{
+              sql: error_sql,
+              params: error_params,
+              timing: nil
+            }
+          )
+
+        {:error, error} ->
+          sanitized_error =
+            SelectoComponents.Form.sanitize_error_for_environment(%Selecto.Error{
+              type: :query_error,
+              message: inspect(error),
+              details: %{original_error: error}
+            })
+
+          if SelectoComponents.Form.dev_mode?() do
+            # Generic error occurred
+          end
+
+          # Try to extract SQL even in error case for debugging
+          {error_sql, error_params} =
+            try do
+              case Selecto.to_sql(selecto) do
+                {sql, params} -> {sql, params}
+                _ -> {nil, []}
+              end
+            rescue
+              _ -> {nil, []}
+            end
+
+          Phoenix.Component.assign(socket,
+            selecto: selecto,
+            columns: columns_list,
+            field_filters: Selecto.filters(selecto),
+            query_results: nil,
+            used_params: params,
+            applied_view: Map.get(params, "view_mode"),
+            view_meta: view_meta,
+            executed: false,
+            execution_error: sanitized_error,
+            last_query_info: %{
+              sql: error_sql,
+              params: error_params,
+              timing: nil
+            }
+          )
+      end
     rescue
       error ->
         # Handle any errors that occur during view processing
-        sanitized_error = case error do
-          %Selecto.Error{} = e -> e
-          e when is_binary(e) -> %Selecto.Error{type: :view_error, message: e, details: %{}}
-          e -> %Selecto.Error{type: :view_error, message: "Error processing view: #{inspect(e)}", details: %{error: e}}
-        end
+        sanitized_error = Selecto.Error.from_reason(error)
 
         if SelectoComponents.Form.dev_mode?() do
           # View error occurred
@@ -496,11 +520,12 @@ defmodule SelectoComponents.Form.ParamsState do
     existing_config = socket.assigns[:view_config] || %{}
 
     Phoenix.Component.assign(socket,
-      view_config: Map.merge(existing_config, %{
-        filters: filters,
-        views: view_configs,
-        view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-      })
+      view_config:
+        Map.merge(existing_config, %{
+          filters: filters,
+          views: view_configs,
+          view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+        })
     )
   end
 
@@ -521,56 +546,92 @@ defmodule SelectoComponents.Form.ParamsState do
     }
 
     # Convert selected items
-    params = if selected = get_map_value(view_config, :selected) do
-      selected_params = selected
-      |> Enum.with_index()
-      |> Enum.reduce(%{}, fn
-        {[uuid, field, config], index}, acc ->
-          Map.put(acc, uuid, Map.merge(config, %{
-            "field" => field,
-            "index" => to_string(index)
-          }))
-        {{uuid, field, config}, index}, acc ->
-          Map.put(acc, uuid, Map.merge(config, %{
-            "field" => field,
-            "index" => to_string(index)
-          }))
-      end)
-      Map.put(params, "selected", selected_params)
-    else
-      params
-    end
+    params =
+      if selected = get_map_value(view_config, :selected) do
+        selected_params =
+          selected
+          |> Enum.with_index()
+          |> Enum.reduce(%{}, fn
+            {[uuid, field, config], index}, acc ->
+              Map.put(
+                acc,
+                uuid,
+                Map.merge(config, %{
+                  "field" => field,
+                  "index" => to_string(index)
+                })
+              )
+
+            {{uuid, field, config}, index}, acc ->
+              Map.put(
+                acc,
+                uuid,
+                Map.merge(config, %{
+                  "field" => field,
+                  "index" => to_string(index)
+                })
+              )
+          end)
+
+        Map.put(params, "selected", selected_params)
+      else
+        params
+      end
 
     # Convert order_by items - always set this to ensure replacement
     order_by = get_map_value(view_config, :order_by, [])
-    order_by_params = order_by
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn
-      {[uuid, field, config], index}, acc ->
-        # Ensure all keys and values in config are strings
-        string_config = case config do
-          nil -> %{}
-          map when is_map(map) ->
-            Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
-          _ -> %{}
-        end
-        Map.put(acc, uuid, Map.merge(string_config, %{
-          "field" => field,
-          "index" => to_string(index)
-        }))
-      {{uuid, field, config}, index}, acc ->
-        # Ensure all keys and values in config are strings
-        string_config = case config do
-          nil -> %{}
-          map when is_map(map) ->
-            Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
-          _ -> %{}
-        end
-        Map.put(acc, uuid, Map.merge(string_config, %{
-          "field" => field,
-          "index" => to_string(index)
-        }))
-    end)
+
+    order_by_params =
+      order_by
+      |> Enum.with_index()
+      |> Enum.reduce(%{}, fn
+        {[uuid, field, config], index}, acc ->
+          # Ensure all keys and values in config are strings
+          string_config =
+            case config do
+              nil ->
+                %{}
+
+              map when is_map(map) ->
+                Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
+
+              _ ->
+                %{}
+            end
+
+          Map.put(
+            acc,
+            uuid,
+            Map.merge(string_config, %{
+              "field" => field,
+              "index" => to_string(index)
+            })
+          )
+
+        {{uuid, field, config}, index}, acc ->
+          # Ensure all keys and values in config are strings
+          string_config =
+            case config do
+              nil ->
+                %{}
+
+              map when is_map(map) ->
+                Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
+
+              _ ->
+                %{}
+            end
+
+          Map.put(
+            acc,
+            uuid,
+            Map.merge(string_config, %{
+              "field" => field,
+              "index" => to_string(index)
+            })
+          )
+      end)
+
     params = Map.put(params, "order_by", order_by_params)
 
     # Add other view-specific params

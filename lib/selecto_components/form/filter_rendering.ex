@@ -14,6 +14,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
 
   use Phoenix.Component
+  require Logger
 
   @doc """
   Render a filter form based on the filter definition and field type.
@@ -31,30 +32,34 @@ defmodule SelectoComponents.Form.FilterRendering do
       case Selecto.filters(assigns.selecto) do
         filters when is_map(filters) ->
           Map.get(filters, filter_id)
+
         _ ->
           nil
       end
 
     # Also try to get the column definition if filter_def is nil
-    column_def = if filter_def == nil do
-      columns = Selecto.columns(assigns.selecto)
-      Enum.find_value(columns, fn {_key, col} ->
-        if col.colid == filter_id or to_string(col.colid) == filter_id do
-          col
-        else
-          nil
-        end
-      end)
-    else
-      filter_def
-    end
+    column_def =
+      if filter_def == nil do
+        columns = Selecto.columns(assigns.selecto)
+
+        Enum.find_value(columns, fn {_key, col} ->
+          if col.colid == filter_id or to_string(col.colid) == filter_id do
+            col
+          else
+            nil
+          end
+        end)
+      else
+        filter_def
+      end
 
     # Determine the field type
-    field_type = cond do
-      filter_def && Map.has_key?(filter_def, :type) -> Map.get(filter_def, :type)
-      column_def && Map.has_key?(column_def, :type) -> Map.get(column_def, :type)
-      true -> :string
-    end
+    field_type =
+      cond do
+        filter_def && Map.has_key?(filter_def, :type) -> Map.get(filter_def, :type)
+        column_def && Map.has_key?(column_def, :type) -> Map.get(column_def, :type)
+        true -> :string
+      end
 
     # Check if this is a custom filter with a component
     if filter_def && Map.get(filter_def, :type) == :component && Map.get(filter_def, :component) do
@@ -74,24 +79,25 @@ defmodule SelectoComponents.Form.FilterRendering do
 
       ~H"""
       <div>
-        <%= @def.component.(assigns) %>
-        <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-        <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-        <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+        {@def.component.(assigns)}
+        <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+        <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+        <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+        <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
       </div>
       """
     else
       # Render the default filter form based on field type
-      assigns = Map.merge(assigns, %{
-        uuid: uuid,
-        section: section,
-        index: index,
-        filter_value: filter_value,
-        field_type: field_type,
-        column_def: column_def,
-        filter_def: filter_def
-      })
+      assigns =
+        Map.merge(assigns, %{
+          uuid: uuid,
+          section: section,
+          index: index,
+          filter_value: filter_value,
+          field_type: field_type,
+          column_def: column_def,
+          filter_def: filter_def
+        })
 
       # Check if this is a join_mode field (lookup/star/tag) - should render as multi-select
       join_mode_config = find_join_mode_config(assigns.selecto, filter_id, column_def)
@@ -103,12 +109,16 @@ defmodule SelectoComponents.Form.FilterRendering do
       cond do
         polymorphic_config ->
           render_polymorphic_filter(Map.put(assigns, :polymorphic_config, polymorphic_config))
+
         join_mode_config ->
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
+
         field_type in [:naive_datetime, :utc_datetime, :date] ->
           render_datetime_filter(assigns)
+
         field_type == :tsvector ->
           render_text_search_filter(assigns)
+
         true ->
           render_standard_filter(assigns)
       end
@@ -147,7 +157,8 @@ defmodule SelectoComponents.Form.FilterRendering do
           class="sc-select"
           phx-change="datetime-filter-change"
           phx-target={@myself}
-          phx-value-uuid={@uuid}>
+          phx-value-uuid={@uuid}
+        >
           <option value="=" selected={@filter_value["comp"] == "="}>On</option>
           <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
           <option value="DATE=" selected={@filter_value["comp"] == "DATE="}>Date Equals</option>
@@ -157,11 +168,19 @@ defmodule SelectoComponents.Form.FilterRendering do
           <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
           <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
           <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
-          <option value="DATE_BETWEEN" selected={@filter_value["comp"] == "DATE_BETWEEN"}>Date Between</option>
-          <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>Quick Select</option>
-          <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>Relative Days</option>
+          <option value="DATE_BETWEEN" selected={@filter_value["comp"] == "DATE_BETWEEN"}>
+            Date Between
+          </option>
+          <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>
+            Quick Select
+          </option>
+          <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>
+            Relative Days
+          </option>
           <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>
+            Is Not Empty
+          </option>
         </select>
 
         <%= cond do %>
@@ -184,54 +203,107 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="300"
               />
             </div>
-
           <% @filter_value["comp"] == "SHORTCUT" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
               <optgroup label="Days">
                 <option value="today" selected={@filter_value["value"] == "today"}>Today</option>
-                <option value="yesterday" selected={@filter_value["value"] == "yesterday"}>Yesterday</option>
-                <option value="tomorrow" selected={@filter_value["value"] == "tomorrow"}>Tomorrow</option>
+                <option value="yesterday" selected={@filter_value["value"] == "yesterday"}>
+                  Yesterday
+                </option>
+                <option value="tomorrow" selected={@filter_value["value"] == "tomorrow"}>
+                  Tomorrow
+                </option>
               </optgroup>
               <optgroup label="Weeks">
-                <option value="this_week" selected={@filter_value["value"] == "this_week"}>This Week</option>
-                <option value="last_week" selected={@filter_value["value"] == "last_week"}>Last Week</option>
-                <option value="next_week" selected={@filter_value["value"] == "next_week"}>Next Week</option>
+                <option value="this_week" selected={@filter_value["value"] == "this_week"}>
+                  This Week
+                </option>
+                <option value="last_week" selected={@filter_value["value"] == "last_week"}>
+                  Last Week
+                </option>
+                <option value="next_week" selected={@filter_value["value"] == "next_week"}>
+                  Next Week
+                </option>
               </optgroup>
               <optgroup label="Months">
-                <option value="this_month" selected={@filter_value["value"] == "this_month"}>This Month</option>
-                <option value="last_month" selected={@filter_value["value"] == "last_month"}>Last Month</option>
-                <option value="next_month" selected={@filter_value["value"] == "next_month"}>Next Month</option>
+                <option value="this_month" selected={@filter_value["value"] == "this_month"}>
+                  This Month
+                </option>
+                <option value="last_month" selected={@filter_value["value"] == "last_month"}>
+                  Last Month
+                </option>
+                <option value="next_month" selected={@filter_value["value"] == "next_month"}>
+                  Next Month
+                </option>
                 <option value="mtd" selected={@filter_value["value"] == "mtd"}>Month to Date</option>
               </optgroup>
               <optgroup label="Quarters">
-                <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>This Quarter</option>
-                <option value="last_quarter" selected={@filter_value["value"] == "last_quarter"}>Last Quarter</option>
-                <option value="next_quarter" selected={@filter_value["value"] == "next_quarter"}>Next Quarter</option>
-                <option value="qtd" selected={@filter_value["value"] == "qtd"}>Quarter to Date</option>
+                <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>
+                  This Quarter
+                </option>
+                <option value="last_quarter" selected={@filter_value["value"] == "last_quarter"}>
+                  Last Quarter
+                </option>
+                <option value="next_quarter" selected={@filter_value["value"] == "next_quarter"}>
+                  Next Quarter
+                </option>
+                <option value="qtd" selected={@filter_value["value"] == "qtd"}>
+                  Quarter to Date
+                </option>
               </optgroup>
               <optgroup label="Years">
-                <option value="this_year" selected={@filter_value["value"] == "this_year"}>This Year</option>
-                <option value="last_year" selected={@filter_value["value"] == "last_year"}>Last Year</option>
-                <option value="next_year" selected={@filter_value["value"] == "next_year"}>Next Year</option>
+                <option value="this_year" selected={@filter_value["value"] == "this_year"}>
+                  This Year
+                </option>
+                <option value="last_year" selected={@filter_value["value"] == "last_year"}>
+                  Last Year
+                </option>
+                <option value="next_year" selected={@filter_value["value"] == "next_year"}>
+                  Next Year
+                </option>
                 <option value="ytd" selected={@filter_value["value"] == "ytd"}>Year to Date</option>
               </optgroup>
               <optgroup label="Relative Periods">
-                <option value="last_7_days" selected={@filter_value["value"] == "last_7_days"}>Last 7 Days</option>
-                <option value="last_30_days" selected={@filter_value["value"] == "last_30_days"}>Last 30 Days</option>
-                <option value="last_60_days" selected={@filter_value["value"] == "last_60_days"}>Last 60 Days</option>
-                <option value="last_90_days" selected={@filter_value["value"] == "last_90_days"}>Last 90 Days</option>
-                <option value="next_7_days" selected={@filter_value["value"] == "next_7_days"}>Next 7 Days</option>
-                <option value="next_30_days" selected={@filter_value["value"] == "next_30_days"}>Next 30 Days</option>
+                <option value="last_7_days" selected={@filter_value["value"] == "last_7_days"}>
+                  Last 7 Days
+                </option>
+                <option value="last_30_days" selected={@filter_value["value"] == "last_30_days"}>
+                  Last 30 Days
+                </option>
+                <option value="last_60_days" selected={@filter_value["value"] == "last_60_days"}>
+                  Last 60 Days
+                </option>
+                <option value="last_90_days" selected={@filter_value["value"] == "last_90_days"}>
+                  Last 90 Days
+                </option>
+                <option value="next_7_days" selected={@filter_value["value"] == "next_7_days"}>
+                  Next 7 Days
+                </option>
+                <option value="next_30_days" selected={@filter_value["value"] == "next_30_days"}>
+                  Next 30 Days
+                </option>
               </optgroup>
               <optgroup label="Year Comparisons">
-                <option value="last_ytd" selected={@filter_value["value"] == "last_ytd"}>Last Year YTD (same period)</option>
-                <option value="ytd_vs_last" selected={@filter_value["value"] == "ytd_vs_last"}>This Year and Last Year YTD</option>
-                <option value="qtd_vs_last" selected={@filter_value["value"] == "qtd_vs_last"}>This Quarter and Last Quarter QTD</option>
-                <option value="mtd_vs_last" selected={@filter_value["value"] == "mtd_vs_last"}>This Month and Last Month MTD</option>
-                <option value="mtd_vs_last_year" selected={@filter_value["value"] == "mtd_vs_last_year"}>This Month MTD and Last Year's MTD</option>
+                <option value="last_ytd" selected={@filter_value["value"] == "last_ytd"}>
+                  Last Year YTD (same period)
+                </option>
+                <option value="ytd_vs_last" selected={@filter_value["value"] == "ytd_vs_last"}>
+                  This Year and Last Year YTD
+                </option>
+                <option value="qtd_vs_last" selected={@filter_value["value"] == "qtd_vs_last"}>
+                  This Quarter and Last Quarter QTD
+                </option>
+                <option value="mtd_vs_last" selected={@filter_value["value"] == "mtd_vs_last"}>
+                  This Month and Last Month MTD
+                </option>
+                <option
+                  value="mtd_vs_last_year"
+                  selected={@filter_value["value"] == "mtd_vs_last_year"}
+                >
+                  This Month MTD and Last Year's MTD
+                </option>
               </optgroup>
             </select>
-
           <% @filter_value["comp"] == "RELATIVE" -> %>
             <div class="col-span-2 flex gap-2">
               <input
@@ -244,14 +316,12 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="500"
               />
               <div class="text-xs text-gray-500 self-center">
-                <span class="font-semibold">Examples:</span>
-                1 = yesterday,
+                <span class="font-semibold">Examples:</span> 1 = yesterday,
                 3-7 = 3-7 days ago,
                 -30 = over 30 days ago,
                 30- = within 30 days
               </div>
             </div>
-
           <% @filter_value["comp"] in ["DATE=", "DATE!="] -> %>
             <input
               type="date"
@@ -259,12 +329,10 @@ defmodule SelectoComponents.Form.FilterRendering do
               value={format_datetime_value(@filter_value["value"], :date)}
               class="sc-input col-span-2"
             />
-
           <% @filter_value["comp"] in ["IS NULL", "IS NOT NULL"] -> %>
             <div class="col-span-2 text-gray-500 text-sm self-center">
               No value needed
             </div>
-
           <% true -> %>
             <input
               type={if @field_type == :date, do: "date", else: "datetime-local"}
@@ -276,10 +344,10 @@ defmodule SelectoComponents.Form.FilterRendering do
         <% end %>
       </div>
 
-      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
     </div>
     """
   end
@@ -318,9 +386,13 @@ defmodule SelectoComponents.Form.FilterRendering do
         <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
         <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
         <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
-        <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>Does Not Contain</option>
+        <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>
+          Does Not Contain
+        </option>
         <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>Is Not Empty</option>
+        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>
+          Is Not Empty
+        </option>
       </select>
 
       <%= cond do %>
@@ -343,9 +415,8 @@ defmodule SelectoComponents.Form.FilterRendering do
               phx-debounce="300"
             />
           </div>
-
         <% @is_multi_select_id -> %>
-        <%!-- Multi-select ID filter input with helpful placeholder --%>
+          <%!-- Multi-select ID filter input with helpful placeholder --%>
           <div class="col-span-2">
             <input
               type="text"
@@ -360,9 +431,8 @@ defmodule SelectoComponents.Form.FilterRendering do
               💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
             </div>
           </div>
-
         <% true -> %>
-        <%!-- Standard text input --%>
+          <%!-- Standard text input --%>
           <input
             type="text"
             name={"filters[#{@uuid}][value]"}
@@ -374,10 +444,10 @@ defmodule SelectoComponents.Form.FilterRendering do
           />
       <% end %>
 
-      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
     </div>
     """
   end
@@ -397,7 +467,12 @@ defmodule SelectoComponents.Form.FilterRendering do
     <div class="grid grid-cols-1 gap-2">
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
         <input
           type="text"
@@ -412,10 +487,10 @@ defmodule SelectoComponents.Form.FilterRendering do
         Full-text search supports phrases in quotes, OR for alternatives, and - to exclude terms
       </div>
 
-      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
     </div>
     """
   end
@@ -429,6 +504,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def format_datetime_value(nil, _type), do: ""
   def format_datetime_value("", _type), do: ""
+
   def format_datetime_value(value, :date) when is_binary(value) do
     # Try to parse and format as YYYY-MM-DD
     case Date.from_iso8601(value) do
@@ -436,14 +512,22 @@ defmodule SelectoComponents.Form.FilterRendering do
       _ -> String.slice(value, 0..9)
     end
   end
-  def format_datetime_value(value, type) when type in [:naive_datetime, :utc_datetime] and is_binary(value) do
+
+  def format_datetime_value(value, type)
+      when type in [:naive_datetime, :utc_datetime] and is_binary(value) do
     # Try to parse and format as YYYY-MM-DDTHH:MM for datetime-local input
     cond do
-      String.contains?(value, "T") -> String.slice(value, 0..15)
-      String.length(value) >= 16 -> String.slice(value, 0..9) <> "T" <> String.slice(value, 11..15)
-      true -> value
+      String.contains?(value, "T") ->
+        String.slice(value, 0..15)
+
+      String.length(value) >= 16 ->
+        String.slice(value, 0..9) <> "T" <> String.slice(value, 11..15)
+
+      true ->
+        value
     end
   end
+
   def format_datetime_value(value, _type), do: value
 
   @doc """
@@ -458,6 +542,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                 next_7_days next_30_days
                 ytd_vs_last qtd_vs_last mtd_vs_last last_ytd mtd_vs_last_year)
   end
+
   def is_date_shortcut(_), do: false
 
   @doc """
@@ -473,6 +558,7 @@ defmodule SelectoComponents.Form.FilterRendering do
     # Matches patterns like: 5, 3-7, -30, 30-
     Regex.match?(~r/^-?\d+(-\d+)?-?$/, value)
   end
+
   def is_relative_date(_), do: false
 
   @doc """
@@ -521,82 +607,78 @@ defmodule SelectoComponents.Form.FilterRendering do
     end)
   end
 
-  @doc """
-  Find join mode configuration for a filter field.
-
-  Handles two cases:
-  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
-  2. Filtering on "category_id" (product table) - finds the category schema field that has group_by_filter: "category_id"
-  """
   defp find_join_mode_config(selecto, filter_id, column_def) do
     # Check if column_def already has join_mode
     if column_def && Map.get(column_def, :join_mode) in [:lookup, :star, :tag] &&
-       Map.get(column_def, :filter_type) == :multi_select_id do
+         Map.get(column_def, :filter_type) == :multi_select_id do
       column_def
     else
       domain = Selecto.domain(selecto)
 
       # Parse filter_id to get schema and field parts
-      {schema_name, field_part} = if is_binary(filter_id) and String.contains?(filter_id, ".") do
-        parts = String.split(filter_id, ".", parts: 2)
-        {Enum.at(parts, 0), Enum.at(parts, 1)}
-      else
-        # For fields without schema prefix (e.g., "category_id"), use source schema
-        source_table = get_in(domain, [:source, :source_table])
-        {source_table, filter_id}
-      end
+      {schema_name, field_part} =
+        if is_binary(filter_id) and String.contains?(filter_id, ".") do
+          parts = String.split(filter_id, ".", parts: 2)
+          {Enum.at(parts, 0), Enum.at(parts, 1)}
+        else
+          # For fields without schema prefix (e.g., "category_id"), use source schema
+          source_table = get_in(domain, [:source, :source_table])
+          {source_table, filter_id}
+        end
 
       # Check if this is an ID field that might have join_mode configuration
       if field_part in ["id"] or String.ends_with?(field_part || "", "_id") do
-        schema_atom = try do
-          String.to_existing_atom(schema_name)
-        rescue
-          ArgumentError -> nil
-        end
+        schema_atom =
+          try do
+            String.to_existing_atom(schema_name)
+          rescue
+            ArgumentError -> nil
+          end
 
-        result_case1 = if schema_atom do
-          # Case 1: filtering on "category.id" - look in category schema for join_mode field
-          schema_config = get_in(domain, [:schemas, schema_atom])
+        result_case1 =
+          if schema_atom do
+            # Case 1: filtering on "category.id" - look in category schema for join_mode field
+            schema_config = get_in(domain, [:schemas, schema_atom])
 
-          if schema_config do
-            columns = Map.get(schema_config, :columns, %{})
+            if schema_config do
+              columns = Map.get(schema_config, :columns, %{})
 
-            Enum.find_value(columns, fn {_col_name, col_config} ->
-              join_mode = Map.get(col_config, :join_mode)
-              id_field = Map.get(col_config, :id_field)
-              filter_type = Map.get(col_config, :filter_type)
+              Enum.find_value(columns, fn {_col_name, col_config} ->
+                join_mode = Map.get(col_config, :join_mode)
+                id_field = Map.get(col_config, :id_field)
+                filter_type = Map.get(col_config, :filter_type)
 
-              if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
-                 (id_field == :id or Atom.to_string(id_field) == field_part) do
-                # Include source_table from schema config so query_table_options knows which table to query
-                source_table = Map.get(schema_config, :source_table)
-                Map.put(col_config, :source_table, source_table)
-              else
-                nil
-              end
-            end)
+                if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                     (id_field == :id or Atom.to_string(id_field) == field_part) do
+                  # Include source_table from schema config so query_table_options knows which table to query
+                  source_table = Map.get(schema_config, :source_table)
+                  Map.put(col_config, :source_table, source_table)
+                else
+                  nil
+                end
+              end)
+            else
+              nil
+            end
           else
             nil
           end
-        else
-          nil
-        end
 
         # Case 2: filtering on "category_id" (foreign key) - search all schemas for field with matching group_by_filter
         if result_case1 == nil and String.ends_with?(field_part, "_id") do
           schemas = Map.get(domain, :schemas, %{})
 
-          Enum.find_value(schemas, fn {schema_name_atom, schema_config} ->
+          Enum.find_value(schemas, fn {_schema_name_atom, schema_config} ->
             columns = Map.get(schema_config, :columns, %{})
 
-            Enum.find_value(columns, fn {col_name, col_config} ->
+            Enum.find_value(columns, fn {_col_name, col_config} ->
               join_mode = Map.get(col_config, :join_mode)
               filter_type = Map.get(col_config, :filter_type)
               group_by_filter = Map.get(col_config, :group_by_filter)
 
               if join_mode in [:lookup, :star, :tag] and
-                 filter_type == :multi_select_id and
-                 group_by_filter == field_part do
+                   filter_type == :multi_select_id and
+                   group_by_filter == field_part do
                 # Include source_table from schema config so query_table_options knows which table to query
                 source_table = Map.get(schema_config, :source_table)
                 Map.put(col_config, :source_table, source_table)
@@ -614,12 +696,6 @@ defmodule SelectoComponents.Form.FilterRendering do
     end
   end
 
-  @doc """
-  Render multi-select filter for join_mode fields (lookup/star/tag).
-
-  Displays checkboxes for small datasets (lookup mode) or searchable dropdown
-  for larger datasets (star/tag modes).
-  """
   defp render_multiselect_filter(assigns) do
     # Get the configuration
     join_mode_config = assigns.join_mode_config
@@ -632,11 +708,12 @@ defmodule SelectoComponents.Form.FilterRendering do
     join_mode = Map.get(join_mode_config, :join_mode, :lookup)
 
     # Query options from database using selecto's connection pool
-    options = if table do
-      query_table_options(assigns.selecto, table, id_field, display_field, 100)
-    else
-      []
-    end
+    options =
+      if table do
+        query_table_options(assigns.selecto, table, id_field, display_field, 100)
+      else
+        []
+      end
 
     # Parse selected IDs from filter value
     current_value = assigns.filter_value["value"] || ""
@@ -651,6 +728,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> Map.put(:selected_ids, selected_ids)
       |> Map.put(:join_mode, join_mode)
       |> Map.put(:current_comp, current_comp)
+      |> Map.put(:display_field, display_field)
 
     ~H"""
     <div class="space-y-2">
@@ -670,7 +748,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         </div>
       <% else %>
         <label class="text-sm font-medium text-gray-700">
-          Select <%= display_field %>:
+          Select {@display_field}:
         </label>
 
         <%= if @join_mode == :lookup and length(@options) < 20 do %>
@@ -685,7 +763,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                   checked={opt.id in @selected_ids}
                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                 />
-                <span class="text-sm text-gray-900"><%= opt.name %></span>
+                <span class="text-sm text-gray-900">{opt.name}</span>
               </label>
             <% end %>
           </div>
@@ -696,26 +774,29 @@ defmodule SelectoComponents.Form.FilterRendering do
             size="8"
             name={"filters[#{@uuid}][selected_ids][]"}
             phx-debounce="blur"
-            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+          >
             <%= for opt <- @options do %>
               <option value={opt.id} selected={opt.id in @selected_ids}>
-                <%= opt.name %>
+                {opt.name}
               </option>
             <% end %>
           </select>
-          <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Click outside when done.</p>
+          <p class="text-xs text-gray-500 mt-1">
+            Hold Ctrl/Cmd to select multiple. Click outside when done.
+          </p>
         <% end %>
 
         <div class="text-xs text-gray-500">
-          <%= length(@selected_ids) %> of <%= length(@options) %> selected
+          {length(@selected_ids)} of {length(@options)} selected
         </div>
       <% end %>
 
       <%!-- Hidden inputs to preserve filter structure --%>
-      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
 
       <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
       <%= if @current_comp in ["IN", "NOT IN"] do %>
@@ -732,8 +813,6 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   # Query database for ID+name pairs using Selecto's connection (Repo)
   defp query_table_options(selecto, table, id_field, display_field, limit) do
-    require Logger
-
     query = """
     SELECT #{id_field} as id, #{display_field} as name
     FROM #{table}
@@ -744,6 +823,7 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     # Use Repo.query directly - selecto.connection is the Repo module
     repo = selecto.connection
+
     case repo.query(query, [limit]) do
       {:ok, %{rows: rows}} ->
         Enum.map(rows, fn [id, name] ->
@@ -774,39 +854,37 @@ defmodule SelectoComponents.Form.FilterRendering do
     end)
     |> Enum.reject(&is_nil/1)
   end
+
   defp parse_filter_ids(_), do: []
 
-  @doc """
-  Find polymorphic join mode configuration for a filter field.
-
-  Looks for columns with join_mode: :polymorphic and returns the configuration
-  including the entity types that can be filtered.
-  """
   defp find_polymorphic_config(selecto, filter_id, column_def) do
     # Check if column_def already has polymorphic join_mode
     if column_def && Map.get(column_def, :join_mode) == :polymorphic &&
-       Map.get(column_def, :filter_type) == :polymorphic do
+         Map.get(column_def, :filter_type) == :polymorphic do
       column_def
     else
       domain = Selecto.domain(selecto)
 
       # Parse filter_id to get schema and field parts
-      {schema_name, field_part} = if is_binary(filter_id) and String.contains?(filter_id, ".") do
-        parts = String.split(filter_id, ".", parts: 2)
-        {Enum.at(parts, 0), Enum.at(parts, 1)}
-      else
-        # For fields without schema prefix, use source schema
-        source_table = get_in(domain, [:source, :source_table])
-        {source_table, filter_id}
-      end
+      {schema_name, field_part} =
+        if is_binary(filter_id) and String.contains?(filter_id, ".") do
+          parts = String.split(filter_id, ".", parts: 2)
+          {Enum.at(parts, 0), Enum.at(parts, 1)}
+        else
+          # For fields without schema prefix, use source schema
+          source_table = get_in(domain, [:source, :source_table])
+          {source_table, filter_id}
+        end
 
       # Check if this is a type or id field that might have polymorphic configuration
-      if String.ends_with?(field_part || "", "_type") or String.ends_with?(field_part || "", "_id") do
-        schema_atom = try do
-          String.to_existing_atom(schema_name)
-        rescue
-          ArgumentError -> nil
-        end
+      if String.ends_with?(field_part || "", "_type") or
+           String.ends_with?(field_part || "", "_id") do
+        schema_atom =
+          try do
+            String.to_existing_atom(schema_name)
+          rescue
+            ArgumentError -> nil
+          end
 
         if schema_atom do
           # Look in schema for polymorphic field
@@ -839,13 +917,6 @@ defmodule SelectoComponents.Form.FilterRendering do
     end
   end
 
-  @doc """
-  Render polymorphic filter with type selector and dynamic value loading.
-
-  Allows users to:
-  1. Select which entity type(s) to filter (Product, Order, Customer)
-  2. For each type, select specific entities via multi-select
-  """
   defp render_polymorphic_filter(assigns) do
     # Get the configuration
     polymorphic_config = assigns.polymorphic_config
@@ -885,7 +956,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               checked={entity_type in @selected_types}
               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
             />
-            <span class="text-sm text-gray-900"><%= entity_type %></span>
+            <span class="text-sm text-gray-900">{entity_type}</span>
           </label>
         <% end %>
       </div>
@@ -896,7 +967,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           <%= for entity_type <- @selected_types do %>
             <div class="space-y-1">
               <label class="text-xs font-medium text-gray-600">
-                <%= entity_type %> IDs:
+                {entity_type} IDs:
               </label>
               <input
                 type="text"
@@ -912,11 +983,11 @@ defmodule SelectoComponents.Form.FilterRendering do
       <% end %>
 
       <%!-- Hidden inputs to preserve filter structure --%>
-      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid}/>
-      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section}/>
-      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index}/>
-      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]}/>
-      <input type="hidden" name={"filters[#{@uuid}][comp]"} value="POLYMORPHIC"/>
+      <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
+      <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
+      <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
+      <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
+      <input type="hidden" name={"filters[#{@uuid}][comp]"} value="POLYMORPHIC" />
 
       <%!-- Store selected types as JSON --%>
       <input

@@ -46,10 +46,10 @@ defmodule SelectoComponents.SubselectBuilderTest do
     Selecto.configure(domain, [hostname: "localhost"], validate: false)
   end
 
-  test "parses bracket-notation fields for subselect configuration" do
+  test "parses dotted fields for subselect configuration" do
     selecto = test_selecto()
 
-    updated = SubselectBuilder.add_subselect_for_group(selecto, "posts", ["posts[title]"])
+    updated = SubselectBuilder.add_subselect_for_group(selecto, "posts", ["posts.title"])
     [config] = Selecto.Subselect.get_subselect_configs(updated)
 
     assert config.target_schema == :posts

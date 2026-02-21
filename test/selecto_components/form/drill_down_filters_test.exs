@@ -3,6 +3,31 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
   alias SelectoComponents.Form.DrillDownFilters
 
+  defp selecto do
+    domain = %{
+      name: "DrillDownFilters",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :username, :email, :category, :price, :order_date],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          username: %{type: :string},
+          email: %{type: :string},
+          category: %{type: :string},
+          price: %{type: :integer},
+          order_date: %{type: :date}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   describe "extract_field_name/2" do
     test "extracts field name from phx-value- prefix" do
       socket = %{assigns: %{used_params: %{}}}
@@ -48,11 +73,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
     test "handles YYYY-MM-DD date format" do
       field_conf = %{type: :date}
 
-      {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "2024-01-15",
-        field_conf,
-        false
-      )
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2024-01-15",
+          field_conf,
+          false
+        )
 
       assert comp == "DATE="
       assert v1 == "2024-01-15"
@@ -62,11 +88,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
     test "handles YYYY-MM month format" do
       field_conf = %{type: :date}
 
-      {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "2024-03",
-        field_conf,
-        false
-      )
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2024-03",
+          field_conf,
+          false
+        )
 
       assert comp == "DATE_BETWEEN"
       assert v1 == "2024-03-01"
@@ -76,11 +103,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
     test "handles YYYY year format" do
       field_conf = %{type: :date}
 
-      {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "2024",
-        field_conf,
-        false
-      )
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2024",
+          field_conf,
+          false
+        )
 
       assert comp == "DATE_BETWEEN"
       assert v1 == "2024-01-01"
@@ -91,11 +119,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       field_conf = %{type: :integer}
 
       # Range like "1-10"
-      {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "1-10",
-        field_conf,
-        false
-      )
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "1-10",
+          field_conf,
+          false
+        )
 
       assert comp == "BETWEEN"
       assert v1 == "1"
@@ -106,11 +135,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       field_conf = %{type: :integer}
 
       # Range like "11+"
-      {comp, v1, _v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "11+",
-        field_conf,
-        false
-      )
+      {comp, v1, _v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "11+",
+          field_conf,
+          false
+        )
 
       assert comp == ">="
       assert v1 == "11"
@@ -120,11 +150,13 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       field_conf = %{type: :date}
 
       # Age bucket "0-10" days
-      {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-        "0-10",
-        field_conf,
-        true  # is_age_bucket = true
-      )
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "0-10",
+          field_conf,
+          # is_age_bucket = true
+          true
+        )
 
       assert comp == "DATE_BETWEEN"
       assert is_binary(v1)
@@ -144,11 +176,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       ]
 
       for malicious_date <- malicious_dates do
-        {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-          malicious_date,
-          field_conf,
-          false
-        )
+        {comp, v1, v2} =
+          DrillDownFilters.determine_filter_comp_and_values(
+            malicious_date,
+            field_conf,
+            false
+          )
 
         # Should treat as regular string since format doesn't match
         assert comp == "="
@@ -168,11 +201,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       ]
 
       for malicious_bucket <- malicious_buckets do
-        {comp, v1, v2} = DrillDownFilters.determine_filter_comp_and_values(
-          malicious_bucket,
-          field_conf,
-          false
-        )
+        {comp, v1, v2} =
+          DrillDownFilters.determine_filter_comp_and_values(
+            malicious_bucket,
+            field_conf,
+            false
+          )
 
         # Should handle malformed bucket safely
         assert is_binary(comp)
@@ -188,7 +222,7 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       socket = %{
         assigns: %{
           used_params: %{"filters" => %{}, "group_by" => %{}},
-          selecto: %{domain: :mock}
+          selecto: selecto()
         }
       }
 
@@ -236,7 +270,7 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       socket = %{
         assigns: %{
           used_params: %{},
-          selecto: %{domain: :mock}
+          selecto: selecto()
         }
       }
 
@@ -252,6 +286,7 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       result = DrillDownFilters.build_filter_tuples(malicious_params, socket)
 
       assert is_list(result)
+
       for {uuid, section, filter_data} <- result do
         assert is_binary(uuid)
         assert section == "filters"

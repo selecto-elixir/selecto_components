@@ -134,7 +134,7 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       # Full nested form component rendering is covered in dedicated form tests.
     end
 
-    test "datetime grouping workflow with temporal data", %{selecto: selecto, columns: columns} do
+    test "datetime grouping workflow with temporal data", %{columns: columns} do
       # Test datetime field with year/month grouping
       form_params = %{
         "x_axis" => %{
@@ -185,7 +185,7 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       assert dataset.tension == 0.4
     end
 
-    test "pie chart workflow with categorical data", %{selecto: selecto, columns: columns} do
+    test "pie chart workflow with categorical data", %{columns: columns} do
       form_params = %{
         "x_axis" => %{
           "1" => %{"field" => "rating", "index" => "0", "alias" => "Movie Rating"}
@@ -231,10 +231,7 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       refute Map.has_key?(chart_options, :scales)
     end
 
-    test "multi-aggregate workflow with multiple Y-axis values", %{
-      selecto: selecto,
-      columns: columns
-    } do
+    test "multi-aggregate workflow with multiple Y-axis values", %{columns: columns} do
       form_params = %{
         "x_axis" => %{
           "1" => %{"field" => "category", "index" => "0", "alias" => "Category"}
@@ -290,7 +287,7 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       assert sum_dataset.data == [450, 650, 380]
     end
 
-    test "error handling and edge cases", %{selecto: selecto, columns: columns} do
+    test "error handling and edge cases", %{columns: columns} do
       # Test with empty parameters
       empty_params = %{}
       state = Process.param_to_state(empty_params, :graph)

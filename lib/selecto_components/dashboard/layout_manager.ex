@@ -9,11 +9,11 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
   alias SelectoComponents.Dashboard.Widget
   alias SelectoComponents.Dashboard.WidgetRegistry
   alias SelectoComponents.SafeAtom
-  
+
   @grid_cols 12
   @grid_row_height 100
   @grid_gap 10
-  
+
   @impl true
   def mount(socket) do
     {:ok,
@@ -25,7 +25,7 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
      |> assign(:available_widgets, WidgetRegistry.list_available())
      |> assign(:layout_config, default_layout_config())}
   end
-  
+
   @impl true
   def update(assigns, socket) do
     {:ok,
@@ -33,7 +33,7 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
      |> assign(assigns)
      |> load_layout()}
   end
-  
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -61,24 +61,36 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
               <%= if @layout_mode == :edit do %>
                 <span class="flex items-center gap-2">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
                   </svg>
                   Edit Mode
                 </span>
               <% else %>
                 <span class="flex items-center gap-2">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   </svg>
                   View Mode
                 </span>
               <% end %>
             </button>
-            
+
             <%= if @layout_mode == :edit do %>
               <button
                 phx-click="toggle_grid"
@@ -93,11 +105,15 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
                 title="Toggle Grid"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                  />
                 </svg>
               </button>
-              
+
               <button
                 phx-click="add_widget"
                 phx-target={@myself}
@@ -105,15 +121,19 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
               >
                 <span class="flex items-center gap-2">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M12 4v16m8-8H4" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 4v16m8-8H4"
+                    />
                   </svg>
                   Add Widget
                 </span>
               </button>
             <% end %>
           </div>
-          
+
           <div class="flex items-center gap-2">
             <button
               phx-click="save_layout"
@@ -122,13 +142,17 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
             >
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V2" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V2"
+                  />
                 </svg>
                 Save Layout
               </span>
             </button>
-            
+
             <button
               phx-click="load_layout"
               phx-target={@myself}
@@ -136,13 +160,17 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
             >
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
                 </svg>
                 Load Layout
               </span>
             </button>
-            
+
             <button
               phx-click="clear_layout"
               phx-target={@myself}
@@ -150,8 +178,12 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
             >
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
                 Clear
               </span>
@@ -159,8 +191,8 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
           </div>
         </div>
       </div>
-      
-      <div 
+
+      <div
         class={[
           "dashboard-grid relative",
           if(@grid_visible, do: "show-grid"),
@@ -186,16 +218,16 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
               data={widget.data}
               class={if(@layout_mode == :edit, do: "edit-mode")}
             >
-              <%= render_widget_content(widget) %>
+              {render_widget_content(widget)}
             </Widget.widget>
           </div>
         <% end %>
-        
+
         <%= if @grid_visible do %>
           <div class="grid-overlay">
             <%= for row <- 0..grid_rows(@widgets) do %>
               <%= for col <- 0..(@grid_cols - 1) do %>
-                <div 
+                <div
                   class="grid-cell"
                   style={"left: #{col * grid_cell_width()}%; top: #{row * @grid_row_height}px; width: #{grid_cell_width()}%; height: #{@grid_row_height}px"}
                   data-grid-x={col}
@@ -206,19 +238,21 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
           </div>
         <% end %>
       </div>
-      
+
       <%= if @show_widget_selector do %>
         <div class="widget-selector-modal">
-          <div class="fixed inset-0 bg-black bg-opacity-50 z-40" 
-               phx-click="close_widget_selector" 
-               phx-target={@myself} />
-          
+          <div
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            phx-click="close_widget_selector"
+            phx-target={@myself}
+          />
+
           <div class="fixed inset-0 flex items-center justify-center z-50 p-4">
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
               <div class="px-6 py-4 border-b">
                 <h3 class="text-lg font-semibold">Select a Widget</h3>
               </div>
-              
+
               <div class="p-6 grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
                 <%= for widget_type <- @available_widgets do %>
                   <button
@@ -227,9 +261,9 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
                     phx-target={@myself}
                     class="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                   >
-                    <div class="text-4xl mb-2"><%= widget_type.icon %></div>
-                    <div class="font-semibold"><%= widget_type.name %></div>
-                    <div class="text-sm text-gray-600"><%= widget_type.description %></div>
+                    <div class="text-4xl mb-2">{widget_type.icon}</div>
+                    <div class="font-semibold">{widget_type.name}</div>
+                    <div class="text-sm text-gray-600">{widget_type.description}</div>
                   </button>
                 <% end %>
               </div>
@@ -240,96 +274,104 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
     </div>
     """
   end
-  
+
   # Event handlers
-  
+
   @impl true
   def handle_event("toggle_layout_mode", _, socket) do
     new_mode = if socket.assigns.layout_mode == :edit, do: :view, else: :edit
     {:noreply, assign(socket, :layout_mode, new_mode)}
   end
-  
+
   @impl true
   def handle_event("toggle_grid", _, socket) do
     {:noreply, assign(socket, :grid_visible, !socket.assigns.grid_visible)}
   end
-  
+
   @impl true
   def handle_event("add_widget", _, socket) do
     {:noreply, assign(socket, :show_widget_selector, true)}
   end
-  
+
   @impl true
   def handle_event("close_widget_selector", _, socket) do
     {:noreply, assign(socket, :show_widget_selector, false)}
   end
-  
+
   @impl true
   def handle_event("select_widget_type", %{"type" => type}, socket) do
     widget = create_widget(type, socket.assigns.widgets)
     widgets = socket.assigns.widgets ++ [widget]
-    
+
     {:noreply,
      socket
      |> assign(:widgets, widgets)
      |> assign(:show_widget_selector, false)
      |> push_event("widget_added", %{widget_id: widget.id})}
   end
-  
+
   @impl true
   def handle_event("update_widget_position", %{"widget_id" => id, "x" => x, "y" => y}, socket) do
-    widgets = update_widget_in_list(socket.assigns.widgets, id, fn widget ->
-      %{widget | config: Map.merge(widget.config, %{x: x, y: y})}
-    end)
-    
+    widgets =
+      update_widget_in_list(socket.assigns.widgets, id, fn widget ->
+        %{widget | config: Map.merge(widget.config, %{x: x, y: y})}
+      end)
+
     {:noreply, assign(socket, :widgets, widgets)}
   end
-  
+
   @impl true
-  def handle_event("update_widget_size", %{"widget_id" => id, "width" => w, "height" => h}, socket) do
-    widgets = update_widget_in_list(socket.assigns.widgets, id, fn widget ->
-      %{widget | config: Map.merge(widget.config, %{width: w, height: h})}
-    end)
-    
+  def handle_event(
+        "update_widget_size",
+        %{"widget_id" => id, "width" => w, "height" => h},
+        socket
+      ) do
+    widgets =
+      update_widget_in_list(socket.assigns.widgets, id, fn widget ->
+        %{widget | config: Map.merge(widget.config, %{width: w, height: h})}
+      end)
+
     {:noreply, assign(socket, :widgets, widgets)}
   end
-  
+
   @impl true
   def handle_event("remove_widget", %{"id" => id}, socket) do
     widgets = Enum.reject(socket.assigns.widgets, &(&1.id == id))
     {:noreply, assign(socket, :widgets, widgets)}
   end
-  
+
   @impl true
   def handle_event("save_layout", _, socket) do
     layout_data = serialize_layout(socket.assigns.widgets)
-    
+
     case save_layout_to_storage(layout_data) do
       {:ok, _} ->
         {:noreply, put_flash(socket, :info, "Layout saved successfully")}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to save layout")}
     end
   end
-  
+
   @impl true
   def handle_event("load_layout", _, socket) do
     case load_layout_from_storage() do
       {:ok, layout_data} ->
         widgets = deserialize_layout(layout_data)
         {:noreply, assign(socket, :widgets, widgets)}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to load layout")}
     end
   end
-  
+
   @impl true
   def handle_event("clear_layout", _, socket) do
     {:noreply, assign(socket, :widgets, [])}
   end
-  
+
   # Private functions
-  
+
   defp default_layout_config do
     %{
       grid_cols: @grid_cols,
@@ -343,18 +385,19 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
       }
     }
   end
-  
+
   defp load_layout(socket) do
     # Load saved layout if available
     case load_layout_from_storage() do
       {:ok, layout_data} ->
         widgets = deserialize_layout(layout_data)
         assign(socket, :widgets, widgets)
+
       _ ->
         socket
     end
   end
-  
+
   defp create_widget(type, existing_widgets) do
     position = find_free_position(existing_widgets)
     widget_type = SafeAtom.to_widget_type(type)
@@ -362,20 +405,21 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
     %{
       id: "widget-#{System.unique_integer([:positive])}",
       type: widget_type,
-      config: Map.merge(
-        %{
-          title: "New #{String.capitalize(type)} Widget",
-          x: position.x,
-          y: position.y,
-          width: 4,
-          height: 3
-        },
-        default_widget_config(widget_type)
-      ),
+      config:
+        Map.merge(
+          %{
+            title: "New #{String.capitalize(type)} Widget",
+            x: position.x,
+            y: position.y,
+            width: 4,
+            height: 3
+          },
+          default_widget_config(widget_type)
+        ),
       data: nil
     }
   end
-  
+
   defp default_widget_config(type) do
     case type do
       :chart -> %{chart_type: "line", refresh_interval: 30000}
@@ -384,17 +428,17 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
       _ -> %{}
     end
   end
-  
+
   defp find_free_position(widgets) do
     # Simple algorithm to find next free position
-    occupied = Enum.map(widgets, fn w ->
-      {w.config[:x] || 0, w.config[:y] || 0, 
-       w.config[:width] || 4, w.config[:height] || 3}
-    end)
-    
+    occupied =
+      Enum.map(widgets, fn w ->
+        {w.config[:x] || 0, w.config[:y] || 0, w.config[:width] || 4, w.config[:height] || 3}
+      end)
+
     find_free_position_recursive(0, 0, occupied)
   end
-  
+
   defp find_free_position_recursive(x, y, occupied) do
     if position_free?(x, y, 4, 3, occupied) do
       %{x: x, y: y}
@@ -406,52 +450,53 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
       end
     end
   end
-  
+
   defp position_free?(x, y, width, height, occupied) do
     !Enum.any?(occupied, fn {ox, oy, ow, oh} ->
       x < ox + ow && x + width > ox &&
-      y < oy + oh && y + height > oy
+        y < oy + oh && y + height > oy
     end)
   end
-  
+
   defp update_widget_in_list(widgets, id, update_fn) do
     Enum.map(widgets, fn widget ->
       if widget.id == id, do: update_fn.(widget), else: widget
     end)
   end
-  
+
   defp widget_position_style(widget) do
     x = (widget.config[:x] || 0) * grid_cell_width()
     y = (widget.config[:y] || 0) * @grid_row_height
     width = (widget.config[:width] || 4) * grid_cell_width()
     height = (widget.config[:height] || 3) * @grid_row_height
-    
+
     "left: #{x}%; top: #{y}px; width: #{width}%; height: #{height}px;"
   end
-  
+
   defp grid_cell_width do
     100.0 / @grid_cols
   end
-  
+
   defp grid_rows(widgets) do
-    max_row = Enum.reduce(widgets, 0, fn widget, acc ->
-      row = (widget.config[:y] || 0) + (widget.config[:height] || 3)
-      max(row, acc)
-    end)
-    
+    max_row =
+      Enum.reduce(widgets, 0, fn widget, acc ->
+        row = (widget.config[:y] || 0) + (widget.config[:height] || 3)
+        max(row, acc)
+      end)
+
     max(max_row, 8)
   end
-  
+
   defp calculate_min_height(widgets) do
     grid_rows(widgets) * @grid_row_height
   end
-  
-  defp render_widget_content(widget) do
+
+  defp render_widget_content(_widget) do
     # This would be implemented based on widget type
     # For now, return placeholder content
     nil
   end
-  
+
   defp serialize_layout(widgets) do
     widgets
     |> Enum.map(fn widget ->
@@ -463,7 +508,7 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
     end)
     |> Jason.encode!()
   end
-  
+
   defp deserialize_layout(layout_data) do
     layout_data
     |> Jason.decode!()
@@ -477,17 +522,23 @@ defmodule SelectoComponents.Dashboard.LayoutManager do
       }
     end)
   end
-  
+
   defp save_layout_to_storage(layout_data) do
-    # Implementation would save to database or local storage
+    :persistent_term.put({__MODULE__, :layout_data}, layout_data)
     {:ok, layout_data}
+  rescue
+    _ -> {:error, :save_failed}
   end
-  
+
   defp load_layout_from_storage do
-    # Implementation would load from database or local storage
-    {:error, :not_found}
+    case :persistent_term.get({__MODULE__, :layout_data}, nil) do
+      nil -> {:error, :not_found}
+      layout_data -> {:ok, layout_data}
+    end
+  rescue
+    _ -> {:error, :load_failed}
   end
-  
+
   def __hooks__ do
     """
     export const DashboardLayout = {

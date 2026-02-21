@@ -97,7 +97,7 @@ defmodule SelectoComponents.Form.ErrorHandling do
 
   A `{:noreply, socket}` tuple with the error added to component_errors.
   """
-  def handle_component_error(socket, error, operation_name, error_type) do
+  def handle_component_error(socket, error, operation_name, _error_type) do
     categorized = ErrorCategorizer.categorize(error)
 
     if dev_mode?() do
@@ -107,7 +107,9 @@ defmodule SelectoComponents.Form.ErrorHandling do
 
     # Add error to component_errors list (keep last 5)
     existing_errors = Map.get(socket.assigns, :component_errors, [])
-    new_errors = [Map.put(categorized, :operation, operation_name) | existing_errors] |> Enum.take(5)
+
+    new_errors =
+      [Map.put(categorized, :operation, operation_name) | existing_errors] |> Enum.take(5)
 
     {:noreply, Phoenix.Component.assign(socket, component_errors: new_errors)}
   end
