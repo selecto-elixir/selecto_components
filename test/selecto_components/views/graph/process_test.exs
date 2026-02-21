@@ -11,7 +11,12 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
           "2" => %{"field" => "release_year", "index" => "1", "alias" => ""}
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Film Count"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Film Count"
+          }
         },
         "series" => %{
           "1" => %{"field" => "rating", "index" => "0", "alias" => "Rating"}
@@ -63,7 +68,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
         default_chart_options: %{"title" => "Default Chart"}
       }
 
-      selecto = %{domain: fn -> domain end}
+      selecto = %{domain: domain}
 
       state = Process.initial_state(selecto, :graph)
 
@@ -74,7 +79,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
 
     test "uses defaults when domain configuration is missing" do
       domain = %{}
-      selecto = %{domain: fn -> domain end}
+      selecto = %{domain: domain}
 
       state = Process.initial_state(selecto, :graph)
 
@@ -101,7 +106,12 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
           "1" => %{"field" => "category", "index" => "0", "alias" => "Category"}
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Count"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
         },
         "chart_type" => "bar"
       }
@@ -111,7 +121,8 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert view_set.chart_type == "bar"
       assert length(view_set.x_axis_groups) == 1
       assert length(view_set.aggregates) == 1
-      assert length(view_set.selected) == 2  # x_axis + y_axis fields
+      # x_axis + y_axis fields
+      assert length(view_set.selected) == 2
 
       # Check grouping structure
       [{col, field_selector}] = view_set.x_axis_groups
@@ -133,7 +144,12 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
           "1" => %{"field" => "category", "index" => "0", "alias" => "Category"}
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Count"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
         },
         "series" => %{
           "1" => %{"field" => "rating", "index" => "0", "alias" => "Rating"}
@@ -147,8 +163,10 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert length(view_set.x_axis_groups) == 1
       assert length(view_set.series_groups) == 1
       assert length(view_set.aggregates) == 1
-      assert length(view_set.groups) == 2  # x_axis + series
-      assert length(view_set.selected) == 3  # x_axis + series + y_axis fields
+      # x_axis + series
+      assert length(view_set.groups) == 2
+      # x_axis + series + y_axis fields
+      assert length(view_set.selected) == 3
 
       # Check that groups include both x_axis and series
       group_fields = Enum.map(view_set.groups, fn {col, _} -> col.colid end)
@@ -157,14 +175,25 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
     end
 
     test "handles datetime fields with format options", %{columns: columns} do
-      datetime_columns = Map.put(columns, "created_at", %{colid: :created_at, type: :naive_datetime})
+      datetime_columns =
+        Map.put(columns, "created_at", %{colid: :created_at, type: :naive_datetime})
 
       params = %{
         "x_axis" => %{
-          "1" => %{"field" => "created_at", "index" => "0", "alias" => "Month", "format" => "YYYY-MM"}
+          "1" => %{
+            "field" => "created_at",
+            "index" => "0",
+            "alias" => "Month",
+            "format" => "YYYY-MM"
+          }
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Count"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
         }
       }
 
@@ -183,7 +212,12 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
           "1" => %{"field" => "category", "index" => "0", "alias" => "Category"}
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "sum", "alias" => "Total"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "sum",
+            "alias" => "Total"
+          }
         },
         "series" => %{
           "1" => %{"field" => "rating", "index" => "0", "alias" => "Rating"}
@@ -203,8 +237,18 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
           "1" => %{"field" => "category", "index" => "0", "alias" => "Category"}
         },
         "y_axis" => %{
-          "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Count"},
-          "2" => %{"field" => "film_count", "index" => "1", "function" => "avg", "alias" => "Average"}
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          },
+          "2" => %{
+            "field" => "film_count",
+            "index" => "1",
+            "function" => "avg",
+            "alias" => "Average"
+          }
         }
       }
 
@@ -223,7 +267,11 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       columns = %{
         "category" => %{colid: :category, type: :string},
         "created_at" => %{colid: :created_at, type: :naive_datetime},
-        "custom_field" => %{colid: :custom, type: :custom_column, requires_select: [:field1, :field2]}
+        "custom_field" => %{
+          colid: :custom,
+          type: :custom_column,
+          requires_select: [:field1, :field2]
+        }
       }
 
       {:ok, columns: columns}
@@ -276,14 +324,17 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
 
       assert length(result) == 2
       [{first_col, _}, {second_col, _}] = result
-      assert first_col.colid == :created_at  # index 0
-      assert second_col.colid == :category   # index 1
+      # index 0
+      assert first_col.colid == :created_at
+      # index 1
+      assert second_col.colid == :category
     end
 
     test "uses field name as default alias", %{columns: columns} do
       field_params = %{
         "1" => %{"field" => "category", "index" => "0", "alias" => ""},
-        "2" => %{"field" => "created_at", "index" => "1"}  # no alias key
+        # no alias key
+        "2" => %{"field" => "created_at", "index" => "1"}
       }
 
       result = Process.group_by_fields(field_params, columns)
@@ -297,8 +348,18 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
   describe "aggregate_fields/2" do
     test "processes aggregate fields with functions" do
       aggregate_params = %{
-        "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => "Total Films"},
-        "2" => %{"field" => "revenue", "index" => "1", "function" => "sum", "alias" => "Total Revenue"}
+        "1" => %{
+          "field" => "film_count",
+          "index" => "0",
+          "function" => "count",
+          "alias" => "Total Films"
+        },
+        "2" => %{
+          "field" => "revenue",
+          "index" => "1",
+          "function" => "sum",
+          "alias" => "Total Revenue"
+        }
       }
 
       result = Process.aggregate_fields(aggregate_params, %{})
@@ -326,7 +387,8 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
     test "uses field name as default alias" do
       aggregate_params = %{
         "1" => %{"field" => "film_count", "index" => "0", "function" => "count", "alias" => ""},
-        "2" => %{"field" => "revenue", "index" => "1", "function" => "sum"}  # no alias
+        # no alias
+        "2" => %{"field" => "revenue", "index" => "1", "function" => "sum"}
       }
 
       result = Process.aggregate_fields(aggregate_params, %{})
@@ -345,8 +407,10 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       result = Process.aggregate_fields(aggregate_params, %{})
 
       [first_agg, second_agg] = result
-      assert elem(first_agg, 2) == "First"   # index 0
-      assert elem(second_agg, 2) == "Second" # index 1
+      # index 0
+      assert elem(first_agg, 2) == "First"
+      # index 1
+      assert elem(second_agg, 2) == "Second"
     end
   end
 end

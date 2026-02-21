@@ -2,7 +2,7 @@ defmodule SelectoComponentsTest do
   use ExUnit.Case
   doctest SelectoComponents
 
-  test "greets the world" do
-    assert SelectoComponents.hello() == :world
+  test "module loads" do
+    assert Code.ensure_loaded?(SelectoComponents)
   end
 end
