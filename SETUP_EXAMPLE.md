@@ -33,8 +33,8 @@ defmodule MyApp.MixProject do
     [
       {:phoenix, "~> 1.8.0"},
       {:phoenix_live_view, "~> 1.1.0"},  # Required for colocated hooks
-      {:selecto, "~> 0.3.0"},             # Core query library
-      {:selecto_components, "~> 0.3.0"},  # UI components
+      {:selecto, "~> 0.3.1"},             # Core query library
+      {:selecto_components, "~> 0.3.1"},  # UI components
       # ... other dependencies
     ]
   end

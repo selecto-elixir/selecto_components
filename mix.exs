@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.3.0",
+      version: "0.3.1",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "ALPHA: LiveView components for Selecto",
@@ -48,6 +48,7 @@ defmodule SelectoComponents.MixProject do
       {:ex_doc, "~> 0.29.1", only: :dev, runtime: false},
       # {:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
+      {:jason, "~> 1.2"},
       {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},
       {:ecto, ">= 3.9.1 and < 4.0.0"},
       {:ecto_sql, ">= 3.9.1 and < 4.0.0"},
@@ -61,7 +62,7 @@ defmodule SelectoComponents.MixProject do
     if Mix.env() == :test do
       {:selecto, path: "../selecto"}
     else
-      {:selecto, ">= 0.2.6 and < 0.4.0"}
+      {:selecto, ">= 0.3.1 and < 0.4.0"}
     end
   end
 

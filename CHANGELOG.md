@@ -7,6 +7,15 @@ NEXT
 
 - Build JS file for hooks like liveview does
 
+V 0.3.1
+-------
+
+- Bump package version to `0.3.1`.
+- Update Selecto dependency expectation to `>= 0.3.1 and < 0.4.0`.
+- Prune unwired experimental modules to reduce alpha surface area.
+- Keep documented/core flows and strict test compilation passing.
+- Many improvements and fixes
+
 V 0.2.8
 -------
 
