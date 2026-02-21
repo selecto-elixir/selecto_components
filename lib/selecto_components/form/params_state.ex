@@ -377,7 +377,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
           socket
 
-        {:error, %Selecto.Error{} = error} ->
+        {:error, %{__struct__: module} = error} when module == Selecto.Error ->
           sanitized_error = SelectoComponents.Form.sanitize_error_for_environment(error)
 
           if SelectoComponents.Form.dev_mode?() do
@@ -414,11 +414,12 @@ defmodule SelectoComponents.Form.ParamsState do
 
         {:error, error} ->
           sanitized_error =
-            SelectoComponents.Form.sanitize_error_for_environment(%Selecto.Error{
-              type: :query_error,
-              message: inspect(error),
-              details: %{original_error: error}
-            })
+            SelectoComponents.Form.build_selecto_error(
+              :query_error,
+              inspect(error),
+              %{original_error: error}
+            )
+            |> SelectoComponents.Form.sanitize_error_for_environment()
 
           if SelectoComponents.Form.dev_mode?() do
             # Generic error occurred
@@ -478,11 +479,12 @@ defmodule SelectoComponents.Form.ParamsState do
         Phoenix.Component.assign(socket,
           query_results: nil,
           executed: false,
-          execution_error: %Selecto.Error{
-            type: :system_error,
-            message: "System error occurred while processing view",
-            details: %{exit_reason: reason}
-          },
+          execution_error:
+            SelectoComponents.Form.build_selecto_error(
+              :system_error,
+              "System error occurred while processing view",
+              %{exit_reason: reason}
+            ),
           view_meta: %{},
           last_query_info: %{}
         )

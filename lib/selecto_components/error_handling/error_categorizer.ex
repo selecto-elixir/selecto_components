@@ -8,11 +8,13 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
   Categorizes an error and returns detailed classification.
   """
   @spec categorize(term()) :: map()
-  def categorize(%Selecto.Error{} = error) do
+  def categorize(%{__struct__: module} = error) when module == Selecto.Error do
+    type = Map.get(error, :type, :query_error)
+
     %{
-      category: categorize_selecto_error(error.type),
-      severity: determine_severity(error.type),
-      recoverable: is_recoverable?(error.type),
+      category: categorize_selecto_error(type),
+      severity: determine_severity(type),
+      recoverable: is_recoverable?(type),
       error: error,
       source: :selecto
     }
@@ -38,7 +40,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
     }
   end
 
-  def categorize({:error, %Postgrex.Error{} = error}) do
+  def categorize({:error, %{__struct__: module} = error}) when module == Postgrex.Error do
     %{
       category: :database,
       severity: :error,
@@ -92,11 +94,18 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
   Returns a user-friendly message for the categorized error.
   """
   @spec format_message(map()) :: String.t()
-  def format_message(%{category: :query, error: %Selecto.Error{} = error}) do
-    Selecto.Error.to_display_message(error)
+  def format_message(%{category: :query, error: %{__struct__: module} = error})
+      when module == Selecto.Error do
+    if Code.ensure_loaded?(Selecto.Error) and
+         function_exported?(Selecto.Error, :to_display_message, 1) do
+      Selecto.Error.to_display_message(error)
+    else
+      Map.get(error, :message, inspect(error))
+    end
   end
 
-  def format_message(%{category: :database, error: %Postgrex.Error{} = error}) do
+  def format_message(%{category: :database, error: %{__struct__: module} = error})
+      when module == Postgrex.Error do
     format_database_error(error)
   end
 
@@ -196,28 +205,41 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
   defp is_recoverable?(:configuration_error), do: false
   defp is_recoverable?(_), do: false
 
-  defp is_db_error_recoverable?(%Postgrex.Error{postgres: %{code: code}}) do
-    code in ["23505", "23503", "23502"]  # Constraint violations are recoverable
+  defp is_db_error_recoverable?(%{__struct__: module, postgres: %{code: code}})
+       when module == Postgrex.Error do
+    code in ["23505", "23503", "23502"]
   end
+
   defp is_db_error_recoverable?(_), do: false
 
-  defp format_database_error(%Postgrex.Error{postgres: %{code: "23505", constraint: constraint}}) do
+  defp format_database_error(%{
+         __struct__: module,
+         postgres: %{code: "23505", constraint: constraint}
+       })
+       when module == Postgrex.Error do
     "Duplicate value violates uniqueness constraint: #{constraint}"
   end
 
-  defp format_database_error(%Postgrex.Error{postgres: %{code: "23503", constraint: constraint}}) do
+  defp format_database_error(%{
+         __struct__: module,
+         postgres: %{code: "23503", constraint: constraint}
+       })
+       when module == Postgrex.Error do
     "Foreign key constraint violation: #{constraint}"
   end
 
-  defp format_database_error(%Postgrex.Error{postgres: %{code: "23502", column: column}}) do
+  defp format_database_error(%{__struct__: module, postgres: %{code: "23502", column: column}})
+       when module == Postgrex.Error do
     "Required field '#{column}' cannot be empty"
   end
 
-  defp format_database_error(%Postgrex.Error{postgres: %{message: message}}) do
+  defp format_database_error(%{__struct__: module, postgres: %{message: message}})
+       when module == Postgrex.Error do
     "Database error: #{message}"
   end
 
-  defp format_database_error(%Postgrex.Error{message: message}) do
+  defp format_database_error(%{__struct__: module, message: message})
+       when module == Postgrex.Error do
     "Database error: #{message}"
   end
 end

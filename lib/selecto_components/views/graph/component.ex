@@ -51,7 +51,8 @@ defmodule SelectoComponents.Views.Graph.Component do
 
           <%= if @error.details[:exception] do %>
             <%= case @error.details.exception do %>
-              <% %Postgrex.Error{postgres: postgres} when is_map(postgres) -> %>
+              <% %{__struct__: module, postgres: postgres}
+                 when module == Postgrex.Error and is_map(postgres) -> %>
                 <div class="bg-red-100 rounded p-3 mt-3 text-left">
                   <div class="font-mono text-sm text-red-700">
                     {Map.get(postgres, :message, "Database error occurred")}
