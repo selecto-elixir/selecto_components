@@ -38,8 +38,8 @@ defmodule SelectoComponents.Form do
           error={Map.get(assigns, :execution_error)}
           errors={Map.get(assigns, :component_errors, [])}
         />
-
-        <!-- View Config Manager for saving/loading view configurations -->
+        
+    <!-- View Config Manager for saving/loading view configurations -->
         <.live_component
           :if={Map.get(assigns, :saved_view_config_module)}
           module={SelectoComponents.ViewConfigManager}
@@ -50,8 +50,8 @@ defmodule SelectoComponents.Form do
           current_user_id={Map.get(assigns, :current_user_id)}
           parent_id={@myself}
         />
-
-        <!-- Main Navigation Tabs -->
+        
+    <!-- Main Navigation Tabs -->
         <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
           <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
             <button
@@ -136,8 +136,8 @@ defmodule SelectoComponents.Form do
             </button>
           </div>
         </div>
-
-        <!-- Tab Content Panels -->
+        
+    <!-- Tab Content Panels -->
         <div
           role="tabpanel"
           id="main-tabpanel-view"
@@ -200,7 +200,7 @@ defmodule SelectoComponents.Form do
             filters={@view_config.filters}
           >
             <:filter_form :let={{uuid, index, section, filter_value}}>
-              <%= FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value) %>
+              {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
             </:filter_form>
           </.live_component>
         </div>
@@ -288,11 +288,12 @@ defmodule SelectoComponents.Form do
     Logger.debug("Datetime filter change event received")
 
     # Extract UUID from _target or params
-    uuid = params["uuid"] ||
-           (case get_in(params, ["_target"]) do
-              ["filters", uuid_val, "comp"] -> uuid_val
-              _ -> nil
-            end)
+    uuid =
+      params["uuid"] ||
+        case get_in(params, ["_target"]) do
+          ["filters", uuid_val, "comp"] -> uuid_val
+          _ -> nil
+        end
 
     # Get the new comparison value directly from filters
     new_comp = get_in(params, ["filters", uuid, "comp"])
@@ -300,34 +301,60 @@ defmodule SelectoComponents.Form do
     Logger.debug("UUID: #{uuid}, New comparison: #{new_comp}")
 
     # Update the view_config in the socket assigns
-    updated_filters = socket.assigns.view_config.filters
+    updated_filters =
+      socket.assigns.view_config.filters
       |> Enum.map(fn
         {u, section, filter} when u == uuid ->
           # Update the comparison operator and reset value when changing modes
-          updated_filter = case new_comp do
-            "BETWEEN" ->
-              # Reset to empty values for between mode
-              Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
-            "DATE_BETWEEN" ->
-              # Reset to empty values for date between mode
-              Map.merge(filter, %{"comp" => new_comp, "value" => nil, "value_start" => nil, "value_end" => nil})
-            "DATE=" ->
-              # Keep existing value or set to today's date
-              Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
-            "DATE!=" ->
-              # Keep existing value or set to today's date
-              Map.merge(filter, %{"comp" => new_comp, "value" => filter["value"] || Date.utc_today()})
-            "SHORTCUT" ->
-              # Default to "today" for shortcuts
-              Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
-            "RELATIVE" ->
-              # Default to empty for relative
-              Map.merge(filter, %{"comp" => new_comp, "value" => ""})
-            _ ->
-              # Keep existing value for standard operators
-              Map.put(filter, "comp", new_comp)
-          end
+          updated_filter =
+            case new_comp do
+              "BETWEEN" ->
+                # Reset to empty values for between mode
+                Map.merge(filter, %{
+                  "comp" => new_comp,
+                  "value" => nil,
+                  "value_start" => nil,
+                  "value_end" => nil
+                })
+
+              "DATE_BETWEEN" ->
+                # Reset to empty values for date between mode
+                Map.merge(filter, %{
+                  "comp" => new_comp,
+                  "value" => nil,
+                  "value_start" => nil,
+                  "value_end" => nil
+                })
+
+              "DATE=" ->
+                # Keep existing value or set to today's date
+                Map.merge(filter, %{
+                  "comp" => new_comp,
+                  "value" => filter["value"] || Date.utc_today()
+                })
+
+              "DATE!=" ->
+                # Keep existing value or set to today's date
+                Map.merge(filter, %{
+                  "comp" => new_comp,
+                  "value" => filter["value"] || Date.utc_today()
+                })
+
+              "SHORTCUT" ->
+                # Default to "today" for shortcuts
+                Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
+
+              "RELATIVE" ->
+                # Default to empty for relative
+                Map.merge(filter, %{"comp" => new_comp, "value" => ""})
+
+              _ ->
+                # Keep existing value for standard operators
+                Map.put(filter, "comp", new_comp)
+            end
+
           {u, section, updated_filter}
+
         other ->
           other
       end)
@@ -385,13 +412,15 @@ defmodule SelectoComponents.Form do
 
     case view_mode do
       "aggregate" ->
-        group_by_cols = Map.get(params, "group_by", %{})
-                       |> Map.values()
-                       |> Enum.map(fn item -> Map.get(item, "field") end)
+        group_by_cols =
+          Map.get(params, "group_by", %{})
+          |> Map.values()
+          |> Enum.map(fn item -> Map.get(item, "field") end)
 
-        aggregate_cols = Map.get(params, "aggregate", %{})
-                        |> Map.values()
-                        |> Enum.map(fn item -> Map.get(item, "field") end)
+        aggregate_cols =
+          Map.get(params, "aggregate", %{})
+          |> Map.values()
+          |> Enum.map(fn item -> Map.get(item, "field") end)
 
         group_by_cols ++ aggregate_cols
 
@@ -411,7 +440,6 @@ defmodule SelectoComponents.Form do
     end
   end
 
-
   # Environment detection helpers
   def dev_mode? do
     # Check if we're in dev or test environment
@@ -420,10 +448,13 @@ defmodule SelectoComponents.Form do
       nil ->
         # Fall back to checking common indicators
         System.get_env("MIX_ENV") in ["dev", "test", nil]
+
       :prod ->
         false
+
       :production ->
         false
+
       _ ->
         true
     end
@@ -435,54 +466,97 @@ defmodule SelectoComponents.Form do
       error
     else
       # In production, sanitize the error to remove sensitive information
-      %Selecto.Error{
-        type: error.type,
+      attrs = %{
+        type: map_get(error, :type, :query_error),
         message: get_safe_error_message(error),
-        details: %{},  # Remove all details in production
-        query: nil,     # Never expose queries in production
-        params: []      # Never expose params in production
+        details: %{},
+        query: nil,
+        params: []
       }
+
+      maybe_build_selecto_error(attrs)
     end
   end
 
-  defp get_safe_error_message(%Selecto.Error{type: type}) do
+  @doc false
+  def selecto_error?(%{__struct__: module}) when module == Selecto.Error, do: true
+  def selecto_error?(_), do: false
+
+  @doc false
+  def build_selecto_error(type, message, details \\ %{}) do
+    maybe_build_selecto_error(%{
+      type: type,
+      message: message,
+      details: details,
+      query: nil,
+      params: []
+    })
+  end
+
+  defp get_safe_error_message(error) do
+    type = map_get(error, :type, :query_error)
+
     # Return user-friendly messages based on error type
     case type do
       :connection_error ->
         "Unable to connect to the database. Please try again later."
+
       :query_error ->
         "An error occurred while processing your request. Please try again."
+
       :timeout_error ->
         "The request took too long to complete. Please try again with a simpler query."
+
       :permission_error ->
         "You don't have permission to access this data."
+
       :validation_error ->
         "The request contains invalid parameters. Please check your inputs."
+
       _ ->
         "An unexpected error occurred. Please try again or contact support if the problem persists."
     end
   end
+
+  defp maybe_build_selecto_error(attrs) do
+    if Code.ensure_loaded?(Selecto.Error) do
+      try do
+        struct(Selecto.Error, attrs)
+      rescue
+        _ -> attrs
+      end
+    else
+      attrs
+    end
+  end
+
+  defp map_get(map, key, default) when is_map(map), do: Map.get(map, key, default)
+  defp map_get(_, _key, default), do: default
 
   @doc false
   def build_debug_data(assigns) do
     query_data = Map.get(assigns, :last_query_info, %{})
 
     # Extract row count from query_results
-    row_count = case Map.get(assigns, :query_results) do
-      {rows, _columns, _aliases} when is_list(rows) ->
-        length(rows)
-      [] ->
-        # Initial state has empty list
-        0
-      nil ->
-        0
-      other ->
-        # Try to handle other formats
-        case other do
-          list when is_list(list) -> length(list)
-          _ -> 0
-        end
-    end
+    row_count =
+      case Map.get(assigns, :query_results) do
+        {rows, _columns, _aliases} when is_list(rows) ->
+          length(rows)
+
+        [] ->
+          # Initial state has empty list
+          0
+
+        nil ->
+          0
+
+        other ->
+          # Try to handle other formats
+          case other do
+            list when is_list(list) -> length(list)
+            _ -> 0
+          end
+      end
 
     %{
       query: Map.get(query_data, :sql),

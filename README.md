@@ -22,6 +22,8 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
   built-in views) are usable but not yet stable.
 - **High Risk / Experimental**: Graph/dashboard and advanced integration paths
   may change significantly and can require project-specific hardening.
+- **Maintenance Note**: Unwired experimental modules were pruned in 0.3.x to
+  reduce surface area; only documented core flows are kept.
 - **Not Included**: Turnkey production analytics/data-backend integration is
   outside current package scope.
 
@@ -29,7 +31,7 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.14
-- Selecto ~> 0.3.0 (core library)
+- Selecto ~> 0.3.1 (core library)
 - selecto_mix ~> 0.3.0 (for code generation and integration tasks)
 
 ## Installation
@@ -41,8 +43,8 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.0"},
-    {:selecto, "~> 0.3.0"},
+    {:selecto_components, "~> 0.3.1"},
+    {:selecto, "~> 0.3.1"},
     {:selecto_mix, "~> 0.3.0"}  # For generators and integration
   ]
 end
