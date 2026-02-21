@@ -3,10 +3,10 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
   Advanced metric display components with real-time updates,
   comparisons, and drill-down capabilities.
   """
-  
+
   use Phoenix.LiveComponent
   import Phoenix.LiveView
-  
+
   @impl true
   def mount(socket) do
     {:ok,
@@ -16,18 +16,18 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
      |> assign(:loading, false)
      |> assign(:error, nil)}
   end
-  
+
   @impl true
   def update(assigns, socket) do
-    socket = 
+    socket =
       socket
       |> assign(assigns)
       |> load_metrics()
       |> schedule_refresh()
-    
+
     {:ok, socket}
   end
-  
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -35,97 +35,93 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
       <%= case @display_type do %>
         <% :comparison -> %>
           <.comparison_display metrics={@metrics} config={@config} />
-        
         <% :timeline -> %>
           <.timeline_display metrics={@metrics} config={@config} />
-        
         <% :gauge -> %>
           <.gauge_display metrics={@metrics} config={@config} />
-        
         <% :progress -> %>
           <.progress_display metrics={@metrics} config={@config} />
-        
         <% _ -> %>
           <.standard_display metrics={@metrics} config={@config} />
       <% end %>
-      
+
       <%= if @loading do %>
         <div class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       <% end %>
-      
+
       <%= if @error do %>
         <div class="mt-2 text-sm text-red-600">
-          <%= @error %>
+          {@error}
         </div>
       <% end %>
     </div>
     """
   end
-  
+
   @doc """
   Standard metric display with value and optional comparison.
   """
   attr :metrics, :map, required: true
   attr :config, :map, default: %{}
-  
+
   def standard_display(assigns) do
     ~H"""
     <div class="standard-metric">
       <div class="metric-value">
         <span class="text-3xl font-bold text-gray-900">
-          <%= format_metric_value(@metrics.value, @config) %>
+          {format_metric_value(@metrics.value, @config)}
         </span>
         <%= if @metrics[:comparison] do %>
           <span class={["ml-2 text-sm", comparison_color(@metrics.comparison)]}>
-            <%= format_comparison(@metrics.comparison, @config) %>
+            {format_comparison(@metrics.comparison, @config)}
           </span>
         <% end %>
       </div>
-      
+
       <%= if @metrics[:subtitle] do %>
         <div class="text-sm text-gray-600 mt-1">
-          <%= @metrics.subtitle %>
+          {@metrics.subtitle}
         </div>
       <% end %>
     </div>
     """
   end
-  
+
   @doc """
   Comparison display showing current vs previous period.
   """
   attr :metrics, :map, required: true
   attr :config, :map, default: %{}
-  
+
   def comparison_display(assigns) do
     ~H"""
     <div class="comparison-metric grid grid-cols-2 gap-4">
       <div class="current-period">
         <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">
-          <%= @config[:current_label] || "Current" %>
+          {@config[:current_label] || "Current"}
         </div>
         <div class="text-2xl font-bold text-gray-900">
-          <%= format_metric_value(@metrics.current, @config) %>
+          {format_metric_value(@metrics.current, @config)}
         </div>
       </div>
-      
+
       <div class="previous-period">
         <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">
-          <%= @config[:previous_label] || "Previous" %>
+          {@config[:previous_label] || "Previous"}
         </div>
         <div class="text-2xl font-bold text-gray-600">
-          <%= format_metric_value(@metrics.previous, @config) %>
+          {format_metric_value(@metrics.previous, @config)}
         </div>
       </div>
-      
+
       <%= if @metrics[:change] do %>
         <div class="col-span-2 pt-2 border-t">
           <div class="flex items-center justify-between">
             <span class="text-sm text-gray-600">Change</span>
             <span class={["text-sm font-medium", change_color(@metrics.change)]}>
-              <%= format_change(@metrics.change, @config) %>
+              {format_change(@metrics.change, @config)}
             </span>
           </div>
         </div>
@@ -133,25 +129,25 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
     </div>
     """
   end
-  
+
   @doc """
   Timeline display showing metric values over time.
   """
   attr :metrics, :map, required: true
   attr :config, :map, default: %{}
-  
+
   def timeline_display(assigns) do
     ~H"""
     <div class="timeline-metric">
       <div class="timeline-header mb-4">
         <div class="text-lg font-semibold text-gray-900">
-          <%= @config[:title] || "Metric Timeline" %>
+          {@config[:title] || "Metric Timeline"}
         </div>
         <div class="text-sm text-gray-600">
-          <%= @config[:period] || "Last 7 days" %>
+          {@config[:period] || "Last 7 days"}
         </div>
       </div>
-      
+
       <div class="timeline-chart">
         <canvas
           id={"#{@id}-timeline"}
@@ -161,40 +157,40 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
           data-labels={Jason.encode!(@metrics.labels || [])}
         />
       </div>
-      
+
       <div class="timeline-summary mt-4 grid grid-cols-3 gap-2 text-center">
         <div>
           <div class="text-xs text-gray-500">Min</div>
           <div class="font-semibold">
-            <%= format_metric_value(@metrics.min, @config) %>
+            {format_metric_value(@metrics.min, @config)}
           </div>
         </div>
         <div>
           <div class="text-xs text-gray-500">Avg</div>
           <div class="font-semibold">
-            <%= format_metric_value(@metrics.avg, @config) %>
+            {format_metric_value(@metrics.avg, @config)}
           </div>
         </div>
         <div>
           <div class="text-xs text-gray-500">Max</div>
           <div class="font-semibold">
-            <%= format_metric_value(@metrics.max, @config) %>
+            {format_metric_value(@metrics.max, @config)}
           </div>
         </div>
       </div>
     </div>
     """
   end
-  
+
   @doc """
   Gauge display for percentage or range-based metrics.
   """
   attr :metrics, :map, required: true
   attr :config, :map, default: %{}
-  
+
   def gauge_display(assigns) do
     assigns = assign(assigns, :percentage, calculate_percentage(assigns.metrics, assigns.config))
-    
+
     ~H"""
     <div class="gauge-metric">
       <div class="gauge-container relative w-32 h-32 mx-auto">
@@ -223,75 +219,80 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
         <div class="absolute inset-0 flex items-center justify-center">
           <div class="text-center">
             <div class="text-2xl font-bold text-gray-900">
-              <%= round(@percentage) %>%
+              {round(@percentage)}%
             </div>
             <div class="text-xs text-gray-500">
-              <%= @config[:label] || "Complete" %>
+              {@config[:label] || "Complete"}
             </div>
           </div>
         </div>
       </div>
-      
+
       <div class="gauge-details mt-4 flex justify-between text-sm">
         <span class="text-gray-600">
-          <%= @config[:min_label] || format_metric_value(@config[:min] || 0, @config) %>
+          {@config[:min_label] || format_metric_value(@config[:min] || 0, @config)}
         </span>
         <span class="font-semibold text-gray-900">
-          <%= format_metric_value(@metrics.value, @config) %>
+          {format_metric_value(@metrics.value, @config)}
         </span>
         <span class="text-gray-600">
-          <%= @config[:max_label] || format_metric_value(@config[:max] || 100, @config) %>
+          {@config[:max_label] || format_metric_value(@config[:max] || 100, @config)}
         </span>
       </div>
     </div>
     """
   end
-  
+
   @doc """
   Progress display with multiple segments.
   """
   attr :metrics, :map, required: true
   attr :config, :map, default: %{}
-  
+
   def progress_display(assigns) do
     ~H"""
     <div class="progress-metric">
       <div class="progress-header mb-3">
         <div class="flex justify-between items-baseline">
           <span class="text-sm font-medium text-gray-700">
-            <%= @config[:title] || "Progress" %>
+            {@config[:title] || "Progress"}
           </span>
           <span class="text-sm text-gray-600">
-            <%= format_metric_value(@metrics.value, @config) %> / 
-            <%= format_metric_value(@metrics.target, @config) %>
+            {format_metric_value(@metrics.value, @config)} / {format_metric_value(
+              @metrics.target,
+              @config
+            )}
           </span>
         </div>
       </div>
-      
+
       <div class="progress-bars space-y-2">
         <%= for segment <- (@metrics.segments || [%{value: @metrics.value, color: "blue", label: "Progress"}]) do %>
           <div class="progress-segment">
             <%= if segment[:label] do %>
               <div class="text-xs text-gray-600 mb-1">
-                <%= segment.label %>
+                {segment.label}
               </div>
             <% end %>
             <div class="w-full bg-gray-200 rounded-full h-2">
               <div
-                class={["h-2 rounded-full transition-all duration-500", progress_color(segment[:color])]}
+                class={[
+                  "h-2 rounded-full transition-all duration-500",
+                  progress_color(segment[:color])
+                ]}
                 style={"width: #{calculate_segment_percentage(segment, @metrics.target)}%"}
               />
             </div>
           </div>
         <% end %>
       </div>
-      
+
       <%= if @metrics[:milestones] do %>
         <div class="milestones mt-3 flex justify-between">
           <%= for milestone <- @metrics.milestones do %>
             <div class={["text-xs", milestone_status(milestone, @metrics.value)]}>
-              <div class="font-medium"><%= milestone.label %></div>
-              <div><%= format_metric_value(milestone.value, @config) %></div>
+              <div class="font-medium">{milestone.label}</div>
+              <div>{format_metric_value(milestone.value, @config)}</div>
             </div>
           <% end %>
         </div>
@@ -299,63 +300,63 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
     </div>
     """
   end
-  
+
   # Event handlers
-  
+
   @impl true
   def handle_event("refresh", _, socket) do
     {:noreply, load_metrics(socket)}
   end
-  
+
   @impl true
   def handle_event("drill_down", %{"metric" => metric}, socket) do
     send(self(), {:drill_down, metric, socket.assigns.metrics})
     {:noreply, socket}
   end
-  
+
   @impl true
   def handle_event("export", _, socket) do
     export_data = prepare_export_data(socket.assigns.metrics, socket.assigns.config)
     {:noreply, push_event(socket, "download", %{data: export_data, filename: "metrics.csv"})}
   end
-  
-  @impl true
+
   def handle_info(:refresh_metrics, socket) do
-    socket = 
+    socket =
       socket
       |> load_metrics()
       |> schedule_refresh()
-    
+
     {:noreply, socket}
   end
-  
+
   # Private functions
-  
+
   defp load_metrics(socket) do
     socket
     |> assign(:loading, true)
     |> fetch_metric_data()
   end
-  
+
   defp fetch_metric_data(socket) do
     # Integration with Selecto would go here
     # For now, generate sample data
     metrics = generate_sample_metrics(socket.assigns[:config] || %{})
-    
+
     socket
     |> assign(:metrics, metrics)
     |> assign(:loading, false)
     |> assign(:error, nil)
   end
-  
+
   defp schedule_refresh(socket) do
     if socket.assigns[:auto_refresh] && socket.assigns.update_interval > 0 do
       Process.send_after(self(), :refresh_metrics, socket.assigns.update_interval)
     end
+
     socket
   end
-  
-  defp generate_sample_metrics(config) do
+
+  defp generate_sample_metrics(_config) do
     %{
       value: :rand.uniform(10000),
       previous: :rand.uniform(10000),
@@ -381,8 +382,9 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
       ]
     }
   end
-  
+
   defp format_metric_value(nil, _), do: "—"
+
   defp format_metric_value(value, config) do
     case config[:format] do
       :currency -> "$#{format_number(value)}"
@@ -391,7 +393,7 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
       _ -> format_number(value)
     end
   end
-  
+
   defp format_number(value) when is_number(value) do
     value
     |> round()
@@ -404,53 +406,56 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
     |> Enum.reverse()
     |> Enum.join()
   end
+
   defp format_number(value), do: to_string(value)
-  
+
   defp format_comparison(value, config) when value > 0 do
     "+#{format_metric_value(abs(value), config)}"
   end
+
   defp format_comparison(value, config) do
     "-#{format_metric_value(abs(value), config)}"
   end
-  
+
   defp format_change(value, config) when value > 0 do
     "↑ #{format_metric_value(abs(value), Map.put(config, :format, :percentage))}"
   end
+
   defp format_change(value, config) do
     "↓ #{format_metric_value(abs(value), Map.put(config, :format, :percentage))}"
   end
-  
+
   defp comparison_color(value) when value > 0, do: "text-green-600"
   defp comparison_color(value) when value < 0, do: "text-red-600"
   defp comparison_color(_), do: "text-gray-600"
-  
+
   defp change_color(value) when value > 0, do: "text-green-600"
   defp change_color(value) when value < 0, do: "text-red-600"
   defp change_color(_), do: "text-gray-600"
-  
+
   defp gauge_color(percentage) when percentage >= 80, do: "text-green-500"
   defp gauge_color(percentage) when percentage >= 60, do: "text-yellow-500"
   defp gauge_color(percentage) when percentage >= 40, do: "text-orange-500"
   defp gauge_color(_), do: "text-red-500"
-  
+
   defp progress_color("green"), do: "bg-green-500"
   defp progress_color("yellow"), do: "bg-yellow-500"
   defp progress_color("red"), do: "bg-red-500"
   defp progress_color("blue"), do: "bg-blue-500"
   defp progress_color(_), do: "bg-gray-500"
-  
+
   defp calculate_percentage(metrics, config) do
     min = config[:min] || 0
     max = config[:max] || 100
     value = metrics[:value] || 0
-    
+
     if max - min > 0 do
-      ((value - min) / (max - min)) * 100
+      (value - min) / (max - min) * 100
     else
       0
     end
   end
-  
+
   defp calculate_segment_percentage(segment, target) do
     if target && target > 0 do
       min((segment[:value] || 0) / target * 100, 100)
@@ -458,7 +463,7 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
       0
     end
   end
-  
+
   defp milestone_status(milestone, current_value) do
     if current_value >= milestone.value do
       "text-green-600"
@@ -466,19 +471,20 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
       "text-gray-400"
     end
   end
-  
-  defp prepare_export_data(metrics, config) do
+
+  defp prepare_export_data(metrics, _config) do
     # Convert metrics to CSV format
     headers = ["Metric", "Value", "Previous", "Change"]
+
     rows = [
       ["Current", metrics[:value], metrics[:previous], metrics[:change]]
     ]
-    
+
     ([headers] ++ rows)
     |> Enum.map(&Enum.join(&1, ","))
     |> Enum.join("\n")
   end
-  
+
   def __hooks__ do
     """
     export const MetricDisplay = {
@@ -509,7 +515,7 @@ defmodule SelectoComponents.Dashboard.MetricDisplay do
         });
       }
     };
-    
+
     export const TimelineChart = {
       mounted() {
         this.drawChart();

@@ -20,16 +20,16 @@ defmodule SelectoComponents.Views.Graph.Component do
     <div class="graph-component-wrapper">
       <%= cond do %>
         <% assigns[:execution_error] -> %>
-          <%= render_error_state(assigns) %>
+          {render_error_state(assigns)}
         <% assigns[:executed] == false -> %>
-          <%= render_loading_state(assigns) %>
+          {render_loading_state(assigns)}
         <% assigns[:executed] && assigns.query_results == nil -> %>
-          <%= render_no_results_state(assigns) %>
+          {render_no_results_state(assigns)}
         <% assigns[:executed] && match?({_results, _fields, _aliases}, assigns.query_results) -> %>
           <% {results, _fields, aliases} = assigns.query_results %>
-          <%= render_chart(assigns, results, aliases) %>
+          {render_chart(assigns, results, aliases)}
         <% true -> %>
-          <%= render_unknown_state(assigns) %>
+          {render_unknown_state(assigns)}
       <% end %>
     </div>
     """
@@ -43,51 +43,53 @@ defmodule SelectoComponents.Views.Graph.Component do
       <div class="text-center max-w-2xl">
         <div class="text-4xl mb-3 text-red-500">⚠️</div>
         <div class="font-semibold text-red-700 text-lg mb-2">Query Execution Error</div>
-        
+
         <%= if is_struct(@error, Selecto.Error) do %>
           <%= if @error.message do %>
-            <div class="text-red-600 mb-2"><%= @error.message %></div>
+            <div class="text-red-600 mb-2">{@error.message}</div>
           <% end %>
-          
+
           <%= if @error.details[:exception] do %>
             <%= case @error.details.exception do %>
               <% %Postgrex.Error{postgres: postgres} when is_map(postgres) -> %>
                 <div class="bg-red-100 rounded p-3 mt-3 text-left">
                   <div class="font-mono text-sm text-red-700">
-                    <%= Map.get(postgres, :message, "Database error occurred") %>
+                    {Map.get(postgres, :message, "Database error occurred")}
                   </div>
                   <%= if Map.get(postgres, :position) do %>
                     <div class="text-xs text-red-600 mt-1">
-                      Position: <%= postgres.position %>
+                      Position: {postgres.position}
                     </div>
                   <% end %>
                   <%= if Map.get(postgres, :code) do %>
                     <div class="text-xs text-red-600 mt-1">
-                      Error Code: <%= postgres.code %>
+                      Error Code: {postgres.code}
                     </div>
                   <% end %>
                 </div>
               <% _ -> %>
                 <div class="bg-red-100 rounded p-3 mt-3 text-left">
                   <div class="font-mono text-sm text-red-700">
-                    <%= inspect(@error.details.exception) %>
+                    {inspect(@error.details.exception)}
                   </div>
                 </div>
             <% end %>
           <% end %>
-          
+
           <%= if @error.query do %>
             <details class="mt-3 text-left">
-              <summary class="cursor-pointer text-sm text-red-600 hover:text-red-700">Show Query</summary>
+              <summary class="cursor-pointer text-sm text-red-600 hover:text-red-700">
+                Show Query
+              </summary>
               <pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-x-auto"><%= @error.query %></pre>
             </details>
           <% end %>
         <% else %>
           <div class="text-red-600">
-            <%= inspect(@error) %>
+            {inspect(@error)}
           </div>
         <% end %>
-        
+
         <div class="mt-4 text-sm text-gray-600">
           Please check your query configuration and try again.
         </div>
@@ -125,8 +127,8 @@ defmodule SelectoComponents.Views.Graph.Component do
       <div class="text-center text-yellow-600">
         <div class="font-semibold">Unknown Chart State</div>
         <div class="text-sm mt-1">
-          Executed: <%= inspect(assigns[:executed]) %><br/>
-          Query Results: <%= inspect(assigns.query_results != nil) %>
+          Executed: {inspect(assigns[:executed])}<br />
+          Query Results: {inspect(assigns.query_results != nil)}
         </div>
       </div>
     </div>
@@ -156,19 +158,20 @@ defmodule SelectoComponents.Views.Graph.Component do
       <div class="flex items-center justify-between mb-6">
         <div>
           <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-gray-800">
-            <%= get_in(@chart_options, [:title]) %>
+            {get_in(@chart_options, [:title])}
           </h3>
         </div>
         <div class="flex items-center gap-2">
           <button
             data-export
-            class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             📥 Export
           </button>
         </div>
       </div>
-
-      <!-- Chart Container -->
+      
+    <!-- Chart Container -->
       <div
         id={@chart_id}
         phx-hook=".GraphComponent"
@@ -178,100 +181,101 @@ defmodule SelectoComponents.Views.Graph.Component do
         data-chart-options={Jason.encode!(@chart_options)}
         data-x-axis={get_x_axis_field(@selecto.set[:x_axis_groups])}
         class="relative"
-        style="height: 400px;">
+        style="height: 400px;"
+      >
         <canvas id={"#{@chart_id}-canvas"}></canvas>
       </div>
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".GraphComponent">
-      export default {
-        chart: null,
-        
-        mounted() {
-          this.initializeChart();
-        },
+        export default {
+          chart: null,
+          
+          mounted() {
+            this.initializeChart();
+          },
 
-        updated() {
-          this.updateChart();
-        },
+          updated() {
+            this.updateChart();
+          },
 
-        destroyed() {
-          if (this.chart) {
-            this.chart.destroy();
-            this.chart = null;
-          }
-        },
+          destroyed() {
+            if (this.chart) {
+              this.chart.destroy();
+              this.chart = null;
+            }
+          },
 
-        initializeChart() {
-          const canvas = this.el.querySelector('canvas');
-          if (!canvas) return;
+          initializeChart() {
+            const canvas = this.el.querySelector('canvas');
+            if (!canvas) return;
 
-          if (!window.Chart) {
-            // Leave server-rendered content intact if Chart.js is unavailable.
-            return;
-          }
+            if (!window.Chart) {
+              // Leave server-rendered content intact if Chart.js is unavailable.
+              return;
+            }
 
-          const chartData = JSON.parse(this.el.dataset.chartData || '{}');
-          const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
-          const chartType = this.el.dataset.chartType || 'bar';
-
-          const pushEvent = (event, payload) => {
-            this.pushEvent(event, payload);
-          };
-
-          try {
-            this.chart = new Chart(canvas, {
-              type: chartType,
-              data: chartData,
-              options: {
-                ...chartOptions,
-                onClick: (event, elements) => {
-                  if (elements.length > 0) {
-                    const element = elements[0];
-                    const datasetIndex = element.datasetIndex;
-                    const index = element.index;
-                    const dataset = chartData.datasets[datasetIndex];
-                    const value = dataset.data[index];
-                    const label = chartData.labels[index];
-
-                    const xFieldName = this.el.dataset.xAxis;
-                    const yFieldName = dataset.label;
-
-                    pushEvent('chart_click', {
-                      label: label,
-                      value: value,
-                      dataset_label: dataset.label,
-                      x_field: xFieldName,
-                      y_field: yFieldName
-                    });
-                  }
-                }
-              }
-            });
-          } catch (error) {
-            console.error('Error initializing chart:', error);
-          }
-        },
-
-        updateChart() {
-          if (this.chart) {
             const chartData = JSON.parse(this.el.dataset.chartData || '{}');
             const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
+            const chartType = this.el.dataset.chartType || 'bar';
 
-            this.chart.data = chartData;
-            this.chart.options = chartOptions;
-            this.chart.update();
-          } else {
-            this.initializeChart();
+            const pushEvent = (event, payload) => {
+              this.pushEvent(event, payload);
+            };
+
+            try {
+              this.chart = new Chart(canvas, {
+                type: chartType,
+                data: chartData,
+                options: {
+                  ...chartOptions,
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const element = elements[0];
+                      const datasetIndex = element.datasetIndex;
+                      const index = element.index;
+                      const dataset = chartData.datasets[datasetIndex];
+                      const value = dataset.data[index];
+                      const label = chartData.labels[index];
+
+                      const xFieldName = this.el.dataset.xAxis;
+                      const yFieldName = dataset.label;
+
+                      pushEvent('chart_click', {
+                        label: label,
+                        value: value,
+                        dataset_label: dataset.label,
+                        x_field: xFieldName,
+                        y_field: yFieldName
+                      });
+                    }
+                  }
+                }
+              });
+            } catch (error) {
+              console.error('Error initializing chart:', error);
+            }
+          },
+
+          updateChart() {
+            if (this.chart) {
+              const chartData = JSON.parse(this.el.dataset.chartData || '{}');
+              const chartOptions = JSON.parse(this.el.dataset.chartOptions || '{}');
+
+              this.chart.data = chartData;
+              this.chart.options = chartOptions;
+              this.chart.update();
+            } else {
+              this.initializeChart();
+            }
           }
         }
-      }
       </script>
-
-      <!-- Chart Legend/Summary -->
+      
+    <!-- Chart Legend/Summary -->
       <div class="mt-4 text-sm text-gray-600">
         <div class="flex items-center justify-between">
           <span>
-            <%= chart_summary(@chart_data, @chart_type) %>
+            {chart_summary(@chart_data, @chart_type)}
           </span>
           <span class="text-xs text-gray-400">
             Click data points to drill down
@@ -332,6 +336,7 @@ defmodule SelectoComponents.Views.Graph.Component do
             end)
 
           series_type = dataset_type(metric_def, chart_type)
+
           dataset = %{
             label: metric_def.alias,
             data: data,
@@ -362,7 +367,14 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  defp prepare_line_data(results, _aliases, _x_axis_groups, metric_defs, _series_groups, chart_type) do
+  defp prepare_line_data(
+         results,
+         _aliases,
+         _x_axis_groups,
+         metric_defs,
+         _series_groups,
+         chart_type
+       ) do
     labels = Enum.map(results, fn row -> format_chart_label(Enum.at(row, 0)) end)
 
     datasets =
@@ -376,6 +388,7 @@ defmodule SelectoComponents.Views.Graph.Component do
           end)
 
         series_type = dataset_type(metric_def, chart_type)
+
         dataset = %{
           label: metric_def.alias,
           data: data,
@@ -446,13 +459,16 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   def prepare_chart_options(assigns) do
     chart_type = get_chart_type(assigns)
+
     selecto_set =
       case assigns[:selecto] do
         %{set: set} when is_map(set) -> set
         _ -> %{}
       end
 
-    metric_defs = build_metric_defs(selecto_set[:graph_series_defs], selecto_set[:aggregates] || [])
+    metric_defs =
+      build_metric_defs(selecto_set[:graph_series_defs], selecto_set[:aggregates] || [])
+
     graph_options = selecto_set[:graph_options] || %{}
     uses_right_axis? = Enum.any?(metric_defs, &(&1.axis == "right"))
 
@@ -489,7 +505,10 @@ defmodule SelectoComponents.Views.Graph.Component do
           Map.put(scales, :y1, %{
             type: "linear",
             position: "right",
-            title: %{display: true, text: Map.get(graph_options, "y2_axis_label", "Secondary Axis")},
+            title: %{
+              display: true,
+              text: Map.get(graph_options, "y2_axis_label", "Secondary Axis")
+            },
             beginAtZero: true,
             grid: %{drawOnChartArea: false}
           })
@@ -655,7 +674,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp get_x_axis_field(_), do: ""
 
-  defp build_metric_defs(graph_series_defs, y_axis_aggregates) when is_list(graph_series_defs) do
+  defp build_metric_defs(graph_series_defs, _y_axis_aggregates) when is_list(graph_series_defs) do
     graph_series_defs
     |> Enum.map(fn defn ->
       %{

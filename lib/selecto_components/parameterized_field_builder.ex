@@ -41,11 +41,12 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
   """
   def build_enhanced_filter_list(selecto) do
     # Get filterable columns
-    filterable_columns = Map.values(Selecto.columns(selecto))
-    |> Enum.filter(fn column ->
-      Map.get(column, :make_filter, false) or
-      (not Map.has_key?(column, :format) and not Map.has_key?(column, :component))
-    end)
+    filterable_columns =
+      Map.values(Selecto.columns(selecto))
+      |> Enum.filter(fn column ->
+        Map.get(column, :make_filter, false) or
+          (not Map.has_key?(column, :format) and not Map.has_key?(column, :component))
+      end)
 
     # Add explicit filters
     explicit_filters = Map.values(Selecto.filters(selecto))
@@ -78,8 +79,8 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
     |> Enum.filter(fn {_join_name, join_config} ->
       # Only include joins that have parameters defined
       Map.has_key?(join_config, :parameters) and
-      is_list(Map.get(join_config, :parameters)) and
-      length(Map.get(join_config, :parameters, [])) > 0
+        is_list(Map.get(join_config, :parameters)) and
+        length(Map.get(join_config, :parameters, [])) > 0
     end)
     |> Enum.flat_map(fn {join_name, join_config} ->
       # Generate example parameterized fields for each join
@@ -97,7 +98,8 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
             colid: dot_notation,
             name: field_name,
             qualified_name: dot_notation,
-            display_name: "#{Map.get(join_config, :name, join_name)} (#{param_display}).#{field_name}",
+            display_name:
+              "#{Map.get(join_config, :name, join_name)} (#{param_display}).#{field_name}",
             join: join_name,
             parameters: param_signature,
             parameter_display: param_display,
@@ -118,7 +120,7 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
     build_parameterized_field_suggestions(selecto)
     |> Enum.filter(fn field ->
       Map.get(field, :make_filter, false) or
-      Map.get(field, :type) in [:string, :integer, :float, :boolean, :date, :datetime]
+        Map.get(field, :type) in [:string, :integer, :float, :boolean, :date, :datetime]
     end)
   end
 
@@ -131,7 +133,8 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
   def migrate_field_reference(field_ref) when is_binary(field_ref) do
     cond do
       # Already dot notation or parameterized
-      String.contains?(field_ref, ".") -> field_ref
+      String.contains?(field_ref, ".") ->
+        field_ref
 
       # Bracket notation to migrate
       String.contains?(field_ref, "[") && String.contains?(field_ref, "]") ->
@@ -141,7 +144,8 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
         end
 
       # Simple field name, no change needed
-      true -> field_ref
+      true ->
+        field_ref
     end
   end
 
@@ -166,7 +170,7 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
     parameterized_suggestions = build_parameterized_field_suggestions(selecto)
 
     all_suggestions =
-      (Map.keys(available_fields) ++ Enum.map(parameterized_suggestions, & &1.qualified_name))
+      Map.keys(available_fields) ++ Enum.map(parameterized_suggestions, & &1.qualified_name)
 
     all_suggestions
     |> Enum.filter(fn field ->
@@ -195,24 +199,30 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
 
     examples = []
 
-    # Example 1: Just required parameters
-    if length(required_params) > 0 do
-      {signature, display} = build_example_from_params(required_params)
-      examples = [{signature, display} | examples]
-    end
+    examples =
+      if length(required_params) > 0 do
+        {signature, display} = build_example_from_params(required_params)
+        [{signature, display} | examples]
+      else
+        examples
+      end
 
-    # Example 2: Required + first optional
-    if length(required_params) > 0 and length(optional_params) > 0 do
-      first_optional = List.first(optional_params)
-      {signature, display} = build_example_from_params(required_params ++ [first_optional])
-      examples = [{signature, display} | examples]
-    end
+    examples =
+      if length(required_params) > 0 and length(optional_params) > 0 do
+        first_optional = List.first(optional_params)
+        {signature, display} = build_example_from_params(required_params ++ [first_optional])
+        [{signature, display} | examples]
+      else
+        examples
+      end
 
-    # Example 3: All parameters
-    if length(required_params) + length(optional_params) > 2 do
-      {signature, display} = build_example_from_params(param_definitions)
-      examples = [{signature, display} | examples]
-    end
+    examples =
+      if length(required_params) + length(optional_params) > 2 do
+        {signature, display} = build_example_from_params(param_definitions)
+        [{signature, display} | examples]
+      else
+        examples
+      end
 
     # Ensure we have at least one example
     case examples do
@@ -235,18 +245,23 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
       :string ->
         example_val = Map.get(param_def, :example, param_def.name)
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
+
       :integer ->
         example_val = Map.get(param_def, :example, 1)
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
+
       :float ->
         example_val = Map.get(param_def, :example, 1.0)
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
+
       :boolean ->
         example_val = Map.get(param_def, :example, true)
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
+
       :atom ->
         example_val = Map.get(param_def, :example, param_def.name)
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
+
       _ ->
         example_val = Map.get(param_def, :example, "value")
         {to_string(example_val), "#{param_def.name}=#{example_val}"}
@@ -265,12 +280,20 @@ defmodule SelectoComponents.ParameterizedFieldBuilder do
 
   defp format_field_display_name(field) do
     cond do
-      Map.has_key?(field, :display_name) -> field.display_name
+      Map.has_key?(field, :display_name) ->
+        field.display_name
+
       Map.has_key?(field, :is_parameterized) && field.is_parameterized ->
         "#{field.name} (#{field.parameter_display})"
-      Map.has_key?(field, :qualified_name) -> field.qualified_name
-      Map.has_key?(field, :name) -> field.name
-      true -> "Unknown Field"
+
+      Map.has_key?(field, :qualified_name) ->
+        field.qualified_name
+
+      Map.has_key?(field, :name) ->
+        field.name
+
+      true ->
+        "Unknown Field"
     end
   end
 

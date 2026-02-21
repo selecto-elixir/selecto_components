@@ -10,7 +10,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
   """
   def query_plan(assigns) do
     assigns = assign_defaults(assigns)
-    
+
     ~H"""
     <div class="query-plan-analyzer">
       <div class="bg-white rounded-lg shadow-lg">
@@ -35,17 +35,17 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
             </div>
           </div>
         </div>
-        
+
         <div class="p-6">
           <!-- Query Display -->
           <div class="mb-6">
             <h4 class="font-medium text-sm text-gray-700 mb-2">Query</h4>
             <pre class="bg-gray-900 text-gray-100 p-4 rounded text-xs overflow-x-auto">
-<%= format_sql(@query) %>
+              <%= format_sql(@query) %>
             </pre>
           </div>
           
-          <!-- Execution Plan Tree -->
+    <!-- Execution Plan Tree -->
           <div class="mb-6">
             <h4 class="font-medium text-sm text-gray-700 mb-2">Execution Plan</h4>
             <div class="border rounded-lg p-4 bg-gray-50">
@@ -53,26 +53,30 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
             </div>
           </div>
           
-          <!-- Performance Metrics -->
+    <!-- Performance Metrics -->
           <div class="mb-6">
             <h4 class="font-medium text-sm text-gray-700 mb-2">Performance Metrics</h4>
             <div class="grid grid-cols-3 gap-4">
               <div class="bg-blue-50 p-3 rounded">
                 <div class="text-xs text-blue-600">Total Cost</div>
-                <div class="text-xl font-bold text-blue-700"><%= @metrics.total_cost %></div>
+                <div class="text-xl font-bold text-blue-700">{@metrics.total_cost}</div>
               </div>
               <div class="bg-green-50 p-3 rounded">
                 <div class="text-xs text-green-600">Rows Examined</div>
-                <div class="text-xl font-bold text-green-700"><%= format_number(@metrics.rows_examined) %></div>
+                <div class="text-xl font-bold text-green-700">
+                  {format_number(@metrics.rows_examined)}
+                </div>
               </div>
               <div class="bg-purple-50 p-3 rounded">
                 <div class="text-xs text-purple-600">Execution Time</div>
-                <div class="text-xl font-bold text-purple-700"><%= format_duration(@metrics.execution_time) %></div>
+                <div class="text-xl font-bold text-purple-700">
+                  {format_duration(@metrics.execution_time)}
+                </div>
               </div>
             </div>
           </div>
           
-          <!-- Optimization Suggestions -->
+    <!-- Optimization Suggestions -->
           <div class="mb-6">
             <h4 class="font-medium text-sm text-gray-700 mb-2">Optimization Suggestions</h4>
             <%= if @suggestions == [] do %>
@@ -88,7 +92,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
             <% end %>
           </div>
           
-          <!-- Index Recommendations -->
+    <!-- Index Recommendations -->
           <%= if @index_recommendations != [] do %>
             <div>
               <h4 class="font-medium text-sm text-gray-700 mb-2">Index Recommendations</h4>
@@ -109,29 +113,28 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     ~H"""
     <div class={"plan-node ml-#{@level * 4}"}>
       <div class="flex items-start space-x-2 py-2">
-        <div class={"w-2 h-2 mt-1.5 rounded-full #{node_color(@node.type)}"}>
-        </div>
+        <div class={"w-2 h-2 mt-1.5 rounded-full #{node_color(@node.type)}"}></div>
         <div class="flex-1">
           <div class="flex items-center space-x-2">
-            <span class="font-medium text-sm"><%= @node.operation %></span>
+            <span class="font-medium text-sm">{@node.operation}</span>
             <span class="text-xs text-gray-500">
-              Cost: <%= @node.cost %> | Rows: <%= @node.rows %>
+              Cost: {@node.cost} | Rows: {@node.rows}
             </span>
           </div>
           <%= if @node.details do %>
             <div class="text-xs text-gray-600 mt-1">
-              <%= @node.details %>
+              {@node.details}
             </div>
           <% end %>
           <%= if @node.warning do %>
             <div class="text-xs text-yellow-600 mt-1 flex items-center">
               <.icon name="hero-exclamation-triangle" class="w-3 h-3 mr-1" />
-              <%= @node.warning %>
+              {@node.warning}
             </div>
           <% end %>
         </div>
       </div>
-      
+
       <%= if @node.children do %>
         <%= for child <- @node.children do %>
           <.plan_node node={child} level={@level + 1} />
@@ -147,15 +150,15 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
       <div class="flex items-start">
         <.icon name="hero-light-bulb" class="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
         <div class="flex-1">
-          <div class="font-medium text-sm"><%= @suggestion.title %></div>
-          <div class="text-sm text-gray-600 mt-1"><%= @suggestion.description %></div>
+          <div class="font-medium text-sm">{@suggestion.title}</div>
+          <div class="text-sm text-gray-600 mt-1">{@suggestion.description}</div>
           <%= if @suggestion.example do %>
             <div class="mt-2 bg-white p-2 rounded border border-yellow-200">
               <pre class="text-xs"><%= @suggestion.example %></pre>
             </div>
           <% end %>
           <div class="mt-2 text-xs text-gray-500">
-            Estimated improvement: <%= @suggestion.improvement %>%
+            Estimated improvement: {@suggestion.improvement}%
           </div>
         </div>
       </div>
@@ -170,7 +173,10 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
         <div>
           <div class="font-medium text-sm">Create Index</div>
           <code class="text-xs text-gray-700">
-            CREATE INDEX <%= @recommendation.name %> ON <%= @recommendation.table %> (<%= Enum.join(@recommendation.columns, ", ") %>)
+            CREATE INDEX {@recommendation.name} ON {@recommendation.table} ({Enum.join(
+              @recommendation.columns,
+              ", "
+            )})
           </code>
         </div>
         <button
@@ -275,13 +281,15 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     [
       %{
         title: "Convert Sequential Scan to Index Scan",
-        description: "The query is performing a full table scan on 'order_items'. An index on 'order_id' would improve performance.",
+        description:
+          "The query is performing a full table scan on 'order_items'. An index on 'order_id' would improve performance.",
         example: "CREATE INDEX idx_order_items_order_id ON order_items(order_id);",
         improvement: 65
       },
       %{
         title: "Use Covering Index",
-        description: "Including 'product_id' in the index would eliminate additional table lookups.",
+        description:
+          "Including 'product_id' in the index would eliminate additional table lookups.",
         example: "CREATE INDEX idx_order_items_covering ON order_items(order_id, product_id);",
         improvement: 25
       }
@@ -315,6 +323,7 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     |> to_string()
     |> String.replace(~r/(\d)(?=(\d{3})+(?!\d))/, "\\1,")
   end
+
   defp format_number(_), do: "0"
 
   defp format_duration(ms) when ms >= 1000, do: "#{Float.round(ms / 1000, 2)}s"
@@ -325,11 +334,26 @@ defmodule SelectoComponents.Performance.QueryAnalyzer do
     <svg class={@class} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <%= case @name do %>
         <% "hero-exclamation-triangle" -> %>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
         <% "hero-light-bulb" -> %>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+          />
         <% _ -> %>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"
+          />
       <% end %>
     </svg>
     """

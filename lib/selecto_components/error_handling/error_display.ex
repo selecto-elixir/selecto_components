@@ -25,62 +25,64 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
 
   def error_card(assigns) do
     # Sanitize error info for production
-    sanitized_error_info = if ErrorSanitizer.production_env?() and not assigns[:dev_mode] do
-      sanitize_error_info(assigns.error_info)
-    else
-      assigns.error_info
-    end
-    
-    assigns = assign(assigns, 
-      error_info: sanitized_error_info,
-      severity_class: severity_to_class(sanitized_error_info.severity),
-      icon: severity_to_icon(sanitized_error_info.severity)
-    )
-    
+    sanitized_error_info =
+      if ErrorSanitizer.production_env?() and not assigns[:dev_mode] do
+        sanitize_error_info(assigns.error_info)
+      else
+        assigns.error_info
+      end
+
+    assigns =
+      assign(assigns,
+        error_info: sanitized_error_info,
+        severity_class: severity_to_class(sanitized_error_info.severity),
+        icon: severity_to_icon(sanitized_error_info.severity)
+      )
+
     ~H"""
     <div class={"rounded-md p-4 #{@severity_class}"}>
       <div class="flex">
         <div class="flex-shrink-0">
-          <%= Phoenix.HTML.raw(@icon) %>
+          {Phoenix.HTML.raw(@icon)}
         </div>
         <div class="ml-3 flex-1">
           <h3 class={"text-sm font-medium #{severity_text_class(@error_info.severity)}"}>
-            <%= category_title(@error_info.category) %>
+            {category_title(@error_info.category)}
             <%= if @error_info.recoverable do %>
               <span class="ml-2 text-xs font-normal">(Recoverable)</span>
             <% end %>
           </h3>
-          
+
           <div class={"mt-2 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
             <%= if ErrorSanitizer.production_env?() and not @dev_mode do %>
-              <%= ErrorSanitizer.user_friendly_message(@error_info.category) %>
+              {ErrorSanitizer.user_friendly_message(@error_info.category)}
             <% else %>
-              <%= ErrorCategorizer.format_message(@error_info) %>
+              {ErrorCategorizer.format_message(@error_info)}
             <% end %>
           </div>
-          
+
           <%= if @error_info[:suggestions] && length(@error_info[:suggestions]) > 0 do %>
             <div class={"mt-3 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
               <strong>Suggestions:</strong>
               <ul class="mt-1 list-disc list-inside">
                 <%= for suggestion <- @error_info[:suggestions] do %>
-                  <li><%= suggestion %></li>
+                  <li>{suggestion}</li>
                 <% end %>
               </ul>
             </div>
           <% end %>
-          
+
           <%!-- Retry button for retryable errors --%>
           <%= if ErrorRecovery.retryable_error?(@error_info.error) do %>
             <div class="mt-3">
-              <ErrorRecovery.retry_button 
+              <ErrorRecovery.retry_button
                 retryable={true}
                 operation="last_operation"
                 retry_in_progress={Map.get(assigns, :retry_in_progress, false)}
               />
             </div>
           <% end %>
-          
+
           <%= if @dev_mode and not ErrorSanitizer.production_env?() do %>
             <.error_details error_info={@error_info} />
           <% end %>
@@ -95,11 +97,11 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
     <details class="mt-3 text-xs">
       <summary class="cursor-pointer font-medium">Developer Details</summary>
       <div class="mt-2 space-y-1">
-        <div><strong>Category:</strong> <%= @error_info.category %></div>
-        <div><strong>Severity:</strong> <%= @error_info.severity %></div>
-        <div><strong>Source:</strong> <%= @error_info.source %></div>
-        <div><strong>Recoverable:</strong> <%= @error_info.recoverable %></div>
-        
+        <div><strong>Category:</strong> {@error_info.category}</div>
+        <div><strong>Severity:</strong> {@error_info.severity}</div>
+        <div><strong>Source:</strong> {@error_info.source}</div>
+        <div><strong>Recoverable:</strong> {@error_info.recoverable}</div>
+
         <%= if is_struct(@error_info.error, Selecto.Error) do %>
           <.selecto_error_details error={@error_info.error} />
         <% else %>
@@ -134,7 +136,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
             </pre>
           </div>
         <% end %>
-        
+
         <%= if @error.params && length(@error.params) > 0 do %>
           <div>
             <strong>Parameters:</strong>
@@ -143,7 +145,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
             </pre>
           </div>
         <% end %>
-        
+
         <%= if @error.details && map_size(@error.details) > 0 do %>
           <div>
             <strong>Details:</strong>
@@ -163,9 +165,10 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
 
   def update(%{error: error} = assigns, socket) when not is_nil(error) do
     categorized = ErrorCategorizer.categorize(error)
-    errors = [categorized | socket.assigns.errors] |> Enum.take(5)  # Keep last 5 errors
-    
-    {:ok, 
+    # Keep last 5 errors
+    errors = [categorized | socket.assigns.errors] |> Enum.take(5)
+
+    {:ok,
      socket
      |> assign(assigns)
      |> assign(errors: errors)}
@@ -173,7 +176,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
 
   def update(%{errors: errors} = assigns, socket) when is_list(errors) do
     categorized = Enum.map(errors, &ErrorCategorizer.categorize/1)
-    
+
     {:ok,
      socket
      |> assign(assigns)
@@ -205,14 +208,10 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
   defp severity_text_class(:error), do: "text-red-700"
   defp severity_text_class(:warning), do: "text-yellow-700"
   defp severity_text_class(_), do: "text-blue-700"
-  
-  defp severity_text_class(:critical, :primary), do: "text-red-900"
+
   defp severity_text_class(:critical, :secondary), do: "text-red-700"
-  defp severity_text_class(:error, :primary), do: "text-red-800"
   defp severity_text_class(:error, :secondary), do: "text-red-600"
-  defp severity_text_class(:warning, :primary), do: "text-yellow-800"
   defp severity_text_class(:warning, :secondary), do: "text-yellow-600"
-  defp severity_text_class(_, :primary), do: "text-blue-800"
   defp severity_text_class(_, :secondary), do: "text-blue-600"
 
   defp severity_to_icon(:critical) do
@@ -264,9 +263,11 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
       category: error_info.category,
       severity: error_info.severity,
       recoverable: error_info.recoverable,
-      source: "application",  # Hide actual source
+      # Hide actual source
+      source: "application",
       suggestions: ErrorSanitizer.safe_suggestions(error_info.category),
-      error: nil  # Remove raw error data
+      # Remove raw error data
+      error: nil
     }
   end
 

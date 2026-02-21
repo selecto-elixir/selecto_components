@@ -6,12 +6,23 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
   describe "is_date_shortcut/1" do
     test "recognizes valid date shortcuts" do
       valid_shortcuts = [
-        "today", "yesterday", "tomorrow",
-        "this_week", "last_week", "next_week",
-        "this_month", "last_month", "next_month",
-        "this_year", "last_year", "next_year",
-        "ytd", "qtd", "mtd",
-        "last_7_days", "last_30_days"
+        "today",
+        "yesterday",
+        "tomorrow",
+        "this_week",
+        "last_week",
+        "next_week",
+        "this_month",
+        "last_month",
+        "next_month",
+        "this_year",
+        "last_year",
+        "next_year",
+        "ytd",
+        "qtd",
+        "mtd",
+        "last_7_days",
+        "last_30_days"
       ]
 
       for shortcut <- valid_shortcuts do
@@ -51,12 +62,18 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
   describe "is_relative_date/1" do
     test "recognizes valid relative date patterns" do
       valid_patterns = [
-        "5",      # 5 days ago
-        "3-7",    # 3-7 days ago
-        "-30",    # more than 30 days ago
-        "30-",    # within 30 days
-        "0-10",   # 0-10 days ago
-        "-365"    # more than a year ago
+        # 5 days ago
+        "5",
+        # 3-7 days ago
+        "3-7",
+        # more than 30 days ago
+        "-30",
+        # within 30 days
+        "30-",
+        # 0-10 days ago
+        "0-10",
+        # more than a year ago
+        "-365"
       ]
 
       for pattern <- valid_patterns do
@@ -173,7 +190,7 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       # Create a mock Selecto module behavior
       defmodule MockSelecto do
-        def columns(selecto) do
+        def columns(_selecto) do
           %{
             id: %{colid: :id, name: "ID", type: :integer, make_filter: true},
             name: %{colid: :name, name: "Name", type: :string}

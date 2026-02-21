@@ -10,57 +10,64 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   def mount(socket) do
     # Initialize column configuration
-    columns = []  # Will be populated in update/2
-    socket = 
+    # Will be populated in update/2
+    columns = []
+
+    socket =
       socket
       |> assign(:columns_config, init_columns_config(columns))
+
     {:ok, socket}
   end
 
   def update(assigns, socket) do
     # Extract columns from selecto if available
-    columns = if Map.has_key?(assigns, :selecto) do
-      Map.get(assigns.selecto.set, :columns, [])
-      |> Enum.map(fn col -> 
-        %{
-          id: col["field"],
-          name: col["alias"] || col["field"],
-          width: 150,
-          min_width: 50,
-          max_width: 500
-        }
-      end)
-    else
-      []
-    end
-    
-    socket = 
+    columns =
+      if Map.has_key?(assigns, :selecto) do
+        Map.get(assigns.selecto.set, :columns, [])
+        |> Enum.map(fn col ->
+          %{
+            id: col["field"],
+            name: col["alias"] || col["field"],
+            width: 150,
+            min_width: 50,
+            max_width: 500
+          }
+        end)
+      else
+        []
+      end
+
+    socket =
       socket
       |> assign(assigns)
       |> assign(:columns_config, init_columns_config(columns))
-    
+
     {:ok, socket}
   end
 
   def render(assigns) do
     ### Todo Deal with page changes without executing again.......
-    
+
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
       # Display the actual error message
       ~H"""
       <div>
         <%= if @execution_error do %>
-          <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <div
+            class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+            role="alert"
+          >
             <strong class="font-bold">Query Error:</strong>
             <span class="block sm:inline">
               <%= case @execution_error do %>
                 <% %{message: msg} -> %>
-                  <%= msg %>
+                  {msg}
                 <% error when is_binary(error) -> %>
-                  <%= error %>
+                  {error}
                 <% error -> %>
-                  <%= inspect(error) %>
+                  {inspect(error)}
               <% end %>
             </span>
             <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) do %>
@@ -86,7 +93,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             <div class="text-blue-500 italic p-4">Loading view...</div>
           </div>
           """
-          
+
         {true, nil} ->
           # Executed but no results - this is an error state
           ~H"""
@@ -97,7 +104,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             </div>
           </div>
           """
-        
+
         {true, {results, _fields, aliases}} ->
           # Valid results - proceed with normal rendering
           render_detail_view(assign(assigns, :processed_results, {results, aliases}))
@@ -107,16 +114,18 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   defp render_detail_view(assigns) do
     {results, aliases} = assigns.processed_results
-    
+
     # Ensure results are normalized to maps if they're lists
-    normalized_results = if length(results) > 0 and is_list(hd(results)) do
-      {_results, columns, _aliases} = assigns.query_results
-      Enum.map(results, fn row ->
-        Enum.zip(columns, row) |> Map.new()
-      end)
-    else
-      results
-    end
+    normalized_results =
+      if length(results) > 0 and is_list(hd(results)) do
+        {_results, columns, _aliases} = assigns.query_results
+
+        Enum.map(results, fn row ->
+          Enum.zip(columns, row) |> Map.new()
+        end)
+      else
+        results
+      end
 
     page = assigns.view_meta.page
     per_page = assigns.view_meta.per_page
@@ -138,183 +147,229 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     ~H"""
     <div>
-      <.sql_debug 
+      <.sql_debug
         :if={Map.get(assigns, :sql)}
         sql={Map.get(assigns, :sql)}
         params={Map.get(assigns, :sql_params, [])}
         execution_time={Map.get(assigns, :execution_time)}
       />
-      
+
       <div class="flex justify-center">
         <div class="inline-block w-36">
-          <.sc_button :if={@view_meta.page > 0} type="button" phx-click="set_page" phx-value-page={@view_meta.page - 1} phx-target={@myself}>
-            <svg class="w-8 h-8 inline" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061a1.125 1.125 0 0 1 1.683.977v8.122Z" />
+          <.sc_button
+            :if={@view_meta.page > 0}
+            type="button"
+            phx-click="set_page"
+            phx-value-page={@view_meta.page - 1}
+            phx-target={@myself}
+          >
+            <svg
+              class="w-8 h-8 inline"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              width="100%"
+              height="100%"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M21 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061a1.125 1.125 0 0 1 1.683.977v8.122Z"
+              />
             </svg>
             Prev Page
           </.sc_button>
         </div>
         <div class="inline-block px-4 py-2 align-bottom">
-          <%= Enum.count(@results) %> Rows Found
+          {Enum.count(@results)} Rows Found
         </div>
         <div class="inline-block w-36">
-          <.sc_button :if={@view_meta.page < @max_pages} type="button" phx-click="set_page" phx-value-page={@view_meta.page + 1} phx-target={@myself}>
+          <.sc_button
+            :if={@view_meta.page < @max_pages}
+            type="button"
+            phx-click="set_page"
+            phx-value-page={@view_meta.page + 1}
+            phx-target={@myself}
+          >
             Next Page
-            <svg class="w-8 h-8 inline" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="100%" height="100%">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z" />
+            <svg
+              class="w-8 h-8 inline"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              width="100%"
+              height="100%"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z"
+              />
             </svg>
           </.sc_button>
         </div>
       </div>
 
-      <div class="responsive-table-wrapper overflow-x-auto" id={"detail-table-wrapper-#{@myself}"} phx-hook=".RowClickable">
+      <div
+        class="responsive-table-wrapper overflow-x-auto"
+        id={"detail-table-wrapper-#{@myself}"}
+        phx-hook=".RowClickable"
+      >
         <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
-        <thead>
-        <tr>
-          <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-gray-700 uppercase bg-gray-50 w-12 max-w-12 min-w-12">#</th>
-          <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
-            <% column_field = Enum.at(@columns, idx)["field"] %>
-            <Sorting.sortable_header 
-              column={column_field}
-              label={alias}
-              sort_by={assigns[:sort_by] || []}
-              multi={false}
-              target={@myself}
-              resizable={true}
-              column_config={assigns[:column_config] || %{}}
-            />
-          <% end %>
-          <%!-- Add headers for subselect columns --%>
-          <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
-            <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-              <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
-                <%= Map.get(config, :title, config.key) %>
+          <thead>
+            <tr>
+              <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-gray-700 uppercase bg-gray-50 w-12 max-w-12 min-w-12">
+                #
               </th>
-            <% end %>
-          <% end %>
-        </tr>
-        </thead>
-        <tbody>
-        <%!--  --%>
-        <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
-          <% # Process row data once at the beginning of the iteration %>
-          <% resrow_list = cond do
-            is_tuple(resrow) -> Tuple.to_list(resrow)
-            is_list(resrow) -> resrow
-            is_map(resrow) -> 
-              # If it's already a map, extract values in column order
-              {_results, columns_from_query, _aliases} = @query_results
-              Enum.map(columns_from_query, fn col -> Map.get(resrow, col) end)
-            true -> [resrow]
-          end %>
-          <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
-          <% # Also create a map by column name for subselects %>
-          <% {_results, columns_from_query, _aliases} = @query_results %>
-          <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
-          
-          <tr 
-            class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
-            phx-click="show_row_details"
-            phx-value-row-index={actual_idx}
-            phx-target={@myself}
-          >
-            <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
-              <%= actual_idx + 1 %>
-            </td>
-            <%!-- Display regular columns --%>
-            <td :for={ {_, col_conf}<- Enum.zip( @column_uuids, @columns )}
-              class="px-1 py-1 align-top">
-              <% def = Selecto.columns(@selecto)[col_conf["field"]] %>
-              <%= case def do %>
+              <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
+                <% column_field = Enum.at(@columns, idx)["field"] %>
+                <Sorting.sortable_header
+                  column={column_field}
+                  label={alias}
+                  sort_by={assigns[:sort_by] || []}
+                  multi={false}
+                  target={@myself}
+                  resizable={true}
+                  column_config={assigns[:column_config] || %{}}
+                />
+              <% end %>
+              <%!-- Add headers for subselect columns --%>
+              <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+                <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+                  <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+                    {Map.get(config, :title, config.key)}
+                  </th>
+                <% end %>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <%!--  --%>
+            <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
+              <% # Process row data once at the beginning of the iteration %>
+              <% resrow_list =
+                cond do
+                  is_tuple(resrow) ->
+                    Tuple.to_list(resrow)
 
-                <% %{format: :component} = def -> %>
-                    <%=
-                      safe_render_component(def.component, %{
+                  is_list(resrow) ->
+                    resrow
+
+                  is_map(resrow) ->
+                    # If it's already a map, extract values in column order
+                    {_results, columns_from_query, _aliases} = @query_results
+                    Enum.map(columns_from_query, fn col -> Map.get(resrow, col) end)
+
+                  true ->
+                    [resrow]
+                end %>
+              <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
+              <% # Also create a map by column name for subselects %>
+              <% {_results, columns_from_query, _aliases} = @query_results %>
+              <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+
+              <tr
+                class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
+                phx-click="show_row_details"
+                phx-value-row-index={actual_idx}
+                phx-target={@myself}
+              >
+                <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
+                  {actual_idx + 1}
+                </td>
+                <%!-- Display regular columns --%>
+                <td
+                  :for={{_, col_conf} <- Enum.zip(@column_uuids, @columns)}
+                  class="px-1 py-1 align-top"
+                >
+                  <% def = Selecto.columns(@selecto)[col_conf["field"]] %>
+                  <%= case def do %>
+                    <% %{format: :component} = def -> %>
+                      {safe_render_component(def.component, %{
                         row: row_data_by_uuid[col_conf["uuid"]],
                         config: col_conf
-                      })
-                    %>
-
-                  <% %{format: :link} = def -> %>
-                    <%=
-                      safe_render_link(def.link_parts, row_data_by_uuid[col_conf["uuid"]])
-                    %>
-
-                  <% _ -> %>
-                    <%= row_data_by_uuid[col_conf["uuid"]] %>
-
-              <% end %>
-            </td>
-            
-            <%!-- Add subselect columns inline --%>
-            <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
-              <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-                <% data = Map.get(row_data_by_column, config.key, []) %>
-                <% # Use actual_idx to ensure unique IDs %>
-                <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
-                <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
-                  <% # Parse the data here to ensure it's fresh %>
-                  <% parsed_data = SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
-                  <div id={"nested_#{unique_id}"}>
-                    <%= if length(parsed_data) > 0 do %>
-                      <table class="min-w-full border border-gray-300 rounded">
-                        <thead>
-                          <tr class="bg-gray-100">
-                            <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
-                              <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
-                                <%= SelectoComponents.Components.NestedTable.humanize_key(key) %>
-                              </th>
-                            <% end %>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
-                            <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
-                              <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
-                                <td class="px-2 py-1 text-xs text-gray-700">
-                                  <%= SelectoComponents.Components.NestedTable.format_value(Map.get(item, key, "")) %>
-                                </td>
-                              <% end %>
-                            </tr>
-                          <% end %>
-                        </tbody>
-                      </table>
-                    <% else %>
-                      <div class="text-xs text-gray-500 italic">No data</div>
-                    <% end %>
-                  </div>
+                      })}
+                    <% %{format: :link} = def -> %>
+                      {safe_render_link(def.link_parts, row_data_by_uuid[col_conf["uuid"]])}
+                    <% _ -> %>
+                      {row_data_by_uuid[col_conf["uuid"]]}
+                  <% end %>
                 </td>
-              <% end %>
+
+                <%!-- Add subselect columns inline --%>
+                <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
+                  <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+                    <% data = Map.get(row_data_by_column, config.key, []) %>
+                    <% # Use actual_idx to ensure unique IDs %>
+                    <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
+                    <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
+                      <% # Parse the data here to ensure it's fresh %>
+                      <% parsed_data =
+                        SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
+                      <div id={"nested_#{unique_id}"}>
+                        <%= if length(parsed_data) > 0 do %>
+                          <table class="min-w-full border border-gray-300 rounded">
+                            <thead>
+                              <tr class="bg-gray-100">
+                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                  <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                                    {SelectoComponents.Components.NestedTable.humanize_key(key)}
+                                  </th>
+                                <% end %>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
+                                <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                    <td class="px-2 py-1 text-xs text-gray-700">
+                                      {SelectoComponents.Components.NestedTable.format_value(
+                                        Map.get(item, key, "")
+                                      )}
+                                    </td>
+                                  <% end %>
+                                </tr>
+                              <% end %>
+                            </tbody>
+                          </table>
+                        <% else %>
+                          <div class="text-xs text-gray-500 italic">No data</div>
+                        <% end %>
+                      </div>
+                    </td>
+                  <% end %>
+                <% end %>
+              </tr>
             <% end %>
-          </tr>
-        <% end %>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
       </div>
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".RowClickable">
-      export default {
-        mounted() {
-          this.handleRowClick = (e) => {
-            const row = e.target.closest('tr[data-row-id]');
-            if (row && !e.target.closest('a, button, input, select, textarea')) {
-              const rowId = row.dataset.rowId;
-              const action = row.dataset.clickAction || 'row_clicked';
+        export default {
+          mounted() {
+            this.handleRowClick = (e) => {
+              const row = e.target.closest('tr[data-row-id]');
+              if (row && !e.target.closest('a, button, input, select, textarea')) {
+                const rowId = row.dataset.rowId;
+                const action = row.dataset.clickAction || 'row_clicked';
 
-              this.pushEvent(action, { row_id: rowId });
+                this.pushEvent(action, { row_id: rowId });
+              }
+            };
+
+            this.el.addEventListener('click', this.handleRowClick);
+          },
+
+          destroyed() {
+            if (this.handleRowClick) {
+              this.el.removeEventListener('click', this.handleRowClick);
             }
-          };
-
-          this.el.addEventListener('click', this.handleRowClick);
-        },
-
-        destroyed() {
-          if (this.handleRowClick) {
-            this.el.removeEventListener('click', this.handleRowClick);
           }
         }
-      }
-    </script>
+      </script>
     </div>
     """
   end
@@ -322,13 +377,13 @@ defmodule SelectoComponents.Views.Detail.Component do
   def handle_event("sort_column", %{"column" => column} = params, socket) do
     multi = Map.get(params, "multi", "false") == "true"
     socket = Sorting.handle_sort_click(column, socket, multi)
-    
+
     # Trigger re-execution with new sort
     send(self(), {:rerun_query_with_sort, socket.assigns.sort_by})
-    
+
     {:noreply, socket}
   end
-  
+
   def handle_event("set_page", params, socket) do
     IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
     IO.inspect(params, label: "Params")
@@ -387,40 +442,47 @@ defmodule SelectoComponents.Views.Detail.Component do
     index = String.to_integer(row_index)
 
     # Get results from processed_results if available, otherwise extract from query_results
-    {results, aliases} = if Map.has_key?(socket.assigns, :processed_results) do
-      socket.assigns.processed_results
-    else
-      case socket.assigns.query_results do
-        {results, _columns, aliases} -> {results, aliases}
-        _ -> {[], []}
+    {results, aliases} =
+      if Map.has_key?(socket.assigns, :processed_results) do
+        socket.assigns.processed_results
+      else
+        case socket.assigns.query_results do
+          {results, _columns, aliases} -> {results, aliases}
+          _ -> {[], []}
+        end
       end
-    end
 
     # Normalize results to maps if needed
-    normalized_results = if length(results) > 0 and is_list(hd(results)) do
-      {_results, columns, _aliases} = socket.assigns.query_results
-      Enum.map(results, fn row ->
-        Enum.zip(columns, row) |> Map.new()
-      end)
-    else
-      results
-    end
+    normalized_results =
+      if length(results) > 0 and is_list(hd(results)) do
+        {_results, columns, _aliases} = socket.assigns.query_results
+
+        Enum.map(results, fn row ->
+          Enum.zip(columns, row) |> Map.new()
+        end)
+      else
+        results
+      end
 
     record = Enum.at(normalized_results, index)
 
     # Send event to parent to show modal
-    send(self(), {:show_detail_modal, %{
-      record: record,
-      current_index: index,
-      total_records: length(normalized_results),
-      records: normalized_results,
-      fields: aliases,
-      related_data: build_related_data(record, socket)
-    }})
+    send(
+      self(),
+      {:show_detail_modal,
+       %{
+         record: record,
+         current_index: index,
+         total_records: length(normalized_results),
+         records: normalized_results,
+         fields: aliases,
+         related_data: build_related_data(record, socket)
+       }}
+    )
 
     {:noreply, socket}
   end
-  
+
   def handle_info({:load_more_data, _end_index}, socket) do
     # This would be implemented by the parent component to load more data
     send(self(), :load_more_virtual_data)
@@ -445,7 +507,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     # For now, return empty map - parent component can override
     %{}
   end
-  
+
   @doc """
   JavaScript hooks for row click handling.
   """
@@ -472,7 +534,6 @@ defmodule SelectoComponents.Views.Detail.Component do
           });
         });
         """,
-        
         updated: """
         // Re-apply handlers after LiveView updates
         this.mounted();
@@ -491,15 +552,16 @@ defmodule SelectoComponents.Views.Detail.Component do
           <div class="font-bold">Component Error:</div>
           <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
           #{if Mix.env() == :dev do
-            "<details class='mt-1'>
+          "<details class='mt-1'>
               <summary class='cursor-pointer text-xs'>Debug Info</summary>
               <div class='text-xs'>Row data: #{inspect(params.row)}</div>
             </details>"
-          else
-            ""
-          end}
+        else
+          ""
+        end}
         </div>
         """
+
         Phoenix.HTML.raw(error_html)
     end
   end
@@ -508,11 +570,14 @@ defmodule SelectoComponents.Views.Detail.Component do
     try do
       case link_parts_fn.(row_data) do
         {href, txt} ->
+          escaped_txt = txt |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
           Phoenix.HTML.raw("""
           <a href="#{href}" class="underline font-bold text-blue-500">
-            #{Phoenix.HTML.html_escape(txt)}
+            #{escaped_txt}
           </a>
           """)
+
         _ ->
           row_data
       end
@@ -524,8 +589,8 @@ defmodule SelectoComponents.Views.Detail.Component do
           <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
         </div>
         """
+
         Phoenix.HTML.raw(error_html)
     end
   end
-
 end

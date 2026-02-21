@@ -389,13 +389,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end)
   end
 
-  @doc """
-  Find join mode field configuration when filtering on ID field.
-
-  Handles two cases:
-  1. Filtering on "category.id" - finds "category.category_name" with join_mode metadata
-  2. Filtering on "category_id" (foreign key) - searches all schemas for field with group_by_filter: "category_id"
-  """
   defp find_join_mode_field(selecto, field_name, original_conf) do
     cond do
       # Case 1: field_name contains "." like "category.id"

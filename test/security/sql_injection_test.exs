@@ -1,8 +1,6 @@
 defmodule SelectoComponents.Security.SqlInjectionTest do
   use ExUnit.Case, async: true
 
-  alias SelectoComponents.Helpers.Filters
-
   @moduledoc """
   Tests to ensure SelectoComponents is not susceptible to SQL injection attacks.
 
@@ -109,7 +107,7 @@ defmodule SelectoComponents.Security.SqlInjectionTest do
         {"100%_complete", "100\\%\\_complete"}
       ]
 
-      for {input, expected} <- test_cases do
+      for {input, _expected} <- test_cases do
         # The sanitize_like_value function should escape special characters
         # We can test this through the filter processing
         filter = %{
@@ -259,7 +257,8 @@ defmodule SelectoComponents.Security.SqlInjectionTest do
       malicious_dates = [
         "2024-01-01'; DELETE FROM users WHERE '1'='1",
         "2024' UNION SELECT password FROM admin--",
-        "2024-13-45 OR 1=1"  # Invalid but malicious date
+        # Invalid but malicious date
+        "2024-13-45 OR 1=1"
       ]
 
       for date <- malicious_dates do
