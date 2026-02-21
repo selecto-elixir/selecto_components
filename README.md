@@ -22,6 +22,8 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
   built-in views) are usable but not yet stable.
 - **High Risk / Experimental**: Graph/dashboard and advanced integration paths
   may change significantly and can require project-specific hardening.
+- **Maintenance Note**: Unwired experimental modules were pruned in 0.3.x to
+  reduce surface area; only documented core flows are kept.
 - **Not Included**: Turnkey production analytics/data-backend integration is
   outside current package scope.
 
