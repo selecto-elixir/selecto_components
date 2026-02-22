@@ -16,6 +16,12 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 - **Colocated JavaScript**: Phoenix LiveView 1.1+ colocated hooks for drag-and-drop and charts
 - **Tailwind CSS**: Pre-styled components using Tailwind CSS
 
+## Livebooks, Tutorials, and Demo
+
+- [selecto-elixir/selecto_livebooks](https://github.com/selecto-elixir/selecto_livebooks) contains a Livebook that walks through many Selecto query features.
+- [seeken/selecto_northwind](https://github.com/seeken/selecto_northwind) contains tutorials for building Selecto queries and workflows.
+- [testselecto.fly.dev](https://testselecto.fly.dev) runs the `selecto_test` app as a hosted Selecto demo.
+
 ## Release Status (0.3.x)
 
 - **Alpha**: Core query UI flows (`SelectoComponents.Form`, result rendering,
