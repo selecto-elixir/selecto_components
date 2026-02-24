@@ -49,8 +49,11 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
+        socket = assign(socket, :params, params)
+
         with_error_handling(socket, "load_saved_view", fn ->
-          view = socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
+          view =
+            socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
 
           if is_nil(view) do
             error = %{
@@ -76,6 +79,8 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       end
 
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
+        socket = assign(socket, :params, params)
+
         # Normalize any existing query results before processing
         socket = normalize_query_results(socket)
         socket = ParamsState.params_to_state(params, socket)
@@ -84,7 +89,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
 
       ### accept default config
       def handle_params(params, _uri, socket) do
-        {:noreply, socket}
+        {:noreply, assign(socket, :params, params)}
       end
 
       # Normalizes query results from list format to map format.
@@ -100,7 +105,8 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       # Socket with normalized query_results
       defp normalize_query_results(socket) do
         case socket.assigns[:query_results] do
-          {rows, columns, aliases} when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
+          {rows, columns, aliases}
+          when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
             # Results are in list format, convert to maps
             normalized_rows =
               Enum.map(rows, fn row ->
