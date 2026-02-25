@@ -21,6 +21,13 @@ V 0.3.3
   pagination serves results from cache.
 - Refreshed detail pagination UI with first/last buttons, clearer range text
   (`X-Y of N rows`), improved navigation icons, and strict boundary clamping.
+- Added aggregate-result pagination with default 100 rows/page, selectable page
+  sizes (`30`, `100`, `200`, `300`, `all`) from aggregate view configuration,
+  first/last navigation controls, and hard boundary clamping.
+- Aggregate views now keep full result sets in memory for paging and expose
+  cache memory usage in the debug panel.
+- Fixed aggregate next/prev paging interactions so page changes apply correctly
+  from component events even when max-page metadata is computed at render time.
 
 V 0.3.2
 -------

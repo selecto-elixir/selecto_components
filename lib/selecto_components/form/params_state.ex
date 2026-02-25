@@ -31,46 +31,86 @@ defmodule SelectoComponents.Form.ParamsState do
       "filters" => filters_to_params(view_config.filters)
     }
 
+    selected_view = SafeAtom.to_view_mode(view_config.view_mode)
+
     # Add view-specific parameters
     view_params =
-      case view_config.views[SafeAtom.to_view_mode(view_config.view_mode)] do
+      case view_config.views[selected_view] do
         nil ->
           %{}
 
         view_data ->
-          # Convert each list (group_by, aggregate, etc.) to params format
           Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
-            items_params =
-              items
-              |> Enum.with_index()
-              |> Enum.reduce(%{}, fn
-                {{id, field, config}, index}, item_acc ->
-                  Map.put(
-                    item_acc,
-                    id,
-                    Map.merge(config, %{
-                      "field" => field,
-                      "index" => to_string(index)
-                    })
-                  )
+            cond do
+              is_list(items) ->
+                Map.put(acc, to_string(list_name), view_items_to_params(items))
 
-                {[id, field, config], index}, item_acc ->
-                  Map.put(
-                    item_acc,
-                    id,
-                    Map.merge(config, %{
-                      "field" => field,
-                      "index" => to_string(index)
-                    })
-                  )
-              end)
-
-            Map.put(acc, to_string(list_name), items_params)
+              true ->
+                merge_scalar_view_param(acc, selected_view, list_name, items)
+            end
           end)
       end
 
     Map.merge(params, view_params)
   end
+
+  defp view_items_to_params(items) do
+    items
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn
+      {{id, field, config}, index}, item_acc ->
+        Map.put(
+          item_acc,
+          id,
+          Map.merge(config, %{
+            "field" => field,
+            "index" => to_string(index)
+          })
+        )
+
+      {[id, field, config], index}, item_acc ->
+        Map.put(
+          item_acc,
+          id,
+          Map.merge(config, %{
+            "field" => field,
+            "index" => to_string(index)
+          })
+        )
+
+      {_unknown_item, _index}, item_acc ->
+        item_acc
+    end)
+  end
+
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:per_page, "per_page"] do
+    Map.put(acc, "aggregate_per_page", normalize_per_page_param(value, "100"))
+  end
+
+  defp merge_scalar_view_param(acc, _selected_view, key, value)
+       when key in [:per_page, "per_page"] do
+    Map.put(acc, "per_page", normalize_per_page_param(value, "30"))
+  end
+
+  defp merge_scalar_view_param(acc, _selected_view, key, value)
+       when key in [:prevent_denormalization, "prevent_denormalization"] do
+    Map.put(acc, "prevent_denormalization", to_string(value))
+  end
+
+  defp merge_scalar_view_param(acc, _selected_view, _key, _value), do: acc
+
+  defp normalize_per_page_param(nil, default), do: default
+
+  defp normalize_per_page_param(value, default) when is_binary(value) do
+    trimmed = String.trim(value)
+    if byte_size(trimmed) > 0, do: trimmed, else: default
+  end
+
+  defp normalize_per_page_param(value, _default) when is_integer(value), do: to_string(value)
+  defp normalize_per_page_param(value, _default) when is_atom(value), do: Atom.to_string(value)
+
+  defp normalize_per_page_param(_value, default), do: default
 
   @doc """
   Convert filters back to params format.
@@ -325,7 +365,16 @@ defmodule SelectoComponents.Form.ParamsState do
           view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
           detail_cache_assignment = if detail_view_mode?(params), do: detail_page_cache, else: nil
-          cache_debug_info = build_page_cache_debug_info(detail_cache_assignment)
+
+          cache_debug_info =
+            build_query_cache_debug_info(
+              detail_cache_assignment,
+              params,
+              normalized_rows,
+              columns,
+              aliases
+            )
+
           previous_last_query_info = socket.assigns[:last_query_info] || %{}
 
           executed_sql? = is_binary(query_sql) and query_sql != ""
@@ -590,6 +639,32 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp build_page_cache_debug_info(_), do: %{bytes: nil, pages: nil, rows: nil}
+
+  defp build_query_cache_debug_info(detail_cache, params, rows, columns, aliases) do
+    cond do
+      is_map(detail_cache) ->
+        build_page_cache_debug_info(detail_cache)
+
+      aggregate_view_mode?(params) ->
+        %{
+          bytes: term_size_bytes({rows, columns, aliases}),
+          pages: 1,
+          rows: length(rows)
+        }
+
+      true ->
+        %{bytes: nil, pages: nil, rows: nil}
+    end
+  end
+
+  defp aggregate_view_mode?(params) do
+    case get_map_value(params, :view_mode) do
+      :aggregate -> true
+      "aggregate" -> true
+      mode when is_atom(mode) -> Atom.to_string(mode) == "aggregate"
+      _ -> false
+    end
+  end
 
   defp term_size_bytes(term) do
     :erts_debug.size(term) * :erlang.system_info(:wordsize)
@@ -985,9 +1060,21 @@ defmodule SelectoComponents.Form.ParamsState do
     params = Map.put(params, "order_by", order_by_params)
 
     # Add other view-specific params
-    params
-    |> Map.put("per_page", to_string(get_map_value(view_config, :per_page, "30")))
-    |> Map.put(
+    view_type_str = to_string(view_type)
+
+    params =
+      if view_type_str == "aggregate" do
+        Map.put(
+          params,
+          "aggregate_per_page",
+          to_string(get_map_value(view_config, :per_page, "100"))
+        )
+      else
+        Map.put(params, "per_page", to_string(get_map_value(view_config, :per_page, "30")))
+      end
+
+    Map.put(
+      params,
       "prevent_denormalization",
       to_string(get_map_value(view_config, :prevent_denormalization, true))
     )

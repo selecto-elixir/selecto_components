@@ -130,6 +130,8 @@ defmodule SelectoComponents.Results do
           0
       end
 
+    cache_metrics = build_cache_metrics(query_data, assigns, row_count)
+
     # Get SQL, params, and timing from last_query_info if available
     # This is passed from the parent LiveView which captured it during query execution
     {query_sql, params, timing} =
@@ -152,10 +154,53 @@ defmodule SelectoComponents.Results do
       params: params,
       timing: timing,
       row_count: row_count,
-      page_cache_memory_bytes: Map.get(query_data, :page_cache_memory_bytes),
-      page_cache_pages: Map.get(query_data, :page_cache_pages),
-      page_cache_rows: Map.get(query_data, :page_cache_rows),
+      page_cache_memory_bytes: cache_metrics.bytes,
+      page_cache_pages: cache_metrics.pages,
+      page_cache_rows: cache_metrics.rows,
       execution_plan: nil
     }
+  end
+
+  defp build_cache_metrics(query_data, assigns, row_count) do
+    query_cache_bytes = Map.get(query_data, :page_cache_memory_bytes)
+
+    if is_integer(query_cache_bytes) do
+      %{
+        bytes: query_cache_bytes,
+        pages: Map.get(query_data, :page_cache_pages),
+        rows: Map.get(query_data, :page_cache_rows)
+      }
+    else
+      aggregate_cache_metrics(assigns, row_count)
+    end
+  end
+
+  defp aggregate_cache_metrics(assigns, row_count) do
+    if aggregate_view?(assigns) and is_integer(row_count) and row_count > 0 do
+      %{
+        bytes: term_size_bytes(assigns[:query_results]),
+        pages: 1,
+        rows: row_count
+      }
+    else
+      %{bytes: nil, pages: nil, rows: nil}
+    end
+  end
+
+  defp aggregate_view?(assigns) do
+    case Map.get(assigns, :applied_view) do
+      :aggregate -> true
+      "aggregate" -> true
+      view_mode when is_atom(view_mode) -> Atom.to_string(view_mode) == "aggregate"
+      _ -> false
+    end
+  end
+
+  defp term_size_bytes(nil), do: nil
+
+  defp term_size_bytes(term) do
+    :erts_debug.size(term) * :erlang.system_info(:wordsize)
+  rescue
+    _ -> nil
   end
 end
