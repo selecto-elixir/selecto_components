@@ -2,8 +2,8 @@
 CHANGES
 =======
 
-NEXT
-----
+V 0.3.2
+-------
 
 - Added debug-panel access hardening with explicit request flags and secure
   token validation in production mode.
@@ -14,10 +14,6 @@ NEXT
 - Improved filter rendering/processing with broader operator handling and
   better enum-oriented behavior in form pipelines.
 - Added aggregate drill-down test coverage for bucketed group-by behavior.
-
-V 0.3.2
--------
-
 - Bump package version to `0.3.2`.
 - Update Selecto dependency expectation to `>= 0.3.2 and < 0.4.0`.
 - Keep documented/core flows and strict test compilation passing.
