@@ -47,8 +47,6 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def render(assigns) do
-    ### Todo Deal with page changes without executing again.......
-
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
       # Display the actual error message
@@ -129,20 +127,28 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     page = assigns.view_meta.page
     per_page = assigns.view_meta.per_page
-    show_start = page * per_page
-    page_count = Float.ceil(Enum.count(normalized_results) / per_page)
+    row_offset = page * per_page
+    total_rows = Map.get(assigns.view_meta, :total_rows, Enum.count(normalized_results))
+
+    max_page =
+      if total_rows > 0 do
+        div(total_rows - 1, per_page)
+      else
+        0
+      end
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
     assigns =
       assign(assigns,
         aliases: aliases,
-        show_start: show_start,
         results: normalized_results,
+        total_rows: total_rows,
+        row_offset: row_offset,
         columns: Map.get(assigns.selecto.set, :columns, []),
         column_uuids:
           Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
-        max_pages: page_count
+        max_page: max_page
       )
 
     ~H"""
@@ -182,11 +188,11 @@ defmodule SelectoComponents.Views.Detail.Component do
           </.sc_button>
         </div>
         <div class="inline-block px-4 py-2 align-bottom">
-          {Enum.count(@results)} Rows Found
+          {@total_rows} Rows Found
         </div>
         <div class="inline-block w-36">
           <.sc_button
-            :if={@view_meta.page < @max_pages}
+            :if={@view_meta.page < @max_page}
             type="button"
             phx-click="set_page"
             phx-value-page={@view_meta.page + 1}
@@ -247,7 +253,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           </thead>
           <tbody>
             <%!--  --%>
-            <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
+            <%= for {resrow, display_idx} <- Enum.with_index(@results) do %>
               <% # Process row data once at the beginning of the iteration %>
               <% resrow_list =
                 cond do
@@ -269,15 +275,16 @@ defmodule SelectoComponents.Views.Detail.Component do
               <% # Also create a map by column name for subselects %>
               <% {_results, columns_from_query, _aliases} = @query_results %>
               <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+              <% absolute_idx = @row_offset + display_idx %>
 
               <tr
                 class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
                 phx-click="show_row_details"
-                phx-value-row-index={actual_idx}
+                phx-value-row-index={display_idx}
                 phx-target={@myself}
               >
                 <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
-                  {actual_idx + 1}
+                  {absolute_idx + 1}
                 </td>
                 <%!-- Display regular columns --%>
                 <td
@@ -302,8 +309,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                 <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
                   <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
                     <% data = Map.get(row_data_by_column, config.key, []) %>
-                    <% # Use actual_idx to ensure unique IDs %>
-                    <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
+                    <% unique_id = "row#{absolute_idx}_#{config.key}" %>
                     <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
                       <% # Parse the data here to ensure it's fresh %>
                       <% parsed_data =
@@ -385,15 +391,11 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("set_page", params, socket) do
-    IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
-    IO.inspect(params, label: "Params")
-    IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
     new_page = String.to_integer(params["page"])
 
     # Notify parent to update the page in the form params (parent is authoritative)
     send(self(), {:update_detail_page, new_page})
 
-    IO.puts("Sent update_detail_page to parent: #{new_page}")
     {:noreply, socket}
   end
 

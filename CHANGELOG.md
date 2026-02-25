@@ -8,6 +8,13 @@ V 0.3.3
 - Added numeric bucket increment shorthand support (`*/N`, e.g. `*/10`) for
   aggregate/group-by bucket formatting, producing fixed-width ranges such as
   `0-9`, `10-19`, etc.
+- Updated detail view pagination to execute with `LIMIT/OFFSET`, run a total
+  count query, cache the first three pages, and prefetch later pages in
+  multi-page chunks while navigating.
+- Fixed detail pagination count-query generation to preserve an explicit empty
+  `order_by` list, preventing `KeyError` crashes in Selecto SQL builder.
+- Improved error reporting for view execution failures with development-time
+  debug details shown in the main results error panel.
 
 V 0.3.2
 -------

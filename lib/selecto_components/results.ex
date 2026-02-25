@@ -60,6 +60,12 @@ defmodule SelectoComponents.Results do
               {inspect(error)}
           <% end %>
         </span>
+        <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) && map_size(@execution_error.details) > 0 do %>
+          <details class="mt-2">
+            <summary class="cursor-pointer text-sm">Debug Details</summary>
+            <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+          </details>
+        <% end %>
       </div>
       <div
         :if={@has_component_errors && !@applied_view}

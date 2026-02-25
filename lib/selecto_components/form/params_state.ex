@@ -11,12 +11,16 @@ defmodule SelectoComponents.Form.ParamsState do
   """
 
   import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
+  alias Selecto.Executor
   alias SelectoComponents.Performance.MetricsCollector
   alias SelectoComponents.SubselectBuilder
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
+
+  @detail_initial_cached_pages 3
+  @detail_chunk_pages 2
 
   @doc """
   Convert view_config structure to URL parameters format.
@@ -208,7 +212,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
       filtered = filter_recurse(selecto, filters_by_section, "filters")
 
-      selected_view = SafeAtom.to_view_mode(Map.get(params, "view_mode"))
+      selected_view = SafeAtom.to_view_mode(get_map_value(params, :view_mode))
 
       # Include the current detail page if we're in detail view
       params =
@@ -285,21 +289,8 @@ defmodule SelectoComponents.Form.ParamsState do
           selecto
         end
 
-      # Execute query using the new metadata-returning function
-      # This handles errors gracefully and won't crash the LiveView
-      query_result =
-        try do
-          Selecto.execute_with_metadata(selecto)
-        rescue
-          error ->
-            # Catch any errors during execution to prevent LiveView crashes
-            {:error, Selecto.Error.from_reason(error)}
-        catch
-          :exit, reason ->
-            # Catch exits (like connection failures) to prevent LiveView crashes
-            {:error,
-             Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
-        end
+      {query_result, view_meta, detail_page_cache} =
+        execute_query_with_detail_pagination(selecto, params, view_meta, socket)
 
       case query_result do
         {:ok, {rows, columns, aliases}, metadata} ->
@@ -308,37 +299,32 @@ defmodule SelectoComponents.Form.ParamsState do
           query_params = Map.get(metadata, :params, [])
           execution_time = Map.get(metadata, :execution_time, 0)
 
-          # Record query metrics
-          MetricsCollector.record_query(
-            query_sql,
-            execution_time,
-            %{
-              rows_returned: length(rows),
-              columns_count: length(columns),
-              view_mode: socket.assigns.view_config.view_mode,
-              has_filters: length(selecto.set.filtered) > 0,
-              has_grouping: length(selecto.set.group_by) > 0,
-              params: query_params
-            }
-          )
+          # Record query metrics only when we executed SQL this cycle
+          if is_binary(query_sql) and query_sql != "" do
+            MetricsCollector.record_query(
+              query_sql,
+              execution_time,
+              %{
+                rows_returned: length(rows),
+                total_rows: Map.get(view_meta, :total_rows, length(rows)),
+                columns_count: length(columns),
+                view_mode: socket.assigns.view_config.view_mode,
+                has_filters: length(selecto.set.filtered) > 0,
+                has_grouping: length(selecto.set.group_by) > 0,
+                params: query_params
+              }
+            )
+          end
 
-          # Convert rows to maps if they're lists (happens with subselects)
-          # But only for detail views - aggregate views need list format
           normalized_rows =
-            if socket.assigns.view_config.view_mode == "detail" and
-                 length(rows) > 0 and is_list(hd(rows)) do
-              # Converting list rows to maps for detail view
-              Enum.map(rows, fn row ->
-                Enum.zip(columns, row) |> Map.new()
-              end)
-            else
-              rows
-            end
+            normalize_rows_for_view(rows, columns, socket.assigns.view_config.view_mode)
 
           # Check if any rows have subselect data
           # Debug inspection removed - data structure validated elsewhere
 
           view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
+
+          detail_cache_assignment = if detail_view_mode?(params), do: detail_page_cache, else: nil
 
           # Store query info in component state
           socket =
@@ -348,8 +334,9 @@ defmodule SelectoComponents.Form.ParamsState do
               field_filters: Selecto.filters(selecto),
               query_results: {normalized_rows, columns, aliases},
               used_params: params,
-              applied_view: Map.get(params, "view_mode"),
+              applied_view: get_map_value(params, :view_mode),
               view_meta: view_meta,
+              detail_page_cache: detail_cache_assignment,
               executed: true,
               execution_error: nil,
               last_query_info: %{
@@ -371,7 +358,7 @@ defmodule SelectoComponents.Form.ParamsState do
                  timing: execution_time
                },
                view_meta: view_meta,
-               applied_view: Map.get(params, "view_mode")
+               applied_view: get_map_value(params, :view_mode)
              }}
           )
 
@@ -401,8 +388,9 @@ defmodule SelectoComponents.Form.ParamsState do
             field_filters: Selecto.filters(selecto),
             query_results: nil,
             used_params: params,
-            applied_view: Map.get(params, "view_mode"),
+            applied_view: get_map_value(params, :view_mode),
             view_meta: view_meta,
+            detail_page_cache: detail_page_cache,
             executed: false,
             execution_error: sanitized_error,
             last_query_info: %{
@@ -442,8 +430,9 @@ defmodule SelectoComponents.Form.ParamsState do
             field_filters: Selecto.filters(selecto),
             query_results: nil,
             used_params: params,
-            applied_view: Map.get(params, "view_mode"),
+            applied_view: get_map_value(params, :view_mode),
             view_meta: view_meta,
+            detail_page_cache: detail_page_cache,
             executed: false,
             execution_error: sanitized_error,
             last_query_info: %{
@@ -456,7 +445,15 @@ defmodule SelectoComponents.Form.ParamsState do
     rescue
       error ->
         # Handle any errors that occur during view processing
-        sanitized_error = Selecto.Error.from_reason(error)
+        sanitized_error =
+          build_view_processing_error(
+            :query_error,
+            "View processing failed",
+            error,
+            __STACKTRACE__,
+            params
+          )
+          |> SelectoComponents.Form.sanitize_error_for_environment()
 
         if SelectoComponents.Form.dev_mode?() do
           # View error occurred
@@ -464,9 +461,12 @@ defmodule SelectoComponents.Form.ParamsState do
 
         Phoenix.Component.assign(socket,
           query_results: nil,
+          used_params: params,
+          applied_view: view_mode_value(params, socket.assigns[:applied_view]),
           executed: false,
           execution_error: sanitized_error,
           view_meta: %{},
+          detail_page_cache: nil,
           last_query_info: %{}
         )
     catch
@@ -478,18 +478,310 @@ defmodule SelectoComponents.Form.ParamsState do
 
         Phoenix.Component.assign(socket,
           query_results: nil,
+          used_params: params,
+          applied_view: view_mode_value(params, socket.assigns[:applied_view]),
           executed: false,
           execution_error:
             SelectoComponents.Form.build_selecto_error(
               :system_error,
               "System error occurred while processing view",
-              %{exit_reason: reason}
-            ),
+              %{
+                exit_reason: inspect(reason),
+                view_mode: view_mode_value(params, socket.assigns[:applied_view])
+              }
+            )
+            |> SelectoComponents.Form.sanitize_error_for_environment(),
           view_meta: %{},
+          detail_page_cache: nil,
           last_query_info: %{}
         )
     end
   end
+
+  defp execute_query_with_detail_pagination(selecto, params, view_meta, socket) do
+    if detail_view_mode?(params) do
+      execute_detail_query_with_cache(selecto, params, view_meta, socket)
+    else
+      {execute_query_with_metadata(selecto), view_meta, nil}
+    end
+  end
+
+  defp detail_view_mode?(params) do
+    case get_map_value(params, :view_mode) do
+      :detail -> true
+      "detail" -> true
+      other when is_atom(other) -> Atom.to_string(other) == "detail"
+      _ -> false
+    end
+  end
+
+  defp view_mode_value(params, fallback \\ nil) do
+    get_map_value(params, :view_mode, fallback)
+  end
+
+  defp build_view_processing_error(type, message, error, stacktrace, params) do
+    details = %{
+      exception: inspect(error.__struct__),
+      error: Exception.message(error),
+      view_mode: view_mode_value(params),
+      params_keys: if(is_map(params), do: Map.keys(params), else: []),
+      stacktrace: format_stacktrace(stacktrace)
+    }
+
+    SelectoComponents.Form.build_selecto_error(type, message, details)
+  end
+
+  defp format_stacktrace(stacktrace) when is_list(stacktrace) do
+    stacktrace
+    |> Exception.format_stacktrace()
+    |> IO.iodata_to_binary()
+  rescue
+    _ -> inspect(stacktrace, limit: 30)
+  end
+
+  defp format_stacktrace(stacktrace), do: inspect(stacktrace, limit: 30)
+
+  defp execute_query_with_metadata(selecto) do
+    try do
+      Selecto.execute_with_metadata(selecto)
+    rescue
+      error ->
+        {:error, Selecto.Error.from_reason(error)}
+    catch
+      :exit, reason ->
+        {:error,
+         Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
+    end
+  end
+
+  defp execute_detail_query_with_cache(selecto, params, view_meta, socket) do
+    per_page = max(Map.get(view_meta, :per_page, 30), 1)
+    requested_page = max(Map.get(view_meta, :page, 0), 0)
+    cache_key = detail_cache_signature(params, socket.assigns[:sort_by])
+
+    cache =
+      socket.assigns[:detail_page_cache]
+      |> init_or_reset_detail_cache(cache_key, per_page)
+
+    with {:ok, {cache, count_metadata}} <- maybe_fetch_detail_total_rows(cache, selecto),
+         safe_page <- clamp_detail_page(requested_page, cache.total_rows, per_page),
+         {:ok, {cache, data_metadata}} <-
+           maybe_fetch_detail_pages(cache, selecto, safe_page, per_page) do
+      rows = Map.get(cache.pages, safe_page, [])
+      columns = cache.columns || []
+      aliases = cache.aliases || []
+
+      metadata = data_metadata || count_metadata || %{sql: nil, params: [], execution_time: 0}
+
+      updated_view_meta =
+        view_meta
+        |> Map.put(:page, safe_page)
+        |> Map.put(:per_page, per_page)
+        |> Map.put(:total_rows, cache.total_rows)
+
+      {{:ok, {rows, columns, aliases}, metadata}, updated_view_meta, cache}
+    else
+      {:error, error} ->
+        {{:error, error}, view_meta, cache}
+    end
+  end
+
+  defp init_or_reset_detail_cache(
+         %{signature: signature, per_page: per_page} = cache,
+         signature,
+         per_page
+       ) do
+    cache
+  end
+
+  defp init_or_reset_detail_cache(_, signature, per_page) do
+    %{
+      signature: signature,
+      per_page: per_page,
+      total_rows: nil,
+      columns: nil,
+      aliases: nil,
+      pages: %{}
+    }
+  end
+
+  defp detail_cache_signature(params, sort_by) do
+    %{
+      params: Map.drop(params, ["detail_page"]),
+      sort_by: sort_by || []
+    }
+  end
+
+  defp maybe_fetch_detail_total_rows(%{total_rows: total_rows} = cache, _selecto)
+       when is_integer(total_rows) do
+    {:ok, {cache, nil}}
+  end
+
+  defp maybe_fetch_detail_total_rows(cache, selecto) do
+    case execute_detail_count_query(selecto) do
+      {:ok, total_rows, metadata} ->
+        {:ok, {Map.put(cache, :total_rows, total_rows), metadata}}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp execute_detail_count_query(selecto) do
+    selecto_without_paging =
+      update_in(selecto.set, fn set ->
+        set
+        |> Map.delete(:limit)
+        |> Map.delete(:offset)
+        |> Map.put(:order_by, [])
+      end)
+
+    {base_sql, base_params} = Selecto.to_sql(selecto_without_paging)
+    count_sql = "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
+
+    started_at = System.monotonic_time(:millisecond)
+
+    case execute_raw_query(selecto, count_sql, base_params) do
+      {:ok, {[[count_value]], _columns, _aliases}} ->
+        execution_time = System.monotonic_time(:millisecond) - started_at
+
+        {:ok, normalize_count(count_value),
+         %{sql: count_sql, params: base_params, execution_time: execution_time}}
+
+      {:ok, {rows, _columns, _aliases}} ->
+        {:error,
+         Selecto.Error.query_error("Unexpected count query result", count_sql, base_params, %{
+           rows: rows
+         })}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp maybe_fetch_detail_pages(cache, selecto, requested_page, per_page) do
+    max_page = max_page(cache.total_rows, per_page)
+    {window_start_page, window_end_page} = detail_page_window(requested_page, max_page)
+
+    pages_in_window = Enum.to_list(window_start_page..window_end_page)
+
+    has_full_window? =
+      cache.columns != nil and cache.aliases != nil and
+        Enum.all?(pages_in_window, &Map.has_key?(cache.pages, &1))
+
+    if has_full_window? do
+      {:ok, {cache, nil}}
+    else
+      window_page_count = window_end_page - window_start_page + 1
+      row_offset = window_start_page * per_page
+      row_limit = max(window_page_count * per_page, per_page)
+
+      paged_selecto =
+        selecto
+        |> Selecto.limit(row_limit)
+        |> Selecto.offset(row_offset)
+
+      case execute_query_with_metadata(paged_selecto) do
+        {:ok, {rows, columns, aliases}, metadata} ->
+          normalized_rows = normalize_rows_for_view(rows, columns, "detail")
+
+          chunked_pages =
+            normalized_rows
+            |> Enum.chunk_every(per_page)
+            |> Enum.with_index(window_start_page)
+            |> Enum.into(%{}, fn {chunk, page_number} ->
+              {page_number, chunk}
+            end)
+
+          merged_pages =
+            pages_in_window
+            |> Enum.reduce(Map.merge(cache.pages, chunked_pages), fn page_number, acc ->
+              Map.put_new(acc, page_number, [])
+            end)
+
+          updated_cache =
+            cache
+            |> Map.put(:pages, merged_pages)
+            |> Map.put(:columns, columns)
+            |> Map.put(:aliases, aliases)
+
+          {:ok, {updated_cache, metadata}}
+
+        {:error, error} ->
+          {:error, error}
+      end
+    end
+  end
+
+  defp detail_page_window(requested_page, max_page) do
+    {window_start, window_end} =
+      if requested_page < @detail_initial_cached_pages do
+        {0, @detail_initial_cached_pages - 1}
+      else
+        {requested_page, requested_page + @detail_chunk_pages - 1}
+      end
+
+    clamped_end = min(window_end, max_page)
+    {window_start, max(window_start, clamped_end)}
+  end
+
+  defp max_page(total_rows, per_page) when is_integer(total_rows) and total_rows > 0,
+    do: div(total_rows - 1, per_page)
+
+  defp max_page(_total_rows, _per_page), do: 0
+
+  defp clamp_detail_page(requested_page, total_rows, per_page) do
+    requested_page
+    |> max(0)
+    |> min(max_page(total_rows, per_page))
+  end
+
+  defp execute_raw_query(selecto, query, params) do
+    cond do
+      selecto.adapter && selecto.adapter != Selecto.DB.PostgreSQL ->
+        Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
+
+      ecto_repo?(selecto.postgrex_opts) ->
+        Executor.execute_with_ecto_repo(selecto.postgrex_opts, query, params, [])
+
+      true ->
+        Executor.execute_with_postgrex(selecto.postgrex_opts, query, params, [])
+    end
+  end
+
+  defp ecto_repo?(repo) when is_atom(repo) do
+    Code.ensure_loaded?(repo) and function_exported?(repo, :__adapter__, 0)
+  end
+
+  defp ecto_repo?(_), do: false
+
+  defp normalize_count(value) when is_integer(value), do: value
+  defp normalize_count(value) when is_float(value), do: trunc(value)
+
+  defp normalize_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {count, _} -> count
+      :error -> 0
+    end
+  end
+
+  defp normalize_count(value) do
+    value
+    |> to_string()
+    |> normalize_count()
+  rescue
+    _ -> 0
+  end
+
+  defp normalize_rows_for_view(rows, columns, "detail")
+       when is_list(rows) and rows != [] and (is_list(hd(rows)) or is_tuple(hd(rows))) do
+    Enum.map(rows, fn row ->
+      row_values = if is_tuple(row), do: Tuple.to_list(row), else: row
+      Enum.zip(columns, row_values) |> Map.new()
+    end)
+  end
+
+  defp normalize_rows_for_view(rows, _columns, _view_mode), do: rows
 
   @doc """
   Build view_config from URL params, updating only filter state.

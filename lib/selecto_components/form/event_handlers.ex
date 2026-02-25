@@ -147,6 +147,7 @@ defmodule SelectoComponents.Form.EventHandlers do
           executed: false,
           execution_error: nil,
           query_results: [],
+          detail_page_cache: nil,
           applied_view: nil,
           active_tab: "view",
           view_config: %{
