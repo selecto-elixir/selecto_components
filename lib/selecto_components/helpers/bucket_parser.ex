@@ -1,7 +1,10 @@
 defmodule SelectoComponents.Helpers.BucketParser do
   @moduledoc """
   Parser for bucket range specifications like "1, 2-5, 6-14, 15+"
+  and numeric increment shorthand like "*/10"
   """
+
+  @numeric_bucket_types [:int, :integer, :id, :decimal, :float]
 
   def parse_bucket_ranges(ranges_string) when is_binary(ranges_string) do
     ranges_string
@@ -11,6 +14,7 @@ defmodule SelectoComponents.Helpers.BucketParser do
     |> Enum.map(&parse_single_range/1)
     |> Enum.reject(&is_nil/1)
   end
+
   def parse_bucket_ranges(_), do: []
 
   defp parse_single_range(range) do
@@ -50,47 +54,78 @@ defmodule SelectoComponents.Helpers.BucketParser do
   Generate SQL CASE expression for bucketing values
   """
   def generate_bucket_case_sql(field_name, bucket_ranges, field_type \\ :integer) do
-    ranges = parse_bucket_ranges(bucket_ranges)
+    increment = parse_increment_shorthand(bucket_ranges)
 
-    if Enum.empty?(ranges) do
-      field_name
+    if field_type in @numeric_bucket_types and is_integer(increment) do
+      generate_increment_case_sql(field_name, increment)
     else
-      case_clauses = Enum.map(ranges, fn
-        {min, max, label} when is_integer(min) and is_integer(max) ->
-          if min == max do
-            "WHEN #{field_name} = #{min} THEN '#{label}'"
-          else
-            "WHEN #{field_name} >= #{min} AND #{field_name} <= #{max} THEN '#{label}'"
-          end
+      ranges = parse_bucket_ranges(bucket_ranges)
 
-        {min, :infinity, label} ->
-          # For "11+" we want >= 11, not > 11
-          # The min value in "11+" means "11 and above"
-          "WHEN #{field_name} >= #{min} THEN '#{label}'"
-
-        {:negative_infinity, max, label} ->
-          "WHEN #{field_name} <= #{max} THEN '#{label}'"
-
-        {"today", "today", _label} when field_type in [:date, :datetime] ->
-          "WHEN DATE(#{field_name}) = CURRENT_DATE THEN 'Today'"
-
-        {"yesterday", "yesterday", _label} when field_type in [:date, :datetime] ->
-          "WHEN DATE(#{field_name}) = CURRENT_DATE - INTERVAL '1 day' THEN 'Yesterday'"
-
-        {"tomorrow", "tomorrow", _label} when field_type in [:date, :datetime] ->
-          "WHEN DATE(#{field_name}) = CURRENT_DATE + INTERVAL '1 day' THEN 'Tomorrow'"
-
-        _ ->
-          nil
-      end)
-      |> Enum.reject(&is_nil/1)
-
-      if Enum.empty?(case_clauses) do
+      if Enum.empty?(ranges) do
         field_name
       else
-        "CASE #{Enum.join(case_clauses, " ")} ELSE 'Other' END"
+        case_clauses =
+          Enum.map(ranges, fn
+            {min, max, label} when is_integer(min) and is_integer(max) ->
+              if min == max do
+                "WHEN #{field_name} = #{min} THEN '#{label}'"
+              else
+                "WHEN #{field_name} >= #{min} AND #{field_name} <= #{max} THEN '#{label}'"
+              end
+
+            {min, :infinity, label} ->
+              # For "11+" we want >= 11, not > 11
+              # The min value in "11+" means "11 and above"
+              "WHEN #{field_name} >= #{min} THEN '#{label}'"
+
+            {:negative_infinity, max, label} ->
+              "WHEN #{field_name} <= #{max} THEN '#{label}'"
+
+            {"today", "today", _label} when field_type in [:date, :datetime] ->
+              "WHEN DATE(#{field_name}) = CURRENT_DATE THEN 'Today'"
+
+            {"yesterday", "yesterday", _label} when field_type in [:date, :datetime] ->
+              "WHEN DATE(#{field_name}) = CURRENT_DATE - INTERVAL '1 day' THEN 'Yesterday'"
+
+            {"tomorrow", "tomorrow", _label} when field_type in [:date, :datetime] ->
+              "WHEN DATE(#{field_name}) = CURRENT_DATE + INTERVAL '1 day' THEN 'Tomorrow'"
+
+            _ ->
+              nil
+          end)
+          |> Enum.reject(&is_nil/1)
+
+        if Enum.empty?(case_clauses) do
+          field_name
+        else
+          "CASE #{Enum.join(case_clauses, " ")} ELSE 'Other' END"
+        end
       end
     end
+  end
+
+  defp parse_increment_shorthand(ranges_string) when is_binary(ranges_string) do
+    trimmed = String.trim(ranges_string)
+
+    case Regex.run(~r{^\*/(\d+)$}, trimmed, capture: :all_but_first) do
+      [step_str] ->
+        case Integer.parse(step_str) do
+          {step, ""} when step > 0 -> step
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp parse_increment_shorthand(_), do: nil
+
+  defp generate_increment_case_sql(field_name, increment) do
+    bucket_start = "(FLOOR((#{field_name})::numeric / #{increment})::bigint * #{increment})"
+
+    "CASE WHEN #{field_name} IS NULL THEN 'Other' ELSE " <>
+      "(#{bucket_start})::text || '-' || ((#{bucket_start}) + #{increment - 1})::text END"
   end
 
   @doc """

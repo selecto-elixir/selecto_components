@@ -2,6 +2,13 @@
 CHANGES
 =======
 
+V 0.3.3
+-------
+
+- Added numeric bucket increment shorthand support (`*/N`, e.g. `*/10`) for
+  aggregate/group-by bucket formatting, producing fixed-width ranges such as
+  `0-9`, `10-19`, etc.
+
 V 0.3.2
 -------
 
