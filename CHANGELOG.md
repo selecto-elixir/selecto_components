@@ -19,6 +19,8 @@ V 0.3.3
   pages, cached rows).
 - Fixed debug SQL display to persist the most recent executed query when detail
   pagination serves results from cache.
+- Refreshed detail pagination UI with first/last buttons, clearer range text
+  (`X-Y of N rows`), improved navigation icons, and strict boundary clamping.
 
 V 0.3.2
 -------

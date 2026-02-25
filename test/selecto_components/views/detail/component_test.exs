@@ -45,15 +45,23 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
   test "renders current detail page rows and global row numbers" do
     html = render_component(Component, base_assigns())
 
-    assert html =~ "10 Rows Found"
+    assert html =~ "5-6"
+    assert html =~ "rows"
+
+    assert html =~
+             ~r/Page\s*<span class="font-semibold">3<\/span>\s*of\s*<span class="font-semibold">5<\/span>/
+
     assert html =~ ~r/>\s*5\s*</
     assert html =~ ~r/>\s*6\s*</
     assert html =~ "100"
     assert html =~ "101"
-    assert html =~ "Next Page"
+    assert html =~ "aria-label=\"First page\""
+    assert html =~ "aria-label=\"Previous page\""
+    assert html =~ "aria-label=\"Next page\""
+    assert html =~ "aria-label=\"Last page\""
   end
 
-  test "hides next page button on the last page" do
+  test "disables forward pagination buttons on the last page" do
     assigns =
       base_assigns(%{
         view_meta: %{page: 4, per_page: 2, total_rows: 10, subselect_configs: []}
@@ -61,7 +69,23 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
 
     html = render_component(Component, assigns)
 
-    assert html =~ "Prev Page"
-    refute html =~ "Next Page"
+    assert html =~ ~r/aria-label="Next page"[^>]*disabled/
+    assert html =~ ~r/aria-label="Last page"[^>]*disabled/
+    refute html =~ ~r/aria-label="First page"[^>]*disabled/
+    refute html =~ ~r/aria-label="Previous page"[^>]*disabled/
+  end
+
+  test "disables backward pagination buttons on the first page" do
+    assigns =
+      base_assigns(%{
+        view_meta: %{page: 0, per_page: 2, total_rows: 10, subselect_configs: []}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ ~r/aria-label="First page"[^>]*disabled/
+    assert html =~ ~r/aria-label="Previous page"[^>]*disabled/
+    refute html =~ ~r/aria-label="Next page"[^>]*disabled/
+    refute html =~ ~r/aria-label="Last page"[^>]*disabled/
   end
 end
