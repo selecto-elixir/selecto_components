@@ -181,6 +181,56 @@ defmodule MyAppWeb.ProductLive do
 end
 ```
 
+## Recent 0.3.2+ Updates
+
+### Filter Processing and Rendering
+
+Filter processing has been expanded for more consistent operator support across
+form inputs:
+
+- String filters: `=`, `!=`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN`, `NOT IN`,
+  `STARTS`, `ENDS`, `CONTAINS`, `LIKE`, `NOT LIKE`, null checks.
+- Numeric filters: `=`, `!=`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN`, `NOT IN`,
+  null checks.
+- Datetime filters: richer support for `BETWEEN`, `DATE_BETWEEN`, shortcut and
+  relative modes, and null checks.
+
+### Aggregate Group-By Safety
+
+Aggregate group-by display processing now applies `COALESCE('[NULL]')` only to
+text-compatible selectors. This prevents SQL type mismatch errors when grouping
+by numeric, enum, and other non-text fields.
+
+### Custom Detail Modal Component
+
+You can now provide a custom modal component instead of the built-in
+`SelectoComponents.Modal.DetailModal`:
+
+```elixir
+<.live_component
+  module={SelectoComponents.Form}
+  id="product-form"
+  detail_modal_component={MyAppWeb.ProductDetailModal}
+  {assigns}
+/>
+```
+
+Your custom modal receives `detail_data` and is rendered whenever
+`enable_modal_detail` and `show_detail_modal` are true.
+
+### Debug Information Panel (Opt-In)
+
+Debug UI visibility is request-gated:
+
+- Development/test: pass `selecto_debug=true` (or `debug=true`) in params or session.
+- Production: requires both environment config and token validation:
+  - `SELECTO_DEBUG_ENABLED=true`
+  - `SELECTO_DEBUG_TOKEN=<secure-token>`
+  - request/session includes `debug_token=<secure-token>`
+
+If you want the debug panel always enabled in development, pass debug params to
+`SelectoComponents.Results` from your LiveView.
+
 ## Available Components
 
 ### Views Module

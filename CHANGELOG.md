@@ -5,7 +5,23 @@ CHANGES
 NEXT
 ----
 
-- Build JS file for hooks like liveview does
+- Added debug-panel access hardening with explicit request flags and secure
+  token validation in production mode.
+- Added support for rendering a custom detail modal component via
+  `detail_modal_component`.
+- Improved aggregate processing for group-by selectors by limiting COALESCE
+  wrapping to text-compatible fields, preventing SQL type mismatches.
+- Improved filter rendering/processing with broader operator handling and
+  better enum-oriented behavior in form pipelines.
+- Added aggregate drill-down test coverage for bucketed group-by behavior.
+
+V 0.3.2
+-------
+
+- Bump package version to `0.3.2`.
+- Update Selecto dependency expectation to `>= 0.3.2 and < 0.4.0`.
+- Keep documented/core flows and strict test compilation passing.
+- Cleanup release artifacts and non-package roadmap files.
 
 V 0.3.1
 -------
