@@ -49,11 +49,8 @@ defmodule SelectoComponents.MixProject do
       # {:vega_lite, "~> 0.1.6"},
       {:timex, "~> 3.7.9"},
       {:jason, "~> 1.2"},
-      # Keep db_connection aligned for ecto_sql and newer postgrex transitive requirements.
-      {:db_connection, "~> 2.9", override: true},
       {:esbuild, "~> 0.5", runtime: Mix.env() == :dev},
       {:ecto, ">= 3.9.1 and < 4.0.0"},
-      {:ecto_sql, ">= 3.9.1 and < 4.0.0"},
       {:makeup, "~> 1.1"},
       {:makeup_sql, "~> 0.1.0"},
       {:excoveralls, "~> 0.18", only: :test}
