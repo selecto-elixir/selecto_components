@@ -19,13 +19,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # ROLLUP NULLs remain as nil or empty string
   defp rollup_level(row, num_group_by_cols) do
     group_cols = Enum.take(row, num_group_by_cols)
-    non_nil_count = Enum.count(group_cols, fn col ->
-      # Count as filled if:
-      # - Not nil
-      # - Not empty string (ROLLUP NULL)
-      # - Not "[NULL]" string (but this IS a filled value from COALESCE - data NULL)
-      not is_nil(col) and col != ""
-    end)
+
+    non_nil_count =
+      Enum.count(group_cols, fn col ->
+        # Count as filled if:
+        # - Not nil
+        # - Not empty string (ROLLUP NULL)
+        # - Not "[NULL]" string (but this IS a filled value from COALESCE - data NULL)
+        not is_nil(col) and col != ""
+      end)
+
     non_nil_count
   end
 
@@ -33,19 +36,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # With COALESCE, data NULLs show as "[NULL]", ROLLUP NULLs show as nil/empty
   # Filter out redundant [NULL] rows that are identical to their rollup subtotal
   defp prepare_rollup_rows(results, num_group_by_cols) do
-    rows_with_metadata = results
-    |> Enum.with_index()
-    |> Enum.map(fn {row, idx} ->
-      level = rollup_level(row, num_group_by_cols)
-      group_cols = Enum.take(row, num_group_by_cols)
+    rows_with_metadata =
+      results
+      |> Enum.with_index()
+      |> Enum.map(fn {row, idx} ->
+        level = rollup_level(row, num_group_by_cols)
+        group_cols = Enum.take(row, num_group_by_cols)
 
-      # Check if this row has [NULL] at its current level (data NULL from LEFT JOIN)
-      # Level 0 = grand total (no [NULL] possible)
-      # Level N = first N columns filled, so check position N-1 for [NULL]
-      has_null_at_level = level > 0 && Enum.at(group_cols, level - 1) == "[NULL]"
+        # Check if this row has [NULL] at its current level (data NULL from LEFT JOIN)
+        # Level 0 = grand total (no [NULL] possible)
+        # Level N = first N columns filled, so check position N-1 for [NULL]
+        has_null_at_level = level > 0 && Enum.at(group_cols, level - 1) == "[NULL]"
 
-      {level, row, has_null_at_level, idx}
-    end)
+        {level, row, has_null_at_level, idx}
+      end)
 
     # Filter out [NULL] rows if the next row (rollup subtotal) has identical aggregates
     rows_with_metadata
@@ -94,23 +98,36 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # ROLLUP NULLs (nil/empty) should also be shown as "[NULL]"
   defp format_value(value) do
     case value do
-      nil -> "[NULL]"
-      "" -> "[NULL]"  # Empty string from ROLLUP NULL
-      {display_value, _id} when is_nil(display_value) or display_value == "" -> "[NULL]"
-      {display_value, _id} -> display_value
+      nil ->
+        "[NULL]"
+
+      # Empty string from ROLLUP NULL
+      "" ->
+        "[NULL]"
+
+      {display_value, _id} when is_nil(display_value) or display_value == "" ->
+        "[NULL]"
+
+      {display_value, _id} ->
+        display_value
+
       tuple when is_tuple(tuple) ->
         elem_val = elem(tuple, 0)
         if is_nil(elem_val) or elem_val == "", do: "[NULL]", else: elem_val
-      _ -> value  # Includes "[NULL]" strings from COALESCE
+
+      # Includes "[NULL]" strings from COALESCE
+      _ ->
+        value
     end
   end
 
   # Format an aggregate value, applying format function if present
   defp format_aggregate_value(value, coldef) do
-    formatted = case coldef do
-      %{format: fmt_fun} when is_function(fmt_fun) -> fmt_fun.(value)
-      _ -> value
-    end
+    formatted =
+      case coldef do
+        %{format: fmt_fun} when is_function(fmt_fun) -> fmt_fun.(value)
+        _ -> value
+      end
 
     format_value(formatted)
   end
@@ -129,79 +146,109 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, idx}, acc ->
       # Determine the filter field name
       # Check for special join modes (lookup, star, tag) that use ID-based filtering
-      filter_field = case coldef do
-        %{group_by_filter: filter} when not is_nil(filter) ->
-          filter
-        %{"group_by_filter" => filter} when not is_nil(filter) ->
-          filter
-        # Special join modes - use the configured ID field for filtering
-        %{join_mode: mode, id_field: id_field} when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
-          # colid might be nil, so extract table prefix from the field tuple
-          table_prefix = case field do
-            {:row, [display_field | _], _} ->
-              # ROW selector - extract from display field
-              case display_field do
-                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
-                _ -> extract_table_prefix(display_field)
-              end
-            {:field, field_ref, _} -> extract_table_prefix(field_ref)
-            _ -> nil
-          end
+      filter_field =
+        case coldef do
+          %{group_by_filter: filter} when not is_nil(filter) ->
+            filter
 
-          # Build the filter field as "table.id_field"
-          if table_prefix do
-            "#{table_prefix}.#{id_field}"
-          else
-            Atom.to_string(id_field)
-          end
-        # Try with string keys too
-        %{"join_mode" => mode, "id_field" => id_field} when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
-          # colid might be nil, so extract table prefix from the field tuple
-          table_prefix = case field do
-            {:row, [display_field | _], _} ->
-              # ROW selector - extract from display field
-              case display_field do
-                {:coalesce, [inner | _]} -> extract_table_prefix(inner)
-                _ -> extract_table_prefix(display_field)
-              end
-            {:field, field_ref, _} -> extract_table_prefix(field_ref)
-            _ -> nil
-          end
+          %{"group_by_filter" => filter} when not is_nil(filter) ->
+            filter
 
-          # Build the filter field as "table.id_field"
-          if table_prefix do
-            "#{table_prefix}.#{id_field}"
-          else
-            to_string(id_field)
-          end
-        _ ->
-          # Extract field name from field tuple, handling COALESCE wrapper
-          case field do
-            {:field, {:coalesce, [inner_field | _]}, _} ->
-              # Field is wrapped in COALESCE - extract the inner field
-              case inner_field do
-                {:to_char, {field_name, _format}} -> Atom.to_string(field_name)
-                field_id when is_atom(field_id) -> Atom.to_string(field_id)
-                field_id when is_binary(field_id) -> field_id
-                _ -> "id"
+          # Special join modes - use the configured ID field for filtering
+          %{join_mode: mode, id_field: id_field}
+          when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+            # colid might be nil, so extract table prefix from the field tuple
+            table_prefix =
+              case field do
+                {:row, [display_field | _], _} ->
+                  # ROW selector - extract from display field
+                  case display_field do
+                    {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                    _ -> extract_table_prefix(display_field)
+                  end
+
+                {:field, field_ref, _} ->
+                  extract_table_prefix(field_ref)
+
+                _ ->
+                  nil
               end
-            {:field, {:to_char, {field_name, _format}}, _} -> Atom.to_string(field_name)
-            {:field, field_id, _} when is_atom(field_id) -> Atom.to_string(field_id)
-            {:field, field_id, _} when is_binary(field_id) -> field_id
-            _ -> "id"
-          end
-      end
+
+            # Build the filter field as "table.id_field"
+            if table_prefix do
+              "#{table_prefix}.#{id_field}"
+            else
+              Atom.to_string(id_field)
+            end
+
+          # Try with string keys too
+          %{"join_mode" => mode, "id_field" => id_field}
+          when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
+            # colid might be nil, so extract table prefix from the field tuple
+            table_prefix =
+              case field do
+                {:row, [display_field | _], _} ->
+                  # ROW selector - extract from display field
+                  case display_field do
+                    {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+                    _ -> extract_table_prefix(display_field)
+                  end
+
+                {:field, field_ref, _} ->
+                  extract_table_prefix(field_ref)
+
+                _ ->
+                  nil
+              end
+
+            # Build the filter field as "table.id_field"
+            if table_prefix do
+              "#{table_prefix}.#{id_field}"
+            else
+              to_string(id_field)
+            end
+
+          _ ->
+            # Extract field name from field tuple, handling COALESCE wrapper
+            case field do
+              {:field, {:coalesce, [inner_field | _]}, _} ->
+                # Field is wrapped in COALESCE - extract the inner field
+                case inner_field do
+                  {:to_char, {field_name, _format}} -> Atom.to_string(field_name)
+                  field_id when is_atom(field_id) -> Atom.to_string(field_id)
+                  field_id when is_binary(field_id) -> field_id
+                  _ -> "id"
+                end
+
+              {:field, {:to_char, {field_name, _format}}, _} ->
+                Atom.to_string(field_name)
+
+              {:field, field_id, _} when is_atom(field_id) ->
+                Atom.to_string(field_id)
+
+              {:field, field_id, _} when is_binary(field_id) ->
+                field_id
+
+              _ ->
+                "id"
+            end
+        end
 
       # Extract the actual value (handle tuples and NULL)
-      filter_value = case value do
-        nil -> "__NULL__"  # Special marker for IS_EMPTY filter (ROLLUP NULL)
-        "" -> "__NULL__"  # Empty string from ROLLUP NULL
-        "[NULL]" -> "__NULL__"  # COALESCE result for data NULL
-        {_display, "[NULL]"} -> "__NULL__"  # COALESCE result in tuple
-        {_display, filter_val} when is_nil(filter_val) or filter_val == "" -> "__NULL__"
-        {_display, filter_val} -> filter_val
-        _ -> value
-      end
+      filter_value =
+        case value do
+          # Special marker for IS_EMPTY filter (ROLLUP NULL)
+          nil -> "__NULL__"
+          # Empty string from ROLLUP NULL
+          "" -> "__NULL__"
+          # COALESCE result for data NULL
+          "[NULL]" -> "__NULL__"
+          # COALESCE result in tuple
+          {_display, "[NULL]"} -> "__NULL__"
+          {_display, filter_val} when is_nil(filter_val) or filter_val == "" -> "__NULL__"
+          {_display, filter_val} -> filter_val
+          _ -> value
+        end
 
       # Use indexed phx-value attributes to support multiple group levels
       # phx-value-field0, phx-value-value0, phx-value-field1, phx-value1, etc.
@@ -220,7 +267,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           [table, _field] -> table
           _ -> nil
         end
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -231,36 +280,44 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     agg_cols = Enum.drop(assigns.row, assigns.num_group_by)
 
     # Determine styling based on hierarchy level
-    {row_class, font_weight, indent_px} = case assigns.level do
-      0 -> {"bg-blue-50 border-t-2 border-blue-300", "font-bold", 0}  # Grand total
-      1 -> {"bg-gray-50", "font-semibold", 16}  # Level 1 subtotal
-      2 -> {"", "font-normal", 32}  # Level 2 (or detail if only 2 levels)
-      3 -> {"", "font-normal", 48}  # Level 3
-      _ -> {"", "font-normal", 64}  # Deeper levels
-    end
+    {row_class, font_weight, indent_px} =
+      case assigns.level do
+        # Grand total
+        0 -> {"bg-blue-50 border-t-2 border-blue-300", "font-bold", 0}
+        # Level 1 subtotal
+        1 -> {"bg-gray-50", "font-semibold", 16}
+        # Level 2 (or detail if only 2 levels)
+        2 -> {"", "font-normal", 32}
+        # Level 3
+        3 -> {"", "font-normal", 48}
+        # Deeper levels
+        _ -> {"", "font-normal", 64}
+      end
 
     # The maximum level is the number of group-by columns
     # If we're at max level, it's a detail row (not a subtotal)
     is_detail = assigns.level == assigns.num_group_by
 
     # For detail rows, use normal styling
-    {row_class, font_weight} = if is_detail do
-      {"", "font-normal"}
-    else
-      {row_class, font_weight}
-    end
+    {row_class, font_weight} =
+      if is_detail do
+        {"", "font-normal"}
+      else
+        {row_class, font_weight}
+      end
 
     # Build filter attributes for drill-down (accumulated from all parent levels)
     filter_attrs = build_filter_attrs(group_cols, assigns.group_by, assigns.level)
 
-    assigns = assign(assigns,
-      group_cols: group_cols,
-      agg_cols: agg_cols,
-      row_class: row_class,
-      font_weight: font_weight,
-      indent_px: indent_px,
-      filter_attrs: filter_attrs
-    )
+    assigns =
+      assign(assigns,
+        group_cols: group_cols,
+        agg_cols: agg_cols,
+        row_class: row_class,
+        font_weight: font_weight,
+        indent_px: indent_px,
+        filter_attrs: filter_attrs
+      )
 
     ~H"""
     <tr class={@row_class}>
@@ -275,8 +332,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
               <%= if idx == @level - 1 do %>
-                <div phx-click="agg_add_filters" {@filter_attrs} class="cursor-pointer hover:underline">
-                  <%= format_value(value) %>
+                <div
+                  phx-click="agg_add_filters"
+                  {@filter_attrs}
+                  class="cursor-pointer hover:underline"
+                >
+                  {format_value(value)}
                 </div>
               <% end %>
             <% end %>
@@ -287,7 +348,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <%!-- Render aggregate columns --%>
       <%= for {value, {_alias, {:agg, _agg, coldef}}} <- Enum.zip(@agg_cols, @aggregate) do %>
         <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
-          <%= format_aggregate_value(value, coldef) %>
+          {format_aggregate_value(value, coldef)}
         </td>
       <% end %>
     </tr>
@@ -329,38 +390,52 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           """
 
         {true, {results, _fields, aliases}} ->
-        # Valid execution with results - proceed with normal rendering
+          # Valid execution with results - proceed with normal rendering
 
-        # Extract the actual selected fields from the selecto configuration
-        # Note: assigns.selecto.set.group_by contains ROLLUP config, not actual fields
-        # The actual fields are in assigns.selecto.set.selected
-        selected_fields = assigns.selecto.set.selected || []
+          # Extract the actual selected fields from the selecto configuration
+          # Note: assigns.selecto.set.group_by contains ROLLUP config, not actual fields
+          # The actual fields are in assigns.selecto.set.selected
+          selected_fields = assigns.selecto.set.selected || []
 
-        # Also get the original group_by and aggregates for processing
-        rollup_group_by = assigns.selecto.set.group_by || []
-        aggregates = assigns.selecto.set.aggregates || []
+          # Also get the original group_by and aggregates for processing
+          rollup_group_by = assigns.selecto.set.group_by || []
+          aggregates = assigns.selecto.set.aggregates || []
 
-        # Use the rollup rendering logic instead of simple flat rendering
-        render_aggregate_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates)
+          # Use the rollup rendering logic instead of simple flat rendering
+          render_aggregate_view(
+            assigns,
+            results,
+            aliases,
+            selected_fields,
+            rollup_group_by,
+            aggregates
+          )
 
-      _ ->
-        # Fallback for unexpected states
-        ~H"""
-        <div>
-          <div class="text-yellow-500 p-4">
-            <div class="font-semibold">Unknown State</div>
-            <div class="text-sm mt-1">
-              Executed: <%= inspect(assigns[:executed]) %><br/>
-              Query Results: <%= inspect(assigns.query_results != nil) %>
+        _ ->
+          # Fallback for unexpected states
+          ~H"""
+          <div>
+            <div class="text-yellow-500 p-4">
+              <div class="font-semibold">Unknown State</div>
+              <div class="text-sm mt-1">
+                Executed: {inspect(assigns[:executed])}<br />
+                Query Results: {inspect(assigns.query_results != nil)}
+              </div>
             </div>
           </div>
-        </div>
-        """
+          """
       end
     end
   end
 
-  defp render_aggregate_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates) do
+  defp render_aggregate_view(
+         assigns,
+         results,
+         aliases,
+         selected_fields,
+         rollup_group_by,
+         aggregates
+       ) do
     # Use the actual selected fields for counting instead of group_by + aggregates
     # because ROLLUP can add extra fields to the query result
     expected_field_count = Enum.count(selected_fields)
@@ -387,39 +462,53 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
         true ->
           # We have results but they don't match - this suggests a configuration issue
-          assigns = assign(assigns,
-            expected_field_count: expected_field_count,
-            aliases_count: aliases_count,
-            selected_fields_count: Enum.count(selected_fields),
-            aggregates_count: Enum.count(aggregates),
-            aliases_debug: inspect(aliases)
-          )
+          assigns =
+            assign(assigns,
+              expected_field_count: expected_field_count,
+              aliases_count: aliases_count,
+              selected_fields_count: Enum.count(selected_fields),
+              aggregates_count: Enum.count(aggregates),
+              aliases_debug: inspect(aliases)
+            )
 
           ~H"""
           <div>
             <div class="text-red-500 p-4">
               <div class="font-semibold">View Configuration Error</div>
               <div class="text-sm mt-1">
-                Expected <%= @expected_field_count %> fields but got <%= @aliases_count %> from query.
+                Expected {@expected_field_count} fields but got {@aliases_count} from query.
                 This usually indicates a mismatch between the view configuration and query results.
               </div>
               <details class="mt-2 text-xs">
                 <summary class="cursor-pointer">Debug Info</summary>
-                <div>Selected Fields: <%= @selected_fields_count %></div>
-                <div>Aggregate Fields: <%= @aggregates_count %></div>
-                <div>Query Aliases: <%= @aliases_debug %></div>
+                <div>Selected Fields: {@selected_fields_count}</div>
+                <div>Aggregate Fields: {@aggregates_count}</div>
+                <div>Query Aliases: {@aliases_debug}</div>
               </details>
             </div>
           </div>
           """
       end
     else
-      render_synchronized_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates)
+      render_synchronized_view(
+        assigns,
+        results,
+        aliases,
+        selected_fields,
+        rollup_group_by,
+        aggregates
+      )
     end
   end
 
-  defp render_synchronized_view(assigns, results, aliases, selected_fields, rollup_group_by, aggregates) do
-
+  defp render_synchronized_view(
+         assigns,
+         results,
+         aliases,
+         selected_fields,
+         rollup_group_by,
+         aggregates
+       ) do
     # Process the selected fields to match the aliases
     # The selected fields should match 1:1 with the aliases from the query
     field_mappings = Enum.zip(aliases, selected_fields)
@@ -429,87 +518,133 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     # Look at the rollup_group_by to determine how many group by fields we have
 
     # Count the actual group by fields (not the ROLLUP wrapper)
-    num_group_by = case rollup_group_by do
-      [{:rollup, positions}] when is_list(positions) -> Enum.count(positions)
-      _ -> 0
-    end
+    num_group_by =
+      case rollup_group_by do
+        [{:rollup, positions}] when is_list(positions) -> Enum.count(positions)
+        _ -> 0
+      end
 
-    #num_aggregates = Enum.count(selected_fields) - num_group_by
+    # num_aggregates = Enum.count(selected_fields) - num_group_by
 
     group_by_mappings = Enum.take(field_mappings, num_group_by)
     aggregate_mappings = Enum.drop(field_mappings, num_group_by)
 
+    selecto_group_by_config =
+      case assigns do
+        %{selecto: %{set: set}} when is_map(set) ->
+          Map.get(set, :gb_params) || Map.get(set, "gb_params")
+
+        _ ->
+          nil
+      end
+
+    view_config_group_by =
+      case assigns do
+        %{view_config: view_config} when is_map(view_config) ->
+          Map.get(view_config, :group_by) || Map.get(view_config, "group_by")
+
+        _ ->
+          nil
+      end
+
+    group_by_config = selecto_group_by_config || view_config_group_by || %{}
+
+    group_by_param_fields =
+      group_by_config
+      |> Map.values()
+      |> Enum.sort(fn a, b ->
+        to_index = fn cfg ->
+          cfg
+          |> Map.get("index", Map.get(cfg, :index, "0"))
+          |> to_string()
+          |> String.to_integer()
+        end
+
+        to_index.(a) <= to_index.(b)
+      end)
+      |> Enum.map(fn cfg -> Map.get(cfg, "field") || Map.get(cfg, :field) end)
+
     # Convert to the format expected by the template
     group_by =
       group_by_mappings
-      |> Enum.map(fn {alias, field} ->
+      |> Enum.with_index()
+      |> Enum.map(fn {{alias, field}, idx} ->
         # Get the proper column definition from selecto
         # Now that Selecto.field returns full definitions, we get all properties
-        coldef = case field do
-          {:field, {:to_char, {field_name, _format}}, _alias} ->
-            # Handle formatted date fields
-            Selecto.field(assigns.selecto, field_name) || %{name: alias, format: nil}
+        coldef =
+          case field do
+            {:field, {:to_char, {field_name, _format}}, _alias} ->
+              # Handle formatted date fields
+              Selecto.field(assigns.selecto, field_name) || %{name: alias, format: nil}
 
-          {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
-            # Selecto.field now returns full custom column definitions with group_by_filter
-            result = Selecto.field(assigns.selecto, field_id)
-            if result == nil do
-              # Field not found - use basic definition
-              %{name: alias, format: nil}
-            else
-              result
-            end
+            {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
+              # Selecto.field now returns full custom column definitions with group_by_filter
+              result = Selecto.field(assigns.selecto, field_id)
 
-          {:field, {_extract_type, field_id, _format}, _alias} ->
-            # Handle extracted fields (e.g., date parts)
-            Selecto.field(assigns.selecto, field_id) || %{name: alias}
-
-          {:row, [display_field | _rest], _alias} ->
-            # For row selectors (e.g., join mode columns), look up the actual column definition
-            # display_field might be wrapped in COALESCE - extract the original field name
-            field_name = case display_field do
-              {:coalesce, [inner_field | _]} -> inner_field
-              other -> other
-            end
-
-            # Look up metadata from domain.schemas for joined fields
-            result = if is_binary(field_name) && String.contains?(field_name, ".") do
-              [schema_name, field_only] = String.split(field_name, ".", parts: 2)
-
-              # Look up from domain.schemas[schema].columns[field]
-              domain = Selecto.domain(assigns.selecto)
-              schema_atom = try do
-                String.to_existing_atom(schema_name)
-              rescue
-                ArgumentError -> nil
-              end
-
-              field_atom = try do
-                String.to_existing_atom(field_only)
-              rescue
-                ArgumentError -> nil
-              end
-
-              if schema_atom && field_atom do
-                get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+              if result == nil do
+                # Field not found - use basic definition
+                %{name: alias, format: nil}
               else
-                nil
+                result
               end
-            else
-              Selecto.field(assigns.selecto, field_name)
-            end
 
-            if result == nil do
-              # Field not found - use basic definition
+            {:field, {_extract_type, field_id, _format}, _alias} ->
+              # Handle extracted fields (e.g., date parts)
+              Selecto.field(assigns.selecto, field_id) || %{name: alias}
+
+            {:row, [display_field | _rest], _alias} ->
+              # For row selectors (e.g., join mode columns), look up the actual column definition
+              # display_field might be wrapped in COALESCE - extract the original field name
+              field_name =
+                case display_field do
+                  {:coalesce, [inner_field | _]} -> inner_field
+                  other -> other
+                end
+
+              # Look up metadata from domain.schemas for joined fields
+              result =
+                if is_binary(field_name) && String.contains?(field_name, ".") do
+                  [schema_name, field_only] = String.split(field_name, ".", parts: 2)
+
+                  # Look up from domain.schemas[schema].columns[field]
+                  domain = Selecto.domain(assigns.selecto)
+
+                  schema_atom =
+                    try do
+                      String.to_existing_atom(schema_name)
+                    rescue
+                      ArgumentError -> nil
+                    end
+
+                  field_atom =
+                    try do
+                      String.to_existing_atom(field_only)
+                    rescue
+                      ArgumentError -> nil
+                    end
+
+                  if schema_atom && field_atom do
+                    get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+                  else
+                    nil
+                  end
+                else
+                  Selecto.field(assigns.selecto, field_name)
+                end
+
+              if result == nil do
+                # Field not found - use basic definition
+                %{name: alias, format: nil}
+              else
+                result
+              end
+
+            _ ->
+              # Fallback to basic definition
               %{name: alias, format: nil}
-            else
-              result
-            end
+          end
 
-          _ ->
-            # Fallback to basic definition
-            %{name: alias, format: nil}
-        end
+        coldef = maybe_set_group_by_filter(coldef, Enum.at(group_by_param_fields, idx))
         {alias, {:group_by, field, coldef}}
       end)
 
@@ -517,15 +652,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       Enum.zip(aggregate_mappings, aggregates)
       |> Enum.map(fn {{alias, _field}, agg} ->
         # Get the proper column definition from selecto
-        coldef = case agg do
-          {:field, {_func, field_id}, _alias} when is_atom(field_id) ->
-            Selecto.field(assigns.selecto, field_id)
-          {:field, field_id, _alias} when is_atom(field_id) ->
-            Selecto.field(assigns.selecto, field_id)
-          _ ->
-            # Fallback to empty map for unknown aggregate types
-            %{}
-        end
+        coldef =
+          case agg do
+            {:field, {_func, field_id}, _alias} when is_atom(field_id) ->
+              Selecto.field(assigns.selecto, field_id)
+
+            {:field, field_id, _alias} when is_atom(field_id) ->
+              Selecto.field(assigns.selecto, field_id)
+
+            _ ->
+              # Fallback to empty map for unknown aggregate types
+              %{}
+          end
+
         {alias, {:agg, agg, coldef}}
       end)
 
@@ -549,14 +688,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <%!-- Headers for group by columns --%>
             <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                <%= alias %>
+                {alias}
               </th>
             <% end %>
 
             <%!-- Headers for aggregate columns --%>
             <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                <%= alias %>
+                {alias}
               </th>
             <% end %>
           </tr>
@@ -575,4 +714,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     </div>
     """
   end
+
+  defp maybe_set_group_by_filter(coldef, field_name)
+       when is_map(coldef) and is_binary(field_name) and field_name != "" do
+    coldef
+    |> Map.put_new(:group_by_filter, field_name)
+    |> Map.put_new("group_by_filter", field_name)
+  end
+
+  defp maybe_set_group_by_filter(coldef, _), do: coldef
 end
