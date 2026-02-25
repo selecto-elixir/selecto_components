@@ -17,6 +17,8 @@ V 0.3.3
   debug details shown in the main results error panel.
 - Added detail-page cache memory metrics to the debug panel (bytes, cached
   pages, cached rows).
+- Fixed debug SQL display to persist the most recent executed query when detail
+  pagination serves results from cache.
 
 V 0.3.2
 -------

@@ -326,11 +326,35 @@ defmodule SelectoComponents.Form.ParamsState do
 
           detail_cache_assignment = if detail_view_mode?(params), do: detail_page_cache, else: nil
           cache_debug_info = build_page_cache_debug_info(detail_cache_assignment)
+          previous_last_query_info = socket.assigns[:last_query_info] || %{}
+
+          executed_sql? = is_binary(query_sql) and query_sql != ""
+
+          effective_sql =
+            if executed_sql? do
+              query_sql
+            else
+              Map.get(previous_last_query_info, :sql)
+            end
+
+          effective_params =
+            if executed_sql? do
+              query_params
+            else
+              Map.get(previous_last_query_info, :params, query_params)
+            end
+
+          effective_timing =
+            if executed_sql? do
+              execution_time
+            else
+              Map.get(previous_last_query_info, :timing)
+            end
 
           last_query_info = %{
-            sql: query_sql,
-            params: query_params,
-            timing: execution_time,
+            sql: effective_sql,
+            params: effective_params,
+            timing: effective_timing,
             page_cache_memory_bytes: cache_debug_info.bytes,
             page_cache_pages: cache_debug_info.pages,
             page_cache_rows: cache_debug_info.rows
