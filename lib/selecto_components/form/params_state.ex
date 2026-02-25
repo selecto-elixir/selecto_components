@@ -325,6 +325,16 @@ defmodule SelectoComponents.Form.ParamsState do
           view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
           detail_cache_assignment = if detail_view_mode?(params), do: detail_page_cache, else: nil
+          cache_debug_info = build_page_cache_debug_info(detail_cache_assignment)
+
+          last_query_info = %{
+            sql: query_sql,
+            params: query_params,
+            timing: execution_time,
+            page_cache_memory_bytes: cache_debug_info.bytes,
+            page_cache_pages: cache_debug_info.pages,
+            page_cache_rows: cache_debug_info.rows
+          }
 
           # Store query info in component state
           socket =
@@ -339,11 +349,7 @@ defmodule SelectoComponents.Form.ParamsState do
               detail_page_cache: detail_cache_assignment,
               executed: true,
               execution_error: nil,
-              last_query_info: %{
-                sql: query_sql,
-                params: query_params,
-                timing: execution_time
-              }
+              last_query_info: last_query_info
             )
 
           # Send query info to parent LiveView so it can pass to Results component
@@ -352,13 +358,10 @@ defmodule SelectoComponents.Form.ParamsState do
             {:query_executed,
              %{
                query_results: {normalized_rows, columns, aliases},
-               last_query_info: %{
-                 sql: query_sql,
-                 params: query_params,
-                 timing: execution_time
-               },
+               last_query_info: last_query_info,
                view_meta: view_meta,
-               applied_view: get_map_value(params, :view_mode)
+               applied_view: get_map_value(params, :view_mode),
+               detail_page_cache: detail_cache_assignment
              }}
           )
 
@@ -540,6 +543,35 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp format_stacktrace(stacktrace), do: inspect(stacktrace, limit: 30)
+
+  defp build_page_cache_debug_info(nil), do: %{bytes: nil, pages: nil, rows: nil}
+
+  defp build_page_cache_debug_info(cache) when is_map(cache) do
+    pages = Map.get(cache, :pages, %{})
+    page_count = map_size(pages)
+
+    row_count =
+      pages
+      |> Map.values()
+      |> Enum.reduce(0, fn
+        page_rows, acc when is_list(page_rows) -> acc + length(page_rows)
+        _page_rows, acc -> acc
+      end)
+
+    %{
+      bytes: term_size_bytes(cache),
+      pages: page_count,
+      rows: row_count
+    }
+  end
+
+  defp build_page_cache_debug_info(_), do: %{bytes: nil, pages: nil, rows: nil}
+
+  defp term_size_bytes(term) do
+    :erts_debug.size(term) * :erlang.system_info(:wordsize)
+  rescue
+    _ -> nil
+  end
 
   defp execute_query_with_metadata(selecto) do
     try do

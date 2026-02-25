@@ -15,6 +15,8 @@ V 0.3.3
   `order_by` list, preventing `KeyError` crashes in Selecto SQL builder.
 - Improved error reporting for view execution failures with development-time
   debug details shown in the main results error panel.
+- Added detail-page cache memory metrics to the debug panel (bytes, cached
+  pages, cached rows).
 
 V 0.3.2
 -------

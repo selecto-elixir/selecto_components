@@ -115,6 +115,8 @@ defmodule SelectoComponents.Results do
   end
 
   defp build_debug_data(assigns) do
+    query_data = assigns[:last_query_info] || %{}
+
     # Extract row count from query_results
     row_count =
       case assigns[:query_results] do
@@ -131,8 +133,8 @@ defmodule SelectoComponents.Results do
     # Get SQL, params, and timing from last_query_info if available
     # This is passed from the parent LiveView which captured it during query execution
     {query_sql, params, timing} =
-      if assigns[:last_query_info] && assigns.last_query_info != %{} do
-        info = assigns.last_query_info
+      if query_data != %{} do
+        info = query_data
 
         {
           Map.get(info, :sql),
@@ -150,6 +152,9 @@ defmodule SelectoComponents.Results do
       params: params,
       timing: timing,
       row_count: row_count,
+      page_cache_memory_bytes: Map.get(query_data, :page_cache_memory_bytes),
+      page_cache_pages: Map.get(query_data, :page_cache_pages),
+      page_cache_rows: Map.get(query_data, :page_cache_rows),
       execution_plan: nil
     }
   end

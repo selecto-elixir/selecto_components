@@ -275,5 +275,41 @@ defmodule SelectoComponents.Debug.ConfigReaderTest do
       assert debug_info.query =~ "SELECT"
       refute debug_info.query =~ "  "
     end
+
+    test "includes page cache memory metrics when enabled" do
+      config = %{
+        show_page_cache_memory: true
+      }
+
+      data = %{
+        page_cache_memory_bytes: 4096,
+        page_cache_pages: 3,
+        page_cache_rows: 90
+      }
+
+      debug_info = ConfigReader.build_debug_info(data, config)
+
+      assert debug_info.page_cache_memory_bytes == 4096
+      assert debug_info.page_cache_pages == 3
+      assert debug_info.page_cache_rows == 90
+    end
+
+    test "omits page cache memory metrics when disabled" do
+      config = %{
+        show_page_cache_memory: false
+      }
+
+      data = %{
+        page_cache_memory_bytes: 4096,
+        page_cache_pages: 3,
+        page_cache_rows: 90
+      }
+
+      debug_info = ConfigReader.build_debug_info(data, config)
+
+      refute Map.has_key?(debug_info, :page_cache_memory_bytes)
+      refute Map.has_key?(debug_info, :page_cache_pages)
+      refute Map.has_key?(debug_info, :page_cache_rows)
+    end
   end
 end

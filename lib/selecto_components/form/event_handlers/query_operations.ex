@@ -203,6 +203,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
           |> assign(:last_query_info, Map.get(query_info, :last_query_info))
           |> assign(:view_meta, Map.get(query_info, :view_meta))
           |> assign(:applied_view, Map.get(query_info, :applied_view))
+          |> assign(:detail_page_cache, Map.get(query_info, :detail_page_cache))
           |> assign(:executed, true)
 
         {:noreply, socket}
