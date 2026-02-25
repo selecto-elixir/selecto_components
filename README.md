@@ -37,8 +37,8 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.14
-- Selecto ~> 0.3.1 (core library)
-- selecto_mix ~> 0.3.0 (for code generation and integration tasks)
+- Selecto ~> 0.3.2 (core library)
+- selecto_mix ~> 0.3.2 (for code generation and integration tasks)
 
 ## Installation
 
@@ -49,9 +49,9 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.1"},
-    {:selecto, "~> 0.3.1"},
-    {:selecto_mix, "~> 0.3.0"}  # For generators and integration
+    {:selecto_components, "~> 0.3.2"},
+    {:selecto, "~> 0.3.2"},
+    {:selecto_mix, "~> 0.3.2"}  # For generators and integration
   ]
 end
 ```
@@ -180,6 +180,56 @@ defmodule MyAppWeb.ProductLive do
   end
 end
 ```
+
+## Recent 0.3.2+ Updates
+
+### Filter Processing and Rendering
+
+Filter processing has been expanded for more consistent operator support across
+form inputs:
+
+- String filters: `=`, `!=`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN`, `NOT IN`,
+  `STARTS`, `ENDS`, `CONTAINS`, `LIKE`, `NOT LIKE`, null checks.
+- Numeric filters: `=`, `!=`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN`, `NOT IN`,
+  null checks.
+- Datetime filters: richer support for `BETWEEN`, `DATE_BETWEEN`, shortcut and
+  relative modes, and null checks.
+
+### Aggregate Group-By Safety
+
+Aggregate group-by display processing now applies `COALESCE('[NULL]')` only to
+text-compatible selectors. This prevents SQL type mismatch errors when grouping
+by numeric, enum, and other non-text fields.
+
+### Custom Detail Modal Component
+
+You can now provide a custom modal component instead of the built-in
+`SelectoComponents.Modal.DetailModal`:
+
+```elixir
+<.live_component
+  module={SelectoComponents.Form}
+  id="product-form"
+  detail_modal_component={MyAppWeb.ProductDetailModal}
+  {assigns}
+/>
+```
+
+Your custom modal receives `detail_data` and is rendered whenever
+`enable_modal_detail` and `show_detail_modal` are true.
+
+### Debug Information Panel (Opt-In)
+
+Debug UI visibility is request-gated:
+
+- Development/test: pass `selecto_debug=true` (or `debug=true`) in params or session.
+- Production: requires both environment config and token validation:
+  - `SELECTO_DEBUG_ENABLED=true`
+  - `SELECTO_DEBUG_TOKEN=<secure-token>`
+  - request/session includes `debug_token=<secure-token>`
+
+If you want the debug panel always enabled in development, pass debug params to
+`SelectoComponents.Results` from your LiveView.
 
 ## Available Components
 

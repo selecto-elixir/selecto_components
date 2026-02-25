@@ -710,11 +710,27 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket) do
+    params = merge_special_debug_params(params, socket)
     params_encoded = Plug.Conn.Query.encode(params)
     my_path = socket.assigns.my_path
     full_path = "#{my_path}?#{params_encoded}"
 
     Phoenix.LiveView.push_patch(socket, to: full_path)
+  end
+
+  defp merge_special_debug_params(params, socket) do
+    existing_params = Map.get(socket.assigns, :params, %{})
+
+    debug_params =
+      %{
+        "selecto_debug" => get_map_value(existing_params, :selecto_debug),
+        "debug" => get_map_value(existing_params, :debug),
+        "debug_token" => get_map_value(existing_params, :debug_token)
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+      |> Map.new()
+
+    Map.merge(debug_params, params)
   end
 
   defp get_map_value(map, key, default \\ nil)

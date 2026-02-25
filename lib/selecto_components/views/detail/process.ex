@@ -45,23 +45,29 @@ defmodule SelectoComponents.Views.Detail.Process do
         column_names
       )
 
-      # Filter detail_columns to only include normal columns
-      normal_detail_columns = Enum.filter(detail_columns, fn col ->
-        col["field"] in normal_cols
-      end)
+      if normal_cols == [] and detail_columns != [] do
+        # If every selected column denormalizes, keep the original selection
+        # so we don't build an empty SELECT list.
+        {detail_columns, [], %{}}
+      else
+        # Filter detail_columns to only include normal columns
+        normal_detail_columns = Enum.filter(detail_columns, fn col ->
+          col["field"] in normal_cols
+        end)
 
-      # Generate subselect configurations for UI display
-      subselect_configs = Enum.map(denorm_groups, fn {path, cols} ->
-        config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
-        # Add the actual columns to the config for later use
-        config = Map.put(config, :columns, Enum.map(cols, fn col ->
-          {UUID.uuid4(), col, %{}}
-        end))
+        # Generate subselect configurations for UI display
+        subselect_configs = Enum.map(denorm_groups, fn {path, cols} ->
+          config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
+          # Add the actual columns to the config for later use
+          config = Map.put(config, :columns, Enum.map(cols, fn col ->
+            {UUID.uuid4(), col, %{}}
+          end))
 
-        config
-      end)
+          config
+        end)
 
-      {normal_detail_columns, subselect_configs, denorm_groups}
+        {normal_detail_columns, subselect_configs, denorm_groups}
+      end
     else
       {detail_columns, [], %{}}
     end

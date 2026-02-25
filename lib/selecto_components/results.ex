@@ -35,7 +35,7 @@ defmodule SelectoComponents.Results do
               assigns
           end
       end
-    
+
     # Check debug permissions using params and session from socket
     show_debug = should_show_debug?(assigns)
     assigns = Map.put(assigns, :show_debug, show_debug)
@@ -43,49 +43,57 @@ defmodule SelectoComponents.Results do
     assigns = Map.put(assigns, :has_component_errors, has_component_errors)
 
     ~H"""
-      <div>
-        <div :if={Map.get(assigns, :execution_error) && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <strong class="font-bold">View Error:</strong>
-          <span class="block sm:inline ml-1">
-            <%= case Map.get(assigns, :execution_error) do %>
-              <% %{message: msg} -> %>
-                <%= msg %>
-              <% error when is_binary(error) -> %>
-                <%= error %>
-              <% error -> %>
-                <%= inspect(error) %>
-            <% end %>
-          </span>
-        </div>
-        <div :if={@has_component_errors && !@applied_view} class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <strong class="font-bold">View Error:</strong>
-          <span class="block sm:inline ml-1">
-            Saved view could not be applied. Open the View Controller and resubmit after adjusting fields.
-          </span>
-        </div>
-        <!-- Debug Display Panel (only shown if debug is enabled) -->
-        <.live_component
-          :if={@show_debug && @executed && @query_results}
-          module={DebugDisplay}
-          id="debug_display"
-          domain_module={Map.get(assigns, :domain_module)}
-          view_type={if @applied_view, do: SafeAtom.to_view_mode(@applied_view), else: :detail}
-          debug_data={build_debug_data(assigns)}
-        />
-        
-        <div :if={@applied_view && @component_module}>
-            <.live_component
-              module={@component_module}
-              id={"view_results_#{@applied_view}"}
-              selecto={@selecto}
-              query_results={@query_results}
-              view_meta={@view_meta}
-              view_opts={@view_opts}
-              executed={@executed}
-              execution_error={assigns[:execution_error]}
-            />
-        </div>
+    <div>
+      <div
+        :if={Map.get(assigns, :execution_error) && !@applied_view}
+        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        role="alert"
+      >
+        <strong class="font-bold">View Error:</strong>
+        <span class="block sm:inline ml-1">
+          <%= case Map.get(assigns, :execution_error) do %>
+            <% %{message: msg} -> %>
+              {msg}
+            <% error when is_binary(error) -> %>
+              {error}
+            <% error -> %>
+              {inspect(error)}
+          <% end %>
+        </span>
       </div>
+      <div
+        :if={@has_component_errors && !@applied_view}
+        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        role="alert"
+      >
+        <strong class="font-bold">View Error:</strong>
+        <span class="block sm:inline ml-1">
+          Saved view could not be applied. Open the View Controller and resubmit after adjusting fields.
+        </span>
+      </div>
+      <!-- Debug Display Panel (only shown if debug is enabled) -->
+      <.live_component
+        :if={@show_debug && @executed && @query_results}
+        module={DebugDisplay}
+        id="debug_display"
+        domain_module={Map.get(assigns, :domain_module)}
+        view_type={if @applied_view, do: SafeAtom.to_view_mode(@applied_view), else: :detail}
+        debug_data={build_debug_data(assigns)}
+      />
+
+      <div :if={@applied_view && @component_module}>
+        <.live_component
+          module={@component_module}
+          id={"view_results_#{@applied_view}"}
+          selecto={@selecto}
+          query_results={@query_results}
+          view_meta={@view_meta}
+          view_opts={@view_opts}
+          executed={@executed}
+          execution_error={assigns[:execution_error]}
+        />
+      </div>
+    </div>
     """
   end
 
@@ -93,39 +101,44 @@ defmodule SelectoComponents.Results do
     # Try to get params and session from the socket if it exists
     # Since this is a LiveComponent, we might not have direct access to socket
     # The parent LiveView should pass these through assigns if needed
-    params = assigns[:params] || %{}
+    params = assigns[:params] || assigns[:used_params] || %{}
     session = assigns[:session] || %{}
-    
+
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)
   end
 
   defp build_debug_data(assigns) do
     # Extract row count from query_results
-    row_count = case assigns[:query_results] do
-      {rows, _columns, _aliases} when is_list(rows) ->
-        length(rows)
-      nil ->
-        0
-      _ ->
-        0
-    end
-    
+    row_count =
+      case assigns[:query_results] do
+        {rows, _columns, _aliases} when is_list(rows) ->
+          length(rows)
+
+        nil ->
+          0
+
+        _ ->
+          0
+      end
+
     # Get SQL, params, and timing from last_query_info if available
     # This is passed from the parent LiveView which captured it during query execution
-    {query_sql, params, timing} = if assigns[:last_query_info] && assigns.last_query_info != %{} do
-      info = assigns.last_query_info
-      {
-        Map.get(info, :sql),
-        Map.get(info, :params, []),
-        Map.get(info, :timing)
-      }
-    else
-      # Fallback to view_meta for timing if last_query_info is not available
-      timing = get_in(assigns, [:view_meta, :execution_time])
-      {nil, [], timing}
-    end
-    
+    {query_sql, params, timing} =
+      if assigns[:last_query_info] && assigns.last_query_info != %{} do
+        info = assigns.last_query_info
+
+        {
+          Map.get(info, :sql),
+          Map.get(info, :params, []),
+          Map.get(info, :timing)
+        }
+      else
+        # Fallback to view_meta for timing if last_query_info is not available
+        timing = get_in(assigns, [:view_meta, :execution_time])
+        {nil, [], timing}
+      end
+
     %{
       query: query_sql,
       params: params,

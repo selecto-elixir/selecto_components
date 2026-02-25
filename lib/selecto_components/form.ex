@@ -261,20 +261,28 @@ defmodule SelectoComponents.Form do
 
       <%!-- Render modal if enabled and triggered --%>
       <%= if Map.get(assigns, :enable_modal_detail) && Map.get(assigns, :show_detail_modal) do %>
-        <.live_component
-          module={SelectoComponents.Modal.DetailModal}
-          id="detail-modal"
-          record={@modal_detail_data.record}
-          current_index={@modal_detail_data.current_index}
-          total_records={@modal_detail_data.total_records}
-          records={@modal_detail_data.records}
-          fields={@modal_detail_data.fields}
-          related_data={@modal_detail_data.related_data}
-          title="Record Details"
-          size={:lg}
-          navigation_enabled={true}
-          edit_enabled={false}
-        />
+        <%= if custom_modal_component = Map.get(assigns, :detail_modal_component) do %>
+          <.live_component
+            module={custom_modal_component}
+            id="detail-modal"
+            detail_data={@modal_detail_data}
+          />
+        <% else %>
+          <.live_component
+            module={SelectoComponents.Modal.DetailModal}
+            id="detail-modal"
+            record={@modal_detail_data.record}
+            current_index={@modal_detail_data.current_index}
+            total_records={@modal_detail_data.total_records}
+            records={@modal_detail_data.records}
+            fields={@modal_detail_data.fields}
+            related_data={@modal_detail_data.related_data}
+            title="Record Details"
+            size={:lg}
+            navigation_enabled={true}
+            edit_enabled={false}
+          />
+        <% end %>
       <% end %>
     </div>
     """

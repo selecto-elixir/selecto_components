@@ -28,23 +28,30 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
     group_by = group_by_params |> group_by(columns, selecto)
 
-    # Wrap group-by fields in COALESCE to display '[NULL]' for NULL values
-    # This handles both data NULLs (from LEFT JOIN) and ROLLUP NULLs
+    # Wrap only text-compatible group-by selectors in COALESCE to display '[NULL]'.
+    # Applying string fallback to non-text fields (integer, enum, array, etc.) causes SQL type errors.
     group_by_with_coalesce = Enum.map(group_by, fn {col, sel} ->
-      # Wrap the selector in COALESCE
-      coalesced_sel = case sel do
-        {:field, field_expr, alias} ->
-          {:field, {:coalesce, [field_expr, {:literal, "[NULL]"}]}, alias}
+      coalesced_sel =
+        case sel do
+          {:field, field_expr, alias} ->
+            if should_coalesce_field?(col, selecto) do
+              {:field, {:coalesce, [field_expr, {:literal, "[NULL]"}]}, alias}
+            else
+              sel
+            end
 
-        # For join mode ROW selectors, wrap only the display field (first element)
-        {:row, [display_field, id_field], alias} when is_binary(display_field) or is_atom(display_field) ->
-          # Wrap display field in COALESCE, keep ID as-is
-          {:row, [{:coalesce, [display_field, {:literal, "[NULL]"}]}, id_field], alias}
+          {:row, [display_field, id_field], alias}
+          when is_binary(display_field) or is_atom(display_field) ->
+            if row_display_coalesce?(display_field, columns, selecto) do
+              {:row, [{:coalesce, [display_field, {:literal, "[NULL]"}]}, id_field], alias}
+            else
+              sel
+            end
 
-        other ->
-          # For already complex selectors, just return as-is
-          other
-      end
+          _other ->
+            sel
+        end
+
       {col, coalesced_sel}
     end)
 
@@ -201,6 +208,141 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       [field] -> {nil, field}
     end
   end
+
+  defp text_type?(type) do
+    type in [:string, :text, :citext]
+  end
+
+  defp row_display_coalesce?(display_field, columns, selecto) do
+    col =
+      Map.get(columns, display_field) ||
+        Map.get(columns, to_string(display_field))
+
+    case col do
+      nil -> false
+      col -> should_coalesce_field?(col, selecto)
+    end
+  end
+
+  defp should_coalesce_field?(col, selecto) do
+    resolved_col = resolve_column_metadata(col, selecto)
+    field_name = Map.get(resolved_col, :field) || Map.get(col, :field)
+    text_type = text_type?(Map.get(resolved_col, :type))
+    enum_by_name = enum_field_name_any_schema?(field_name, selecto)
+    root_enum = root_enum_field?(col, selecto)
+    enum_by_metadata = enum_field?(resolved_col, selecto)
+
+    text_type and not enum_by_name and not root_enum and not enum_by_metadata
+  end
+
+  defp resolve_column_metadata(col, selecto) do
+    colid = Map.get(col, :colid)
+
+    if is_binary(colid) or is_atom(colid) do
+      Selecto.field(selecto, colid) || col
+    else
+      col
+    end
+  end
+
+  defp enum_field?(col, selecto) do
+    enum_field_by_metadata?(col, selecto) or enum_field_by_colid?(col, selecto)
+  end
+
+  defp enum_field_by_metadata?(%{field: field, requires_join: join_ref}, selecto) do
+    with {:ok, field_atom} <- to_existing_atom_safe(field),
+         {:ok, schema_module} <- schema_module_for_join(join_ref, selecto),
+         true <- Code.ensure_loaded?(schema_module),
+         {:parameterized, {Ecto.Enum, _}} <- schema_module.__schema__(:type, field_atom) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp enum_field_by_metadata?(_, _), do: false
+
+  defp enum_field_by_colid?(%{colid: colid}, selecto) when is_binary(colid) or is_atom(colid) do
+    case Selecto.field(selecto, colid) do
+      nil -> false
+      metadata -> enum_field_by_metadata?(metadata, selecto)
+    end
+  end
+
+  defp enum_field_by_colid?(_, _), do: false
+
+  defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
+    with {:ok, field_atom} <- to_existing_atom_safe(field),
+         module when is_atom(module) <- get_in(Selecto.domain(selecto), [:source, :schema_module]),
+         true <- Code.ensure_loaded?(module),
+         {:parameterized, {Ecto.Enum, _}} <- module.__schema__(:type, field_atom) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp root_enum_field?(_, _), do: false
+
+  defp enum_field_name_any_schema?(field, selecto) do
+    with {:ok, field_atom} <- to_existing_atom_safe(field) do
+      domain = Selecto.domain(selecto)
+
+      source_module = get_in(domain, [:source, :schema_module])
+
+      schema_modules =
+        (get_in(domain, [:schemas]) || %{})
+        |> Map.values()
+        |> Enum.map(&Map.get(&1, :schema_module))
+
+      ([source_module] ++ schema_modules)
+      |> Enum.any?(fn
+        module when is_atom(module) ->
+          Code.ensure_loaded?(module) and
+            match?({:parameterized, {Ecto.Enum, _}}, module.__schema__(:type, field_atom))
+
+        _ ->
+          false
+      end)
+    else
+      _ -> false
+    end
+  end
+
+  defp schema_module_for_join(:selecto_root, selecto) do
+    case get_in(Selecto.domain(selecto), [:source, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_atom(join_ref) do
+    case get_in(Selecto.domain(selecto), [:schemas, join_ref, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_binary(join_ref) do
+    case to_existing_atom_safe(join_ref) do
+      {:ok, join_atom} -> schema_module_for_join(join_atom, selecto)
+      :error -> :error
+    end
+  end
+
+  defp schema_module_for_join(_, _), do: :error
+
+  defp to_existing_atom_safe(value) when is_atom(value), do: {:ok, value}
+
+  defp to_existing_atom_safe(value) when is_binary(value) do
+    try do
+      {:ok, String.to_existing_atom(value)}
+    rescue
+      ArgumentError -> :error
+    end
+  end
+
+  defp to_existing_atom_safe(_), do: :error
 
   defp datetime_gb_proc(col, config) do
     format = Map.get(config, "format")

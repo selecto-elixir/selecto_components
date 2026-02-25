@@ -84,18 +84,36 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       `{:noreply, socket}` with URL updated to saved view
       """
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
-        Selecto.Helpers.check_safe_phrase(Map.get(params, "save_as"))
+        with_error_handling(socket, "save_view", fn ->
+          save_as = String.trim(Map.get(params, "save_as", ""))
 
-        view =
-          socket.assigns.saved_view_module.save_view(
-            Map.get(params, "save_as"),
-            socket.assigns.saved_view_context,
-            params
-          )
+          cond do
+            save_as == "" ->
+              {:noreply, put_flash(socket, :error, "Enter a view name before saving")}
 
-        params = %{"saved_view" => view.name}
-        socket = assign(socket, :current_detail_page, 0)
-        {:noreply, ParamsState.state_to_url(params, socket)}
+            String.match?(save_as, ~r/[^a-zA-Z0-9_ ]/) ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 "View name can only include letters, numbers, spaces, and underscore"
+               )}
+
+            true ->
+              Selecto.Helpers.check_safe_phrase(save_as)
+
+              view =
+                socket.assigns.saved_view_module.save_view(
+                  save_as,
+                  socket.assigns.saved_view_context,
+                  params
+                )
+
+              params = %{"saved_view" => view.name}
+              socket = assign(socket, :current_detail_page, 0)
+              {:noreply, ParamsState.state_to_url(params, socket)}
+          end
+        end)
       end
 
       @doc """
@@ -138,11 +156,11 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
           view_type = socket.assigns.view_config.view_mode || "detail"
 
           case socket.assigns.saved_view_config_module.get_view_config(
-            config_name,
-            socket.assigns.saved_view_context,
-            view_type,
-            user_id: Map.get(socket.assigns, :current_user_id)
-          ) do
+                 config_name,
+                 socket.assigns.saved_view_context,
+                 view_type,
+                 user_id: Map.get(socket.assigns, :current_user_id)
+               ) do
             nil ->
               {:noreply, put_flash(socket, :error, "View configuration not found")}
 
