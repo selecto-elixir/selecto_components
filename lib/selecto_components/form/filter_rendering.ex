@@ -366,37 +366,42 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
+    filter_id = assigns.filter_value["filter"]
+    operator_options = standard_operator_options(assigns.field_type, assigns.selecto, filter_id)
+    operator_values = Enum.map(operator_options, &elem(&1, 0))
+    default_comp = default_standard_comp(assigns.field_type, filter_id, operator_options)
+
+    current_comp =
+      case assigns.filter_value["comp"] do
+        comp ->
+          if comp in operator_values do
+            comp
+          else
+            default_comp
+          end
+      end
+
     between_start = assigns.filter_value["value_start"] || assigns.filter_value["value"] || ""
     between_end = assigns.filter_value["value_end"] || assigns.filter_value["value2"] || ""
 
     assigns =
       assigns
       |> Map.put(:is_multi_select_id, is_multi_select_id)
+      |> Map.put(:operator_options, operator_options)
+      |> Map.put(:current_comp, current_comp)
       |> Map.put(:between_start, between_start)
       |> Map.put(:between_end, between_end)
 
     ~H"""
     <div class="grid grid-cols-3 gap-2">
       <select name={"filters[#{@uuid}][comp]"} class="sc-select">
-        <option value="=" selected={@filter_value["comp"] == "="}>Equals</option>
-        <option value="!=" selected={@filter_value["comp"] == "!="}>Not Equals</option>
-        <option value=">" selected={@filter_value["comp"] == ">"}>Greater Than</option>
-        <option value=">=" selected={@filter_value["comp"] == ">="}>Greater or Equal</option>
-        <option value="<" selected={@filter_value["comp"] == "<"}>Less Than</option>
-        <option value="<=" selected={@filter_value["comp"] == "<="}>Less or Equal</option>
-        <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
-        <option value="LIKE" selected={@filter_value["comp"] == "LIKE"}>Contains</option>
-        <option value="NOT LIKE" selected={@filter_value["comp"] == "NOT LIKE"}>
-          Does Not Contain
-        </option>
-        <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-        <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>
-          Is Not Empty
-        </option>
+        <%= for {op, label} <- @operator_options do %>
+          <option value={op} selected={@current_comp == op}>{label}</option>
+        <% end %>
       </select>
 
       <%= cond do %>
-        <% @filter_value["comp"] == "BETWEEN" -> %>
+        <% @current_comp == "BETWEEN" -> %>
           <div class="col-span-2 grid grid-cols-2 gap-2">
             <input
               type="text"
@@ -425,7 +430,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
               class="sc-input"
               phx-debounce="300"
-              disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
             <div class="text-xs text-blue-600 mt-1">
               💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
@@ -440,7 +445,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             placeholder="Enter value..."
             class="sc-input col-span-2"
             phx-debounce="300"
-            disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+            disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
           />
       <% end %>
 
@@ -451,6 +456,109 @@ defmodule SelectoComponents.Form.FilterRendering do
     </div>
     """
   end
+
+  defp standard_operator_options(field_type, selecto, filter_id) do
+    if enum_filter?(selecto, filter_id) do
+      [
+        {"=", "Equals"},
+        {"!=", "Not Equals"},
+        {"IS NULL", "Is Empty"},
+        {"IS NOT NULL", "Is Not Empty"}
+      ]
+    else
+      case field_type do
+        x when x in [:id, :integer, :float, :decimal] ->
+          [
+            {"=", "Equals"},
+            {"!=", "Not Equals"},
+            {">", "Greater Than"},
+            {">=", "Greater or Equal"},
+            {"<", "Less Than"},
+            {"<=", "Less or Equal"},
+            {"BETWEEN", "Between"},
+            {"IS NULL", "Is Empty"},
+            {"IS NOT NULL", "Is Not Empty"}
+          ]
+
+        {:array, _} ->
+          [
+            {"LIKE", "Contains"},
+            {"NOT LIKE", "Does Not Contain"},
+            {"IN", "Contains Any Of"},
+            {"NOT IN", "Contains None Of"},
+            {"IS NULL", "Is Empty"},
+            {"IS NOT NULL", "Is Not Empty"}
+          ]
+
+        _ ->
+          [
+            {"=", "Equals"},
+            {"!=", "Not Equals"},
+            {"LIKE", "Contains"},
+            {"NOT LIKE", "Does Not Contain"},
+            {"IS NULL", "Is Empty"},
+            {"IS NOT NULL", "Is Not Empty"}
+          ]
+      end
+    end
+  end
+
+  defp default_standard_comp(field_type, filter_id, operator_options) do
+    fallback = operator_options |> List.first() |> elem(0)
+
+    cond do
+      match?({:array, _}, field_type) -> "LIKE"
+      is_binary(filter_id) and String.contains?(String.downcase(filter_id), "search") -> "LIKE"
+      true -> fallback
+    end
+  end
+
+  defp enum_filter?(selecto, filter_id) do
+    with %{field: field, requires_join: join_ref} <- Selecto.field(selecto, filter_id),
+         {:ok, field_atom} <- to_existing_atom_safe(field),
+         {:ok, schema_module} <- schema_module_for_join(join_ref, selecto),
+         true <- function_exported?(schema_module, :__schema__, 2),
+         {:parameterized, {Ecto.Enum, _}} <- schema_module.__schema__(:type, field_atom) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp schema_module_for_join(:selecto_root, selecto) do
+    case get_in(Selecto.domain(selecto), [:source, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_atom(join_ref) do
+    case get_in(Selecto.domain(selecto), [:schemas, join_ref, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_binary(join_ref) do
+    case to_existing_atom_safe(join_ref) do
+      {:ok, join_atom} -> schema_module_for_join(join_atom, selecto)
+      :error -> :error
+    end
+  end
+
+  defp schema_module_for_join(_, _), do: :error
+
+  defp to_existing_atom_safe(value) when is_atom(value), do: {:ok, value}
+
+  defp to_existing_atom_safe(value) when is_binary(value) do
+    try do
+      {:ok, String.to_existing_atom(value)}
+    rescue
+      ArgumentError -> :error
+    end
+  end
+
+  defp to_existing_atom_safe(_), do: :error
 
   @doc """
   Render text search filter for tsvector columns.

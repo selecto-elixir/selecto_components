@@ -17,16 +17,61 @@ defmodule SelectoComponents.Helpers.Filters do
     v
   end
 
+  defp blank?(value) when value in [nil, ""], do: true
+  defp blank?(_value), do: false
+
+  defp normalize_comp(filter, default) do
+    to_string(Map.get(filter, "comp") || default) |> String.upcase()
+  end
+
+  defp parse_csv_values(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&blank?/1)
+  end
+
+  defp parse_csv_values(value) when is_list(value) do
+    value
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&blank?/1)
+  end
+
+  defp parse_csv_values(_value), do: []
+
+  defp parse_between_values(filter) do
+    start_raw = Map.get(filter, "value_start") || Map.get(filter, "value")
+    end_raw = Map.get(filter, "value_end") || Map.get(filter, "value2")
+
+    cond do
+      is_binary(start_raw) and start_raw != "" and is_binary(end_raw) and end_raw != "" ->
+        {start_raw, end_raw}
+
+      is_binary(start_raw) and String.contains?(start_raw, ",") ->
+        case String.split(start_raw, ",", parts: 2) do
+          [left, right] -> {left, right}
+          _ -> {start_raw, end_raw}
+        end
+
+      true ->
+        {start_raw, end_raw}
+    end
+  end
+
+  defp get_string_value(filter) do
+    value = Map.get(filter, "value")
+    if blank?(value), do: raise(ArgumentError, "value is required"), else: to_string(value)
+  end
 
   defp _make_num_filter(type, filter)  do
-    comp = Map.get(filter, "comp")
-    comp_norm = to_string(comp || "=") |> String.upcase()
+    comp_norm = normalize_comp(filter, "=")
 
     case comp_norm do
       "=" ->
         parse_num(type, Map.get(filter, "value"))
 
-      "null" ->
+      "NULL" ->
         nil
 
       "IS_EMPTY" ->
@@ -35,7 +80,7 @@ defmodule SelectoComponents.Helpers.Filters do
       "IS NULL" ->
         nil
 
-      "not_null" ->
+      "NOT_NULL" ->
         :not_null
 
       "IS_NOT_EMPTY" ->
@@ -45,48 +90,31 @@ defmodule SelectoComponents.Helpers.Filters do
         :not_null
 
       "BETWEEN" ->
-        start_raw = Map.get(filter, "value_start") || Map.get(filter, "value")
-        end_raw = Map.get(filter, "value_end") || Map.get(filter, "value2")
-
-        {start_raw, end_raw} =
-          cond do
-            is_binary(start_raw) and start_raw != "" and is_binary(end_raw) and end_raw != "" ->
-              {start_raw, end_raw}
-
-            is_binary(start_raw) and String.contains?(start_raw, ",") ->
-              case String.split(start_raw, ",", parts: 2) do
-                [left, right] -> {left, right}
-                _ -> {start_raw, end_raw}
-              end
-
-            true ->
-              {start_raw, end_raw}
-          end
+        {start_raw, end_raw} = parse_between_values(filter)
 
         {:between, parse_num(type, start_raw), parse_num(type, end_raw)}
 
       "IN" ->
         # Parse comma-separated IDs and convert to list
-        value = Map.get(filter, "value", "")
-        ids = value
-          |> String.split(",")
-          |> Enum.map(&String.trim/1)
-          |> Enum.reject(&(&1 == ""))
+        ids =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
         {:in, ids}
 
       "NOT IN" ->
         # Parse comma-separated IDs and convert to NOT IN list
-        value = Map.get(filter, "value", "")
-        ids = value
-          |> String.split(",")
-          |> Enum.map(&String.trim/1)
-          |> Enum.reject(&(&1 == ""))
+        ids =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
         {:not_in, ids}
 
       x when x in ~w( != <= >= < >) ->
         {x, parse_num(type, Map.get(filter, "value"))}
+
+      _ ->
+        raise ArgumentError, "unsupported numeric comparison operator #{inspect(comp_norm)}"
     end
   end
 
@@ -95,43 +123,75 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp _make_string_filter(filter) do
-    comp = Map.get(filter, "comp")
+    comp_norm = normalize_comp(filter, "=")
+    ignore_case = Map.get(filter, "ignore_case") == "Y"
+    filter_field = Map.get(filter, "filter")
 
-    case comp do
-      "null" -> {Map.get(filter, "filter"), nil}
-      "IS_EMPTY" -> {Map.get(filter, "filter"), nil}
-      "IS NULL" -> {Map.get(filter, "filter"), nil}
-      "not_null" -> {Map.get(filter, "filter"), :not_null}
-      "IS_NOT_EMPTY" -> {Map.get(filter, "filter"), :not_null}
-      "IS NOT NULL" -> {Map.get(filter, "filter"), :not_null}
+    filpart =
+      if ignore_case do
+        {:upper, filter_field}
+      else
+        filter_field
+      end
+
+    transform =
+      fn value ->
+        value = to_string(value)
+        if ignore_case, do: String.upcase(value), else: value
+      end
+
+    case comp_norm do
+      "NULL" -> {filter_field, nil}
+      "IS_EMPTY" -> {filter_field, nil}
+      "IS NULL" -> {filter_field, nil}
+      "NOT_NULL" -> {filter_field, :not_null}
+      "IS_NOT_EMPTY" -> {filter_field, :not_null}
+      "IS NOT NULL" -> {filter_field, :not_null}
+      "=" -> {filpart, transform.(get_string_value(filter))}
+      "!=" -> {filpart, {"!=", transform.(get_string_value(filter))}}
+      x when x in ~w(<= >= < >) -> {filpart, {x, transform.(get_string_value(filter))}}
+
+      "BETWEEN" ->
+        {start_raw, end_raw} = parse_between_values(filter)
+
+        if blank?(start_raw) or blank?(end_raw) do
+          raise ArgumentError, "BETWEEN requires start and end values"
+        end
+
+        {filpart, {:between, transform.(start_raw), transform.(end_raw)}}
+
+      "IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values() |> Enum.map(transform)
+        if values == [], do: raise(ArgumentError, "IN requires at least one value")
+        {filpart, {:in, values}}
+
+      "NOT IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values() |> Enum.map(transform)
+        if values == [], do: raise(ArgumentError, "NOT IN requires at least one value")
+        {filpart, {:not_in, values}}
+
+      "STARTS" ->
+        value = transform.(get_string_value(filter))
+        {filpart, {:like, sanitize_like_value(value) <> "%"}}
+
+      "ENDS" ->
+        value = transform.(get_string_value(filter))
+        {filpart, {:like, "%" <> sanitize_like_value(value)}}
+
+      "CONTAINS" ->
+        value = transform.(get_string_value(filter))
+        {filpart, {:like, "%" <> sanitize_like_value(value) <> "%"}}
+
+      "LIKE" ->
+        value = transform.(get_string_value(filter))
+        {filpart, {:like, "%" <> sanitize_like_value(value) <> "%"}}
+
+      "NOT LIKE" ->
+        value = transform.(get_string_value(filter))
+        {filpart, {:not_like, "%" <> sanitize_like_value(value) <> "%"}}
+
       _ ->
-        ignore_case = Map.get(filter, "ignore_case")
-
-        {filpart, value} = if ignore_case == "Y" do
-          {
-            {:upper, Map.get(filter, "filter")},
-            String.upcase( Map.get(filter, "value") )}
-        else
-          {Map.get(filter, "filter"), Map.get(filter, "value")}
-        end
-
-        valpart = case comp do
-          "=" -> value
-          "null" -> nil
-          "IS_EMPTY" -> nil
-          "IS NULL" -> nil
-          "not_null" -> :not_null
-          "IS_NOT_EMPTY" -> :not_null
-          "IS NOT NULL" -> :not_null
-          x when x in ~w( != <= >= < >) -> {x, value}
-          "starts" -> {:like, sanitize_like_value(value) <> "%"}
-          "ends" -> {:like, "%" <> sanitize_like_value(value)}
-          "contains" -> {:like, "%" <> sanitize_like_value(value) <> "%"}
-          "LIKE" -> {:like, "%" <> sanitize_like_value(value) <> "%"}
-          "NOT LIKE" -> {:not_like, "%" <> sanitize_like_value(value) <> "%"}
-        end
-
-        {filpart, valpart}
+        raise ArgumentError, "unsupported string comparison operator #{inspect(comp_norm)}"
     end
   end
 
@@ -358,13 +418,20 @@ defmodule SelectoComponents.Helpers.Filters do
   defp process_single_filter(selecto, _filters, f) when is_map(f) do
     try do
       filter_key = Map.get(f, "filter")
+      filter_config = Selecto.filters(selecto)[filter_key]
+      apply_fun = get_in(filter_config || %{}, [:apply])
 
-      # Check for custom filter apply function
-      if get_in(Selecto.filters(selecto), [filter_key, :apply]) do
-        result = Selecto.filters(selecto)[filter_key].apply.(selecto, f)
-        {:ok, [result]}
-      else
-        process_column_filter(selecto, f, filter_key)
+      cond do
+        is_function(apply_fun, 2) ->
+          result = apply_fun.(selecto, f)
+          {:ok, [result]}
+
+        is_map(filter_config) and present_field?(filter_config) ->
+          target_filter = Map.get(filter_config, :field) |> to_string()
+          process_column_filter(selecto, Map.put(f, "filter", target_filter), target_filter)
+
+        true ->
+          process_column_filter(selecto, f, filter_key)
       end
     rescue
       e ->
@@ -376,6 +443,11 @@ defmodule SelectoComponents.Helpers.Filters do
     {:skip, {:invalid_format, filter_item}}
   end
 
+  defp present_field?(filter_config) do
+    field = Map.get(filter_config, :field)
+    field not in [nil, ""]
+  end
+
   # Process a filter based on column type
   defp process_column_filter(selecto, f, filter_key) do
     # Try to find the column - it might be under an alias or original name
@@ -384,7 +456,7 @@ defmodule SelectoComponents.Helpers.Filters do
     if column == nil do
       {:skip, {:column_not_found, filter_key}}
     else
-      build_typed_filter(column, f, filter_key)
+      build_typed_filter(selecto, column, f, filter_key)
     end
   end
 
@@ -410,7 +482,7 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Build filter based on column type
-  defp build_typed_filter(column, f, filter_key) do
+  defp build_typed_filter(selecto, column, f, filter_key) do
     case column.type do
       x when x in [:id, :integer, :float, :decimal] ->
         case safe_make_num_filter(x, f) do
@@ -430,10 +502,25 @@ defmodule SelectoComponents.Helpers.Filters do
         {:ok, [{filter_key, value}]}
 
       :string ->
-        {:ok, [_make_string_filter(f)]}
+        case enum_values_for_filter(selecto, filter_key, column) do
+          nil ->
+            case safe_make_string_filter(f) do
+              {:ok, filter_val} -> {:ok, [filter_val]}
+              {:error, reason} -> {:skip, {:invalid_string, reason}}
+            end
+
+          enum_values ->
+            case safe_make_enum_filter(filter_key, f, enum_values) do
+              {:ok, filter_val} -> {:ok, [filter_val]}
+              {:error, reason} -> {:skip, {:invalid_enum, reason}}
+            end
+        end
 
       :custom_column ->
-        {:ok, [_make_string_filter(f)]}
+        case safe_make_string_filter(f) do
+          {:ok, filter_val} -> {:ok, [filter_val]}
+          {:error, reason} -> {:skip, {:invalid_custom_column, reason}}
+        end
 
       x when x in [:naive_datetime, :utc_datetime, :date] ->
         case safe_make_date_filter(f) do
@@ -450,6 +537,12 @@ defmodule SelectoComponents.Helpers.Filters do
             {:skip, {:invalid_date, reason}}
         end
 
+      {:array, _inner_type} ->
+        case safe_make_array_filter(filter_key, f) do
+          {:ok, filter_val} -> {:ok, [filter_val]}
+          {:error, reason} -> {:skip, {:invalid_array, reason}}
+        end
+
       {:parameterized, _, enum_conf} ->
         # Validate enum value against mappings
         value = Map.get(f, "value")
@@ -462,13 +555,37 @@ defmodule SelectoComponents.Helpers.Filters do
         # For unknown types, try as string filter
         require Logger
         Logger.debug("Unknown column type #{inspect(unknown_type)} for filter #{filter_key}, treating as string")
-        {:ok, [_make_string_filter(f)]}
+        case safe_make_string_filter(f) do
+          {:ok, filter_val} -> {:ok, [filter_val]}
+          {:error, reason} -> {:skip, {:invalid_unknown_type, reason}}
+        end
     end
   end
 
   # Safe wrapper for numeric filter creation
   defp safe_make_num_filter(type, filter) do
     {:ok, _make_num_filter(type, filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  # Safe wrapper for string filter creation
+  defp safe_make_string_filter(filter) do
+    {:ok, _make_string_filter(filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  # Safe wrapper for array filter creation
+  defp safe_make_array_filter(filter_key, filter) do
+    {:ok, _make_array_filter(filter_key, filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  # Safe wrapper for enum filter creation
+  defp safe_make_enum_filter(filter_key, filter, enum_values) do
+    {:ok, _make_enum_filter(filter_key, filter, enum_values)}
   rescue
     e -> {:error, Exception.message(e)}
   end
@@ -480,6 +597,168 @@ defmodule SelectoComponents.Helpers.Filters do
   rescue
     e -> {:error, Exception.message(e)}
   end
+
+  defp _make_array_filter(filter_key, filter) do
+    comp_norm = normalize_comp(filter, "LIKE")
+
+    case comp_norm do
+      "NULL" -> {filter_key, nil}
+      "IS_EMPTY" -> {filter_key, nil}
+      "IS NULL" -> {filter_key, nil}
+      "NOT_NULL" -> {filter_key, :not_null}
+      "IS_NOT_EMPTY" -> {filter_key, :not_null}
+      "IS NOT NULL" -> {filter_key, :not_null}
+
+      "IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values()
+        if values == [], do: raise(ArgumentError, "IN requires at least one value")
+        {:array_overlap, filter_key, values}
+
+      "NOT IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values()
+        if values == [], do: raise(ArgumentError, "NOT IN requires at least one value")
+        {:not, {:array_overlap, filter_key, values}}
+
+      "!=" ->
+        value = get_string_value(filter)
+        {:not, {filter_key, {:contains, value}}}
+
+      "NOT LIKE" ->
+        value = get_string_value(filter)
+        {:not, {filter_key, {:contains, value}}}
+
+      "=" ->
+        value = get_string_value(filter)
+        {filter_key, {:contains, value}}
+
+      "LIKE" ->
+        value = get_string_value(filter)
+        {filter_key, {:contains, value}}
+
+      _ ->
+        raise ArgumentError, "unsupported array comparison operator #{inspect(comp_norm)}"
+    end
+  end
+
+  defp _make_enum_filter(filter_key, filter, enum_values) do
+    comp_norm = normalize_comp(filter, "=")
+
+    case comp_norm do
+      "NULL" -> {filter_key, nil}
+      "IS_EMPTY" -> {filter_key, nil}
+      "IS NULL" -> {filter_key, nil}
+      "NOT_NULL" -> {filter_key, :not_null}
+      "IS_NOT_EMPTY" -> {filter_key, :not_null}
+      "IS NOT NULL" -> {filter_key, :not_null}
+
+      "=" ->
+        value = get_string_value(filter)
+        validate_enum_value!(value, enum_values)
+        {filter_key, value}
+
+      "!=" ->
+        value = get_string_value(filter)
+        validate_enum_value!(value, enum_values)
+        {filter_key, {"!=", value}}
+
+      "IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values()
+        if values == [], do: raise(ArgumentError, "IN requires at least one value")
+        Enum.each(values, &validate_enum_value!(&1, enum_values))
+        {filter_key, {:in, values}}
+
+      "NOT IN" ->
+        values = Map.get(filter, "value", "") |> parse_csv_values()
+        if values == [], do: raise(ArgumentError, "NOT IN requires at least one value")
+        Enum.each(values, &validate_enum_value!(&1, enum_values))
+        {filter_key, {:not_in, values}}
+
+      _ ->
+        raise ArgumentError, "unsupported enum comparison operator #{inspect(comp_norm)}"
+    end
+  end
+
+  defp validate_enum_value!(value, enum_values) do
+    if to_string(value) in enum_values do
+      :ok
+    else
+      raise ArgumentError,
+            "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(enum_values, ", ")}"
+    end
+  end
+
+  defp enum_values_for_filter(selecto, filter_key, column) do
+    resolved = Selecto.field(selecto, filter_key) || column
+    field = Map.get(resolved, :field)
+    join_ref = Map.get(resolved, :requires_join)
+
+    with {:ok, field_atom} <- to_existing_atom_safe(field),
+         {:ok, schema_module} <- schema_module_for_join(join_ref, selecto),
+         true <- function_exported?(schema_module, :__schema__, 2),
+         {:parameterized, {Ecto.Enum, enum_conf}} <- schema_module.__schema__(:type, field_atom) do
+      enum_values_from_config(enum_conf)
+    else
+      _ -> nil
+    end
+  end
+
+  defp enum_values_from_config(enum_conf) do
+    cond do
+      is_map(enum_conf) and is_map(Map.get(enum_conf, :on_dump)) ->
+        enum_conf
+        |> Map.get(:on_dump)
+        |> Map.values()
+        |> Enum.map(&to_string/1)
+        |> Enum.uniq()
+
+      is_map(enum_conf) and is_list(Map.get(enum_conf, :mappings)) ->
+        enum_conf
+        |> Map.get(:mappings)
+        |> Enum.map(fn
+          {_k, v} -> to_string(v)
+          v -> to_string(v)
+        end)
+        |> Enum.uniq()
+
+      true ->
+        nil
+    end
+  end
+
+  defp schema_module_for_join(:selecto_root, selecto) do
+    case get_in(Selecto.domain(selecto), [:source, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_atom(join_ref) do
+    case get_in(Selecto.domain(selecto), [:schemas, join_ref, :schema_module]) do
+      module when is_atom(module) -> {:ok, module}
+      _ -> :error
+    end
+  end
+
+  defp schema_module_for_join(join_ref, selecto) when is_binary(join_ref) do
+    case to_existing_atom_safe(join_ref) do
+      {:ok, join_atom} -> schema_module_for_join(join_atom, selecto)
+      :error -> :error
+    end
+  end
+
+  defp schema_module_for_join(_, _), do: :error
+
+  defp to_existing_atom_safe(value) when is_atom(value), do: {:ok, value}
+
+  defp to_existing_atom_safe(value) when is_binary(value) do
+    try do
+      {:ok, String.to_existing_atom(value)}
+    rescue
+      ArgumentError -> :error
+    end
+  end
+
+  defp to_existing_atom_safe(_), do: :error
 
   # Validate enum value against allowed mappings
   defp validate_enum_value(nil, _enum_conf), do: :ok

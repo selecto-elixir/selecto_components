@@ -226,7 +226,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp should_coalesce_field?(col, selecto) do
     resolved_col = resolve_column_metadata(col, selecto)
-    text_type?(Map.get(resolved_col, :type)) and not enum_field?(resolved_col, selecto)
+    field_name = Map.get(resolved_col, :field) || Map.get(col, :field)
+    text_type = text_type?(Map.get(resolved_col, :type))
+    enum_by_name = enum_field_name_any_schema?(field_name, selecto)
+    root_enum = root_enum_field?(col, selecto)
+    enum_by_metadata = enum_field?(resolved_col, selecto)
+
+    text_type and not enum_by_name and not root_enum and not enum_by_metadata
   end
 
   defp resolve_column_metadata(col, selecto) do
@@ -239,10 +245,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end
   end
 
-  defp enum_field?(%{field: field, requires_join: join_ref}, selecto) do
+  defp enum_field?(col, selecto) do
+    enum_field_by_metadata?(col, selecto) or enum_field_by_colid?(col, selecto)
+  end
+
+  defp enum_field_by_metadata?(%{field: field, requires_join: join_ref}, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field),
          {:ok, schema_module} <- schema_module_for_join(join_ref, selecto),
-         true <- function_exported?(schema_module, :__schema__, 2),
+         true <- Code.ensure_loaded?(schema_module),
          {:parameterized, {Ecto.Enum, _}} <- schema_module.__schema__(:type, field_atom) do
       true
     else
@@ -250,7 +260,54 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end
   end
 
-  defp enum_field?(_, _), do: false
+  defp enum_field_by_metadata?(_, _), do: false
+
+  defp enum_field_by_colid?(%{colid: colid}, selecto) when is_binary(colid) or is_atom(colid) do
+    case Selecto.field(selecto, colid) do
+      nil -> false
+      metadata -> enum_field_by_metadata?(metadata, selecto)
+    end
+  end
+
+  defp enum_field_by_colid?(_, _), do: false
+
+  defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
+    with {:ok, field_atom} <- to_existing_atom_safe(field),
+         module when is_atom(module) <- get_in(Selecto.domain(selecto), [:source, :schema_module]),
+         true <- Code.ensure_loaded?(module),
+         {:parameterized, {Ecto.Enum, _}} <- module.__schema__(:type, field_atom) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp root_enum_field?(_, _), do: false
+
+  defp enum_field_name_any_schema?(field, selecto) do
+    with {:ok, field_atom} <- to_existing_atom_safe(field) do
+      domain = Selecto.domain(selecto)
+
+      source_module = get_in(domain, [:source, :schema_module])
+
+      schema_modules =
+        (get_in(domain, [:schemas]) || %{})
+        |> Map.values()
+        |> Enum.map(&Map.get(&1, :schema_module))
+
+      ([source_module] ++ schema_modules)
+      |> Enum.any?(fn
+        module when is_atom(module) ->
+          Code.ensure_loaded?(module) and
+            match?({:parameterized, {Ecto.Enum, _}}, module.__schema__(:type, field_atom))
+
+        _ ->
+          false
+      end)
+    else
+      _ -> false
+    end
+  end
 
   defp schema_module_for_join(:selecto_root, selecto) do
     case get_in(Selecto.domain(selecto), [:source, :schema_module]) do
