@@ -3,7 +3,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     Display results of a detail view
 
   """
-  import SelectoComponents.Components.Common
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.EnhancedTable.Sorting
   use Phoenix.LiveComponent
@@ -47,8 +46,6 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def render(assigns) do
-    ### Todo Deal with page changes without executing again.......
-
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
       # Display the actual error message
@@ -127,22 +124,52 @@ defmodule SelectoComponents.Views.Detail.Component do
         results
       end
 
-    page = assigns.view_meta.page
-    per_page = assigns.view_meta.per_page
-    show_start = page * per_page
-    page_count = Float.ceil(Enum.count(normalized_results) / per_page)
+    page = max(Map.get(assigns.view_meta, :page, 0), 0)
+    per_page = max(Map.get(assigns.view_meta, :per_page, 30), 1)
+    total_rows = Map.get(assigns.view_meta, :total_rows, Enum.count(normalized_results))
+
+    max_page =
+      if total_rows > 0 do
+        div(total_rows - 1, per_page)
+      else
+        0
+      end
+
+    current_page = min(page, max_page)
+    row_offset = current_page * per_page
+
+    page_start =
+      if total_rows > 0 do
+        row_offset + 1
+      else
+        0
+      end
+
+    page_end =
+      if total_rows > 0 do
+        min(row_offset + Enum.count(normalized_results), total_rows)
+      else
+        0
+      end
+
+    total_pages = if total_rows > 0, do: max_page + 1, else: 0
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
     assigns =
       assign(assigns,
         aliases: aliases,
-        show_start: show_start,
         results: normalized_results,
+        total_rows: total_rows,
+        row_offset: row_offset,
+        current_page: current_page,
+        page_start: page_start,
+        page_end: page_end,
+        total_pages: total_pages,
         columns: Map.get(assigns.selecto.set, :columns, []),
         column_uuids:
           Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
-        max_pages: page_count
+        max_page: max_page
       )
 
     ~H"""
@@ -154,61 +181,117 @@ defmodule SelectoComponents.Views.Detail.Component do
         execution_time={Map.get(assigns, :execution_time)}
       />
 
-      <div class="flex justify-center">
-        <div class="inline-block w-36">
-          <.sc_button
-            :if={@view_meta.page > 0}
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2">
+        <div class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm">
+          <button
             type="button"
             phx-click="set_page"
-            phx-value-page={@view_meta.page - 1}
+            phx-value-page={0}
             phx-target={@myself}
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="First page"
+            aria-label="First page"
+            disabled={@current_page <= 0}
           >
             <svg
-              class="w-8 h-8 inline"
+              class="h-4 w-4"
               fill="none"
               viewBox="0 0 24 24"
-              stroke-width="1.5"
+              stroke-width="2"
               stroke="currentColor"
-              width="100%"
-              height="100%"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M21 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.977l-7.108-4.061a1.125 1.125 0 0 1 0-1.954l7.108-4.061a1.125 1.125 0 0 1 1.683.977v8.122Z"
+                d="M18 18L12 12l6-6M10 18 4 12l6-6M4 6v12"
               />
             </svg>
-            Prev Page
-          </.sc_button>
-        </div>
-        <div class="inline-block px-4 py-2 align-bottom">
-          {Enum.count(@results)} Rows Found
-        </div>
-        <div class="inline-block w-36">
-          <.sc_button
-            :if={@view_meta.page < @max_pages}
+          </button>
+
+          <button
             type="button"
             phx-click="set_page"
-            phx-value-page={@view_meta.page + 1}
+            phx-value-page={@current_page - 1}
             phx-target={@myself}
+            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Previous page"
+            aria-label="Previous page"
+            disabled={@current_page <= 0}
           >
-            Next Page
             <svg
-              class="w-8 h-8 inline"
+              class="h-4 w-4"
               fill="none"
               viewBox="0 0 24 24"
-              stroke-width="1.5"
+              stroke-width="2"
               stroke="currentColor"
-              width="100%"
-              height="100%"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
+            </svg>
+            Prev
+          </button>
+
+          <button
+            type="button"
+            phx-click="set_page"
+            phx-value-page={@current_page + 1}
+            phx-target={@myself}
+            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Next page"
+            aria-label="Next page"
+            disabled={@current_page >= @max_page}
+          >
+            Next
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            phx-click="set_page"
+            phx-value-page={@max_page}
+            phx-target={@myself}
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Last page"
+            aria-label="Last page"
+            disabled={@current_page >= @max_page}
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z"
+                d="M6 18l6-6-6-6m8 12 6-6-6-6m6 0v12"
               />
             </svg>
-          </.sc_button>
+          </button>
+        </div>
+
+        <div class="text-sm font-medium text-gray-700">
+          <span class="font-semibold tabular-nums">{@page_start}-{@page_end}</span>
+          of <span class="font-semibold tabular-nums">{@total_rows}</span>
+          rows
+        </div>
+
+        <div class="text-xs text-gray-500 tabular-nums">
+          Page
+          <span class="font-semibold">{if @total_pages > 0, do: @current_page + 1, else: 0}</span>
+          of <span class="font-semibold">{@total_pages}</span>
         </div>
       </div>
 
@@ -247,7 +330,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           </thead>
           <tbody>
             <%!--  --%>
-            <%= for {{resrow, actual_idx}, display_idx} <- Enum.slice(Enum.with_index(@results), @show_start, @view_meta.per_page) |> Enum.with_index() do %>
+            <%= for {resrow, display_idx} <- Enum.with_index(@results) do %>
               <% # Process row data once at the beginning of the iteration %>
               <% resrow_list =
                 cond do
@@ -269,15 +352,16 @@ defmodule SelectoComponents.Views.Detail.Component do
               <% # Also create a map by column name for subselects %>
               <% {_results, columns_from_query, _aliases} = @query_results %>
               <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+              <% absolute_idx = @row_offset + display_idx %>
 
               <tr
                 class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
                 phx-click="show_row_details"
-                phx-value-row-index={actual_idx}
+                phx-value-row-index={display_idx}
                 phx-target={@myself}
               >
                 <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
-                  {actual_idx + 1}
+                  {absolute_idx + 1}
                 </td>
                 <%!-- Display regular columns --%>
                 <td
@@ -302,8 +386,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                 <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
                   <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
                     <% data = Map.get(row_data_by_column, config.key, []) %>
-                    <% # Use actual_idx to ensure unique IDs %>
-                    <% unique_id = "page#{@view_meta.page}_idx#{actual_idx}_#{config.key}" %>
+                    <% unique_id = "row#{absolute_idx}_#{config.key}" %>
                     <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
                       <% # Parse the data here to ensure it's fresh %>
                       <% parsed_data =
@@ -385,15 +468,15 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("set_page", params, socket) do
-    IO.puts("\n=== SET_PAGE EVENT RECEIVED IN DETAIL COMPONENT ===")
-    IO.inspect(params, label: "Params")
-    IO.inspect(socket.assigns.view_meta, label: "Current view_meta")
-    new_page = String.to_integer(params["page"])
+    new_page =
+      params
+      |> Map.get("page", "0")
+      |> parse_page_param()
+      |> clamp_page(socket.assigns[:view_meta])
 
     # Notify parent to update the page in the form params (parent is authoritative)
     send(self(), {:update_detail_page, new_page})
 
-    IO.puts("Sent update_detail_page to parent: #{new_page}")
     {:noreply, socket}
   end
 
@@ -499,6 +582,31 @@ defmodule SelectoComponents.Views.Detail.Component do
         locked: false
       }
     end)
+  end
+
+  defp parse_page_param(page_value) when is_binary(page_value) do
+    case Integer.parse(page_value) do
+      {page, ""} -> page
+      _ -> 0
+    end
+  end
+
+  defp parse_page_param(page_value) when is_integer(page_value), do: page_value
+  defp parse_page_param(_page_value), do: 0
+
+  defp clamp_page(page, view_meta) do
+    requested_page = max(page, 0)
+    per_page = max(Map.get(view_meta || %{}, :per_page, 30), 1)
+    total_rows = max(Map.get(view_meta || %{}, :total_rows, 0), 0)
+
+    max_page =
+      if total_rows > 0 do
+        div(total_rows - 1, per_page)
+      else
+        0
+      end
+
+    min(requested_page, max_page)
   end
 
   # Helper function to build related data configuration

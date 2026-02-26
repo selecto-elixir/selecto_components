@@ -128,6 +128,13 @@ defmodule SelectoComponents.Debug.DebugDisplay do
           />
 
           <.debug_section
+            :if={not is_nil(@debug_info[:page_cache_memory_bytes])}
+            title="Page Cache Memory"
+            content={format_page_cache_memory(@debug_info)}
+            type="text"
+          />
+
+          <.debug_section
             :if={@debug_info[:execution_plan]}
             title="Execution Plan"
             content={@debug_info.execution_plan}
@@ -335,6 +342,13 @@ defmodule SelectoComponents.Debug.DebugDisplay do
         parts
       end
 
+    parts =
+      if not is_nil(debug_info[:page_cache_memory_bytes]) do
+        ["cache #{format_bytes(debug_info.page_cache_memory_bytes)}" | parts]
+      else
+        parts
+      end
+
     if Enum.empty?(parts) do
       "Click to expand debug information"
     else
@@ -382,6 +396,33 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
   defp format_metadata_value(value) when is_number(value), do: to_string(value)
   defp format_metadata_value(value), do: inspect(value, limit: 20)
+
+  defp format_page_cache_memory(debug_info) do
+    bytes = Map.get(debug_info, :page_cache_memory_bytes, 0)
+    pages = Map.get(debug_info, :page_cache_pages)
+    rows = Map.get(debug_info, :page_cache_rows)
+
+    parts = [format_bytes(bytes)]
+    parts = if is_integer(pages), do: ["#{pages} pages" | parts], else: parts
+    parts = if is_integer(rows), do: ["#{rows} cached rows" | parts], else: parts
+
+    Enum.reverse(parts)
+    |> Enum.join(" • ")
+  end
+
+  defp format_bytes(bytes) when is_integer(bytes) and bytes >= 1024 * 1024 do
+    "#{Float.round(bytes / (1024 * 1024), 2)} MB"
+  end
+
+  defp format_bytes(bytes) when is_integer(bytes) and bytes >= 1024 do
+    "#{Float.round(bytes / 1024, 2)} KB"
+  end
+
+  defp format_bytes(bytes) when is_integer(bytes) and bytes >= 0 do
+    "#{bytes} B"
+  end
+
+  defp format_bytes(_bytes), do: "0 B"
 
   defp format_param_value(value) when is_binary(value) do
     if String.length(value) > 50 do

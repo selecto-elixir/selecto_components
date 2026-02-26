@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.3.2",
+      version: "0.3.3",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "ALPHA: LiveView components for Selecto",
@@ -71,7 +71,7 @@ defmodule SelectoComponents.MixProject do
       links: %{"GitHub" => "https://github.com/selecto-elixir/selecto_components"},
       source_url: "https://github.com/selecto-elixir/selecto_components",
       files:
-        ~w(mix.exs README.md LICENSE lib/selecto_components** package.json priv/static/selecto_components.min.js)
+        ~w(mix.exs README.md CHANGELOG.md LICENSE lib/**/*.ex lib/**/*.js package.json priv/static/selecto_components.min.js)
     ]
   end
 

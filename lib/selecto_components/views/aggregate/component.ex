@@ -4,12 +4,38 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   """
   use Phoenix.LiveComponent
 
+  @aggregate_per_page_options [30, 100, 200, 300, "all"]
+  @default_aggregate_per_page "100"
+
+  @impl true
+  def mount(socket) do
+    {:ok,
+     assign(socket,
+       aggregate_page: 0
+     )}
+  end
+
+  @impl true
   def update(assigns, socket) do
+    previous_exe_id = get_in(socket.assigns, [:view_meta, :exe_id])
+    incoming_exe_id = get_in(assigns, [:view_meta, :exe_id])
+
+    aggregate_page =
+      if previous_exe_id && incoming_exe_id && previous_exe_id != incoming_exe_id do
+        0
+      else
+        Map.get(socket.assigns, :aggregate_page, 0)
+      end
+
     # Force a complete re-assignment to ensure LiveView recognizes data changes
     socket = assign(socket, assigns)
 
     # Add a timestamp to force re-rendering if data changed
-    socket = assign(socket, :last_update, System.system_time(:microsecond))
+    socket =
+      assign(socket,
+        aggregate_page: aggregate_page,
+        last_update: System.system_time(:microsecond)
+      )
 
     {:ok, socket}
   end
@@ -355,6 +381,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     """
   end
 
+  @impl true
   def render(assigns) do
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
@@ -672,16 +699,189 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     num_group_by = length(group_by)
     rollup_rows = prepare_rollup_rows(results, num_group_by)
 
+    total_rows = length(rollup_rows)
+
+    per_page_setting =
+      assigns
+      |> Map.get(:view_meta, %{})
+      |> Map.get(:per_page, @default_aggregate_per_page)
+      |> normalize_aggregate_per_page()
+
+    per_page = aggregate_per_page_to_int(per_page_setting, total_rows)
+
+    max_page =
+      if total_rows > 0 and per_page > 0 do
+        div(total_rows - 1, per_page)
+      else
+        0
+      end
+
+    current_page =
+      assigns
+      |> Map.get(:aggregate_page, 0)
+      |> normalize_page()
+      |> min(max_page)
+
+    row_offset = current_page * per_page
+
+    page_start =
+      if total_rows > 0 do
+        row_offset + 1
+      else
+        0
+      end
+
+    page_end =
+      if total_rows > 0 do
+        min(row_offset + per_page, total_rows)
+      else
+        0
+      end
+
+    paged_rollup_rows =
+      if per_page_setting == "all" do
+        rollup_rows
+      else
+        Enum.slice(rollup_rows, row_offset, per_page)
+      end
+
+    total_pages = if total_rows > 0, do: max_page + 1, else: 0
+
     assigns =
       assign(assigns,
         rollup_rows: rollup_rows,
+        paged_rollup_rows: paged_rollup_rows,
         num_group_by: num_group_by,
         group_by: group_by,
-        aggregate: aggregates_processed
+        aggregate: aggregates_processed,
+        aggregate_total_rows: total_rows,
+        aggregate_page: current_page,
+        aggregate_max_page: max_page,
+        aggregate_total_pages: total_pages,
+        aggregate_page_start: page_start,
+        aggregate_page_end: page_end
       )
 
     ~H"""
     <div>
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2">
+        <div class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            phx-click="set_aggregate_page"
+            phx-value-page={0}
+            phx-target={@myself}
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="First page"
+            aria-label="First page"
+            disabled={@aggregate_page <= 0}
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M18 18L12 12l6-6M10 18 4 12l6-6M4 6v12"
+              />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            phx-click="set_aggregate_page"
+            phx-value-page={@aggregate_page - 1}
+            phx-target={@myself}
+            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Previous page"
+            aria-label="Previous page"
+            disabled={@aggregate_page <= 0}
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
+            </svg>
+            Prev
+          </button>
+
+          <button
+            type="button"
+            phx-click="set_aggregate_page"
+            phx-value-page={@aggregate_page + 1}
+            phx-target={@myself}
+            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Next page"
+            aria-label="Next page"
+            disabled={@aggregate_page >= @aggregate_max_page}
+          >
+            Next
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            phx-click="set_aggregate_page"
+            phx-value-page={@aggregate_max_page}
+            phx-target={@myself}
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            title="Last page"
+            aria-label="Last page"
+            disabled={@aggregate_page >= @aggregate_max_page}
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 18l6-6-6-6m8 12 6-6-6-6m6 0v12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div class="text-sm font-medium text-gray-700">
+          <span class="font-semibold tabular-nums">
+            {@aggregate_page_start}-{@aggregate_page_end}
+          </span>
+          of <span class="font-semibold tabular-nums">{@aggregate_total_rows}</span>
+          rows
+        </div>
+
+        <div class="text-xs text-gray-500 tabular-nums">
+          Page
+          <span class="font-semibold">
+            {if @aggregate_total_pages > 0, do: @aggregate_page + 1, else: 0}
+          </span>
+          of <span class="font-semibold">{@aggregate_total_pages}</span>
+        </div>
+      </div>
+
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
         <thead class="bg-gray-50">
           <tr>
@@ -702,7 +902,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         </thead>
         <tbody class="divide-y divide-gray-200 bg-white">
           <.rollup_row
-            :for={{level, row} <- @rollup_rows}
+            :for={{level, row} <- @paged_rollup_rows}
             level={level}
             row={row}
             num_group_by={@num_group_by}
@@ -723,4 +923,62 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp maybe_set_group_by_filter(coldef, _), do: coldef
+
+  @impl true
+  def handle_event("set_aggregate_page", %{"page" => page_param}, socket) do
+    page =
+      page_param
+      |> parse_page_param()
+      |> normalize_page()
+      |> clamp_aggregate_page_if_known(socket.assigns)
+
+    {:noreply, assign(socket, :aggregate_page, page)}
+  end
+
+  defp normalize_aggregate_per_page(per_page) when is_integer(per_page),
+    do: normalize_aggregate_per_page(to_string(per_page))
+
+  defp normalize_aggregate_per_page(per_page) when is_binary(per_page) do
+    normalized = String.downcase(String.trim(per_page))
+
+    if normalized in Enum.map(@aggregate_per_page_options, &to_string/1) do
+      normalized
+    else
+      @default_aggregate_per_page
+    end
+  end
+
+  defp normalize_aggregate_per_page(_), do: @default_aggregate_per_page
+
+  defp aggregate_per_page_to_int("all", total_rows), do: max(total_rows, 1)
+
+  defp aggregate_per_page_to_int(per_page, _total_rows) when is_binary(per_page) do
+    case Integer.parse(per_page) do
+      {value, ""} when value > 0 -> value
+      _ -> String.to_integer(@default_aggregate_per_page)
+    end
+  end
+
+  defp aggregate_per_page_to_int(_per_page, _total_rows),
+    do: String.to_integer(@default_aggregate_per_page)
+
+  defp parse_page_param(page_param) when is_binary(page_param) do
+    case Integer.parse(page_param) do
+      {page, ""} -> page
+      _ -> 0
+    end
+  end
+
+  defp parse_page_param(page_param) when is_integer(page_param), do: page_param
+  defp parse_page_param(_page_param), do: 0
+
+  defp normalize_page(page) when is_integer(page), do: max(page, 0)
+  defp normalize_page(_page), do: 0
+
+  defp clamp_aggregate_page_if_known(page, assigns) do
+    case Map.get(assigns, :aggregate_max_page) do
+      max_page when is_integer(max_page) and max_page >= 0 -> min(page, max_page)
+      _ -> page
+    end
+  end
 end

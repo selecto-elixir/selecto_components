@@ -63,6 +63,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
       },
       "order_by" => %{},
       "per_page" => "30",
+      "max_rows" => "1000",
       "prevent_denormalization" => "on"
     }
 
@@ -73,6 +74,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert selected_fields == ["name"]
     assert view_set.denorm_groups == %{"posts" => ["posts.title"]}
     assert view_meta.prevent_denormalization == true
+    assert view_meta.max_rows == "1000"
     assert [%{key: "posts"}] = view_meta.subselect_configs
   end
 
@@ -85,7 +87,8 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
         "c2" => %{"field" => "posts.title", "index" => "1", "alias" => "", "uuid" => "c2"}
       },
       "order_by" => %{},
-      "per_page" => "30"
+      "per_page" => "30",
+      "max_rows" => "all"
     }
 
     {view_set, view_meta} = Process.view(nil, params, view_columns(), [], selecto)
@@ -95,6 +98,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert selected_fields == ["name", "posts.title"]
     assert view_set.denorm_groups == %{}
     assert view_meta.prevent_denormalization == false
+    assert view_meta.max_rows == "all"
     assert view_meta.subselect_configs == []
   end
 
@@ -108,6 +112,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
       },
       "order_by" => %{},
       "per_page" => "30",
+      "max_rows" => "10000",
       "prevent_denormalization" => "on"
     }
 
@@ -117,6 +122,23 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
 
     assert selected_fields == ["name"]
     assert view_set.denorm_groups == %{"posts" => ["posts.title"]}
+    assert view_meta.max_rows == "10000"
     assert [%{key: "posts"}] = view_meta.subselect_configs
+  end
+
+  test "missing max_rows falls back to default" do
+    selecto = test_selecto()
+
+    params = %{
+      "selected" => %{
+        "c1" => %{"field" => "name", "index" => "0", "alias" => "", "uuid" => "c1"}
+      },
+      "order_by" => %{},
+      "per_page" => "30"
+    }
+
+    {_view_set, view_meta} = Process.view(nil, params, view_columns(), [], selecto)
+
+    assert view_meta.max_rows == "1000"
   end
 end

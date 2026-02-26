@@ -165,13 +165,14 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_info({:update_detail_page, page}, socket) do
-        socket = assign(socket, :current_detail_page, page)
+        safe_page = clamp_detail_page_for_socket(page, socket)
+        socket = assign(socket, :current_detail_page, safe_page)
 
         params =
           socket.assigns[:used_params] ||
             ParamsState.view_config_to_params(socket.assigns.view_config)
 
-        params = Map.put(params, "detail_page", to_string(page))
+        params = Map.put(params, "detail_page", to_string(safe_page))
 
         # Execute query first, THEN update URL to prevent race condition
         socket = ParamsState.view_from_params(params, socket)
@@ -203,6 +204,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
           |> assign(:last_query_info, Map.get(query_info, :last_query_info))
           |> assign(:view_meta, Map.get(query_info, :view_meta))
           |> assign(:applied_view, Map.get(query_info, :applied_view))
+          |> assign(:detail_page_cache, Map.get(query_info, :detail_page_cache))
           |> assign(:executed, true)
 
         {:noreply, socket}
@@ -264,6 +266,25 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         params = ParamsState.view_config_to_params(socket.assigns.view_config)
         ParamsState.view_from_params(params, socket)
       end
+
+      defp clamp_detail_page_for_socket(page, socket) when is_integer(page) do
+        requested_page = max(page, 0)
+        view_meta = socket.assigns[:view_meta] || %{}
+
+        per_page = max(Map.get(view_meta, :per_page, 30), 1)
+        total_rows = max(Map.get(view_meta, :total_rows, 0), 0)
+
+        max_page =
+          if total_rows > 0 do
+            div(total_rows - 1, per_page)
+          else
+            0
+          end
+
+        min(requested_page, max_page)
+      end
+
+      defp clamp_detail_page_for_socket(_page, _socket), do: 0
     end
   end
 end

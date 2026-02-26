@@ -10,6 +10,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
     show_params: true,
     show_timing: true,
     show_row_count: true,
+    show_page_cache_memory: true,
     show_execution_plan: false,
     format_sql: true,
     max_param_length: 100,
@@ -23,7 +24,8 @@ defmodule SelectoComponents.Debug.ConfigReader do
         show_query: true,
         show_params: true,
         show_timing: true,
-        show_row_count: true
+        show_row_count: true,
+        show_page_cache_memory: true
       },
       graph: %{
         show_query: true,
@@ -39,7 +41,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
   """
   @spec get_config(module() | nil) :: map()
   def get_config(nil), do: get_default_config()
-  
+
   def get_config(domain_module) when is_atom(domain_module) do
     if function_exported?(domain_module, :debug_config, 0) do
       domain_config = domain_module.debug_config()
@@ -58,7 +60,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
   def get_view_config(domain_module, view_type) do
     config = get_config(domain_module)
     view_config = get_in(config, [:views, view_type]) || %{}
-    
+
     # Merge view-specific config with base config
     Map.merge(config, view_config)
     |> Map.delete(:views)
@@ -69,12 +71,13 @@ defmodule SelectoComponents.Debug.ConfigReader do
   """
   @spec debug_enabled?(module() | nil, atom() | nil) :: boolean()
   def debug_enabled?(domain_module, view_type \\ nil) do
-    config = if view_type do
-      get_view_config(domain_module, view_type)
-    else
-      get_config(domain_module)
-    end
-    
+    config =
+      if view_type do
+        get_view_config(domain_module, view_type)
+      else
+        get_config(domain_module)
+      end
+
     Map.get(config, :enabled, false) && dev_mode?()
   end
 
@@ -86,12 +89,13 @@ defmodule SelectoComponents.Debug.ConfigReader do
     if not debug_enabled?(domain_module, view_type) do
       false
     else
-      config = if view_type do
-        get_view_config(domain_module, view_type)
-      else
-        get_config(domain_module)
-      end
-      
+      config =
+        if view_type do
+          get_view_config(domain_module, view_type)
+        else
+          get_config(domain_module)
+        end
+
       Map.get(config, feature, false)
     end
   end
@@ -103,10 +107,10 @@ defmodule SelectoComponents.Debug.ConfigReader do
   @spec get_default_config() :: map()
   def get_default_config do
     app_config = Application.get_env(:selecto_components, :debug_config, %{})
-    
+
     # Only enable debug in dev/test environments by default
     env_enabled = dev_mode?()
-    
+
     @default_config
     |> Map.put(:enabled, env_enabled)
     |> merge_with_defaults(app_config)
@@ -132,11 +136,12 @@ defmodule SelectoComponents.Debug.ConfigReader do
   @spec truncate_params(list(), map()) :: list()
   def truncate_params(params, config) do
     max_length = Map.get(config, :max_param_length, 100)
-    
+
     Enum.map(params, fn param ->
       case param do
         str when is_binary(str) and byte_size(str) > max_length ->
           String.slice(str, 0, max_length) <> "..."
+
         _ ->
           param
       end
@@ -149,39 +154,58 @@ defmodule SelectoComponents.Debug.ConfigReader do
   @spec build_debug_info(map(), map()) :: map()
   def build_debug_info(data, config) do
     debug_info = %{}
-    
-    debug_info = if Map.get(config, :show_query, false) && data[:query] do
-      Map.put(debug_info, :query, format_sql(data.query, config))
-    else
-      debug_info
-    end
-    
-    debug_info = if Map.get(config, :show_params, false) && data[:params] do
-      Map.put(debug_info, :params, truncate_params(data.params, config))
-    else
-      debug_info
-    end
-    
-    debug_info = if Map.get(config, :show_timing, false) && data[:timing] do
-      Map.put(debug_info, :timing, data.timing)
-    else
-      debug_info
-    end
-    
-    debug_info = if Map.get(config, :show_row_count, false) && data[:row_count] do
-      Map.put(debug_info, :row_count, data.row_count)
-    else
-      debug_info
-    end
-    
-    debug_info = if Map.get(config, :show_execution_plan, false) && data[:execution_plan] do
-      Map.put(debug_info, :execution_plan, data.execution_plan)
-    else
-      debug_info
-    end
-    
+
+    debug_info =
+      if Map.get(config, :show_query, false) && data[:query] do
+        Map.put(debug_info, :query, format_sql(data.query, config))
+      else
+        debug_info
+      end
+
+    debug_info =
+      if Map.get(config, :show_params, false) && data[:params] do
+        Map.put(debug_info, :params, truncate_params(data.params, config))
+      else
+        debug_info
+      end
+
+    debug_info =
+      if Map.get(config, :show_timing, false) && data[:timing] do
+        Map.put(debug_info, :timing, data.timing)
+      else
+        debug_info
+      end
+
+    debug_info =
+      if Map.get(config, :show_row_count, false) && data[:row_count] do
+        Map.put(debug_info, :row_count, data.row_count)
+      else
+        debug_info
+      end
+
+    debug_info =
+      if Map.get(config, :show_page_cache_memory, false) &&
+           not is_nil(data[:page_cache_memory_bytes]) do
+        debug_info
+        |> Map.put(:page_cache_memory_bytes, data.page_cache_memory_bytes)
+        |> maybe_put_page_cache_metric(:page_cache_pages, data[:page_cache_pages])
+        |> maybe_put_page_cache_metric(:page_cache_rows, data[:page_cache_rows])
+      else
+        debug_info
+      end
+
+    debug_info =
+      if Map.get(config, :show_execution_plan, false) && data[:execution_plan] do
+        Map.put(debug_info, :execution_plan, data.execution_plan)
+      else
+        debug_info
+      end
+
     debug_info
   end
+
+  defp maybe_put_page_cache_metric(debug_info, _key, nil), do: debug_info
+  defp maybe_put_page_cache_metric(debug_info, key, value), do: Map.put(debug_info, key, value)
 
   # Private functions
 
@@ -194,6 +218,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
     Map.merge(map1, map2, fn
       _key, v1, v2 when is_map(v1) and is_map(v2) ->
         deep_merge(v1, v2)
+
       _key, _v1, v2 ->
         v2
     end)
@@ -204,7 +229,10 @@ defmodule SelectoComponents.Debug.ConfigReader do
     # Add line breaks before major clauses  
     |> String.replace(~r/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET)\b/i, "\n\\1")
     # Add line breaks before JOIN clauses
-    |> String.replace(~r/\s+(INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL OUTER JOIN|FULL JOIN|CROSS JOIN|JOIN)\b/i, "\n\\1")
+    |> String.replace(
+      ~r/\s+(INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL OUTER JOIN|FULL JOIN|CROSS JOIN|JOIN)\b/i,
+      "\n\\1"
+    )
     # Add line breaks for AND/OR in WHERE clauses (with indentation)
     |> String.replace(~r/\s+(AND|OR)\s+/i, "\n  \\1 ")
     # Clean up multiple spaces
@@ -222,7 +250,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
       INDEX PRIMARY KEY FOREIGN REFERENCES CASCADE RESTRICT
       UNION ALL ANY BETWEEN LIKE ILIKE IS NULL ASC DESC
     ]
-    
+
     Enum.reduce(keywords, sql, fn keyword, acc ->
       # Replace keyword with uppercase version, preserving word boundaries
       String.replace(acc, ~r/\b#{keyword}\b/i, keyword)
@@ -235,7 +263,7 @@ defmodule SelectoComponents.Debug.ConfigReader do
       System.get_env("DEV_MODE") == "true" ||
       check_mix_env()
   end
-  
+
   defp check_mix_env do
     # Mix is not available in production releases
     if Code.ensure_loaded?(Mix) do

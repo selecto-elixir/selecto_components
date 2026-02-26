@@ -2,6 +2,37 @@
 CHANGES
 =======
 
+V 0.3.3
+-------
+
+- Added numeric bucket increment shorthand support (`*/N`, e.g. `*/10`) for
+  aggregate/group-by bucket formatting, producing fixed-width ranges such as
+  `0-9`, `10-19`, etc.
+- Updated detail view pagination to execute with `LIMIT/OFFSET`, run a total
+  count query, cache the first three pages, and prefetch later pages in
+  multi-page chunks while navigating.
+- Fixed detail pagination count-query generation to preserve an explicit empty
+  `order_by` list, preventing `KeyError` crashes in Selecto SQL builder.
+- Improved error reporting for view execution failures with development-time
+  debug details shown in the main results error panel.
+- Added detail-page cache memory metrics to the debug panel (bytes, cached
+  pages, cached rows).
+- Fixed debug SQL display to persist the most recent executed query when detail
+  pagination serves results from cache.
+- Refreshed detail pagination UI with first/last buttons, clearer range text
+  (`X-Y of N rows`), improved navigation icons, and strict boundary clamping.
+- Added aggregate-result pagination with default 100 rows/page, selectable page
+  sizes (`30`, `100`, `200`, `300`, `all`) from aggregate view configuration,
+  first/last navigation controls, and hard boundary clamping.
+- Aggregate views now keep full result sets in memory for paging and expose
+  cache memory usage in the debug panel.
+- Fixed aggregate next/prev paging interactions so page changes apply correctly
+  from component events even when max-page metadata is computed at render time.
+- Added detail view `max_rows` control (default `1000`, options: `100`,
+  `1000`, `10000`, `all`) and enforced max-row limits in detail query/count
+  pagination flow.
+- Bump package version to `0.3.3`.
+
 V 0.3.2
 -------
 
