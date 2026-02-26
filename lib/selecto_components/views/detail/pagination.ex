@@ -15,7 +15,8 @@ defmodule SelectoComponents.Views.Detail.Pagination do
     updated_socket =
       socket
       |> Phoenix.Component.assign(:current_detail_page, safe_page)
-      |> ParamsState.view_from_params(params)
+
+    updated_socket = ParamsState.view_from_params(params, updated_socket)
 
     {:ok, updated_socket, params}
   end

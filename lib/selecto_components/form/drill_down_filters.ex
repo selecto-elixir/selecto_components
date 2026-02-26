@@ -9,27 +9,22 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   - Determining appropriate comparison operators for different field types
   """
 
-  alias SelectoComponents.SafeAtom
-
   @doc """
   Build filter parameters for aggregate drill-down.
 
   Takes the clicked parameters and socket assigns, returns a map ready for view_from_params.
   """
   def build_agg_drill_down_params(params, socket) do
-    selected_view = SafeAtom.to_view_mode(socket.assigns.view_config.view_mode)
-
-    {_, _, _, opt} =
-      Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
-    _new_view_mode = Map.get(opt, :drill_down, "detail")
+    base_params =
+      case socket.assigns[:used_params] do
+        map when is_map(map) -> map
+        _ -> %{}
+      end
 
     view_params =
-      %{socket.assigns.used_params | "view_mode" => "detail"}
-      |> Map.put(
-        "filters",
-        build_filter_map(params, socket)
-      )
+      base_params
+      |> Map.put("view_mode", "detail")
+      |> Map.put("filters", build_filter_map(params, socket))
 
     view_params
   end
@@ -59,7 +54,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
     Enum.reduce(
       field_value_pairs,
-      Map.get(socket.assigns.used_params, "filters", %{}),
+      existing_filters(socket),
       fn {field_name, v}, acc ->
         newid = UUID.uuid4()
 
@@ -70,7 +65,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
         # Check if this is an age bucket field
-        group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
+        group_by_config = Map.get(used_params_map(socket), "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
 
         is_age_bucket =
@@ -125,7 +120,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp build_filter_map_legacy(params, socket) do
     Enum.reduce(
       params,
-      Map.get(socket.assigns.used_params, "filters", %{}),
+      existing_filters(socket),
       fn {f, v}, acc ->
         newid = UUID.uuid4()
 
@@ -139,7 +134,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
         # Check if this is an age bucket field
-        group_by_config = Map.get(socket.assigns.used_params, "group_by", %{})
+        group_by_config = Map.get(used_params_map(socket), "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
 
         is_age_bucket =
@@ -196,7 +191,11 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp fallback_field_from_group_by(socket) do
-    current_group_by = Map.get(socket.assigns.used_params, "group_by", %{})
+    current_group_by =
+      case socket.assigns[:used_params] do
+        map when is_map(map) -> Map.get(map, "group_by", %{})
+        _ -> %{}
+      end
 
     first_group =
       current_group_by
@@ -210,6 +209,17 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       %{"field" => field} -> field
       # Fallback to basic field
       _ -> "id"
+    end
+  end
+
+  defp existing_filters(socket) do
+    Map.get(used_params_map(socket), "filters", %{})
+  end
+
+  defp used_params_map(socket) do
+    case socket.assigns[:used_params] do
+      map when is_map(map) -> map
+      _ -> %{}
     end
   end
 

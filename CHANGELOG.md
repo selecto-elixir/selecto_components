@@ -20,6 +20,12 @@ V 0.3.4
 - Moved graph chart drill-down filter application/mode switching into
   `Views.Graph.DrillDown`, leaving form event handlers as dispatch/orchestration
   wrappers.
+- Fixed aggregate-to-detail drill-down transitions by normalizing drill-down
+  target view mode handling and hardening drill-down param building when
+  `used_params` is missing.
+- Fixed delegated view handlers to call `ParamsState.view_from_params/2` with
+  correct argument ordering (restores aggregate drill-down transitions and
+  detail/graph delegated view updates).
 
 V 0.3.3
 -------

@@ -41,7 +41,8 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
           :view_config,
           %{socket.assigns.view_config | view_mode: view_mode_param, filters: updated_filters}
         )
-        |> ParamsState.view_from_params(view_params)
+
+      updated_socket = ParamsState.view_from_params(view_params, updated_socket)
 
       {:ok, updated_socket, view_params}
     end
