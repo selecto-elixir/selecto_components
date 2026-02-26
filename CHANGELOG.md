@@ -31,6 +31,7 @@ V 0.3.3
 - Added detail view `max_rows` control (default `1000`, options: `100`,
   `1000`, `10000`, `all`) and enforced max-row limits in detail query/count
   pagination flow.
+- Bump package version to `0.3.3`.
 
 V 0.3.2
 -------
