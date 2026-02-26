@@ -64,28 +64,28 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         # If filtering on a join mode ID field, find the display field with metadata
         conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
-        # Check if this is an age bucket field
+        # Collect group-by context for bucket-aware drill-down filters
         group_by_config = Map.get(used_params_map(socket), "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
-
-        is_age_bucket =
-          field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+        drill_context = drill_context_from_group_config(field_group_config)
 
         # Determine comparison mode and values based on format
-        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
+        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, drill_context)
 
         # Build filter configuration
-        filter_config = %{
-          "comp" => comp_mode,
-          "filter" => field_name,
-          "index" => "0",
-          "section" => "filters",
-          "uuid" => newid,
-          "value" => v1,
-          "value2" => v2,
-          "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
-          "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
-        }
+        filter_config =
+          %{
+            "comp" => comp_mode,
+            "filter" => field_name,
+            "index" => "0",
+            "section" => "filters",
+            "uuid" => newid,
+            "value" => v1,
+            "value2" => v2,
+            "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+            "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
+          }
+          |> maybe_put_text_prefix_options(drill_context, comp_mode)
 
         # Use group_by_filter if configured
         actual_filter_field =
@@ -133,28 +133,28 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         # If filtering on a join mode ID field, find the display field with metadata
         conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
 
-        # Check if this is an age bucket field
+        # Collect group-by context for bucket-aware drill-down filters
         group_by_config = Map.get(used_params_map(socket), "group_by", %{})
         field_group_config = find_field_group_config(group_by_config, field_name)
-
-        is_age_bucket =
-          field_group_config && Map.get(field_group_config, "format") == "age_buckets"
+        drill_context = drill_context_from_group_config(field_group_config)
 
         # Determine comparison mode and values based on format
-        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, is_age_bucket)
+        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, drill_context)
 
         # Build filter configuration
-        filter_config = %{
-          "comp" => comp_mode,
-          "filter" => field_name,
-          "index" => "0",
-          "section" => "filters",
-          "uuid" => newid,
-          "value" => v1,
-          "value2" => v2,
-          "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
-          "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
-        }
+        filter_config =
+          %{
+            "comp" => comp_mode,
+            "filter" => field_name,
+            "index" => "0",
+            "section" => "filters",
+            "uuid" => newid,
+            "value" => v1,
+            "value2" => v2,
+            "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+            "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
+          }
+          |> maybe_put_text_prefix_options(drill_context, comp_mode)
 
         # Use group_by_filter if configured
         actual_filter_field =
@@ -241,13 +241,20 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   - Bucket ranges (1-10, 11+, Other)
   - Date formats (YYYY-MM-DD, YYYY-MM, YYYY)
   - Age buckets on date fields
+  - Text-prefix buckets with optional article exclusion
   - Default equality
   """
-  def determine_filter_comp_and_values(value, field_conf, is_age_bucket) do
+  def determine_filter_comp_and_values(value, field_conf, drill_context) do
+    context = normalize_drill_context(drill_context)
+
     cond do
       # Special marker for NULL values - create IS_EMPTY filter
       value == "__NULL__" ->
         {"IS_EMPTY", "", ""}
+
+      # Text prefix buckets from aggregate group-by
+      text_prefix_context?(context) ->
+        handle_text_prefix_bucket(value, context)
 
       # YYYY-MM-DD format
       String.match?(value, ~r/^\d{4}-\d{2}-\d{2}$/) ->
@@ -267,7 +274,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       # Bucket range patterns
       String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
-        handle_bucket_range(value, field_conf, is_age_bucket)
+        handle_bucket_range(value, field_conf, context.is_age_bucket)
 
       # Default datetime handling
       field_conf != nil ->
@@ -276,6 +283,61 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       # No field configuration
       true ->
         {"=", value, ""}
+    end
+  end
+
+  defp normalize_drill_context(context) when is_boolean(context) do
+    %{
+      is_age_bucket: context,
+      format: if(context, do: "age_buckets", else: nil),
+      prefix_length: 2,
+      exclude_articles: true
+    }
+  end
+
+  defp normalize_drill_context(context) when is_map(context) do
+    %{
+      is_age_bucket:
+        Map.get(context, :is_age_bucket) || Map.get(context, "is_age_bucket") || false,
+      format: Map.get(context, :format) || Map.get(context, "format"),
+      prefix_length:
+        parse_prefix_length(
+          Map.get(context, :prefix_length) || Map.get(context, "prefix_length"),
+          2
+        ),
+      exclude_articles:
+        parse_boolean(
+          Map.get(context, :exclude_articles) || Map.get(context, "exclude_articles"),
+          true
+        )
+    }
+  end
+
+  defp normalize_drill_context(_context) do
+    %{is_age_bucket: false, format: nil, prefix_length: 2, exclude_articles: true}
+  end
+
+  defp text_prefix_context?(%{format: format}) do
+    format in ["text_prefix", :text_prefix]
+  end
+
+  defp handle_text_prefix_bucket(value, context) do
+    trimmed = value |> to_string() |> String.trim()
+
+    cond do
+      trimmed == "Other" ->
+        {"TEXT_PREFIX_OTHER", "", ""}
+
+      trimmed == "" ->
+        {"TEXT_PREFIX_OTHER", "", ""}
+
+      true ->
+        prefix =
+          trimmed
+          |> String.downcase()
+          |> String.slice(0, context.prefix_length)
+
+        {"STARTS", prefix, ""}
     end
   end
 
@@ -330,6 +392,53 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       end
     end
   end
+
+  defp drill_context_from_group_config(nil), do: normalize_drill_context(%{})
+
+  defp drill_context_from_group_config(config) when is_map(config) do
+    format = Map.get(config, "format") || Map.get(config, :format)
+
+    normalize_drill_context(%{
+      format: format,
+      is_age_bucket: format == "age_buckets",
+      prefix_length: Map.get(config, "prefix_length") || Map.get(config, :prefix_length),
+      exclude_articles:
+        Map.get(config, "exclude_articles") || Map.get(config, :exclude_articles, true)
+    })
+  end
+
+  defp maybe_put_text_prefix_options(filter_config, context, comp_mode)
+
+  defp maybe_put_text_prefix_options(filter_config, context, comp_mode)
+       when comp_mode in ["STARTS", "TEXT_PREFIX_OTHER"] do
+    filter_config
+    |> Map.put("bucket_format", "text_prefix")
+    |> Map.put("prefix_length", Integer.to_string(context.prefix_length))
+    |> Map.put("exclude_articles", if(context.exclude_articles, do: "true", else: "false"))
+    |> Map.put("ignore_case", if(context.exclude_articles, do: "true", else: "false"))
+  end
+
+  defp maybe_put_text_prefix_options(filter_config, _context, _comp_mode), do: filter_config
+
+  defp parse_prefix_length(value, _default) when is_integer(value) and value > 0,
+    do: min(value, 10)
+
+  defp parse_prefix_length(value, default) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed > 0 -> min(parsed, 10)
+      _ -> default
+    end
+  end
+
+  defp parse_prefix_length(_value, default), do: default
+
+  defp parse_boolean(value, _default) when value in [true, "true", "TRUE", "on", "1", 1], do: true
+
+  defp parse_boolean(value, _default) when value in [false, "false", "FALSE", "off", "0", 0],
+    do: false
+
+  defp parse_boolean(nil, default), do: default
+  defp parse_boolean(_value, default), do: default
 
   defp handle_month_format(value, field_conf) do
     if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do

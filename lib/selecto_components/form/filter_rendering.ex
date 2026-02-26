@@ -391,6 +391,18 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> Map.put(:current_comp, current_comp)
       |> Map.put(:between_start, between_start)
       |> Map.put(:between_end, between_end)
+      |> Map.put(
+        :ignore_case_checked,
+        Map.get(assigns.filter_value, "ignore_case", "false") in [
+          true,
+          "true",
+          "on",
+          "1",
+          "Y",
+          "y"
+        ]
+      )
+      |> Map.put(:is_text_field, assigns.field_type in [:string, :text, :citext, :custom_column])
 
     ~H"""
     <div class="grid grid-cols-3 gap-2">
@@ -449,6 +461,34 @@ defmodule SelectoComponents.Form.FilterRendering do
           />
       <% end %>
 
+      <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
+        <div class="col-span-3 flex items-center gap-2 text-sm text-gray-700">
+          <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            name={"filters[#{@uuid}][exclude_articles]"}
+            value="true"
+            checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
+          />
+          Ignore leading articles (a, an, the)
+        </div>
+      <% end %>
+
+      <%= if @is_text_field and @current_comp not in ["IS NULL", "IS NOT NULL"] do %>
+        <div class="col-span-3 flex items-center gap-2 text-sm text-gray-700">
+          <input type="hidden" name={"filters[#{@uuid}][ignore_case]"} value="false" />
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            name={"filters[#{@uuid}][ignore_case]"}
+            value="true"
+            checked={@ignore_case_checked}
+          />
+          Case insensitive
+        </div>
+      <% end %>
+
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
@@ -494,6 +534,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           [
             {"=", "Equals"},
             {"!=", "Not Equals"},
+            {"STARTS", "Begins With"},
             {"LIKE", "Contains"},
             {"NOT LIKE", "Does Not Contain"},
             {"IS NULL", "Is Empty"},

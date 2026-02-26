@@ -1,15 +1,21 @@
 defmodule SelectoComponents.Helpers.Filters do
+  alias SelectoComponents.Helpers.BucketParser
 
-  import Ecto.Type ## For cast
+  ## For cast
+  import Ecto.Type
 
   # Sanitize LIKE pattern values to prevent SQL injection
   # Escapes special SQL wildcard characters: %, _, \
   defp sanitize_like_value(value) when is_binary(value) do
     value
-    |> String.replace("\\", "\\\\")  # Escape backslash first
-    |> String.replace("%", "\\%")     # Escape percent
-    |> String.replace("_", "\\_")     # Escape underscore
+    # Escape backslash first
+    |> String.replace("\\", "\\\\")
+    # Escape percent
+    |> String.replace("%", "\\%")
+    # Escape underscore
+    |> String.replace("_", "\\_")
   end
+
   defp sanitize_like_value(value), do: value
 
   defp parse_num(type, num) do
@@ -59,12 +65,15 @@ defmodule SelectoComponents.Helpers.Filters do
     end
   end
 
+  defp truthy?(value) when value in [true, "true", "TRUE", "on", "ON", "1", 1, "Y", "y"], do: true
+  defp truthy?(_value), do: false
+
   defp get_string_value(filter) do
     value = Map.get(filter, "value")
     if blank?(value), do: raise(ArgumentError, "value is required"), else: to_string(value)
   end
 
-  defp _make_num_filter(type, filter)  do
+  defp _make_num_filter(type, filter) do
     comp_norm = normalize_comp(filter, "=")
 
     case comp_norm do
@@ -100,6 +109,7 @@ defmodule SelectoComponents.Helpers.Filters do
           Map.get(filter, "value", "")
           |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
+
         {:in, ids}
 
       "NOT IN" ->
@@ -108,6 +118,7 @@ defmodule SelectoComponents.Helpers.Filters do
           Map.get(filter, "value", "")
           |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
+
         {:not_in, ids}
 
       x when x in ~w( != <= >= < >) ->
@@ -119,12 +130,12 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp make_text_search_filter(filter) do
-    { Map.get(filter, "filter"), {:text_search, Map.get(filter, "value")}}
+    {Map.get(filter, "filter"), {:text_search, Map.get(filter, "value")}}
   end
 
   defp _make_string_filter(filter) do
     comp_norm = normalize_comp(filter, "=")
-    ignore_case = Map.get(filter, "ignore_case") == "Y"
+    ignore_case = truthy?(Map.get(filter, "ignore_case"))
     filter_field = Map.get(filter, "filter")
 
     filpart =
@@ -141,15 +152,47 @@ defmodule SelectoComponents.Helpers.Filters do
       end
 
     case comp_norm do
-      "NULL" -> {filter_field, nil}
-      "IS_EMPTY" -> {filter_field, nil}
-      "IS NULL" -> {filter_field, nil}
-      "NOT_NULL" -> {filter_field, :not_null}
-      "IS_NOT_EMPTY" -> {filter_field, :not_null}
-      "IS NOT NULL" -> {filter_field, :not_null}
-      "=" -> {filpart, transform.(get_string_value(filter))}
-      "!=" -> {filpart, {"!=", transform.(get_string_value(filter))}}
-      x when x in ~w(<= >= < >) -> {filpart, {x, transform.(get_string_value(filter))}}
+      "NULL" ->
+        {filter_field, nil}
+
+      "IS_EMPTY" ->
+        {filter_field, nil}
+
+      "IS NULL" ->
+        {filter_field, nil}
+
+      "NOT_NULL" ->
+        {filter_field, :not_null}
+
+      "IS_NOT_EMPTY" ->
+        {filter_field, :not_null}
+
+      "IS NOT NULL" ->
+        {filter_field, :not_null}
+
+      "=" ->
+        value = get_string_value(filter)
+
+        if BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), false) do
+          normalized_expr =
+            BucketParser.normalized_text_sql(
+              filter_field,
+              %{"exclude_articles" => true, "ignore_case" => ignore_case}
+            )
+
+          normalized_value =
+            if(ignore_case, do: String.downcase(String.trim(value)), else: String.trim(value))
+
+          {{:raw_sql, normalized_expr}, normalized_value}
+        else
+          {filpart, transform.(value)}
+        end
+
+      "!=" ->
+        {filpart, {"!=", transform.(get_string_value(filter))}}
+
+      x when x in ~w(<= >= < >) ->
+        {filpart, {x, transform.(get_string_value(filter))}}
 
       "BETWEEN" ->
         {start_raw, end_raw} = parse_between_values(filter)
@@ -171,8 +214,25 @@ defmodule SelectoComponents.Helpers.Filters do
         {filpart, {:not_in, values}}
 
       "STARTS" ->
-        value = transform.(get_string_value(filter))
-        {filpart, {:like, sanitize_like_value(value) <> "%"}}
+        value = get_string_value(filter)
+
+        if BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), false) do
+          normalized_expr =
+            BucketParser.normalized_text_sql(
+              filter_field,
+              %{"exclude_articles" => true, "ignore_case" => ignore_case}
+            )
+
+          normalized_value =
+            value
+            |> String.trim()
+            |> then(fn v -> if(ignore_case, do: String.downcase(v), else: v) end)
+
+          {{:raw_sql, normalized_expr}, {:like, sanitize_like_value(normalized_value) <> "%"}}
+        else
+          value = transform.(value)
+          {filpart, {:like, sanitize_like_value(value) <> "%"}}
+        end
 
       "ENDS" ->
         value = transform.(get_string_value(filter))
@@ -181,6 +241,42 @@ defmodule SelectoComponents.Helpers.Filters do
       "CONTAINS" ->
         value = transform.(get_string_value(filter))
         {filpart, {:like, "%" <> sanitize_like_value(value) <> "%"}}
+
+      "TEXT_PREFIX" ->
+        prefix_length = BucketParser.parse_prefix_length(Map.get(filter, "prefix_length"), 2)
+
+        exclude_articles =
+          BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), true)
+
+        normalized_expr =
+          BucketParser.normalized_text_sql(
+            filter_field,
+            %{"exclude_articles" => exclude_articles}
+          )
+
+        prefix =
+          filter
+          |> get_string_value()
+          |> String.downcase()
+          |> String.slice(0, prefix_length)
+
+        if blank?(prefix) do
+          raise ArgumentError, "TEXT_PREFIX requires a non-empty prefix value"
+        end
+
+        {{:raw_sql, normalized_expr}, {:like, sanitize_like_value(prefix) <> "%"}}
+
+      "TEXT_PREFIX_OTHER" ->
+        exclude_articles =
+          BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), true)
+
+        normalized_expr =
+          BucketParser.normalized_text_sql(
+            filter_field,
+            %{"exclude_articles" => exclude_articles}
+          )
+
+        {:raw_sql_filter, ["(", normalized_expr, " = '')"]}
 
       "LIKE" ->
         value = transform.(get_string_value(filter))
@@ -212,6 +308,7 @@ defmodule SelectoComponents.Helpers.Filters do
       "DATE=" ->
         # For DATE=, we want to match the entire day
         date_str = Map.get(filter, "value")
+
         if date_str do
           case Date.from_iso8601(date_str) do
             {:ok, date} ->
@@ -219,6 +316,7 @@ defmodule SelectoComponents.Helpers.Filters do
               start_dt = NaiveDateTime.new!(date, ~T[00:00:00])
               end_dt = NaiveDateTime.new!(date, ~T[23:59:59])
               {:between, start_dt, end_dt}
+
             _ ->
               # Fallback to original behavior if date parsing fails
               {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
@@ -232,6 +330,7 @@ defmodule SelectoComponents.Helpers.Filters do
       "DATE!=" ->
         # For DATE!=, we want to exclude the entire day
         date_str = Map.get(filter, "value")
+
         if date_str do
           case Date.from_iso8601(date_str) do
             {:ok, date} ->
@@ -239,6 +338,7 @@ defmodule SelectoComponents.Helpers.Filters do
               start_dt = NaiveDateTime.new!(date, ~T[00:00:00])
               end_dt = NaiveDateTime.new!(date, ~T[23:59:59])
               {:not, {:between, start_dt, end_dt}}
+
             _ ->
               # Fallback
               {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
@@ -373,31 +473,41 @@ defmodule SelectoComponents.Helpers.Filters do
   """
   def filter_recurse(selecto, filters, section) do
     # Filter out any bucket_ranges strings that shouldn't be filters
-    section_filters = Map.get(filters, section, [])
-    |> Enum.reject(fn
-      filter when is_binary(filter) ->
-        # Check if this looks like a bucket range string
-        String.match?(filter, ~r/^\d+-\d+,\d+\+$|^\d+,\d+-\d+,|\d+\+/)
-      _ ->
-        false
-    end)
+    section_filters =
+      Map.get(filters, section, [])
+      |> Enum.reject(fn
+        filter when is_binary(filter) ->
+          # Check if this looks like a bucket range string
+          String.match?(filter, ~r/^\d+-\d+,\d+\+$|^\d+,\d+-\d+,|\d+\+/)
 
-    result = Enum.reduce(section_filters, [], fn filter_item, acc ->
-      case process_single_filter(selecto, filters, filter_item) do
-        {:ok, filter_results} when is_list(filter_results) ->
-          acc ++ filter_results
-        {:ok, filter_result} ->
-          acc ++ [filter_result]
-        {:skip, _reason} ->
-          # Filter was intentionally skipped (e.g., column not found, invalid value)
-          acc
-        {:error, error} ->
-          # Log error but continue processing other filters
-          require Logger
-          Logger.warning("Filter processing error: #{inspect(error)}, filter: #{inspect(filter_item)}")
-          acc
-      end
-    end)
+        _ ->
+          false
+      end)
+
+    result =
+      Enum.reduce(section_filters, [], fn filter_item, acc ->
+        case process_single_filter(selecto, filters, filter_item) do
+          {:ok, filter_results} when is_list(filter_results) ->
+            acc ++ filter_results
+
+          {:ok, filter_result} ->
+            acc ++ [filter_result]
+
+          {:skip, _reason} ->
+            # Filter was intentionally skipped (e.g., column not found, invalid value)
+            acc
+
+          {:error, error} ->
+            # Log error but continue processing other filters
+            require Logger
+
+            Logger.warning(
+              "Filter processing error: #{inspect(error)}, filter: #{inspect(filter_item)}"
+            )
+
+            acc
+        end
+      end)
 
     # Handle POLYMORPHIC filters separately
     result = result ++ handle_polymorphic_filters(section_filters)
@@ -405,12 +515,18 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Process a single filter with error handling
-  defp process_single_filter(selecto, filters, %{"is_section" => "Y", "uuid" => uuid, "conjunction" => conj}) do
-    conjunction_atom = case conj do
-      "AND" -> :and
-      "OR" -> :or
-      _ -> :and
-    end
+  defp process_single_filter(selecto, filters, %{
+         "is_section" => "Y",
+         "uuid" => uuid,
+         "conjunction" => conj
+       }) do
+    conjunction_atom =
+      case conj do
+        "AND" -> :and
+        "OR" -> :or
+        _ -> :and
+      end
+
     nested_filters = filter_recurse(selecto, filters, uuid)
     {:ok, [{conjunction_atom, nested_filters}]}
   end
@@ -494,11 +610,13 @@ defmodule SelectoComponents.Helpers.Filters do
         {:ok, [make_text_search_filter(f)]}
 
       :boolean ->
-        value = case Map.get(f, "value") do
-          "true" -> true
-          true -> true
-          _ -> false
-        end
+        value =
+          case Map.get(f, "value") do
+            "true" -> true
+            true -> true
+            _ -> false
+          end
+
         {:ok, [{filter_key, value}]}
 
       :string ->
@@ -525,9 +643,11 @@ defmodule SelectoComponents.Helpers.Filters do
       x when x in [:naive_datetime, :utc_datetime, :date] ->
         case safe_make_date_filter(f) do
           {:ok, {:or, conditions}} ->
-            or_filters = Enum.map(conditions, fn filter_val ->
-              {filter_key, filter_val}
-            end)
+            or_filters =
+              Enum.map(conditions, fn filter_val ->
+                {filter_key, filter_val}
+              end)
+
             {:ok, [{:or, or_filters}]}
 
           {:ok, filter_val} ->
@@ -546,6 +666,7 @@ defmodule SelectoComponents.Helpers.Filters do
       {:parameterized, _, enum_conf} ->
         # Validate enum value against mappings
         value = Map.get(f, "value")
+
         case validate_enum_value(value, enum_conf) do
           :ok -> {:ok, [{filter_key, value}]}
           {:error, reason} -> {:skip, {:invalid_enum, reason}}
@@ -554,7 +675,11 @@ defmodule SelectoComponents.Helpers.Filters do
       unknown_type ->
         # For unknown types, try as string filter
         require Logger
-        Logger.debug("Unknown column type #{inspect(unknown_type)} for filter #{filter_key}, treating as string")
+
+        Logger.debug(
+          "Unknown column type #{inspect(unknown_type)} for filter #{filter_key}, treating as string"
+        )
+
         case safe_make_string_filter(f) do
           {:ok, filter_val} -> {:ok, [filter_val]}
           {:error, reason} -> {:skip, {:invalid_unknown_type, reason}}
@@ -602,12 +727,23 @@ defmodule SelectoComponents.Helpers.Filters do
     comp_norm = normalize_comp(filter, "LIKE")
 
     case comp_norm do
-      "NULL" -> {filter_key, nil}
-      "IS_EMPTY" -> {filter_key, nil}
-      "IS NULL" -> {filter_key, nil}
-      "NOT_NULL" -> {filter_key, :not_null}
-      "IS_NOT_EMPTY" -> {filter_key, :not_null}
-      "IS NOT NULL" -> {filter_key, :not_null}
+      "NULL" ->
+        {filter_key, nil}
+
+      "IS_EMPTY" ->
+        {filter_key, nil}
+
+      "IS NULL" ->
+        {filter_key, nil}
+
+      "NOT_NULL" ->
+        {filter_key, :not_null}
+
+      "IS_NOT_EMPTY" ->
+        {filter_key, :not_null}
+
+      "IS NOT NULL" ->
+        {filter_key, :not_null}
 
       "IN" ->
         values = Map.get(filter, "value", "") |> parse_csv_values()
@@ -644,12 +780,23 @@ defmodule SelectoComponents.Helpers.Filters do
     comp_norm = normalize_comp(filter, "=")
 
     case comp_norm do
-      "NULL" -> {filter_key, nil}
-      "IS_EMPTY" -> {filter_key, nil}
-      "IS NULL" -> {filter_key, nil}
-      "NOT_NULL" -> {filter_key, :not_null}
-      "IS_NOT_EMPTY" -> {filter_key, :not_null}
-      "IS NOT NULL" -> {filter_key, :not_null}
+      "NULL" ->
+        {filter_key, nil}
+
+      "IS_EMPTY" ->
+        {filter_key, nil}
+
+      "IS NULL" ->
+        {filter_key, nil}
+
+      "NOT_NULL" ->
+        {filter_key, :not_null}
+
+      "IS_NOT_EMPTY" ->
+        {filter_key, :not_null}
+
+      "IS NOT NULL" ->
+        {filter_key, :not_null}
 
       "=" ->
         value = get_string_value(filter)
@@ -766,11 +913,12 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp validate_enum_value(value, enum_conf) do
     # Extract mappings from enum configuration
-    mappings = case enum_conf do
-      %{mappings: mappings} -> mappings
-      %{"mappings" => mappings} -> mappings
-      _ -> nil
-    end
+    mappings =
+      case enum_conf do
+        %{mappings: mappings} -> mappings
+        %{"mappings" => mappings} -> mappings
+        _ -> nil
+      end
 
     case mappings do
       nil ->
@@ -780,22 +928,27 @@ defmodule SelectoComponents.Helpers.Filters do
       mappings when is_map(mappings) ->
         # Check if value is a valid key in mappings
         valid_keys = Map.keys(mappings) |> Enum.map(&to_string/1)
+
         if to_string(value) in valid_keys do
           :ok
         else
-          {:error, "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_keys, ", ")}"}
+          {:error,
+           "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_keys, ", ")}"}
         end
 
       mappings when is_list(mappings) ->
         # List of allowed values
-        valid_values = Enum.map(mappings, fn
-          {k, _v} -> to_string(k)
-          v -> to_string(v)
-        end)
+        valid_values =
+          Enum.map(mappings, fn
+            {k, _v} -> to_string(k)
+            v -> to_string(v)
+          end)
+
         if to_string(value) in valid_values do
           :ok
         else
-          {:error, "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_values, ", ")}"}
+          {:error,
+           "Value '#{value}' is not a valid enum value. Allowed: #{Enum.join(valid_values, ", ")}"}
         end
 
       _ ->
@@ -809,33 +962,40 @@ defmodule SelectoComponents.Helpers.Filters do
     Enum.flat_map(section_filters, fn
       %{"comp" => "POLYMORPHIC"} = f ->
         # Parse polymorphic selection: types and values for each type
-        selected_types = case Map.get(f, "selected_types") do
-          json when is_binary(json) -> Jason.decode!(json)
-          list when is_list(list) -> list
-          _ -> []
-        end
+        selected_types =
+          case Map.get(f, "selected_types") do
+            json when is_binary(json) -> Jason.decode!(json)
+            list when is_list(list) -> list
+            _ -> []
+          end
 
         poly_values = Map.get(f, "poly_values", %{})
 
         # Build OR conditions: (type='Product' AND id IN (1,2,3)) OR (type='Order' AND id IN (4,5))
-        type_conditions = Enum.flat_map(selected_types, fn entity_type ->
-          ids_str = Map.get(poly_values, entity_type, "")
-          ids = parse_poly_ids(ids_str)
+        type_conditions =
+          Enum.flat_map(selected_types, fn entity_type ->
+            ids_str = Map.get(poly_values, entity_type, "")
+            ids = parse_poly_ids(ids_str)
 
-          if length(ids) > 0 do
-            # Generate condition: type = 'Product' AND id IN (1,2,3)
-            filter_name = Map.get(f, "filter")
-            type_field = "#{filter_name}_type"  # e.g., "commentable_type"
-            id_field = "#{filter_name}_id"      # e.g., "commentable_id"
+            if length(ids) > 0 do
+              # Generate condition: type = 'Product' AND id IN (1,2,3)
+              filter_name = Map.get(f, "filter")
+              # e.g., "commentable_type"
+              type_field = "#{filter_name}_type"
+              # e.g., "commentable_id"
+              id_field = "#{filter_name}_id"
 
-            [{:and, [
-              {type_field, entity_type},
-              {id_field, {:in, ids}}
-            ]}]
-          else
-            []
-          end
-        end)
+              [
+                {:and,
+                 [
+                   {type_field, entity_type},
+                   {id_field, {:in, ids}}
+                 ]}
+              ]
+            else
+              []
+            end
+          end)
 
         if length(type_conditions) > 0 do
           [{:or, type_conditions}]
@@ -843,7 +1003,8 @@ defmodule SelectoComponents.Helpers.Filters do
           []
         end
 
-      _ -> []
+      _ ->
+        []
     end)
   end
 
@@ -861,6 +1022,7 @@ defmodule SelectoComponents.Helpers.Filters do
     end)
     |> Enum.reject(&is_nil/1)
   end
+
   defp parse_poly_ids(_), do: []
 
   # Process relative date patterns like "13-7" (13 to 7 days ago)
@@ -942,68 +1104,80 @@ defmodule SelectoComponents.Helpers.Filters do
       "this_week" ->
         start_of_week = beginning_of_week(today)
         end_of_week = Date.add(start_of_week, 7)
+
         {:between, NaiveDateTime.new!(start_of_week, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
 
       "last_week" ->
         start_of_week = beginning_of_week(Date.add(today, -7))
         end_of_week = Date.add(start_of_week, 7)
+
         {:between, NaiveDateTime.new!(start_of_week, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_week, ~T[00:00:00])}
 
       "next_week" ->
         start_of_next_week = beginning_of_week(Date.add(today, 7))
         end_of_next_week = Date.add(start_of_next_week, 7)
+
         {:between, NaiveDateTime.new!(start_of_next_week, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_next_week, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_next_week, ~T[00:00:00])}
 
       "this_month" ->
         start_of_month = Date.beginning_of_month(today)
         start_of_next_month = Date.beginning_of_month(Date.add(today, 32))
+
         {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
-                  NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])}
+         NaiveDateTime.new!(start_of_next_month, ~T[00:00:00])}
 
       "last_month" ->
         last_month = Date.add(today, -today.day)
         start_of_month = Date.beginning_of_month(last_month)
         end_of_month = Date.beginning_of_month(today)
+
         {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_month, ~T[00:00:00])}
 
       "next_month" ->
         # Get first day of next month
-        {start_of_next_month, end_of_next_month} = if today.month == 12 do
-          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 2, 1)}
-        else
-          start_month = Date.new!(today.year, today.month + 1, 1)
-          # Handle month after next
-          end_month = if today.month == 11 do
-            Date.new!(today.year + 1, 1, 1)
+        {start_of_next_month, end_of_next_month} =
+          if today.month == 12 do
+            {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 2, 1)}
           else
-            Date.new!(today.year, today.month + 2, 1)
+            start_month = Date.new!(today.year, today.month + 1, 1)
+            # Handle month after next
+            end_month =
+              if today.month == 11 do
+                Date.new!(today.year + 1, 1, 1)
+              else
+                Date.new!(today.year, today.month + 2, 1)
+              end
+
+            {start_month, end_month}
           end
-          {start_month, end_month}
-        end
+
         {:between, NaiveDateTime.new!(start_of_next_month, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_next_month, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_next_month, ~T[00:00:00])}
 
       "this_year" ->
         start_of_year = Date.new!(today.year, 1, 1)
         start_of_next_year = Date.new!(today.year + 1, 1, 1)
+
         {:between, NaiveDateTime.new!(start_of_year, ~T[00:00:00]),
-                  NaiveDateTime.new!(start_of_next_year, ~T[00:00:00])}
+         NaiveDateTime.new!(start_of_next_year, ~T[00:00:00])}
 
       "last_year" ->
         start_of_last_year = Date.new!(today.year - 1, 1, 1)
         start_of_this_year = Date.new!(today.year, 1, 1)
+
         {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
-                  NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])}
+         NaiveDateTime.new!(start_of_this_year, ~T[00:00:00])}
 
       "next_year" ->
         start_of_next_year = Date.new!(today.year + 1, 1, 1)
         start_of_year_after = Date.new!(today.year + 2, 1, 1)
+
         {:between, NaiveDateTime.new!(start_of_next_year, ~T[00:00:00]),
-                  NaiveDateTime.new!(start_of_year_after, ~T[00:00:00])}
+         NaiveDateTime.new!(start_of_year_after, ~T[00:00:00])}
 
       "this_quarter" ->
         start_of_quarter = beginning_of_quarter(today)
@@ -1011,60 +1185,70 @@ defmodule SelectoComponents.Helpers.Filters do
         next_quarter_month = rem(div(today.month - 1, 3) + 1, 4) * 3 + 1
         next_quarter_year = if next_quarter_month == 1, do: today.year + 1, else: today.year
         start_of_next_quarter = Date.new!(next_quarter_year, next_quarter_month, 1)
+
         {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
-                  NaiveDateTime.new!(start_of_next_quarter, ~T[00:00:00])}
+         NaiveDateTime.new!(start_of_next_quarter, ~T[00:00:00])}
 
       "last_quarter" ->
         # Calculate last quarter
         current_quarter = div(today.month - 1, 3)
-        {start_of_quarter, end_of_quarter} = if current_quarter == 0 do
-          # Last quarter of previous year (Q4)
-          {Date.new!(today.year - 1, 10, 1), Date.new!(today.year, 1, 1)}
-        else
-          # Previous quarter this year
-          start_month = (current_quarter - 1) * 3 + 1
-          end_month = current_quarter * 3 + 1
-          {Date.new!(today.year, start_month, 1), Date.new!(today.year, end_month, 1)}
-        end
+
+        {start_of_quarter, end_of_quarter} =
+          if current_quarter == 0 do
+            # Last quarter of previous year (Q4)
+            {Date.new!(today.year - 1, 10, 1), Date.new!(today.year, 1, 1)}
+          else
+            # Previous quarter this year
+            start_month = (current_quarter - 1) * 3 + 1
+            end_month = current_quarter * 3 + 1
+            {Date.new!(today.year, start_month, 1), Date.new!(today.year, end_month, 1)}
+          end
+
         {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
 
       "next_quarter" ->
         # Calculate next quarter
         current_quarter = div(today.month - 1, 3)
-        {start_of_quarter, end_of_quarter} = if current_quarter == 3 do
-          # First quarter of next year (Q1)
-          {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 4, 1)}
-        else
-          # Next quarter this year
-          start_month = (current_quarter + 1) * 3 + 1
-          end_month = if current_quarter == 2, do: 1, else: (current_quarter + 2) * 3 + 1
-          end_year = if current_quarter == 2, do: today.year + 1, else: today.year
-          {Date.new!(today.year, start_month, 1), Date.new!(end_year, end_month, 1)}
-        end
+
+        {start_of_quarter, end_of_quarter} =
+          if current_quarter == 3 do
+            # First quarter of next year (Q1)
+            {Date.new!(today.year + 1, 1, 1), Date.new!(today.year + 1, 4, 1)}
+          else
+            # Next quarter this year
+            start_month = (current_quarter + 1) * 3 + 1
+            end_month = if current_quarter == 2, do: 1, else: (current_quarter + 2) * 3 + 1
+            end_year = if current_quarter == 2, do: today.year + 1, else: today.year
+            {Date.new!(today.year, start_month, 1), Date.new!(end_year, end_month, 1)}
+          end
+
         {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
+         NaiveDateTime.new!(end_of_quarter, ~T[00:00:00])}
 
       "mtd" ->
         # Month to date
         start_of_month = Date.beginning_of_month(today)
         tomorrow = Date.add(today, 1)
+
         {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
-                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+         NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
 
       "qtd" ->
         # Quarter to date
         start_of_quarter = beginning_of_quarter(today)
         tomorrow = Date.add(today, 1)
+
         {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
-                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+         NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
 
       "ytd" ->
         # Year to date
         start_of_year = Date.new!(today.year, 1, 1)
         tomorrow = Date.add(today, 1)
+
         {:between, NaiveDateTime.new!(start_of_year, ~T[00:00:00]),
-                  NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
+         NaiveDateTime.new!(tomorrow, ~T[00:00:00])}
 
       "ytd_vs_last" ->
         # This year YTD and last year YTD
@@ -1073,31 +1257,35 @@ defmodule SelectoComponents.Helpers.Filters do
         tomorrow = Date.add(today, 1)
 
         # Handle leap year edge case for Feb 29
-        same_day_last_year = try do
-          Date.new!(today.year - 1, today.month, today.day)
-        rescue
-          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
-        end
+        same_day_last_year =
+          try do
+            Date.new!(today.year - 1, today.month, today.day)
+          rescue
+            _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+          end
 
         # Return OR condition with both date ranges
-        {:or, [
-          {:between, NaiveDateTime.new!(start_of_this_year, ~T[00:00:00]),
-                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
-          {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
-                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
-        ]}
+        {:or,
+         [
+           {:between, NaiveDateTime.new!(start_of_this_year, ~T[00:00:00]),
+            NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+           {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
+            NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+         ]}
 
       "last_ytd" ->
         # Last year's YTD to the same day
         start_of_last_year = Date.new!(today.year - 1, 1, 1)
         # Handle leap year edge case for Feb 29
-        same_day_last_year = try do
-          Date.new!(today.year - 1, today.month, today.day)
-        rescue
-          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
-        end
+        same_day_last_year =
+          try do
+            Date.new!(today.year - 1, today.month, today.day)
+          rescue
+            _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+          end
+
         {:between, NaiveDateTime.new!(start_of_last_year, ~T[00:00:00]),
-                  NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+         NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
 
       "qtd_vs_last" ->
         # This quarter QTD and same quarter last year QTD
@@ -1108,18 +1296,20 @@ defmodule SelectoComponents.Helpers.Filters do
         last_year_quarter_start = Date.new!(today.year - 1, start_of_quarter.month, 1)
 
         # Handle leap year edge case
-        same_day_last_year = try do
-          Date.new!(today.year - 1, today.month, today.day)
-        rescue
-          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
-        end
+        same_day_last_year =
+          try do
+            Date.new!(today.year - 1, today.month, today.day)
+          rescue
+            _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+          end
 
-        {:or, [
-          {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
-                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
-          {:between, NaiveDateTime.new!(last_year_quarter_start, ~T[00:00:00]),
-                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
-        ]}
+        {:or,
+         [
+           {:between, NaiveDateTime.new!(start_of_quarter, ~T[00:00:00]),
+            NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+           {:between, NaiveDateTime.new!(last_year_quarter_start, ~T[00:00:00]),
+            NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+         ]}
 
       "mtd_vs_last" ->
         # This month MTD and last month MTD
@@ -1127,11 +1317,12 @@ defmodule SelectoComponents.Helpers.Filters do
         tomorrow = Date.add(today, 1)
 
         # Last month (handle January case)
-        {last_month_year, last_month_month} = if today.month == 1 do
-          {today.year - 1, 12}
-        else
-          {today.year, today.month - 1}
-        end
+        {last_month_year, last_month_month} =
+          if today.month == 1 do
+            {today.year - 1, 12}
+          else
+            {today.year, today.month - 1}
+          end
 
         last_month_start = Date.new!(last_month_year, last_month_month, 1)
 
@@ -1140,12 +1331,13 @@ defmodule SelectoComponents.Helpers.Filters do
         last_month_day = min(today.day, days_in_last_month)
         same_day_last_month = Date.new!(last_month_year, last_month_month, last_month_day)
 
-        {:or, [
-          {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
-                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
-          {:between, NaiveDateTime.new!(last_month_start, ~T[00:00:00]),
-                     NaiveDateTime.new!(Date.add(same_day_last_month, 1), ~T[00:00:00])}
-        ]}
+        {:or,
+         [
+           {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+            NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+           {:between, NaiveDateTime.new!(last_month_start, ~T[00:00:00]),
+            NaiveDateTime.new!(Date.add(same_day_last_month, 1), ~T[00:00:00])}
+         ]}
 
       "mtd_vs_last_year" ->
         # This month MTD and same month last year MTD
@@ -1156,37 +1348,45 @@ defmodule SelectoComponents.Helpers.Filters do
         last_year_month_start = Date.new!(today.year - 1, today.month, 1)
 
         # Handle leap year edge case
-        same_day_last_year = try do
-          Date.new!(today.year - 1, today.month, today.day)
-        rescue
-          _ -> Date.new!(today.year - 1, today.month, today.day - 1)
-        end
+        same_day_last_year =
+          try do
+            Date.new!(today.year - 1, today.month, today.day)
+          rescue
+            _ -> Date.new!(today.year - 1, today.month, today.day - 1)
+          end
 
-        {:or, [
-          {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
-                     NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
-          {:between, NaiveDateTime.new!(last_year_month_start, ~T[00:00:00]),
-                     NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
-        ]}
+        {:or,
+         [
+           {:between, NaiveDateTime.new!(start_of_month, ~T[00:00:00]),
+            NaiveDateTime.new!(tomorrow, ~T[00:00:00])},
+           {:between, NaiveDateTime.new!(last_year_month_start, ~T[00:00:00]),
+            NaiveDateTime.new!(Date.add(same_day_last_year, 1), ~T[00:00:00])}
+         ]}
 
       shortcut when shortcut in ~w(last_7_days last_30_days last_60_days last_90_days) ->
-        num_days = shortcut
+        num_days =
+          shortcut
           |> String.replace("last_", "")
           |> String.replace("_days", "")
           |> String.to_integer()
+
         # "Last 7 days" means from 6 days ago through today (inclusive), which is 7 days total
         start_date = Date.add(today, -(num_days - 1))
+
         {:between, NaiveDateTime.new!(start_date, ~T[00:00:00]),
-                  NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
+         NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])}
 
       shortcut when shortcut in ~w(next_7_days next_30_days) ->
-        num_days = shortcut
+        num_days =
+          shortcut
           |> String.replace("next_", "")
           |> String.replace("_days", "")
           |> String.to_integer()
+
         end_date = Date.add(today, num_days + 1)
+
         {:between, NaiveDateTime.new!(today, ~T[00:00:00]),
-                  NaiveDateTime.new!(end_date, ~T[00:00:00])}
+         NaiveDateTime.new!(end_date, ~T[00:00:00])}
 
       _ ->
         # Default to today if shortcut doesn't match
@@ -1226,11 +1426,15 @@ defmodule SelectoComponents.Helpers.Filters do
       end
 
     case DateTime.from_iso8601(datetime_str) do
-      {:ok, datetime, _} -> datetime
+      {:ok, datetime, _} ->
+        datetime
+
       _ ->
         # Fallback to NaiveDateTime if DateTime parsing fails
         case NaiveDateTime.from_iso8601(datetime_str) do
-          {:ok, datetime} -> datetime
+          {:ok, datetime} ->
+            datetime
+
           _ ->
             # Last resort - try to parse as date only
             case Date.from_iso8601(datetime_str) do

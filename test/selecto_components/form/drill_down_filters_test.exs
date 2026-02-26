@@ -146,6 +146,36 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v1 == "11"
     end
 
+    test "handles text-prefix bucket labels" do
+      field_conf = %{type: :string}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "OF",
+          field_conf,
+          %{format: "text_prefix", prefix_length: 2, exclude_articles: true}
+        )
+
+      assert comp == "STARTS"
+      assert v1 == "of"
+      assert v2 == ""
+    end
+
+    test "handles text-prefix Other bucket" do
+      field_conf = %{type: :string}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "Other",
+          field_conf,
+          %{format: "text_prefix", prefix_length: 2, exclude_articles: true}
+        )
+
+      assert comp == "TEXT_PREFIX_OTHER"
+      assert v1 == ""
+      assert v2 == ""
+    end
+
     test "handles age buckets on date fields" do
       field_conf = %{type: :date}
 
@@ -325,6 +355,36 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
       assert view_params["view_mode"] == "detail"
       assert is_map(view_params["filters"])
+    end
+
+    test "text prefix drill-down enables case-insensitive starts filter when excluding articles" do
+      socket =
+        %{assigns: %{selecto: selecto(), used_params: %{}}}
+        |> put_in(
+          [:assigns, :used_params, "group_by"],
+          %{
+            "g1" => %{
+              "field" => "title",
+              "index" => "0",
+              "format" => "text_prefix",
+              "prefix_length" => "2",
+              "exclude_articles" => "true"
+            }
+          }
+        )
+
+      params = %{
+        "field0" => "title",
+        "value0" => "OF"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+      [filter] = Map.values(view_params["filters"])
+
+      assert filter["comp"] == "STARTS"
+      assert filter["value"] == "of"
+      assert filter["exclude_articles"] == "true"
+      assert filter["ignore_case"] == "true"
     end
   end
 end

@@ -1,4 +1,5 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
+  alias SelectoComponents.Helpers.BucketParser
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Views.Aggregate.Options
 
@@ -155,8 +156,6 @@ defmodule SelectoComponents.Views.Aggregate.Process do
                     "selecto_root.#{col.colid}"
                   end
 
-                alias SelectoComponents.Helpers.BucketParser
-
                 case_sql =
                   BucketParser.generate_bucket_case_sql(
                     field_with_alias,
@@ -176,37 +175,29 @@ defmodule SelectoComponents.Views.Aggregate.Process do
                 nil -> {col.colid, alias}
               end
 
-            _ ->
-              # Check for join mode (lookup, star, tag) to select both display and ID
-              case Map.get(col, :join_mode) do
-                mode when mode in [:lookup, :star, :tag] ->
-                  # Special join modes: select both display field and ID field as a row
-                  id_field = Map.get(col, :id_field)
-                  display_field = col.colid
+            x when x in [:string, :text, :citext] ->
+              format = Map.get(e, "format")
 
-                  if id_field do
-                    # Extract table prefix from display field (e.g., "category.category_name" -> "category")
-                    {table_prefix, _field_name} = extract_table_and_field(display_field)
+              if format == "text_prefix" do
+                prefix_length = Map.get(e, "prefix_length", "2")
+                exclude_articles = Map.get(e, "exclude_articles", "true")
 
-                    # Build ID field reference
-                    id_colid =
-                      if table_prefix do
-                        "#{table_prefix}.#{id_field}"
-                      else
-                        id_field
-                      end
+                case_sql =
+                  BucketParser.generate_text_prefix_case_sql(
+                    col.colid,
+                    %{
+                      "prefix_length" => prefix_length,
+                      "exclude_articles" => exclude_articles
+                    }
+                  )
 
-                    # Return ROW(display_field, id_field) to get both values
-                    {:row, [display_field, id_colid], alias}
-                  else
-                    # Fallback if no id_field specified
-                    {:field, col.colid, alias}
-                  end
-
-                _ ->
-                  # Normal columns: just select the field
-                  {:field, col.colid, alias}
+                {:field, {:raw_sql, case_sql}, alias}
+              else
+                default_group_selector(col, alias)
               end
+
+            _ ->
+              default_group_selector(col, alias)
           end
         end
 
@@ -224,6 +215,38 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     case String.split(colid_str, ".", parts: 2) do
       [table, field] -> {table, field}
       [field] -> {nil, field}
+    end
+  end
+
+  defp default_group_selector(col, alias) do
+    case Map.get(col, :join_mode) do
+      mode when mode in [:lookup, :star, :tag] ->
+        # Special join modes: select both display field and ID field as a row
+        id_field = Map.get(col, :id_field)
+        display_field = col.colid
+
+        if id_field do
+          # Extract table prefix from display field (e.g., "category.category_name" -> "category")
+          {table_prefix, _field_name} = extract_table_and_field(display_field)
+
+          # Build ID field reference
+          id_colid =
+            if table_prefix do
+              "#{table_prefix}.#{id_field}"
+            else
+              id_field
+            end
+
+          # Return ROW(display_field, id_field) to get both values
+          {:row, [display_field, id_colid], alias}
+        else
+          # Fallback if no id_field specified
+          {:field, col.colid, alias}
+        end
+
+      _ ->
+        # Normal columns: just select the field
+        {:field, col.colid, alias}
     end
   end
 

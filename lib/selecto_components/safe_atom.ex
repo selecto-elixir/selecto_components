@@ -24,7 +24,7 @@ defmodule SelectoComponents.SafeAtom do
   ## Functions
 
   Each function validates against a specific whitelist:
-  - `to_view_mode/2` - :detail, :aggregate, :graph, :chart, :table
+  - `to_view_mode/2` - :detail, :aggregate, :graph, :chart, :table, :map
   - `to_theme/2` - :light, :dark, :high_contrast, :system, :auto
   - `to_sort_direction/2` - :asc, :desc
   - `to_form_mode/2` - :collapsed, :inline, :modal, :expanded
@@ -37,7 +37,7 @@ defmodule SelectoComponents.SafeAtom do
   """
 
   # Whitelists for known valid values
-  @valid_view_modes ~w(detail aggregate graph chart table)a
+  @valid_view_modes ~w(detail aggregate graph chart table map)a
   @valid_themes ~w(light dark high_contrast system auto)a
   @valid_sort_directions ~w(asc desc)a
   @valid_form_modes ~w(collapsed inline modal expanded)a
@@ -123,7 +123,10 @@ defmodule SelectoComponents.SafeAtom do
   @spec to_sort_direction(String.t() | atom() | nil, atom()) :: atom()
   def to_sort_direction(value, default \\ :asc)
   def to_sort_direction(nil, default), do: default
-  def to_sort_direction(value, _default) when is_atom(value) and value in @valid_sort_directions, do: value
+
+  def to_sort_direction(value, _default) when is_atom(value) and value in @valid_sort_directions,
+    do: value
+
   def to_sort_direction(value, default) when is_atom(value), do: default
 
   def to_sort_direction(value, default) when is_binary(value) do
@@ -165,7 +168,10 @@ defmodule SelectoComponents.SafeAtom do
   @spec to_widget_type(String.t() | atom() | nil, atom()) :: atom()
   def to_widget_type(value, default \\ :table)
   def to_widget_type(nil, default), do: default
-  def to_widget_type(value, _default) when is_atom(value) and value in @valid_widget_types, do: value
+
+  def to_widget_type(value, _default) when is_atom(value) and value in @valid_widget_types,
+    do: value
+
   def to_widget_type(value, default) when is_atom(value), do: default
 
   def to_widget_type(value, default) when is_binary(value) do
@@ -187,7 +193,10 @@ defmodule SelectoComponents.SafeAtom do
   def to_aggregate_function(value, default \\ :count)
   def to_aggregate_function(nil, default), do: default
   def to_aggregate_function("", default), do: default
-  def to_aggregate_function(value, _default) when is_atom(value) and value in @valid_aggregate_functions, do: value
+
+  def to_aggregate_function(value, _default)
+      when is_atom(value) and value in @valid_aggregate_functions, do: value
+
   def to_aggregate_function(value, default) when is_atom(value), do: default
 
   def to_aggregate_function(value, default) when is_binary(value) do

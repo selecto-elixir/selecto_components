@@ -2,6 +2,41 @@
 CHANGES
 =======
 
+V 0.3.6
+-------
+
+- Added string aggregate/group-by bucketing format `text_prefix` with configurable
+  prefix length (default 2) and optional leading-article removal (`a`, `an`,
+  `the`) for grouping labels.
+- Added aggregate drill-down handling for text-prefix buckets, including proper
+  `Other` bucket behavior and filter metadata propagation.
+- Added a new standard text filter operator, `Begins With` (`STARTS`), with an
+  optional UI toggle to ignore leading articles during matching.
+- Updated filter execution to support article-aware starts-with matching via
+  normalized SQL expressions while preserving existing parameterized behavior.
+- Added test coverage for text-prefix SQL generation, aggregate processing,
+  drill-down conversion, and begins-with filter execution paths.
+- Bump package version to `0.3.6`.
+
+V 0.3.5
+-------
+
+- Added extension-aware view registration through
+  `SelectoComponents.Extensions.merge_views/2`, wired into form initial state
+  setup so extension-provided views are available without manual view list edits.
+- Added a built-in map view system (`Views.Map`) with form/process/component
+  modules, including Leaflet + OpenStreetMap rendering via colocated hooks.
+- Added map-view processing support for spatial projections
+  (`ST_AsGeoJSON` selector generation), popup/color field options, and
+  extension/domain map defaults.
+- Decoupled map spatial type checks from direct PostGIS module calls by using
+  `Selecto.TypeSystem` spatial category detection.
+- Added extension/map test coverage for view merge behavior and map
+  process/component rendering helpers.
+- Added `map` as a valid saved-view label/type surface in supporting modules.
+- Bump package version to `0.3.5`.
+- Update Selecto dependency expectation to `>= 0.3.3 and < 0.4.0`.
+
 V 0.3.4
 -------
 
