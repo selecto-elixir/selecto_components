@@ -156,7 +156,7 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
           %{format: "text_prefix", prefix_length: 2, exclude_articles: true}
         )
 
-      assert comp == "TEXT_PREFIX"
+      assert comp == "STARTS"
       assert v1 == "of"
       assert v2 == ""
     end

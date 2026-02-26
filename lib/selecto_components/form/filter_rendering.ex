@@ -449,6 +449,20 @@ defmodule SelectoComponents.Form.FilterRendering do
           />
       <% end %>
 
+      <%= if @current_comp == "STARTS" do %>
+        <div class="col-span-3 flex items-center gap-2 text-sm text-gray-700">
+          <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            name={"filters[#{@uuid}][exclude_articles]"}
+            value="true"
+            checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
+          />
+          Ignore leading articles (a, an, the)
+        </div>
+      <% end %>
+
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
@@ -494,6 +508,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           [
             {"=", "Equals"},
             {"!=", "Not Equals"},
+            {"STARTS", "Begins With"},
             {"LIKE", "Contains"},
             {"NOT LIKE", "Does Not Contain"},
             {"IS NULL", "Is Empty"},

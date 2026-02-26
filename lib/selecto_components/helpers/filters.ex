@@ -196,8 +196,21 @@ defmodule SelectoComponents.Helpers.Filters do
         {filpart, {:not_in, values}}
 
       "STARTS" ->
-        value = transform.(get_string_value(filter))
-        {filpart, {:like, sanitize_like_value(value) <> "%"}}
+        value = get_string_value(filter)
+
+        if BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), false) do
+          normalized_expr =
+            BucketParser.normalized_text_sql(
+              filter_field,
+              %{"exclude_articles" => true}
+            )
+
+          normalized_value = value |> String.downcase() |> String.trim()
+          {{:raw_sql, normalized_expr}, {:like, sanitize_like_value(normalized_value) <> "%"}}
+        else
+          value = transform.(value)
+          {filpart, {:like, sanitize_like_value(value) <> "%"}}
+        end
 
       "ENDS" ->
         value = transform.(get_string_value(filter))

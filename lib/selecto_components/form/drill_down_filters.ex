@@ -337,7 +337,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
           |> String.downcase()
           |> String.slice(0, context.prefix_length)
 
-        {"TEXT_PREFIX", prefix, ""}
+        {"STARTS", prefix, ""}
     end
   end
 
@@ -410,7 +410,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp maybe_put_text_prefix_options(filter_config, context, comp_mode)
 
   defp maybe_put_text_prefix_options(filter_config, context, comp_mode)
-       when comp_mode in ["TEXT_PREFIX", "TEXT_PREFIX_OTHER"] do
+       when comp_mode in ["STARTS", "TEXT_PREFIX_OTHER"] do
     filter_config
     |> Map.put("bucket_format", "text_prefix")
     |> Map.put("prefix_length", Integer.to_string(context.prefix_length))

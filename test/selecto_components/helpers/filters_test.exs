@@ -67,5 +67,26 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert {:raw_sql_filter, sql_filter} = filter
       assert IO.iodata_to_binary(sql_filter) =~ " = ''"
     end
+
+    test "supports STARTS with article stripping" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "title",
+            "comp" => "STARTS",
+            "value" => "of",
+            "exclude_articles" => "true"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(selecto(), filters, "filters")
+
+      assert {{:raw_sql, sql_expr}, {:like, "of%"}} = filter
+      assert sql_expr =~ "REGEXP_REPLACE"
+      assert sql_expr =~ "selecto_root.title"
+    end
   end
 end
