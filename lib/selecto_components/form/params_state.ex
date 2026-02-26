@@ -21,6 +21,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
   @detail_initial_cached_pages 3
   @detail_chunk_pages 2
+  @detail_max_rows_options ~w(100 1000 10000 all)
 
   @doc """
   Convert view_config structure to URL parameters format.
@@ -88,6 +89,11 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.put(acc, "aggregate_per_page", normalize_per_page_param(value, "100"))
   end
 
+  defp merge_scalar_view_param(acc, :detail, key, value)
+       when key in [:max_rows, "max_rows"] do
+    Map.put(acc, "max_rows", normalize_detail_max_rows_param(value))
+  end
+
   defp merge_scalar_view_param(acc, _selected_view, key, value)
        when key in [:per_page, "per_page"] do
     Map.put(acc, "per_page", normalize_per_page_param(value, "30"))
@@ -111,6 +117,37 @@ defmodule SelectoComponents.Form.ParamsState do
   defp normalize_per_page_param(value, _default) when is_atom(value), do: Atom.to_string(value)
 
   defp normalize_per_page_param(_value, default), do: default
+
+  defp normalize_detail_max_rows_param(value) when is_binary(value) do
+    normalized = String.downcase(String.trim(value))
+
+    if normalized in @detail_max_rows_options do
+      normalized
+    else
+      "1000"
+    end
+  end
+
+  defp normalize_detail_max_rows_param(value) when is_integer(value),
+    do: normalize_detail_max_rows_param(to_string(value))
+
+  defp normalize_detail_max_rows_param(value) when is_atom(value),
+    do: normalize_detail_max_rows_param(Atom.to_string(value))
+
+  defp normalize_detail_max_rows_param(_value), do: "1000"
+
+  defp normalize_detail_max_rows_limit(value) do
+    case normalize_detail_max_rows_param(value) do
+      "all" ->
+        nil
+
+      normalized ->
+        case Integer.parse(normalized) do
+          {limit, ""} when limit > 0 -> limit
+          _ -> 1000
+        end
+    end
+  end
 
   @doc """
   Convert filters back to params format.
@@ -688,16 +725,18 @@ defmodule SelectoComponents.Form.ParamsState do
   defp execute_detail_query_with_cache(selecto, params, view_meta, socket) do
     per_page = max(Map.get(view_meta, :per_page, 30), 1)
     requested_page = max(Map.get(view_meta, :page, 0), 0)
+    max_rows_limit = normalize_detail_max_rows_limit(Map.get(view_meta, :max_rows, "1000"))
     cache_key = detail_cache_signature(params, socket.assigns[:sort_by])
 
     cache =
       socket.assigns[:detail_page_cache]
-      |> init_or_reset_detail_cache(cache_key, per_page)
+      |> init_or_reset_detail_cache(cache_key, per_page, max_rows_limit)
 
-    with {:ok, {cache, count_metadata}} <- maybe_fetch_detail_total_rows(cache, selecto),
+    with {:ok, {cache, count_metadata}} <-
+           maybe_fetch_detail_total_rows(cache, selecto, max_rows_limit),
          safe_page <- clamp_detail_page(requested_page, cache.total_rows, per_page),
          {:ok, {cache, data_metadata}} <-
-           maybe_fetch_detail_pages(cache, selecto, safe_page, per_page) do
+           maybe_fetch_detail_pages(cache, selecto, safe_page, per_page, max_rows_limit) do
       rows = Map.get(cache.pages, safe_page, [])
       columns = cache.columns || []
       aliases = cache.aliases || []
@@ -709,6 +748,7 @@ defmodule SelectoComponents.Form.ParamsState do
         |> Map.put(:page, safe_page)
         |> Map.put(:per_page, per_page)
         |> Map.put(:total_rows, cache.total_rows)
+        |> Map.put(:max_rows_limit, max_rows_limit)
 
       {{:ok, {rows, columns, aliases}, metadata}, updated_view_meta, cache}
     else
@@ -718,17 +758,19 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp init_or_reset_detail_cache(
-         %{signature: signature, per_page: per_page} = cache,
+         %{signature: signature, per_page: per_page, max_rows_limit: max_rows_limit} = cache,
          signature,
-         per_page
+         per_page,
+         max_rows_limit
        ) do
     cache
   end
 
-  defp init_or_reset_detail_cache(_, signature, per_page) do
+  defp init_or_reset_detail_cache(_, signature, per_page, max_rows_limit) do
     %{
       signature: signature,
       per_page: per_page,
+      max_rows_limit: max_rows_limit,
       total_rows: nil,
       columns: nil,
       aliases: nil,
@@ -743,22 +785,31 @@ defmodule SelectoComponents.Form.ParamsState do
     }
   end
 
-  defp maybe_fetch_detail_total_rows(%{total_rows: total_rows} = cache, _selecto)
+  defp maybe_fetch_detail_total_rows(
+         %{total_rows: total_rows, max_rows_limit: max_rows_limit} = cache,
+         _selecto,
+         max_rows_limit
+       )
        when is_integer(total_rows) do
     {:ok, {cache, nil}}
   end
 
-  defp maybe_fetch_detail_total_rows(cache, selecto) do
-    case execute_detail_count_query(selecto) do
+  defp maybe_fetch_detail_total_rows(cache, selecto, max_rows_limit) do
+    case execute_detail_count_query(selecto, max_rows_limit) do
       {:ok, total_rows, metadata} ->
-        {:ok, {Map.put(cache, :total_rows, total_rows), metadata}}
+        updated_cache =
+          cache
+          |> Map.put(:total_rows, total_rows)
+          |> Map.put(:max_rows_limit, max_rows_limit)
+
+        {:ok, {updated_cache, metadata}}
 
       {:error, error} ->
         {:error, error}
     end
   end
 
-  defp execute_detail_count_query(selecto) do
+  defp execute_detail_count_query(selecto, max_rows_limit) do
     selecto_without_paging =
       update_in(selecto.set, fn set ->
         set
@@ -768,7 +819,13 @@ defmodule SelectoComponents.Form.ParamsState do
       end)
 
     {base_sql, base_params} = Selecto.to_sql(selecto_without_paging)
-    count_sql = "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
+
+    count_sql =
+      if is_integer(max_rows_limit) and max_rows_limit > 0 do
+        "SELECT count(*) AS total_rows FROM (#{base_sql} LIMIT #{max_rows_limit}) AS selecto_detail_count"
+      else
+        "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
+      end
 
     started_at = System.monotonic_time(:millisecond)
 
@@ -790,7 +847,7 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
-  defp maybe_fetch_detail_pages(cache, selecto, requested_page, per_page) do
+  defp maybe_fetch_detail_pages(cache, selecto, requested_page, per_page, max_rows_limit) do
     max_page = max_page(cache.total_rows, per_page)
     {window_start_page, window_end_page} = detail_page_window(requested_page, max_page)
 
@@ -805,44 +862,66 @@ defmodule SelectoComponents.Form.ParamsState do
     else
       window_page_count = window_end_page - window_start_page + 1
       row_offset = window_start_page * per_page
-      row_limit = max(window_page_count * per_page, per_page)
 
-      paged_selecto =
-        selecto
-        |> Selecto.limit(row_limit)
-        |> Selecto.offset(row_offset)
+      row_limit =
+        max(window_page_count * per_page, per_page)
+        |> apply_max_rows_limit(row_offset, max_rows_limit)
 
-      case execute_query_with_metadata(paged_selecto) do
-        {:ok, {rows, columns, aliases}, metadata} ->
-          normalized_rows = normalize_rows_for_view(rows, columns, "detail")
+      if row_limit <= 0 do
+        updated_cache =
+          pages_in_window
+          |> Enum.reduce(cache.pages, fn page_number, acc -> Map.put_new(acc, page_number, []) end)
+          |> then(&Map.put(cache, :pages, &1))
 
-          chunked_pages =
-            normalized_rows
-            |> Enum.chunk_every(per_page)
-            |> Enum.with_index(window_start_page)
-            |> Enum.into(%{}, fn {chunk, page_number} ->
-              {page_number, chunk}
-            end)
+        {:ok, {updated_cache, nil}}
+      else
+        paged_selecto =
+          selecto
+          |> Selecto.limit(row_limit)
+          |> Selecto.offset(row_offset)
 
-          merged_pages =
-            pages_in_window
-            |> Enum.reduce(Map.merge(cache.pages, chunked_pages), fn page_number, acc ->
-              Map.put_new(acc, page_number, [])
-            end)
+        case execute_query_with_metadata(paged_selecto) do
+          {:ok, {rows, columns, aliases}, metadata} ->
+            normalized_rows = normalize_rows_for_view(rows, columns, "detail")
 
-          updated_cache =
-            cache
-            |> Map.put(:pages, merged_pages)
-            |> Map.put(:columns, columns)
-            |> Map.put(:aliases, aliases)
+            chunked_pages =
+              normalized_rows
+              |> Enum.chunk_every(per_page)
+              |> Enum.with_index(window_start_page)
+              |> Enum.into(%{}, fn {chunk, page_number} ->
+                {page_number, chunk}
+              end)
 
-          {:ok, {updated_cache, metadata}}
+            merged_pages =
+              pages_in_window
+              |> Enum.reduce(Map.merge(cache.pages, chunked_pages), fn page_number, acc ->
+                Map.put_new(acc, page_number, [])
+              end)
 
-        {:error, error} ->
-          {:error, error}
+            updated_cache =
+              cache
+              |> Map.put(:pages, merged_pages)
+              |> Map.put(:columns, columns)
+              |> Map.put(:aliases, aliases)
+
+            {:ok, {updated_cache, metadata}}
+
+          {:error, error} ->
+            {:error, error}
+        end
       end
     end
   end
+
+  defp apply_max_rows_limit(row_limit, _row_offset, nil), do: row_limit
+
+  defp apply_max_rows_limit(row_limit, row_offset, max_rows_limit)
+       when is_integer(max_rows_limit) and max_rows_limit > 0 do
+    remaining_rows = max(max_rows_limit - row_offset, 0)
+    min(row_limit, remaining_rows)
+  end
+
+  defp apply_max_rows_limit(row_limit, _row_offset, _max_rows_limit), do: row_limit
 
   defp detail_page_window(requested_page, max_page) do
     {window_start, window_end} =
@@ -1071,6 +1150,17 @@ defmodule SelectoComponents.Form.ParamsState do
         )
       else
         Map.put(params, "per_page", to_string(get_map_value(view_config, :per_page, "30")))
+      end
+
+    params =
+      if view_type_str == "detail" do
+        Map.put(
+          params,
+          "max_rows",
+          normalize_detail_max_rows_param(get_map_value(view_config, :max_rows, "1000"))
+        )
+      else
+        params
       end
 
     Map.put(

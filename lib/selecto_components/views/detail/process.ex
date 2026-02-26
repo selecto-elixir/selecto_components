@@ -1,12 +1,17 @@
 defmodule SelectoComponents.Views.Detail.Process do
+  @detail_max_rows_options ~w(100 1000 10000 all)
+  @default_detail_max_rows "1000"
+
   def param_to_state(params, _v) do
     ## state is used to draw the form
     %{
       selected: SelectoComponents.Views.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Views.view_param_process(params, "order_by", "field"),
-      per_page: params["per_page"],
-      prevent_denormalization: params["prevent_denormalization"] in ["on", "true"] ||
-                              (params["prevent_denormalization"] == nil && params["selected"] == nil)
+      per_page: normalize_per_page_param(Map.get(params, "per_page")),
+      max_rows: normalize_max_rows_param(Map.get(params, "max_rows")),
+      prevent_denormalization:
+        params["prevent_denormalization"] in ["on", "true"] ||
+          (params["prevent_denormalization"] == nil && params["selected"] == nil)
     }
   end
 
@@ -19,12 +24,16 @@ defmodule SelectoComponents.Views.Detail.Process do
         Map.get(Selecto.domain(selecto), :default_selected, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: "30",
+      max_rows: @default_detail_max_rows,
       prevent_denormalization: true
     }
   end
 
   ### Process incoming params to build Selecto.set for view
   def view(_opt, params, columns, filtered, selecto) do
+    per_page = parse_positive_integer(Map.get(params, "per_page"), 30)
+    max_rows = normalize_max_rows_param(Map.get(params, "max_rows"))
+
     detail_columns =
       Map.get(params, "selected", %{})
       |> Map.values()
@@ -33,44 +42,54 @@ defmodule SelectoComponents.Views.Detail.Process do
       end)
 
     # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
-    prevent_denorm = params["prevent_denormalization"] in ["on", "true"] ||
-                    (params["prevent_denormalization"] == nil && params["selected"] == nil)
+    prevent_denorm =
+      params["prevent_denormalization"] in ["on", "true"] ||
+        (params["prevent_denormalization"] == nil && params["selected"] == nil)
 
     # Process columns for denormalization if enabled
-    {selected_columns, subselect_configs, denorm_groups} = if prevent_denorm do
-      column_names = Enum.map(detail_columns, & &1["field"])
+    {selected_columns, subselect_configs, denorm_groups} =
+      if prevent_denorm do
+        column_names = Enum.map(detail_columns, & &1["field"])
 
-      {normal_cols, denorm_groups} = SelectoComponents.DenormalizationDetector.detect_and_group_columns(
-        selecto,
-        column_names
-      )
+        {normal_cols, denorm_groups} =
+          SelectoComponents.DenormalizationDetector.detect_and_group_columns(
+            selecto,
+            column_names
+          )
 
-      if normal_cols == [] and detail_columns != [] do
-        # If every selected column denormalizes, keep the original selection
-        # so we don't build an empty SELECT list.
-        {detail_columns, [], %{}}
+        if normal_cols == [] and detail_columns != [] do
+          # If every selected column denormalizes, keep the original selection
+          # so we don't build an empty SELECT list.
+          {detail_columns, [], %{}}
+        else
+          # Filter detail_columns to only include normal columns
+          normal_detail_columns =
+            Enum.filter(detail_columns, fn col ->
+              col["field"] in normal_cols
+            end)
+
+          # Generate subselect configurations for UI display
+          subselect_configs =
+            Enum.map(denorm_groups, fn {path, cols} ->
+              config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
+              # Add the actual columns to the config for later use
+              config =
+                Map.put(
+                  config,
+                  :columns,
+                  Enum.map(cols, fn col ->
+                    {UUID.uuid4(), col, %{}}
+                  end)
+                )
+
+              config
+            end)
+
+          {normal_detail_columns, subselect_configs, denorm_groups}
+        end
       else
-        # Filter detail_columns to only include normal columns
-        normal_detail_columns = Enum.filter(detail_columns, fn col ->
-          col["field"] in normal_cols
-        end)
-
-        # Generate subselect configurations for UI display
-        subselect_configs = Enum.map(denorm_groups, fn {path, cols} ->
-          config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
-          # Add the actual columns to the config for later use
-          config = Map.put(config, :columns, Enum.map(cols, fn col ->
-            {UUID.uuid4(), col, %{}}
-          end))
-
-          config
-        end)
-
-        {normal_detail_columns, subselect_configs, denorm_groups}
+        {detail_columns, [], %{}}
       end
-    else
-      {detail_columns, [], %{}}
-    end
 
     ### Selecto Set for Detail View, view_meta for view data
     {%{
@@ -83,15 +102,53 @@ defmodule SelectoComponents.Views.Detail.Process do
        group_by: [],
        groups: [],
        subselects: subselect_configs,
-       denorm_groups: denorm_groups,  # Store the groups for building actual subselects
+       # Store the groups for building actual subselects
+       denorm_groups: denorm_groups,
        denormalizing_columns: if(prevent_denorm, do: detail_columns -- selected_columns, else: [])
-     }, %{
+     },
+     %{
        page: String.to_integer(Map.get(params, "detail_page", "0")),
-       per_page: String.to_integer(params["per_page"]),
+       per_page: per_page,
+       max_rows: max_rows,
        prevent_denormalization: prevent_denorm,
        subselect_configs: subselect_configs
      }}
   end
+
+  defp normalize_per_page_param(value) do
+    value
+    |> parse_positive_integer(30)
+    |> to_string()
+  end
+
+  defp normalize_max_rows_param(value) when is_binary(value) do
+    normalized = String.downcase(String.trim(value))
+
+    if normalized in @detail_max_rows_options do
+      normalized
+    else
+      @default_detail_max_rows
+    end
+  end
+
+  defp normalize_max_rows_param(value) when is_integer(value),
+    do: normalize_max_rows_param(to_string(value))
+
+  defp normalize_max_rows_param(value) when is_atom(value),
+    do: normalize_max_rows_param(Atom.to_string(value))
+
+  defp normalize_max_rows_param(_), do: @default_detail_max_rows
+
+  defp parse_positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_integer(value, default) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed > 0 -> parsed
+      _ -> default
+    end
+  end
+
+  defp parse_positive_integer(_value, default), do: default
 
   defp order_by(order_by, _columns) do
     order_by

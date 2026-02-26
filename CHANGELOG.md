@@ -28,6 +28,9 @@ V 0.3.3
   cache memory usage in the debug panel.
 - Fixed aggregate next/prev paging interactions so page changes apply correctly
   from component events even when max-page metadata is computed at render time.
+- Added detail view `max_rows` control (default `1000`, options: `100`,
+  `1000`, `10000`, `all`) and enforced max-row limits in detail query/count
+  pagination flow.
 
 V 0.3.2
 -------
