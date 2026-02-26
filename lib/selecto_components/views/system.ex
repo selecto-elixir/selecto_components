@@ -9,6 +9,10 @@ defmodule SelectoComponents.Views.System do
   Any module used in that position can implement this behavior directly, or
   `use SelectoComponents.Views.System` to wire callbacks to separate modules.
 
+  Additional view-local modules (for example drill-down handlers, option
+  normalizers, pagination/query helpers) are optional implementation details
+  and are not part of this behavior contract.
+
   This enables external packages (for example `selecto_components_workflow`)
   to integrate without relying on naming conventions like `\#{module}.Process`.
   """

@@ -29,6 +29,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.Form.ParamsState
+      alias SelectoComponents.Views.Detail.Pagination, as: DetailPagination
       import SelectoComponents.Form.ErrorHandling
 
       @doc """
@@ -165,18 +166,10 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_info({:update_detail_page, page}, socket) do
-        safe_page = clamp_detail_page_for_socket(page, socket)
-        socket = assign(socket, :current_detail_page, safe_page)
-
-        params =
-          socket.assigns[:used_params] ||
-            ParamsState.view_config_to_params(socket.assigns.view_config)
-
-        params = Map.put(params, "detail_page", to_string(safe_page))
-
-        # Execute query first, THEN update URL to prevent race condition
-        socket = ParamsState.view_from_params(params, socket)
-        {:noreply, ParamsState.state_to_url(params, socket)}
+        with_error_handling(socket, "update_detail_page", fn ->
+          {:ok, updated_socket, params} = DetailPagination.apply_page(socket, page)
+          {:noreply, ParamsState.state_to_url(params, updated_socket)}
+        end)
       end
 
       @doc """
@@ -252,39 +245,6 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         # Don't auto-execute, wait for user to click Apply
         {:noreply, socket}
       end
-
-      # Helper function to execute view from current state.
-      #
-      # Converts current view_config to parameters and executes the query.
-      #
-      # ## Parameters
-      # - socket: LiveView socket
-      #
-      # ## Returns
-      # Socket with executed query results
-      defp execute_view_from_current_state(socket) do
-        params = ParamsState.view_config_to_params(socket.assigns.view_config)
-        ParamsState.view_from_params(params, socket)
-      end
-
-      defp clamp_detail_page_for_socket(page, socket) when is_integer(page) do
-        requested_page = max(page, 0)
-        view_meta = socket.assigns[:view_meta] || %{}
-
-        per_page = max(Map.get(view_meta, :per_page, 30), 1)
-        total_rows = max(Map.get(view_meta, :total_rows, 0), 0)
-
-        max_page =
-          if total_rows > 0 do
-            div(total_rows - 1, per_page)
-          else
-            0
-          end
-
-        min(requested_page, max_page)
-      end
-
-      defp clamp_detail_page_for_socket(_page, _socket), do: 0
     end
   end
 end

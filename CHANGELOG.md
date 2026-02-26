@@ -2,6 +2,36 @@
 CHANGES
 =======
 
+V 0.3.4
+-------
+
+- Refactored detail-view query pagination/count/cache behavior into
+  `SelectoComponents.Views.Detail.QueryPagination` to reduce view-specific
+  logic in form state plumbing.
+- Added view-scoped options helpers (`Views.Detail.Options`,
+  `Views.Aggregate.Options`) and routed detail/aggregate option normalization
+  through those modules.
+- Simplified `SelectoComponents.Form.ParamsState` by delegating view-specific
+  mode checks and option handling to the corresponding view modules.
+- Delegated remaining view-specific form event behavior to view modules:
+  detail page updates now route through `Views.Detail.Pagination`, and
+  aggregate drill-down filter application routes through
+  `Views.Aggregate.DrillDown`.
+- Moved graph chart drill-down filter application/mode switching into
+  `Views.Graph.DrillDown`, leaving form event handlers as dispatch/orchestration
+  wrappers.
+- Fixed aggregate-to-detail drill-down transitions by normalizing drill-down
+  target view mode handling and hardening drill-down param building when
+  `used_params` is missing.
+- Fixed delegated view handlers to call `ParamsState.view_from_params/2` with
+  correct argument ordering (restores aggregate drill-down transitions and
+  detail/graph delegated view updates).
+- Refreshed formal view-interface docs to clarify that 0.3.4 helper-module
+  compartmentalization is additive and does not change
+  `SelectoComponents.Views.System` callbacks.
+- Implemented export-tab downloads for JSON/CSV from current query results,
+  including browser download hook wiring and export payload formatting helpers.
+
 V 0.3.3
 -------
 

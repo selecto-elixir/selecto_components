@@ -311,4 +311,20 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert true, "SQL injection prevention documented"
     end
   end
+
+  describe "build_agg_drill_down_params/2 robustness" do
+    test "handles missing used_params assign" do
+      socket = %{assigns: %{selecto: selecto()}}
+
+      params = %{
+        "field0" => "category",
+        "value0" => "Action"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+
+      assert view_params["view_mode"] == "detail"
+      assert is_map(view_params["filters"])
+    end
+  end
 end

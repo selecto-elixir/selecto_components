@@ -28,7 +28,11 @@ defmodule SelectoComponents.Form do
       )
 
     ~H"""
-    <div class="border-solid border border-2 rounded-md border-gray-300 p-1 bg-base-100 text-base-content">
+    <div
+      id={"selecto-form-#{@id}"}
+      phx-hook=".ExportDownloads"
+      class="border-solid border border-2 rounded-md border-gray-300 p-1 bg-base-100 text-base-content"
+    >
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
         <!-- Comprehensive Error Display Component -->
         <.live_component
@@ -245,14 +249,21 @@ defmodule SelectoComponents.Form do
           <h3 class="text-base-content font-medium mb-2">Export Options</h3>
           <div class="space-y-4">
             <p class="text-sm text-gray-600 dark:text-gray-400">
-              Export your data in various formats. Features coming soon:
+              Export current query results now:
             </p>
-            <ul class="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <li>Export formats: Spreadsheet, CSV, JSON, XML, PDF</li>
-              <li>Download directly or send via email</li>
-              <li>Batch export with custom templates</li>
-              <li>Schedule automated exports</li>
-            </ul>
+
+            <div class="flex flex-wrap gap-2">
+              <.sc_button type="button" phx-click="export_data" phx-value-format="csv">
+                Download CSV
+              </.sc_button>
+              <.sc_button type="button" phx-click="export_data" phx-value-format="json">
+                Download JSON
+              </.sc_button>
+            </div>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Email delivery and scheduled exports are planned next.
+            </p>
           </div>
         </div>
 
@@ -284,6 +295,30 @@ defmodule SelectoComponents.Form do
           />
         <% end %>
       <% end %>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ExportDownloads">
+        export default {
+          mounted() {
+            this.handleEvent("selecto_export_download", (payload) => {
+              const filename = payload.filename || "selecto_export.txt";
+              const mimeType = payload.mime_type || "text/plain;charset=utf-8";
+              const content = payload.content || "";
+
+              const blob = new Blob([content], { type: mimeType });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+
+              link.href = url;
+              link.download = filename;
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+
+              setTimeout(() => URL.revokeObjectURL(url), 0);
+            });
+          }
+        }
+      </script>
     </div>
     """
   end
@@ -388,7 +423,7 @@ defmodule SelectoComponents.Form do
 
       # All event handlers are now provided by SelectoComponents.Form.EventHandlers
       # which includes: ViewLifecycle, FilterOperations, DrillDown, ListOperations,
-      # QueryOperations, and ModalOperations
+      # QueryOperations, ModalOperations, and ExportOperations
     end
 
     ### quote do

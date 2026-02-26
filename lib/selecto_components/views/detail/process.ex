@@ -1,6 +1,5 @@
 defmodule SelectoComponents.Views.Detail.Process do
-  @detail_max_rows_options ~w(100 1000 10000 all)
-  @default_detail_max_rows "1000"
+  alias SelectoComponents.Views.Detail.Options
 
   def param_to_state(params, _v) do
     ## state is used to draw the form
@@ -8,7 +7,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       selected: SelectoComponents.Views.view_param_process(params, "selected", "field"),
       order_by: SelectoComponents.Views.view_param_process(params, "order_by", "field"),
       per_page: normalize_per_page_param(Map.get(params, "per_page")),
-      max_rows: normalize_max_rows_param(Map.get(params, "max_rows")),
+      max_rows: Options.normalize_max_rows_param(Map.get(params, "max_rows")),
       prevent_denormalization:
         params["prevent_denormalization"] in ["on", "true"] ||
           (params["prevent_denormalization"] == nil && params["selected"] == nil)
@@ -24,7 +23,7 @@ defmodule SelectoComponents.Views.Detail.Process do
         Map.get(Selecto.domain(selecto), :default_selected, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: "30",
-      max_rows: @default_detail_max_rows,
+      max_rows: Options.default_max_rows(),
       prevent_denormalization: true
     }
   end
@@ -32,7 +31,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   ### Process incoming params to build Selecto.set for view
   def view(_opt, params, columns, filtered, selecto) do
     per_page = parse_positive_integer(Map.get(params, "per_page"), 30)
-    max_rows = normalize_max_rows_param(Map.get(params, "max_rows"))
+    max_rows = Options.normalize_max_rows_param(Map.get(params, "max_rows"))
 
     detail_columns =
       Map.get(params, "selected", %{})
@@ -120,24 +119,6 @@ defmodule SelectoComponents.Views.Detail.Process do
     |> parse_positive_integer(30)
     |> to_string()
   end
-
-  defp normalize_max_rows_param(value) when is_binary(value) do
-    normalized = String.downcase(String.trim(value))
-
-    if normalized in @detail_max_rows_options do
-      normalized
-    else
-      @default_detail_max_rows
-    end
-  end
-
-  defp normalize_max_rows_param(value) when is_integer(value),
-    do: normalize_max_rows_param(to_string(value))
-
-  defp normalize_max_rows_param(value) when is_atom(value),
-    do: normalize_max_rows_param(Atom.to_string(value))
-
-  defp normalize_max_rows_param(_), do: @default_detail_max_rows
 
   defp parse_positive_integer(value, _default) when is_integer(value) and value > 0, do: value
 

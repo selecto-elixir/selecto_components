@@ -1,14 +1,12 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
   alias SelectoComponents.SafeAtom
-
-  @aggregate_per_page_options ~w(30 100 200 300 all)
-  @default_aggregate_per_page "100"
+  alias SelectoComponents.Views.Aggregate.Options
 
   def param_to_state(params, _v) do
     %{
       group_by: SelectoComponents.Views.view_param_process(params, "group_by", "field"),
       aggregate: SelectoComponents.Views.view_param_process(params, "aggregate", "field"),
-      per_page: normalize_aggregate_per_page(Map.get(params, "aggregate_per_page"))
+      per_page: Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
     }
   end
 
@@ -20,13 +18,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       group_by:
         Map.get(Selecto.domain(selecto), :default_group_by, [])
         |> SelectoComponents.Helpers.build_initial_state(),
-      per_page: @default_aggregate_per_page
+      per_page: Options.default_per_page()
     }
   end
 
   def view(_opt, params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
-    per_page = normalize_aggregate_per_page(Map.get(params, "aggregate_per_page"))
+    per_page = Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
 
     aggregate =
       Map.get(params, "aggregate", %{})
@@ -79,21 +77,6 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
     {view_set, %{per_page: per_page}}
   end
-
-  defp normalize_aggregate_per_page(per_page) when is_binary(per_page) do
-    normalized = String.downcase(String.trim(per_page))
-
-    if normalized in @aggregate_per_page_options do
-      normalized
-    else
-      @default_aggregate_per_page
-    end
-  end
-
-  defp normalize_aggregate_per_page(per_page) when is_integer(per_page),
-    do: normalize_aggregate_per_page(to_string(per_page))
-
-  defp normalize_aggregate_per_page(_), do: @default_aggregate_per_page
 
   def group_by(group_by, columns, selecto) do
     group_by

@@ -10,7 +10,8 @@ defmodule SelectoComponents.Form.EventHandlers do
   - **DrillDown** - Drill-down operations from aggregates and graphs
   - **ListOperations** - List picker operations (add, remove, reorder)
   - **QueryOperations** - Query execution, sorting, and pagination
-  - **ModalOperations** - Modal dialog display and interaction
+   - **ModalOperations** - Modal dialog display and interaction
+   - **ExportOperations** - Export current results as CSV/JSON
 
   ## Architecture
 
@@ -61,9 +62,12 @@ defmodule SelectoComponents.Form.EventHandlers do
   - `{:update_view_config, ...}` - Update configuration
   - `{:filters_updated, ...}` - Update filters
 
-  ### ModalOperations
-  - `{:show_detail_modal, ...}` - Show detail modal
-  - `{:close_detail_modal, ...}` - Close detail modal
+   ### ModalOperations
+   - `{:show_detail_modal, ...}` - Show detail modal
+   - `{:close_detail_modal, ...}` - Close detail modal
+
+   ### ExportOperations
+   - `export_data` - Export current results (CSV/JSON)
 
   ## Adding New Event Handlers
 
@@ -95,6 +99,7 @@ defmodule SelectoComponents.Form.EventHandlers do
       use SelectoComponents.Form.EventHandlers.ListOperations
       use SelectoComponents.Form.EventHandlers.QueryOperations
       use SelectoComponents.Form.EventHandlers.ModalOperations
+      use SelectoComponents.Form.EventHandlers.ExportOperations
 
       # Import error handling utilities
       import SelectoComponents.Form.ErrorHandling

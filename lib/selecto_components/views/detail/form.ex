@@ -1,8 +1,8 @@
 defmodule SelectoComponents.Views.Detail.Form do
   use Phoenix.LiveComponent
+  alias SelectoComponents.Views.Detail.Options
 
   @detail_per_page_options [30, 60, 100]
-  @detail_max_rows_options [100, 1000, 10_000, "all"]
 
   def render(assigns) do
     detail_config =
@@ -53,7 +53,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.put(:detail_max_rows, max_rows)
       |> Map.put(:detail_prevent_denormalization, prevent_denormalization)
       |> Map.put(:detail_per_page_options, @detail_per_page_options)
-      |> Map.put(:detail_max_rows_options, @detail_max_rows_options)
+      |> Map.put(:detail_max_rows_options, Options.max_rows_options())
 
     ~H"""
     <div>
