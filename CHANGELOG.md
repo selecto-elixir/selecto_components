@@ -29,6 +29,8 @@ V 0.3.4
 - Refreshed formal view-interface docs to clarify that 0.3.4 helper-module
   compartmentalization is additive and does not change
   `SelectoComponents.Views.System` callbacks.
+- Implemented export-tab downloads for JSON/CSV from current query results,
+  including browser download hook wiring and export payload formatting helpers.
 
 V 0.3.3
 -------
