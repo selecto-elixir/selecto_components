@@ -61,6 +61,28 @@ defmodule SelectoComponents.Views do
     {id, module, name, options}
   end
 
+  @doc """
+  Append extension-provided views for a Selecto/domain source.
+
+  Existing views take precedence when IDs collide.
+  """
+  @spec with_extensions([view_tuple()], map()) :: [view_tuple()]
+  def with_extensions(base_views, selecto_or_domain)
+      when is_list(base_views) and is_map(selecto_or_domain) do
+    extension_specs = Selecto.Extensions.from_source(selecto_or_domain)
+    extension_views = Selecto.Extensions.components_views(selecto_or_domain, extension_specs)
+
+    existing_ids = base_views |> Enum.map(fn {id, _, _, _} -> id end) |> MapSet.new()
+
+    additional_views =
+      extension_views
+      |> Enum.reject(fn {id, _, _, _} -> MapSet.member?(existing_ids, id) end)
+
+    base_views ++ additional_views
+  end
+
+  def with_extensions(base_views, _), do: base_views
+
   ## Agg and Det forms use a common format for their subsections. This function reformats the parameters to use as state for form drawing
   def view_param_process(params, item_name, section) do
     Map.get(params, item_name, %{})

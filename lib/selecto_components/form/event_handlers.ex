@@ -113,6 +113,7 @@ defmodule SelectoComponents.Form.EventHandlers do
       alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.Form.ListPickerOperations
       alias SelectoComponents.Form.DrillDownFilters
+      alias SelectoComponents.Extensions, as: ComponentExtensions
       alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
       @doc """
@@ -129,6 +130,14 @@ defmodule SelectoComponents.Form.EventHandlers do
       Keyword list of initial socket assigns
       """
       def get_initial_state(views, selecto) do
+        views = ComponentExtensions.merge_views(views, selecto)
+
+        default_view_mode =
+          case views do
+            [{id, _, _, _} | _] -> Atom.to_string(id)
+            _ -> "aggregate"
+          end
+
         view_configs =
           Enum.reduce(views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
             Map.merge(acc, %{
@@ -147,6 +156,7 @@ defmodule SelectoComponents.Form.EventHandlers do
 
         [
           selecto: selecto,
+          views: views,
           columns: columns_list,
           field_filters: Selecto.filters(selecto),
           executed: false,
@@ -156,7 +166,7 @@ defmodule SelectoComponents.Form.EventHandlers do
           applied_view: nil,
           active_tab: "view",
           view_config: %{
-            view_mode: "aggregate",
+            view_mode: default_view_mode,
             views: view_configs,
             filters: []
           },

@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.3.4",
+      version: "0.3.5",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "ALPHA: LiveView components for Selecto",
@@ -58,10 +58,17 @@ defmodule SelectoComponents.MixProject do
   end
 
   defp selecto_dep do
-    if Mix.env() == :test do
+    if use_local_selecto?() do
       {:selecto, path: "../selecto"}
     else
-      {:selecto, ">= 0.3.2 and < 0.4.0"}
+      {:selecto, ">= 0.3.3 and < 0.4.0"}
+    end
+  end
+
+  defp use_local_selecto? do
+    case System.get_env("SELECTO_ECOSYSTEM_USE_LOCAL") do
+      value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+      _ -> false
     end
   end
 

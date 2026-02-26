@@ -12,7 +12,7 @@ Phoenix LiveView components for building interactive data query interfaces with 
 SelectoComponents provides a suite of Phoenix LiveView components that enable users to build complex queries, visualize data, and interact with Ecto-based schemas through a visual interface. The library includes:
 
 - **Query Builder**: Drag-and-drop interface for building complex filter queries
-- **Data Views**: Multiple visualization options (Detail, Aggregate, Graph)
+- **Data Views**: Built-in visualization options (Detail, Aggregate, Graph) and extension views (for example Map via `selecto_postgis`)
 - **Colocated JavaScript**: Phoenix LiveView 1.1+ colocated hooks for drag-and-drop and charts
 - **Tailwind CSS**: Pre-styled components using Tailwind CSS
 
@@ -37,7 +37,7 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.14
-- Selecto ~> 0.3.2 (core library)
+- Selecto ~> 0.3.3 (core library)
 - selecto_mix ~> 0.3.2 (for code generation and integration tasks)
 
 ## Installation
@@ -49,8 +49,10 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.4"},
-    {:selecto, "~> 0.3.2"},
+    {:selecto_components, "~> 0.3.5"},
+    {:selecto, "~> 0.3.3"},
+    # Optional extension package for map/spatial views
+    {:selecto_postgis, "~> 0.1"},
     {:selecto_mix, "~> 0.3.2"}  # For generators and integration
   ]
 end
@@ -106,6 +108,18 @@ mix assets.build
 ```
 
 ## Usage
+
+### Extension-Provided Views (Map)
+
+`selecto_components` can merge extension-provided views from your configured
+Selecto domain. For PostGIS-backed map views:
+
+1. Add `{:selecto_postgis, "~> 0.1"}` to your dependencies.
+2. Add `Selecto.Extensions.PostGIS` in your domain `:extensions` list.
+3. Keep your normal base `views` list (`detail`, `aggregate`, `graph`); the
+   map view is merged automatically when the extension and spatial columns are
+   present.
+4. If your app validates saved-view types, include `map` in allowed view types.
 
 ### Step 1: Generate a Domain
 
@@ -240,6 +254,7 @@ If you want the debug panel always enabled in development, pass debug params to
 - `SelectoComponents.Views.Detail` - Table view with sortable columns and pagination
 - `SelectoComponents.Views.Aggregate` - Aggregated data view with grouping capabilities
 - `SelectoComponents.Views.Graph` - Chart visualization using Chart.js
+- `SelectoComponents.Views.Map` - Extension-driven map visualization (provided through `selecto_postgis` extension registration)
 
 ### Custom View Systems
 
@@ -437,6 +452,14 @@ If `mix selecto.components.integrate` fails:
 This library is part of the Selecto ecosystem and is typically developed alongside:
 - [selecto](https://github.com/selecto-elixir/selecto) - Core query building library
 - [selecto_mix](https://github.com/selecto-elixir/selecto_mix) - Mix tasks and generators
+
+For local workspace development against an unreleased `selecto`, set:
+
+```bash
+SELECTO_ECOSYSTEM_USE_LOCAL=true
+```
+
+When enabled, `selecto_components` resolves `{:selecto, path: "../selecto"}`.
 
 ## License
 

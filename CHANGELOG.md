@@ -2,6 +2,25 @@
 CHANGES
 =======
 
+V 0.3.5
+-------
+
+- Added extension-aware view registration through
+  `SelectoComponents.Extensions.merge_views/2`, wired into form initial state
+  setup so extension-provided views are available without manual view list edits.
+- Added a built-in map view system (`Views.Map`) with form/process/component
+  modules, including Leaflet + OpenStreetMap rendering via colocated hooks.
+- Added map-view processing support for spatial projections
+  (`ST_AsGeoJSON` selector generation), popup/color field options, and
+  extension/domain map defaults.
+- Decoupled map spatial type checks from direct PostGIS module calls by using
+  `Selecto.TypeSystem` spatial category detection.
+- Added extension/map test coverage for view merge behavior and map
+  process/component rendering helpers.
+- Added `map` as a valid saved-view label/type surface in supporting modules.
+- Bump package version to `0.3.5`.
+- Update Selecto dependency expectation to `>= 0.3.3 and < 0.4.0`.
+
 V 0.3.4
 -------
 
