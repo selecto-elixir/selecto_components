@@ -1,7 +1,6 @@
 defmodule SelectoComponents.Views.Aggregate.Form do
   use Phoenix.LiveComponent
-
-  @aggregate_per_page_options [30, 100, 200, 300, "all"]
+  alias SelectoComponents.Views.Aggregate.Options
 
   # Helper function to extract field from formatted date tuples
   defp get_field_for_item(selecto, item) do
@@ -30,7 +29,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     assigns =
       assign(assigns,
         aggregate_per_page: aggregate_per_page,
-        aggregate_per_page_options: @aggregate_per_page_options
+        aggregate_per_page_options: Options.per_page_options()
       )
 
     ~H"""
@@ -112,8 +111,12 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     |> Map.get(:views, %{})
     |> Map.get(:aggregate, %{})
     |> then(fn aggregate_cfg ->
-      Map.get(aggregate_cfg, :per_page, Map.get(aggregate_cfg, "per_page", "100"))
+      Map.get(
+        aggregate_cfg,
+        :per_page,
+        Map.get(aggregate_cfg, "per_page", Options.default_per_page())
+      )
     end)
-    |> to_string()
+    |> Options.normalize_per_page_param()
   end
 end

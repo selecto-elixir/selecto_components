@@ -3,9 +3,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
-
-  @aggregate_per_page_options [30, 100, 200, 300, "all"]
-  @default_aggregate_per_page "100"
+  alias SelectoComponents.Views.Aggregate.Options
 
   @impl true
   def mount(socket) do
@@ -704,10 +702,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     per_page_setting =
       assigns
       |> Map.get(:view_meta, %{})
-      |> Map.get(:per_page, @default_aggregate_per_page)
-      |> normalize_aggregate_per_page()
+      |> Map.get(:per_page, Options.default_per_page())
+      |> Options.normalize_per_page_param()
 
-    per_page = aggregate_per_page_to_int(per_page_setting, total_rows)
+    per_page = Options.per_page_to_int(per_page_setting, total_rows)
 
     max_page =
       if total_rows > 0 and per_page > 0 do
@@ -934,33 +932,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     {:noreply, assign(socket, :aggregate_page, page)}
   end
-
-  defp normalize_aggregate_per_page(per_page) when is_integer(per_page),
-    do: normalize_aggregate_per_page(to_string(per_page))
-
-  defp normalize_aggregate_per_page(per_page) when is_binary(per_page) do
-    normalized = String.downcase(String.trim(per_page))
-
-    if normalized in Enum.map(@aggregate_per_page_options, &to_string/1) do
-      normalized
-    else
-      @default_aggregate_per_page
-    end
-  end
-
-  defp normalize_aggregate_per_page(_), do: @default_aggregate_per_page
-
-  defp aggregate_per_page_to_int("all", total_rows), do: max(total_rows, 1)
-
-  defp aggregate_per_page_to_int(per_page, _total_rows) when is_binary(per_page) do
-    case Integer.parse(per_page) do
-      {value, ""} when value > 0 -> value
-      _ -> String.to_integer(@default_aggregate_per_page)
-    end
-  end
-
-  defp aggregate_per_page_to_int(_per_page, _total_rows),
-    do: String.to_integer(@default_aggregate_per_page)
 
   defp parse_page_param(page_param) when is_binary(page_param) do
     case Integer.parse(page_param) do
