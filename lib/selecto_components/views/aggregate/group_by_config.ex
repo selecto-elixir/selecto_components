@@ -83,6 +83,9 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
 
       <div :if={
         Map.get(@col || %{}, :type, :string) in [
+          :string,
+          :text,
+          :citext,
           :int,
           :id,
           :decimal,
@@ -148,6 +151,44 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                         else: "e.g., today, yesterday, 2-7, 8+"
                     }
                   />
+                </label>
+              <% end %>
+            <% x when x in [:string, :text, :citext] -> %>
+              <label>
+                Format
+                <.sc_select
+                  name={"#{@prefix}[format]"}
+                  value={Map.get(@config, "format")}
+                  options={[
+                    {"default", "Default"},
+                    {"text_prefix", "Text Prefix"}
+                  ]}
+                />
+              </label>
+
+              <%= if Map.get(@config, "format") == "text_prefix" do %>
+                <label>
+                  Prefix Length
+                  <.sc_input
+                    name={"#{@prefix}[prefix_length]"}
+                    value={Map.get(@config, "prefix_length", "2")}
+                    type="number"
+                    min="1"
+                    max="10"
+                    placeholder="2"
+                  />
+                </label>
+
+                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                  <input type="hidden" name={"#{@prefix}[exclude_articles]"} value="false" />
+                  <input
+                    type="checkbox"
+                    name={"#{@prefix}[exclude_articles]"}
+                    value="true"
+                    checked={Map.get(@config, "exclude_articles", "true") in [true, "true", "on", "1"]}
+                    class="checkbox checkbox-sm"
+                  />
+                  Exclude leading articles (a, an, the)
                 </label>
               <% end %>
             <% _ -> %>

@@ -26,4 +26,47 @@ defmodule SelectoComponents.Helpers.BucketParserTest do
                "selecto_root.price"
     end
   end
+
+  describe "generate_text_prefix_case_sql/2" do
+    test "builds article-aware first-two-letter buckets by default" do
+      sql = BucketParser.generate_text_prefix_case_sql("selecto_root.title")
+
+      assert sql =~ "REGEXP_REPLACE"
+      assert sql =~ "^(a|an|the)([[:space:]]+|$)"
+      assert sql =~ "UPPER(LEFT("
+      assert sql =~ ", 2))"
+      assert sql =~ "THEN 'Other'"
+    end
+
+    test "supports custom prefix length and article handling toggle" do
+      sql =
+        BucketParser.generate_text_prefix_case_sql("title", %{
+          "prefix_length" => "3",
+          "exclude_articles" => "false"
+        })
+
+      refute sql =~ "REGEXP_REPLACE"
+      assert sql =~ "UPPER(LEFT("
+      assert sql =~ ", 3))"
+    end
+  end
+
+  describe "option parsing" do
+    test "parses and clamps prefix length" do
+      assert BucketParser.parse_prefix_length("2") == 2
+      assert BucketParser.parse_prefix_length(4) == 4
+      assert BucketParser.parse_prefix_length("99") == 10
+      assert BucketParser.parse_prefix_length("0", 2) == 2
+      assert BucketParser.parse_prefix_length("bad", 2) == 2
+    end
+
+    test "parses exclude_articles option" do
+      assert BucketParser.exclude_articles?("true")
+      assert BucketParser.exclude_articles?("on")
+      refute BucketParser.exclude_articles?("false")
+      refute BucketParser.exclude_articles?("0")
+      assert BucketParser.exclude_articles?(nil, true)
+      refute BucketParser.exclude_articles?(nil, false)
+    end
+  end
 end

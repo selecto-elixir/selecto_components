@@ -146,6 +146,36 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v1 == "11"
     end
 
+    test "handles text-prefix bucket labels" do
+      field_conf = %{type: :string}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "OF",
+          field_conf,
+          %{format: "text_prefix", prefix_length: 2, exclude_articles: true}
+        )
+
+      assert comp == "TEXT_PREFIX"
+      assert v1 == "of"
+      assert v2 == ""
+    end
+
+    test "handles text-prefix Other bucket" do
+      field_conf = %{type: :string}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "Other",
+          field_conf,
+          %{format: "text_prefix", prefix_length: 2, exclude_articles: true}
+        )
+
+      assert comp == "TEXT_PREFIX_OTHER"
+      assert v1 == ""
+      assert v2 == ""
+    end
+
     test "handles age buckets on date fields" do
       field_conf = %{type: :date}
 
