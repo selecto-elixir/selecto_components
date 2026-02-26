@@ -49,7 +49,7 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.3"},
+    {:selecto_components, "~> 0.3.4"},
     {:selecto, "~> 0.3.2"},
     {:selecto_mix, "~> 0.3.2"}  # For generators and integration
   ]
@@ -181,7 +181,7 @@ defmodule MyAppWeb.ProductLive do
 end
 ```
 
-## Recent 0.3.3+ Updates
+## Recent 0.3.4+ Updates
 
 ### Filter Processing and Rendering
 
