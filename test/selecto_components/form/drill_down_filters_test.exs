@@ -356,5 +356,35 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert view_params["view_mode"] == "detail"
       assert is_map(view_params["filters"])
     end
+
+    test "text prefix drill-down enables case-insensitive starts filter when excluding articles" do
+      socket =
+        %{assigns: %{selecto: selecto(), used_params: %{}}}
+        |> put_in(
+          [:assigns, :used_params, "group_by"],
+          %{
+            "g1" => %{
+              "field" => "title",
+              "index" => "0",
+              "format" => "text_prefix",
+              "prefix_length" => "2",
+              "exclude_articles" => "true"
+            }
+          }
+        )
+
+      params = %{
+        "field0" => "title",
+        "value0" => "OF"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+      [filter] = Map.values(view_params["filters"])
+
+      assert filter["comp"] == "STARTS"
+      assert filter["value"] == "of"
+      assert filter["exclude_articles"] == "true"
+      assert filter["ignore_case"] == "true"
+    end
   end
 end

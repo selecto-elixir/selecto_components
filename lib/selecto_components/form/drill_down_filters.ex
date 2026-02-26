@@ -415,6 +415,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     |> Map.put("bucket_format", "text_prefix")
     |> Map.put("prefix_length", Integer.to_string(context.prefix_length))
     |> Map.put("exclude_articles", if(context.exclude_articles, do: "true", else: "false"))
+    |> Map.put("ignore_case", if(context.exclude_articles, do: "true", else: "false"))
   end
 
   defp maybe_put_text_prefix_options(filter_config, _context, _comp_mode), do: filter_config
