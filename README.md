@@ -335,6 +335,11 @@ end
 ) :: {view_set :: map(), view_meta :: map()}
 ```
 
+0.3.4 note: built-in views were further compartmentalized with optional
+view-local helper modules (for example options normalization, drill-down
+actions, query pagination helpers). This does **not** change the formal
+`SelectoComponents.Views.System` callback contract above.
+
 Minimal registration in a LiveView:
 
 ```elixir

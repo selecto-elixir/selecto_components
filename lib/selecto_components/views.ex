@@ -1,35 +1,41 @@
 defmodule SelectoComponents.Views do
-@moduledoc """
+  @moduledoc """
+  View tuple helpers and shared parameter-shaping helpers.
 
-Define a view for Selecto Components.
+  ## View Registration
 
-In addition to the built in views such as Aggregate and Detail, you can create custom views.
+  Register views in your LiveView as `{id, module, name, options}` tuples:
 
-When mounting your Selecto Liveview, you configure the views to use in a list, and pass that to get_initial_state and as an assign.
+  ```elixir
+  views = [
+    SelectoComponents.Views.spec(
+      :aggregate,
+      SelectoComponents.Views.Aggregate,
+      "Aggregate View",
+      %{drill_down: :detail}
+    ),
+    SelectoComponents.Views.spec(:detail, SelectoComponents.Views.Detail, "Detail View", %{})
+  ]
 
-```elixir
+  state = get_initial_state(views, selecto)
+  socket = assign(socket, views: views)
+  ```
 
-    views = [
-      {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{drill_down: :detail}},
-      {:detail, SelectoComponents.Views.Detail, "Detail View", %{}}
-      # {:graph, SelectoComponents.Views.Graph, "Graph View", %{}},
-    ]
+  ## Formal View Interface
 
-    state = get_initial_state(views, selecto)
-    socket = assign(socket, views: views)
+  The preferred interface is `SelectoComponents.Views.System`:
 
-```
+  - `initial_state/2`
+  - `param_to_state/2`
+  - `view/5`
+  - `form_component/0`
+  - `result_component/0`
 
+  Built-in views use this behavior (`Aggregate`, `Detail`, `Graph`).
 
-interface:
-
-- component - the display LiveComponent
-- process - provides methods to read views
-  - initial_state - called when view is created without params
-  - param_to_state - called when view is updated via submit or via param injection,
-  - view - called when view is to be generated, returns the Selecto set structure that will be used to generate query and view
-- form - provides configuration panel
-"""
+  Legacy namespace-style modules (`MyView.Process`, `MyView.Form`,
+  `MyView.Component`) are still supported via `SelectoComponents.Views.Runtime`.
+  """
 
   @type view_id :: atom()
   @type view_module :: module()
@@ -50,7 +56,8 @@ interface:
       ]
   """
   @spec spec(view_id(), view_module(), view_name(), view_options()) :: view_tuple()
-  def spec(id, module, name, options \\ %{}) when is_atom(id) and is_atom(module) and is_binary(name) and is_map(options) do
+  def spec(id, module, name, options \\ %{})
+      when is_atom(id) and is_atom(module) and is_binary(name) and is_map(options) do
     {id, module, name, options}
   end
 
@@ -62,5 +69,4 @@ interface:
       String.to_integer(index) <= String.to_integer(index2)
     end)
   end
-
 end

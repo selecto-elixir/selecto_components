@@ -26,6 +26,9 @@ V 0.3.4
 - Fixed delegated view handlers to call `ParamsState.view_from_params/2` with
   correct argument ordering (restores aggregate drill-down transitions and
   detail/graph delegated view updates).
+- Refreshed formal view-interface docs to clarify that 0.3.4 helper-module
+  compartmentalization is additive and does not change
+  `SelectoComponents.Views.System` callbacks.
 
 V 0.3.3
 -------
