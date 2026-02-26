@@ -65,6 +65,9 @@ defmodule SelectoComponents.Helpers.Filters do
     end
   end
 
+  defp truthy?(value) when value in [true, "true", "TRUE", "on", "ON", "1", 1, "Y", "y"], do: true
+  defp truthy?(_value), do: false
+
   defp get_string_value(filter) do
     value = Map.get(filter, "value")
     if blank?(value), do: raise(ArgumentError, "value is required"), else: to_string(value)
@@ -132,7 +135,7 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp _make_string_filter(filter) do
     comp_norm = normalize_comp(filter, "=")
-    ignore_case = Map.get(filter, "ignore_case") == "Y"
+    ignore_case = truthy?(Map.get(filter, "ignore_case"))
     filter_field = Map.get(filter, "filter")
 
     filpart =
@@ -168,7 +171,22 @@ defmodule SelectoComponents.Helpers.Filters do
         {filter_field, :not_null}
 
       "=" ->
-        {filpart, transform.(get_string_value(filter))}
+        value = get_string_value(filter)
+
+        if BucketParser.exclude_articles?(Map.get(filter, "exclude_articles"), false) do
+          normalized_expr =
+            BucketParser.normalized_text_sql(
+              filter_field,
+              %{"exclude_articles" => true, "ignore_case" => ignore_case}
+            )
+
+          normalized_value =
+            if(ignore_case, do: String.downcase(String.trim(value)), else: String.trim(value))
+
+          {{:raw_sql, normalized_expr}, normalized_value}
+        else
+          {filpart, transform.(value)}
+        end
 
       "!=" ->
         {filpart, {"!=", transform.(get_string_value(filter))}}
@@ -202,10 +220,14 @@ defmodule SelectoComponents.Helpers.Filters do
           normalized_expr =
             BucketParser.normalized_text_sql(
               filter_field,
-              %{"exclude_articles" => true}
+              %{"exclude_articles" => true, "ignore_case" => ignore_case}
             )
 
-          normalized_value = value |> String.downcase() |> String.trim()
+          normalized_value =
+            value
+            |> String.trim()
+            |> then(fn v -> if(ignore_case, do: String.downcase(v), else: v) end)
+
           {{:raw_sql, normalized_expr}, {:like, sanitize_like_value(normalized_value) <> "%"}}
         else
           value = transform.(value)

@@ -133,16 +133,23 @@ defmodule SelectoComponents.Helpers.BucketParser do
   """
   def normalized_text_sql(field_name, opts \\ %{}) do
     qualified_field = qualify_field_name(field_name)
-    trimmed_expr = "LOWER(BTRIM(COALESCE(#{qualified_field}::text, '')))"
+    trimmed_expr = "BTRIM(COALESCE(#{qualified_field}::text, ''))"
 
-    if exclude_articles?(
-         Map.get(opts, :exclude_articles) || Map.get(opts, "exclude_articles"),
-         true
-       ) do
-      articles_pattern = Enum.join(@common_articles, "|")
-      "REGEXP_REPLACE(#{trimmed_expr}, '^(#{articles_pattern})([[:space:]]+|$)', '', 'i')"
+    article_normalized_expr =
+      if exclude_articles?(
+           Map.get(opts, :exclude_articles) || Map.get(opts, "exclude_articles"),
+           true
+         ) do
+        articles_pattern = Enum.join(@common_articles, "|")
+        "REGEXP_REPLACE(#{trimmed_expr}, '^(#{articles_pattern})([[:space:]]+|$)', '', 'i')"
+      else
+        trimmed_expr
+      end
+
+    if ignore_case?(Map.get(opts, :ignore_case) || Map.get(opts, "ignore_case"), true) do
+      "LOWER(#{article_normalized_expr})"
     else
-      trimmed_expr
+      article_normalized_expr
     end
   end
 
@@ -183,6 +190,18 @@ defmodule SelectoComponents.Helpers.BucketParser do
     do: false
 
   def exclude_articles?(_value, default), do: default
+
+  def ignore_case?(value, default \\ true)
+
+  def ignore_case?(nil, default), do: default
+
+  def ignore_case?(value, _default) when value in [true, "true", "TRUE", "on", "1", 1],
+    do: true
+
+  def ignore_case?(value, _default) when value in [false, "false", "FALSE", "off", "0", 0],
+    do: false
+
+  def ignore_case?(_value, default), do: default
 
   defp parse_increment_shorthand(ranges_string) when is_binary(ranges_string) do
     trimmed = String.trim(ranges_string)

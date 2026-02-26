@@ -2,6 +2,22 @@
 CHANGES
 =======
 
+V 0.3.6
+-------
+
+- Added string aggregate/group-by bucketing format `text_prefix` with configurable
+  prefix length (default 2) and optional leading-article removal (`a`, `an`,
+  `the`) for grouping labels.
+- Added aggregate drill-down handling for text-prefix buckets, including proper
+  `Other` bucket behavior and filter metadata propagation.
+- Added a new standard text filter operator, `Begins With` (`STARTS`), with an
+  optional UI toggle to ignore leading articles during matching.
+- Updated filter execution to support article-aware starts-with matching via
+  normalized SQL expressions while preserving existing parameterized behavior.
+- Added test coverage for text-prefix SQL generation, aggregate processing,
+  drill-down conversion, and begins-with filter execution paths.
+- Bump package version to `0.3.6`.
+
 V 0.3.5
 -------
 

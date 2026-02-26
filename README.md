@@ -49,7 +49,7 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.5"},
+    {:selecto_components, "~> 0.3.6"},
     {:selecto, "~> 0.3.3"},
     # Optional extension package for map/spatial views
     {:selecto_postgis, "~> 0.1"},
