@@ -12,7 +12,7 @@ defmodule SelectoComponents.SavedViews do
   - **Context-based organization**: Views are organized by context (e.g., URL path, user ID)
   - **Named view persistence**: Each saved view has a unique name within its context
   - **Flexible parameter storage**: View configurations stored as maps/JSON
-  - **CRUD operations**: Create, read, update, and list saved views
+  - **CRUD operations**: Create, read, update, list, rename, and delete saved views
 
   ## Typical Implementation Pattern
 
@@ -208,4 +208,26 @@ defmodule SelectoComponents.SavedViews do
       %{"filters" => [%{"field" => "active", "value" => true}]}
   """
   @callback decode_view(view :: map()) :: map()
+
+  @doc """
+  Optional callback that returns richer saved view records for management UIs.
+
+  Unlike `get_view_names/1`, this may return structs or maps with metadata such as
+  `updated_at`, `inserted_at`, and ownership fields.
+  """
+  @callback list_views(context :: any()) :: [map()]
+
+  @doc """
+  Optional callback for deleting a saved view by name and context.
+  """
+  @callback delete_view(name :: String.t(), context :: any()) ::
+              {:ok, map()} | {:error, term()}
+
+  @doc """
+  Optional callback for renaming a saved view within the same context.
+  """
+  @callback rename_view(old_name :: String.t(), new_name :: String.t(), context :: any()) ::
+              {:ok, map()} | {:error, term()}
+
+  @optional_callbacks list_views: 1, delete_view: 2, rename_view: 3
 end

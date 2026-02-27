@@ -109,6 +109,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
                   params
                 )
 
+              send(self(), {:saved_view_saved, view.name})
+
               params = %{"saved_view" => view.name}
               socket = assign(socket, :current_detail_page, 0)
               {:noreply, ParamsState.state_to_url(params, socket)}
