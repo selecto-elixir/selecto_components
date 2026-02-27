@@ -2,6 +2,17 @@
 CHANGES
 =======
 
+V 0.3.7
+-------
+
+- Added optional saved-view management callbacks to the
+  `SelectoComponents.SavedViews` behavior (`list_views/1`, `rename_view/3`,
+  `delete_view/2`) so host apps can provide richer saved-view UIs.
+- Updated save-view lifecycle handling to emit a `{:saved_view_saved, name}`
+  message after successful save, enabling parent LiveViews to refresh saved
+  view lists immediately.
+- Bump package version to `0.3.7`.
+
 V 0.3.6
 -------
 
@@ -14,6 +25,11 @@ V 0.3.6
   optional UI toggle to ignore leading articles during matching.
 - Updated filter execution to support article-aware starts-with matching via
   normalized SQL expressions while preserving existing parameterized behavior.
+- Added a case-insensitive mode for text filters, including starts-with and
+  article-aware matching paths.
+- Limited "ignore leading articles" controls to `=` and `STARTS`, and made
+  text-prefix drill-down filters auto-enable case-insensitive matching when
+  article stripping is active.
 - Added test coverage for text-prefix SQL generation, aggregate processing,
   drill-down conversion, and begins-with filter execution paths.
 - Bump package version to `0.3.6`.
