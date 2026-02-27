@@ -2,6 +2,17 @@
 CHANGES
 =======
 
+V 0.3.7
+-------
+
+- Added optional saved-view management callbacks to the
+  `SelectoComponents.SavedViews` behavior (`list_views/1`, `rename_view/3`,
+  `delete_view/2`) so host apps can provide richer saved-view UIs.
+- Updated save-view lifecycle handling to emit a `{:saved_view_saved, name}`
+  message after successful save, enabling parent LiveViews to refresh saved
+  view lists immediately.
+- Bump package version to `0.3.7`.
+
 V 0.3.6
 -------
 
