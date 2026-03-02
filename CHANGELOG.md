@@ -2,6 +2,14 @@
 CHANGES
 =======
 
+V NEXT
+------
+
+- Added `usage-rules.md` with concise package guidance for agentic tooling and
+  dependency rule aggregation workflows.
+- Added `MULTI_TENANT_USAGE_PATTERNS.md` with package-specific guidance for
+  tenant-scoped LiveView state, saved views, filter sets, and view wiring.
+
 V 0.3.7
 -------
 
