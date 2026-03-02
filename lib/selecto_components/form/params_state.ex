@@ -11,6 +11,7 @@ defmodule SelectoComponents.Form.ParamsState do
   """
 
   import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
+  alias Selecto.Executor
   alias SelectoComponents.Performance.MetricsCollector
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
@@ -338,7 +339,7 @@ defmodule SelectoComponents.Form.ParamsState do
           selecto
         end
 
-      {query_result, view_meta, detail_page_cache} =
+      {query_result, view_meta, page_query_cache} =
         execute_query_with_detail_pagination(selecto, params, view_meta, socket)
 
       case query_result do
@@ -355,7 +356,12 @@ defmodule SelectoComponents.Form.ParamsState do
               execution_time,
               %{
                 rows_returned: length(rows),
-                total_rows: Map.get(view_meta, :total_rows, length(rows)),
+                total_rows:
+                  Map.get(
+                    view_meta,
+                    :total_rows,
+                    Map.get(view_meta, :aggregate_total_rows, length(rows))
+                  ),
                 columns_count: length(columns),
                 view_mode: socket.assigns.view_config.view_mode,
                 has_filters: length(selecto.set.filtered) > 0,
@@ -365,8 +371,14 @@ defmodule SelectoComponents.Form.ParamsState do
             )
           end
 
+          {rows_for_display, view_meta} = maybe_cap_aggregate_rows(rows, view_meta, params)
+
           normalized_rows =
-            normalize_rows_for_view(rows, columns, socket.assigns.view_config.view_mode)
+            normalize_rows_for_view(
+              rows_for_display,
+              columns,
+              socket.assigns.view_config.view_mode
+            )
 
           # Check if any rows have subselect data
           # Debug inspection removed - data structure validated elsewhere
@@ -374,7 +386,10 @@ defmodule SelectoComponents.Form.ParamsState do
           view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
 
           detail_cache_assignment =
-            if DetailOptions.detail_view_mode?(params), do: detail_page_cache, else: nil
+            if DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil
+
+          aggregate_cache_assignment =
+            if AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil
 
           cache_debug_info =
             build_query_cache_debug_info(
@@ -430,6 +445,7 @@ defmodule SelectoComponents.Form.ParamsState do
               applied_view: get_map_value(params, :view_mode),
               view_meta: view_meta,
               detail_page_cache: detail_cache_assignment,
+              aggregate_page_cache: aggregate_cache_assignment,
               executed: true,
               execution_error: nil,
               last_query_info: last_query_info
@@ -444,7 +460,8 @@ defmodule SelectoComponents.Form.ParamsState do
                last_query_info: last_query_info,
                view_meta: view_meta,
                applied_view: get_map_value(params, :view_mode),
-               detail_page_cache: detail_cache_assignment
+               detail_page_cache: detail_cache_assignment,
+               aggregate_page_cache: aggregate_cache_assignment
              }}
           )
 
@@ -476,7 +493,10 @@ defmodule SelectoComponents.Form.ParamsState do
             used_params: params,
             applied_view: get_map_value(params, :view_mode),
             view_meta: view_meta,
-            detail_page_cache: detail_page_cache,
+            detail_page_cache:
+              if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
+            aggregate_page_cache:
+              if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
             executed: false,
             execution_error: sanitized_error,
             last_query_info: %{
@@ -518,7 +538,10 @@ defmodule SelectoComponents.Form.ParamsState do
             used_params: params,
             applied_view: get_map_value(params, :view_mode),
             view_meta: view_meta,
-            detail_page_cache: detail_page_cache,
+            detail_page_cache:
+              if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
+            aggregate_page_cache:
+              if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
             executed: false,
             execution_error: sanitized_error,
             last_query_info: %{
@@ -553,6 +576,7 @@ defmodule SelectoComponents.Form.ParamsState do
           execution_error: sanitized_error,
           view_meta: %{},
           detail_page_cache: nil,
+          aggregate_page_cache: nil,
           last_query_info: %{}
         )
     catch
@@ -579,18 +603,224 @@ defmodule SelectoComponents.Form.ParamsState do
             |> SelectoComponents.Form.sanitize_error_for_environment(),
           view_meta: %{},
           detail_page_cache: nil,
+          aggregate_page_cache: nil,
           last_query_info: %{}
         )
     end
   end
 
   defp execute_query_with_detail_pagination(selecto, params, view_meta, socket) do
-    if DetailOptions.detail_view_mode?(params) do
-      QueryPagination.execute(selecto, params, view_meta, socket)
-    else
-      {execute_query_with_metadata(selecto), view_meta, nil}
+    cond do
+      DetailOptions.detail_view_mode?(params) ->
+        QueryPagination.execute(selecto, params, view_meta, socket)
+
+      AggregateOptions.aggregate_view_mode?(params) ->
+        execute_aggregate_query_with_pagination(selecto, params, view_meta, socket)
+
+      true ->
+        {execute_query_with_metadata(selecto), view_meta, nil}
     end
   end
+
+  defp execute_aggregate_query_with_pagination(selecto, params, view_meta, socket) do
+    per_page_setting =
+      AggregateOptions.normalize_per_page_param(
+        Map.get(view_meta, :per_page, AggregateOptions.default_per_page())
+      )
+
+    requested_page = normalize_page_param(get_map_value(params, :aggregate_page, 0))
+    base_selecto = clear_limit_offset(selecto)
+
+    cache_signature = aggregate_cache_signature(params, socket.assigns[:sort_by])
+
+    aggregate_cache =
+      init_or_reset_aggregate_cache(
+        socket.assigns[:aggregate_page_cache],
+        cache_signature,
+        per_page_setting
+      )
+
+    if per_page_setting == "all" do
+      updated_view_meta =
+        view_meta
+        |> Map.put(:aggregate_server_paged?, false)
+        |> Map.put(:aggregate_page, 0)
+
+      {execute_query_with_metadata(base_selecto), updated_view_meta, nil}
+    else
+      per_page = AggregateOptions.per_page_to_int(per_page_setting, 0)
+
+      case maybe_fetch_aggregate_total_rows(base_selecto, aggregate_cache) do
+        {:ok, {aggregate_cache, total_rows, count_metadata}} ->
+          safe_page = clamp_aggregate_page(requested_page, total_rows, per_page)
+
+          case maybe_fetch_aggregate_page(base_selecto, aggregate_cache, safe_page, per_page) do
+            {:ok, {aggregate_cache, rows, columns, aliases, metadata}} ->
+              merged_metadata =
+                Map.merge(metadata || %{}, %{
+                  aggregate_count_sql: Map.get(count_metadata, :sql),
+                  aggregate_count_params: Map.get(count_metadata, :params, []),
+                  aggregate_count_execution_time: Map.get(count_metadata, :execution_time)
+                })
+
+              updated_view_meta =
+                view_meta
+                |> Map.put(:aggregate_server_paged?, true)
+                |> Map.put(:aggregate_page, safe_page)
+                |> Map.put(:aggregate_total_rows, total_rows)
+
+              {{:ok, {rows, columns, aliases}, merged_metadata}, updated_view_meta,
+               aggregate_cache}
+
+            {:error, error} ->
+              {{:error, error}, view_meta, aggregate_cache}
+          end
+
+        {:error, error} ->
+          {{:error, error}, view_meta, aggregate_cache}
+      end
+    end
+  end
+
+  defp init_or_reset_aggregate_cache(
+         %{signature: signature, per_page_setting: per_page_setting} = cache,
+         signature,
+         per_page_setting
+       ) do
+    cache
+  end
+
+  defp init_or_reset_aggregate_cache(_cache, signature, per_page_setting) do
+    %{
+      signature: signature,
+      per_page_setting: per_page_setting,
+      total_rows: nil,
+      pages: %{}
+    }
+  end
+
+  defp aggregate_cache_signature(params, sort_by) do
+    %{
+      params: Map.drop(params, ["aggregate_page", "detail_page"]),
+      sort_by: sort_by || []
+    }
+  end
+
+  defp maybe_fetch_aggregate_total_rows(_selecto, %{total_rows: total_rows} = cache)
+       when is_integer(total_rows) and total_rows >= 0 do
+    {:ok, {cache, total_rows, %{sql: nil, params: [], execution_time: 0, cache_hit: true}}}
+  end
+
+  defp maybe_fetch_aggregate_total_rows(selecto, cache) do
+    case execute_aggregate_total_rows(selecto) do
+      {:ok, total_rows, count_metadata} ->
+        {:ok, {Map.put(cache, :total_rows, total_rows), total_rows, count_metadata}}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp maybe_fetch_aggregate_page(selecto, cache, page, per_page) do
+    case get_in(cache, [:pages, page]) do
+      %{rows: rows, columns: columns, aliases: aliases} ->
+        {:ok,
+         {cache, rows, columns, aliases,
+          %{sql: nil, params: [], execution_time: 0, cache_hit: true, pagination_mode: :cache}}}
+
+      _ ->
+        row_offset = page * per_page
+
+        paged_selecto =
+          selecto
+          |> Selecto.limit(per_page)
+          |> Selecto.offset(row_offset)
+
+        case execute_query_with_metadata(paged_selecto) do
+          {:ok, {rows, columns, aliases}, metadata} ->
+            pages =
+              cache
+              |> Map.get(:pages, %{})
+              |> Map.put(page, %{rows: rows, columns: columns, aliases: aliases})
+
+            updated_cache = Map.put(cache, :pages, pages)
+
+            {:ok,
+             {updated_cache, rows, columns, aliases,
+              Map.put(metadata || %{}, :pagination_mode, :offset)}}
+
+          {:error, error} ->
+            {:error, error}
+        end
+    end
+  end
+
+  defp execute_aggregate_total_rows(selecto) do
+    count_selecto =
+      update_in(selecto.set, fn set ->
+        set
+        |> Map.delete(:limit)
+        |> Map.delete(:offset)
+        |> Map.put(:order_by, [])
+      end)
+
+    {base_sql, base_params} = Selecto.to_sql(count_selecto)
+    count_sql = "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+    started_at = System.monotonic_time(:millisecond)
+
+    case execute_raw_query(selecto, count_sql, base_params) do
+      {:ok, {[[count_value]], _columns, _aliases}} ->
+        execution_time = System.monotonic_time(:millisecond) - started_at
+
+        {:ok, normalize_count(count_value),
+         %{
+           sql: count_sql,
+           params: base_params,
+           execution_time: execution_time
+         }}
+
+      {:ok, {rows, _columns, _aliases}} ->
+        {:error,
+         Selecto.Error.query_error(
+           "Unexpected aggregate count query result",
+           count_sql,
+           base_params,
+           %{
+             rows: rows
+           }
+         )}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp clear_limit_offset(selecto) do
+    update_in(selecto.set, fn set ->
+      set
+      |> Map.delete(:limit)
+      |> Map.delete(:offset)
+    end)
+  end
+
+  defp clamp_aggregate_page(page, total_rows, per_page)
+       when is_integer(total_rows) and total_rows > 0 do
+    max_page = div(total_rows - 1, max(per_page, 1))
+    min(max(page, 0), max_page)
+  end
+
+  defp clamp_aggregate_page(page, _total_rows, _per_page), do: max(page, 0)
+
+  defp normalize_page_param(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_page_param(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {page, ""} -> max(page, 0)
+      _ -> 0
+    end
+  end
+
+  defp normalize_page_param(_), do: 0
 
   defp view_mode_value(params, fallback \\ nil) do
     get_map_value(params, :view_mode, fallback)
@@ -635,6 +865,51 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
+  defp maybe_cap_aggregate_rows(rows, view_meta, params) when is_list(rows) do
+    if AggregateOptions.aggregate_view_mode?(params) do
+      total_rows = length(rows)
+
+      case AggregateOptions.max_client_rows() do
+        :infinity ->
+          {
+            rows,
+            Map.merge(view_meta, %{
+              aggregate_rows_capped?: false,
+              aggregate_total_rows_before_cap: total_rows,
+              aggregate_max_client_rows: :infinity
+            })
+          }
+
+        max_client_rows when is_integer(max_client_rows) and total_rows > max_client_rows ->
+          {
+            Enum.take(rows, max_client_rows),
+            Map.merge(view_meta, %{
+              aggregate_rows_capped?: true,
+              aggregate_total_rows_before_cap: total_rows,
+              aggregate_max_client_rows: max_client_rows
+            })
+          }
+
+        max_client_rows when is_integer(max_client_rows) ->
+          {
+            rows,
+            Map.merge(view_meta, %{
+              aggregate_rows_capped?: false,
+              aggregate_total_rows_before_cap: total_rows,
+              aggregate_max_client_rows: max_client_rows
+            })
+          }
+
+        _other ->
+          {rows, view_meta}
+      end
+    else
+      {rows, view_meta}
+    end
+  end
+
+  defp maybe_cap_aggregate_rows(rows, view_meta, _params), do: {rows, view_meta}
+
   defp term_size_bytes(term) do
     :erts_debug.size(term) * :erlang.system_info(:wordsize)
   rescue
@@ -652,6 +927,43 @@ defmodule SelectoComponents.Form.ParamsState do
         {:error,
          Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
     end
+  end
+
+  defp execute_raw_query(selecto, query, params) do
+    cond do
+      selecto.adapter && selecto.adapter != Selecto.DB.PostgreSQL ->
+        Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
+
+      ecto_repo?(selecto.postgrex_opts) ->
+        Executor.execute_with_ecto_repo(selecto.postgrex_opts, query, params, [])
+
+      true ->
+        Executor.execute_with_postgrex(selecto.postgrex_opts, query, params, [])
+    end
+  end
+
+  defp ecto_repo?(repo) when is_atom(repo) do
+    Code.ensure_loaded?(repo) and function_exported?(repo, :__adapter__, 0)
+  end
+
+  defp ecto_repo?(_repo), do: false
+
+  defp normalize_count(value) when is_integer(value), do: value
+  defp normalize_count(value) when is_float(value), do: trunc(value)
+
+  defp normalize_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {count, _} -> count
+      :error -> 0
+    end
+  end
+
+  defp normalize_count(value) do
+    value
+    |> to_string()
+    |> normalize_count()
+  rescue
+    _ -> 0
   end
 
   defp normalize_rows_for_view(rows, columns, "detail")

@@ -5,6 +5,22 @@ CHANGES
 V NEXT
 ------
 
+- Added server-side aggregate pagination flow that executes page-scoped queries
+  (`LIMIT/OFFSET`) and aggregate total-row counting, instead of always loading
+  full aggregate result sets into memory before paging.
+- Updated aggregate page controls to request page changes through parent view
+  query execution, including `aggregate_page` URL-state synchronization.
+- Added aggregate rendering metadata and UI handling for server-paged results.
+- Added aggregate pagination cache reuse for page-count metadata and previously
+  fetched pages to reduce repeated query cost while navigating between pages.
+- Stabilized server-side aggregate pager interactions by preventing optimistic
+  page-number jumps and disabling controls while a page fetch is in flight.
+- Added aggregate page-boundary context rows so parent group headers are shown
+  at the top of continued pages with a `(continued)` marker.
+- Added configurable aggregate client-row cap (`:aggregate_max_client_rows`,
+  default `10_000`) to protect render responsiveness when aggregate mode uses
+  `per_page = all`.
+
 V 0.3.8
 -------
 

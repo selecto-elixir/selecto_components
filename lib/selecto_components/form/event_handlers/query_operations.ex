@@ -172,6 +172,38 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         end)
       end
 
+      @impl true
+      def handle_info({:update_aggregate_page, page}, socket) do
+        with_error_handling(socket, "update_aggregate_page", fn ->
+          params =
+            socket.assigns[:used_params] ||
+              ParamsState.view_config_to_params(socket.assigns.view_config)
+
+          normalized_page =
+            page
+            |> to_string()
+            |> Integer.parse()
+            |> case do
+              {value, ""} -> max(value, 0)
+              _ -> 0
+            end
+
+          current_page =
+            socket.assigns
+            |> Map.get(:view_meta, %{})
+            |> Map.get(:aggregate_page, 0)
+
+          if normalized_page == current_page do
+            {:noreply, socket}
+          else
+            updated_params = Map.put(params, "aggregate_page", to_string(normalized_page))
+            updated_socket = ParamsState.view_from_params(updated_params, socket)
+
+            {:noreply, ParamsState.state_to_url(updated_params, updated_socket)}
+          end
+        end)
+      end
+
       @doc """
       Handles completed query execution.
 
@@ -198,6 +230,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
           |> assign(:view_meta, Map.get(query_info, :view_meta))
           |> assign(:applied_view, Map.get(query_info, :applied_view))
           |> assign(:detail_page_cache, Map.get(query_info, :detail_page_cache))
+          |> assign(:aggregate_page_cache, Map.get(query_info, :aggregate_page_cache))
           |> assign(:executed, true)
 
         {:noreply, socket}
