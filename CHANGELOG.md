@@ -5,6 +5,9 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.8
+-------
+
 - Added `usage-rules.md` with concise package guidance for agentic tooling and
   dependency rule aggregation workflows.
 - Added `MULTI_TENANT_USAGE_PATTERNS.md` with package-specific guidance for
@@ -29,6 +32,7 @@ V NEXT
   count-skipping mode, and keyset pagination fallback for deep sequential pages.
 - Added detail query telemetry (`[:selecto_components, :detail, :query]`) with
   count timing, page fetch timing, and cache hit/miss measurements.
+- Bump package version to `0.3.8`.
 
 V 0.3.7
 -------
