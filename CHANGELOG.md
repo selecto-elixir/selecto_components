@@ -15,6 +15,8 @@ V NEXT
   filter-set domain values when `tenant_context` is present in assigns.
 - Added tenant helper tests for context pass-through and tenant-scoped key
   formatting.
+- Expanded tenant helper tests to verify cross-tenant saved-view/filter-set key
+  isolation and atom-context key normalization.
 
 V 0.3.7
 -------
