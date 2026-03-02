@@ -133,7 +133,11 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       """
       def handle_event("view-apply", params, socket) do
         with_error_handling(socket, "view-apply", fn ->
-          socket = assign(socket, :current_detail_page, 0)
+          socket =
+            socket
+            |> assign(:current_detail_page, 0)
+            |> ParamsState.clear_query_caches()
+
           # Execute query first, THEN update URL to prevent race condition
           socket = ParamsState.view_from_params(params, socket)
           {:noreply, ParamsState.state_to_url(params, socket)}
@@ -173,6 +177,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
               # The saved params only contain the view-specific configuration
               # We need to convert it to full params format
               params = ParamsState.convert_saved_config_to_full_params(saved_params, view_type)
+
+              socket = ParamsState.clear_query_caches(socket)
 
               # First update the view_config state from params
               socket = ParamsState.params_to_state(params, socket)

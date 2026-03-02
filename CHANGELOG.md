@@ -17,6 +17,8 @@ V NEXT
   page-number jumps and disabling controls while a page fetch is in flight.
 - Added aggregate page-boundary context rows so parent group headers are shown
   at the top of continued pages with a `(continued)` marker.
+- Updated submit/saved-view reload flows to clear detail and aggregate page
+  caches before re-execution, ensuring explicit reloads use fresh query data.
 - Added configurable aggregate client-row cap (`:aggregate_max_client_rows`,
   default `10_000`) to protect render responsiveness when aggregate mode uses
   `per_page = all`.

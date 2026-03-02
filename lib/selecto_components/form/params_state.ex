@@ -194,6 +194,19 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   @doc """
+  Clears cached query pagination state.
+
+  This is used when a user explicitly re-submits or reloads a view so results
+  are recomputed from fresh execution instead of page-cache reuse.
+  """
+  def clear_query_caches(socket) do
+    Phoenix.Component.assign(socket,
+      detail_page_cache: nil,
+      aggregate_page_cache: nil
+    )
+  end
+
+  @doc """
   Execute view from URL parameters, handling query execution and error cases.
 
   This is the core function that:
