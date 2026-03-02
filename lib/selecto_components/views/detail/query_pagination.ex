@@ -121,15 +121,9 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
   end
 
   defp execute_detail_count_query(selecto, max_rows_limit) do
-    selecto_without_paging =
-      update_in(selecto.set, fn set ->
-        set
-        |> Map.delete(:limit)
-        |> Map.delete(:offset)
-        |> Map.put(:order_by, [])
-      end)
+    count_selecto = build_lightweight_count_selecto(selecto)
 
-    {base_sql, base_params} = Selecto.to_sql(selecto_without_paging)
+    {base_sql, base_params} = Selecto.to_sql(count_selecto)
 
     count_sql =
       if is_integer(max_rows_limit) and max_rows_limit > 0 do
@@ -145,7 +139,12 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
         execution_time = System.monotonic_time(:millisecond) - started_at
 
         {:ok, normalize_count(count_value),
-         %{sql: count_sql, params: base_params, execution_time: execution_time}}
+         %{
+           sql: count_sql,
+           params: base_params,
+           execution_time: execution_time,
+           count_strategy: :lightweight_projection
+         }}
 
       {:ok, {rows, _columns, _aliases}} ->
         {:error,
@@ -157,6 +156,48 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
         {:error, error}
     end
   end
+
+  defp build_lightweight_count_selecto(selecto) do
+    primary_key_field = primary_key_field(selecto)
+
+    update_in(selecto.set, fn set ->
+      set
+      |> Map.delete(:limit)
+      |> Map.delete(:offset)
+      |> Map.put(:order_by, [])
+      |> Map.put(:subselects, [])
+      |> Map.put(:denorm_groups, %{})
+      |> Map.put(:denormalizing_columns, [])
+      |> Map.put(:selected, [{:field, primary_key_field}])
+    end)
+  end
+
+  defp primary_key_field(selecto) do
+    source =
+      selecto
+      |> Map.get(:domain, %{})
+      |> Map.get(:source, %{})
+
+    source
+    |> Map.get(:primary_key)
+    |> resolve_primary_key(source)
+    |> normalize_field_name()
+  end
+
+  defp resolve_primary_key([first | _], _source), do: first
+
+  defp resolve_primary_key(nil, source) do
+    source
+    |> Map.get(:fields, [])
+    |> List.first()
+    |> Kernel.||(:id)
+  end
+
+  defp resolve_primary_key(primary_key, _source), do: primary_key
+
+  defp normalize_field_name(field) when is_atom(field), do: Atom.to_string(field)
+  defp normalize_field_name(field) when is_binary(field), do: field
+  defp normalize_field_name(field), do: to_string(field)
 
   defp maybe_fetch_detail_pages(cache, selecto, requested_page, per_page, max_rows_limit) do
     max_page = max_page(cache.total_rows, per_page)
