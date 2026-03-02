@@ -88,4 +88,36 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     refute html =~ ~r/aria-label="Next page"[^>]*disabled/
     refute html =~ ~r/aria-label="Last page"[^>]*disabled/
   end
+
+  test "renders mapped row values when query columns are string keys" do
+    assigns =
+      base_assigns(%{
+        query_results: {[%{id: 100}, %{id: 101}], ["id"], ["ID"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "100"
+    assert html =~ "101"
+  end
+
+  test "renders row values when column uuid does not match row-data uuid mapping" do
+    assigns =
+      base_assigns(%{
+        selecto: %{
+          selecto()
+          | set: %{
+              columns: [
+                %{"field" => "id", "alias" => "id", "uuid" => "unknown-uuid"}
+              ]
+            }
+        },
+        query_results: {[%{"id" => 100}, %{"id" => 101}], ["id"], ["ID"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "100"
+    assert html =~ "101"
+  end
 end

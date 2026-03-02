@@ -34,11 +34,9 @@ defmodule SelectoComponents.Views.Detail.Process do
     max_rows = Options.normalize_max_rows_param(Map.get(params, "max_rows"))
 
     detail_columns =
-      Map.get(params, "selected", %{})
-      |> Map.values()
-      |> Enum.sort(fn a, b ->
-        String.to_integer(a["index"]) <= String.to_integer(b["index"])
-      end)
+      params
+      |> Map.get("selected", %{})
+      |> normalize_selected_entries()
 
     # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
     prevent_denorm =
@@ -130,6 +128,113 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   defp parse_positive_integer(_value, default), do: default
+
+  defp normalize_selected_entries(selected) when is_map(selected) do
+    selected
+    |> Enum.map(fn {uuid, entry} ->
+      normalize_selected_entry(entry, to_string(uuid), nil)
+    end)
+    |> sort_selected_entries()
+  end
+
+  defp normalize_selected_entries(selected) when is_list(selected) do
+    selected
+    |> Enum.with_index()
+    |> Enum.map(fn {entry, idx} ->
+      normalize_selected_entry(entry, nil, idx)
+    end)
+    |> sort_selected_entries()
+  end
+
+  defp normalize_selected_entries(_), do: []
+
+  defp normalize_selected_entry(%{} = config, fallback_uuid, fallback_index) do
+    config
+    |> map_string_keys()
+    |> Map.put_new("uuid", fallback_uuid || UUID.uuid4())
+    |> Map.put_new("index", to_string(fallback_index || 0))
+    |> Map.put_new("alias", "")
+  end
+
+  defp normalize_selected_entry({uuid, field, %{} = config}, _fallback_uuid, fallback_index) do
+    config
+    |> map_string_keys()
+    |> Map.put_new("uuid", to_string(uuid))
+    |> Map.put_new("field", to_string(field))
+    |> Map.put_new("index", to_string(fallback_index || 0))
+    |> Map.put_new("alias", "")
+  end
+
+  defp normalize_selected_entry({uuid, field, config}, fallback_uuid, fallback_index) do
+    config_map = if is_map(config), do: map_string_keys(config), else: %{}
+
+    config_map
+    |> Map.put_new("uuid", to_string(uuid || fallback_uuid || UUID.uuid4()))
+    |> Map.put_new("field", to_string(field))
+    |> Map.put_new("index", to_string(fallback_index || 0))
+    |> Map.put_new("alias", "")
+  end
+
+  defp normalize_selected_entry([uuid, field, %{} = config], _fallback_uuid, fallback_index) do
+    config
+    |> map_string_keys()
+    |> Map.put_new("uuid", to_string(uuid))
+    |> Map.put_new("field", to_string(field))
+    |> Map.put_new("index", to_string(fallback_index || 0))
+    |> Map.put_new("alias", "")
+  end
+
+  defp normalize_selected_entry([uuid, field, _config], _fallback_uuid, fallback_index) do
+    %{
+      "uuid" => to_string(uuid),
+      "field" => to_string(field),
+      "index" => to_string(fallback_index || 0),
+      "alias" => ""
+    }
+  end
+
+  defp normalize_selected_entry(field, fallback_uuid, fallback_index) when is_binary(field) do
+    %{
+      "uuid" => fallback_uuid || UUID.uuid4(),
+      "field" => field,
+      "index" => to_string(fallback_index || 0),
+      "alias" => ""
+    }
+  end
+
+  defp normalize_selected_entry(field, fallback_uuid, fallback_index) when is_atom(field) do
+    normalize_selected_entry(Atom.to_string(field), fallback_uuid, fallback_index)
+  end
+
+  defp normalize_selected_entry(_entry, fallback_uuid, fallback_index) do
+    %{
+      "uuid" => fallback_uuid || UUID.uuid4(),
+      "field" => nil,
+      "index" => to_string(fallback_index || 0),
+      "alias" => ""
+    }
+  end
+
+  defp sort_selected_entries(entries) do
+    Enum.sort(entries, fn a, b ->
+      selected_entry_index(a) <= selected_entry_index(b)
+    end)
+  end
+
+  defp selected_entry_index(entry) do
+    case Integer.parse(to_string(Map.get(entry, "index", "0"))) do
+      {index, _} -> index
+      :error -> 0
+    end
+  end
+
+  defp map_string_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {key, value} when is_atom(key) -> {Atom.to_string(key), value}
+      {key, value} when is_binary(key) -> {key, value}
+      {key, value} -> {to_string(key), value}
+    end)
+  end
 
   defp order_by(order_by, _columns) do
     order_by

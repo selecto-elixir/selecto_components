@@ -343,7 +343,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                   is_map(resrow) ->
                     # If it's already a map, extract values in column order
                     {_results, columns_from_query, _aliases} = @query_results
-                    Enum.map(columns_from_query, fn col -> Map.get(resrow, col) end)
+                    Enum.map(columns_from_query, fn col -> map_get_flexible(resrow, col) end)
 
                   true ->
                     [resrow]
@@ -365,20 +365,39 @@ defmodule SelectoComponents.Views.Detail.Component do
                 </td>
                 <%!-- Display regular columns --%>
                 <td
-                  :for={{_, col_conf} <- Enum.zip(@column_uuids, @columns)}
+                  :for={{col_conf, column_idx} <- Enum.with_index(@columns)}
                   class="px-1 py-1 align-top"
                 >
-                  <% def = Selecto.columns(@selecto)[col_conf["field"]] %>
+                  <% column_uuid = config_get(col_conf, "uuid") %>
+                  <% column_field = config_get(col_conf, "field") %>
+                  <% column_alias = config_get(col_conf, "alias") %>
+                  <% row_value =
+                    case column_uuid do
+                      uuid when is_binary(uuid) and uuid != "" ->
+                        Map.get(
+                          row_data_by_uuid,
+                          uuid,
+                          map_get_flexible(resrow, column_field) ||
+                            map_get_flexible(resrow, column_alias) ||
+                            Enum.at(resrow_list, column_idx)
+                        )
+
+                      _ ->
+                        map_get_flexible(resrow, column_field) ||
+                          map_get_flexible(resrow, column_alias) ||
+                          Enum.at(resrow_list, column_idx)
+                    end %>
+                  <% def = Selecto.columns(@selecto)[column_field] %>
                   <%= case def do %>
                     <% %{format: :component} = def -> %>
                       {safe_render_component(def.component, %{
-                        row: row_data_by_uuid[col_conf["uuid"]],
+                        row: row_value,
                         config: col_conf
                       })}
                     <% %{format: :link} = def -> %>
-                      {safe_render_link(def.link_parts, row_data_by_uuid[col_conf["uuid"]])}
+                      {safe_render_link(def.link_parts, row_value)}
                     <% _ -> %>
-                      {row_data_by_uuid[col_conf["uuid"]]}
+                      {row_value}
                   <% end %>
                 </td>
 
@@ -615,6 +634,80 @@ defmodule SelectoComponents.Views.Detail.Component do
     # For now, return empty map - parent component can override
     %{}
   end
+
+  defp map_get_flexible(map, key) when is_map(map) do
+    if is_nil(key) do
+      nil
+    else
+      direct_value = Map.get(map, key)
+
+      if is_nil(direct_value) do
+        fallback_value(map, key)
+      else
+        direct_value
+      end
+    end
+  end
+
+  defp map_get_flexible(_map, _key), do: nil
+
+  defp fallback_value(map, key) when is_atom(key), do: Map.get(map, Atom.to_string(key))
+
+  defp fallback_value(map, key) when is_binary(key) do
+    atom_key =
+      try do
+        String.to_existing_atom(key)
+      rescue
+        ArgumentError -> nil
+      end
+
+    atom_value = if atom_key, do: Map.get(map, atom_key), else: nil
+
+    if is_nil(atom_value) do
+      Enum.find_value(map, fn
+        {candidate_key, value} when is_atom(candidate_key) ->
+          if Atom.to_string(candidate_key) == key, do: value
+
+        {candidate_key, value} when is_binary(candidate_key) ->
+          if candidate_key == key, do: value
+
+        _ ->
+          nil
+      end)
+    else
+      atom_value
+    end
+  end
+
+  defp fallback_value(_map, _key), do: nil
+
+  defp config_get(config, key) when is_map(config) and is_binary(key) do
+    Map.get(config, key) ||
+      case key do
+        "uuid" -> Map.get(config, :uuid)
+        "field" -> Map.get(config, :field)
+        "alias" -> Map.get(config, :alias)
+        _ -> nil
+      end
+  end
+
+  defp config_get(config, key) when is_list(config) and is_binary(key) do
+    case {key, config} do
+      {"uuid", [uuid | _]} ->
+        to_string(uuid)
+
+      {"field", [_uuid, field | _]} ->
+        to_string(field)
+
+      {"alias", [_uuid, _field, conf]} when is_map(conf) ->
+        Map.get(conf, "alias") || Map.get(conf, :alias)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp config_get(_config, _key), do: nil
 
   @doc """
   JavaScript hooks for row click handling.
