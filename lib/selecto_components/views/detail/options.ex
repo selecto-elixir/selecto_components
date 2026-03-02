@@ -3,9 +3,13 @@ defmodule SelectoComponents.Views.Detail.Options do
 
   @max_rows_options ~w(100 1000 10000 all)
   @default_max_rows "1000"
+  @count_mode_options ~w(exact bounded none)
+  @default_count_mode "bounded"
 
   def max_rows_options, do: @max_rows_options
   def default_max_rows, do: @default_max_rows
+  def count_mode_options, do: @count_mode_options
+  def default_count_mode, do: @default_count_mode
 
   def normalize_max_rows_param(value) when is_binary(value) do
     normalized = value |> String.trim() |> String.downcase()
@@ -24,6 +28,21 @@ defmodule SelectoComponents.Views.Detail.Options do
     do: normalize_max_rows_param(Atom.to_string(value))
 
   def normalize_max_rows_param(_value), do: @default_max_rows
+
+  def normalize_count_mode_param(value) when is_binary(value) do
+    normalized = value |> String.trim() |> String.downcase()
+
+    if normalized in @count_mode_options do
+      normalized
+    else
+      @default_count_mode
+    end
+  end
+
+  def normalize_count_mode_param(value) when is_atom(value),
+    do: normalize_count_mode_param(Atom.to_string(value))
+
+  def normalize_count_mode_param(_value), do: @default_count_mode
 
   def normalize_max_rows_limit(value) do
     case normalize_max_rows_param(value) do

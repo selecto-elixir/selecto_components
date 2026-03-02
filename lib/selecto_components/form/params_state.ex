@@ -92,6 +92,11 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.put(acc, "max_rows", DetailOptions.normalize_max_rows_param(value))
   end
 
+  defp merge_scalar_view_param(acc, :detail, key, value)
+       when key in [:count_mode, "count_mode"] do
+    Map.put(acc, "count_mode", DetailOptions.normalize_count_mode_param(value))
+  end
+
   defp merge_scalar_view_param(acc, _selected_view, key, value)
        when key in [:per_page, "per_page"] do
     Map.put(acc, "per_page", normalize_per_page_param(value, "30"))
@@ -820,10 +825,16 @@ defmodule SelectoComponents.Form.ParamsState do
 
     params =
       if view_type_str == "detail" do
-        Map.put(
-          params,
+        params
+        |> Map.put(
           "max_rows",
           DetailOptions.normalize_max_rows_param(get_map_value(view_config, :max_rows, "1000"))
+        )
+        |> Map.put(
+          "count_mode",
+          DetailOptions.normalize_count_mode_param(
+            get_map_value(view_config, :count_mode, DetailOptions.default_count_mode())
+          )
         )
       else
         params

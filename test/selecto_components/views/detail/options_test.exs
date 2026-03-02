@@ -22,6 +22,17 @@ defmodule SelectoComponents.Views.Detail.OptionsTest do
     assert Options.normalize_max_rows_limit("all") == nil
   end
 
+  test "normalizes count mode values" do
+    assert Options.normalize_count_mode_param("exact") == "exact"
+    assert Options.normalize_count_mode_param("bounded") == "bounded"
+    assert Options.normalize_count_mode_param("none") == "none"
+  end
+
+  test "falls back to default for invalid count mode" do
+    assert Options.normalize_count_mode_param("invalid") == Options.default_count_mode()
+    assert Options.normalize_count_mode_param(nil) == Options.default_count_mode()
+  end
+
   test "detects detail view mode for atom and string" do
     assert Options.detail_view_mode?(%{view_mode: :detail})
     assert Options.detail_view_mode?(%{"view_mode" => "detail"})
