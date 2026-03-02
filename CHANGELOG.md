@@ -9,6 +9,12 @@ V NEXT
   dependency rule aggregation workflows.
 - Added `MULTI_TENANT_USAGE_PATTERNS.md` with package-specific guidance for
   tenant-scoped LiveView state, saved views, filter sets, and view wiring.
+- Added `SelectoComponents.Tenant.scoped_context/3` for generating stable
+  tenant-scoped context keys used by persistence adapters.
+- Updated `SelectoComponents.Form` to tenant-scope saved view context and
+  filter-set domain values when `tenant_context` is present in assigns.
+- Added tenant helper tests for context pass-through and tenant-scoped key
+  formatting.
 
 V 0.3.7
 -------

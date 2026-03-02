@@ -50,7 +50,12 @@ defmodule SelectoComponents.Form do
           id="view_config_manager"
           view_config={@view_config}
           saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
-          saved_view_context={Map.get(assigns, :saved_view_context)}
+          saved_view_context={
+            SelectoComponents.Tenant.scoped_context(
+              Map.get(assigns, :saved_view_context),
+              Map.get(assigns, :tenant_context)
+            )
+          }
           current_user_id={Map.get(assigns, :current_user_id)}
           parent_id={@myself}
         />
@@ -192,7 +197,12 @@ defmodule SelectoComponents.Form do
             module={SelectoComponents.Filter.FilterSets}
             id="filter_sets"
             user_id={Map.get(assigns, :user_id)}
-            domain={Map.get(assigns, :domain) || Map.get(assigns, :path)}
+            domain={
+              SelectoComponents.Tenant.scoped_context(
+                Map.get(assigns, :domain) || Map.get(assigns, :path),
+                Map.get(assigns, :tenant_context)
+              )
+            }
             current_filters={@view_config.filters}
             filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
           />
