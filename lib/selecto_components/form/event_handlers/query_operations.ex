@@ -51,6 +51,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
         socket = assign(socket, :params, params)
+        socket = ParamsState.clear_query_caches(socket)
 
         with_error_handling(socket, "load_saved_view", fn ->
           view =
