@@ -17,6 +17,12 @@ V NEXT
   formatting.
 - Expanded tenant helper tests to verify cross-tenant saved-view/filter-set key
   isolation and atom-context key normalization.
+- Fixed detail-view row rendering when selected-column configs arrive in mixed
+  legacy shapes (map/list/tuple) by normalizing selected entries and preserving
+  UUID/field metadata.
+- Added resilient detail-cell value lookup fallback (uuid -> field/alias ->
+  positional index) to prevent blank rows when query result maps use atom/string
+  key variants.
 
 V 0.3.7
 -------
