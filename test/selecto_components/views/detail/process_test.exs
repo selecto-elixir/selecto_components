@@ -141,4 +141,41 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
 
     assert view_meta.max_rows == "1000"
   end
+
+  test "selected entries inherit uuid from param keys when missing in payload" do
+    selecto = test_selecto()
+
+    params = %{
+      "selected" => %{
+        "c1" => %{"field" => "name", "index" => "0", "alias" => ""},
+        "c2" => %{"field" => "posts.title", "index" => "1", "alias" => ""}
+      },
+      "order_by" => %{},
+      "per_page" => "30"
+    }
+
+    {view_set, _view_meta} = Process.view(nil, params, view_columns(), [], selecto)
+
+    uuids = Enum.map(view_set.columns, & &1["uuid"])
+
+    assert uuids == ["c1", "c2"]
+  end
+
+  test "selected tuple list entries normalize into map configs" do
+    selecto = test_selecto()
+
+    params = %{
+      "selected" => [
+        {"c1", "name", %{}},
+        {"c2", "posts.title", %{}}
+      ],
+      "order_by" => %{},
+      "per_page" => "30"
+    }
+
+    {view_set, _view_meta} = Process.view(nil, params, view_columns(), [], selecto)
+
+    assert Enum.map(view_set.columns, & &1["uuid"]) == ["c1", "c2"]
+    assert Enum.map(view_set.columns, & &1["field"]) == ["name", "posts.title"]
+  end
 end
