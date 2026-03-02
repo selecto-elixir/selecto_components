@@ -4,7 +4,7 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.3.7",
+      version: "0.3.8",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: "ALPHA: LiveView components for Selecto",
@@ -61,7 +61,7 @@ defmodule SelectoComponents.MixProject do
     if use_local_selecto?() do
       {:selecto, path: "../selecto"}
     else
-      {:selecto, ">= 0.3.3 and < 0.4.0"}
+      {:selecto, ">= 0.3.6 and < 0.4.0"}
     end
   end
 
