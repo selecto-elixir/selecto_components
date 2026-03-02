@@ -23,6 +23,12 @@ V NEXT
 - Added resilient detail-cell value lookup fallback (uuid -> field/alias ->
   positional index) to prevent blank rows when query result maps use atom/string
   key variants.
+- Added detail-view `count_mode` options (`exact`, `bounded`, `none`) with
+  normalization and form wiring for count strategy control.
+- Optimized detail pagination with lightweight count projections, optional
+  count-skipping mode, and keyset pagination fallback for deep sequential pages.
+- Added detail query telemetry (`[:selecto_components, :detail, :query]`) with
+  count timing, page fetch timing, and cache hit/miss measurements.
 
 V 0.3.7
 -------
