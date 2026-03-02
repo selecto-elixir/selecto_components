@@ -9,7 +9,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   def mount(socket) do
     {:ok,
      assign(socket,
-       aggregate_page: 0
+       aggregate_page: 0,
+       aggregate_page_loading?: false,
+       aggregate_requested_page: nil
      )}
   end
 
@@ -17,12 +19,18 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   def update(assigns, socket) do
     previous_exe_id = get_in(socket.assigns, [:view_meta, :exe_id])
     incoming_exe_id = get_in(assigns, [:view_meta, :exe_id])
+    incoming_server_paged? = get_in(assigns, [:view_meta, :aggregate_server_paged?]) == true
+
+    incoming_page =
+      assigns
+      |> Map.get(:aggregate_page, get_in(assigns, [:view_meta, :aggregate_page]))
+      |> normalize_page()
 
     aggregate_page =
       if previous_exe_id && incoming_exe_id && previous_exe_id != incoming_exe_id do
-        0
+        incoming_page
       else
-        Map.get(socket.assigns, :aggregate_page, 0)
+        Map.get(socket.assigns, :aggregate_page, incoming_page)
       end
 
     # Force a complete re-assignment to ensure LiveView recognizes data changes
@@ -32,6 +40,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     socket =
       assign(socket,
         aggregate_page: aggregate_page,
+        aggregate_server_paged?: incoming_server_paged?,
+        aggregate_page_loading?: false,
+        aggregate_requested_page: nil,
         last_update: System.system_time(:microsecond)
       )
 
@@ -299,6 +310,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Render a single row with hierarchy styling
   defp rollup_row(assigns) do
+    continued? = Map.get(assigns, :continued?, false)
+
     # Extract group columns and aggregate columns from the row
     group_cols = Enum.take(assigns.row, assigns.num_group_by)
     agg_cols = Enum.drop(assigns.row, assigns.num_group_by)
@@ -322,12 +335,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     # If we're at max level, it's a detail row (not a subtotal)
     is_detail = assigns.level == assigns.num_group_by
 
-    # For detail rows, use normal styling
+    # For detail rows, use normal styling unless row is a continuation marker
     {row_class, font_weight} =
-      if is_detail do
-        {"", "font-normal"}
-      else
-        {row_class, font_weight}
+      cond do
+        continued? ->
+          {"bg-amber-50 border-t border-amber-200", "font-semibold italic"}
+
+        is_detail ->
+          {"", "font-normal"}
+
+        true ->
+          {row_class, font_weight}
       end
 
     # Build filter attributes for drill-down (accumulated from all parent levels)
@@ -340,7 +358,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         row_class: row_class,
         font_weight: font_weight,
         indent_px: indent_px,
-        filter_attrs: filter_attrs
+        filter_attrs: filter_attrs,
+        continued?: continued?
       )
 
     ~H"""
@@ -356,13 +375,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
               <%= if idx == @level - 1 do %>
-                <div
-                  phx-click="agg_add_filters"
-                  {@filter_attrs}
-                  class="cursor-pointer hover:underline"
-                >
-                  {format_value(value)}
-                </div>
+                <%= if @continued? do %>
+                  <span class="text-amber-900">
+                    {format_value(value)} (continued)
+                  </span>
+                <% else %>
+                  <div
+                    phx-click="agg_add_filters"
+                    {@filter_attrs}
+                    class="cursor-pointer hover:underline"
+                  >
+                    {format_value(value)}
+                  </div>
+                <% end %>
               <% end %>
             <% end %>
           </div>
@@ -372,12 +397,50 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <%!-- Render aggregate columns --%>
       <%= for {value, {_alias, {:agg, _agg, coldef}}} <- Enum.zip(@agg_cols, @aggregate) do %>
         <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
-          {format_aggregate_value(value, coldef)}
+          <%= if @continued? do %>
+            <span class="text-amber-700">-</span>
+          <% else %>
+            {format_aggregate_value(value, coldef)}
+          <% end %>
         </td>
       <% end %>
     </tr>
     """
   end
+
+  defp prepend_continued_group_headers(rows, num_group_by, aggregate_count, row_offset)
+       when is_list(rows) do
+    rendered_rows = Enum.map(rows, fn {level, row} -> {level, row, false} end)
+
+    if row_offset > 0 do
+      case rows do
+        [{level, row} | _] when level > 1 ->
+          group_cols = Enum.take(row, num_group_by)
+
+          continued_rows =
+            1..(level - 1)
+            |> Enum.map(fn parent_level ->
+              parent_group_cols =
+                Enum.take(group_cols, parent_level) ++
+                  List.duplicate(nil, max(num_group_by - parent_level, 0))
+
+              parent_agg_cols = List.duplicate(nil, aggregate_count)
+
+              {parent_level, parent_group_cols ++ parent_agg_cols, true}
+            end)
+
+          continued_rows ++ rendered_rows
+
+        _ ->
+          rendered_rows
+      end
+    else
+      rendered_rows
+    end
+  end
+
+  defp prepend_continued_group_headers(rows, _num_group_by, _aggregate_count, _row_offset),
+    do: rows
 
   @impl true
   def render(assigns) do
@@ -697,7 +760,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     num_group_by = length(group_by)
     rollup_rows = prepare_rollup_rows(results, num_group_by)
 
-    total_rows = length(rollup_rows)
+    page_row_count = length(rollup_rows)
+    aggregate_meta = Map.get(assigns, :view_meta, %{})
+    server_paged? = Map.get(aggregate_meta, :aggregate_server_paged?, false)
+
+    total_rows_before_cap =
+      Map.get(aggregate_meta, :aggregate_total_rows_before_cap, page_row_count)
+
+    rows_capped? = Map.get(aggregate_meta, :aggregate_rows_capped?, false)
+
+    max_client_rows =
+      Map.get(aggregate_meta, :aggregate_max_client_rows, Options.default_max_client_rows())
 
     per_page_setting =
       assigns
@@ -705,45 +778,93 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       |> Map.get(:per_page, Options.default_per_page())
       |> Options.normalize_per_page_param()
 
-    per_page = Options.per_page_to_int(per_page_setting, total_rows)
+    per_page = Options.per_page_to_int(per_page_setting, page_row_count)
 
-    max_page =
-      if total_rows > 0 and per_page > 0 do
-        div(total_rows - 1, per_page)
+    {paged_rollup_rows, aggregate_total_rows, current_page, max_page, page_start, page_end,
+     row_offset} =
+      if server_paged? do
+        total_rows =
+          max(Map.get(aggregate_meta, :aggregate_total_rows, page_row_count), page_row_count)
+
+        max_page =
+          if total_rows > 0 and per_page > 0 do
+            div(total_rows - 1, per_page)
+          else
+            0
+          end
+
+        current_page =
+          aggregate_meta
+          |> Map.get(:aggregate_page, Map.get(assigns, :aggregate_page, 0))
+          |> normalize_page()
+          |> min(max_page)
+
+        row_offset = current_page * per_page
+
+        page_start =
+          if total_rows > 0 do
+            row_offset + 1
+          else
+            0
+          end
+
+        page_end =
+          if total_rows > 0 do
+            min(row_offset + page_row_count, total_rows)
+          else
+            0
+          end
+
+        {rollup_rows, total_rows, current_page, max_page, page_start, page_end, row_offset}
       else
-        0
-      end
+        max_page =
+          if page_row_count > 0 and per_page > 0 do
+            div(page_row_count - 1, per_page)
+          else
+            0
+          end
 
-    current_page =
-      assigns
-      |> Map.get(:aggregate_page, 0)
-      |> normalize_page()
-      |> min(max_page)
+        current_page =
+          assigns
+          |> Map.get(:aggregate_page, 0)
+          |> normalize_page()
+          |> min(max_page)
 
-    row_offset = current_page * per_page
+        row_offset = current_page * per_page
 
-    page_start =
-      if total_rows > 0 do
-        row_offset + 1
-      else
-        0
-      end
+        page_start =
+          if page_row_count > 0 do
+            row_offset + 1
+          else
+            0
+          end
 
-    page_end =
-      if total_rows > 0 do
-        min(row_offset + per_page, total_rows)
-      else
-        0
+        page_end =
+          if page_row_count > 0 do
+            min(row_offset + per_page, page_row_count)
+          else
+            0
+          end
+
+        paged_rows =
+          if per_page_setting == "all" do
+            rollup_rows
+          else
+            Enum.slice(rollup_rows, row_offset, per_page)
+          end
+
+        {paged_rows, page_row_count, current_page, max_page, page_start, page_end, row_offset}
       end
 
     paged_rollup_rows =
-      if per_page_setting == "all" do
-        rollup_rows
-      else
-        Enum.slice(rollup_rows, row_offset, per_page)
-      end
+      prepend_continued_group_headers(
+        paged_rollup_rows,
+        num_group_by,
+        length(aggregates_processed),
+        row_offset
+      )
 
-    total_pages = if total_rows > 0, do: max_page + 1, else: 0
+    total_pages = if aggregate_total_rows > 0, do: max_page + 1, else: 0
 
     assigns =
       assign(assigns,
@@ -752,7 +873,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         num_group_by: num_group_by,
         group_by: group_by,
         aggregate: aggregates_processed,
-        aggregate_total_rows: total_rows,
+        aggregate_server_paged?: server_paged?,
+        aggregate_total_rows: aggregate_total_rows,
+        aggregate_total_rows_before_cap: total_rows_before_cap,
+        aggregate_rows_capped?: rows_capped?,
+        aggregate_max_client_rows: max_client_rows,
         aggregate_page: current_page,
         aggregate_max_page: max_page,
         aggregate_total_pages: total_pages,
@@ -772,7 +897,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             title="First page"
             aria-label="First page"
-            disabled={@aggregate_page <= 0}
+            disabled={@aggregate_page <= 0 or @aggregate_page_loading?}
           >
             <svg
               class="h-4 w-4"
@@ -798,7 +923,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             title="Previous page"
             aria-label="Previous page"
-            disabled={@aggregate_page <= 0}
+            disabled={@aggregate_page <= 0 or @aggregate_page_loading?}
           >
             <svg
               class="h-4 w-4"
@@ -821,7 +946,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             title="Next page"
             aria-label="Next page"
-            disabled={@aggregate_page >= @aggregate_max_page}
+            disabled={@aggregate_page >= @aggregate_max_page or @aggregate_page_loading?}
           >
             Next
             <svg
@@ -844,7 +969,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
             title="Last page"
             aria-label="Last page"
-            disabled={@aggregate_page >= @aggregate_max_page}
+            disabled={@aggregate_page >= @aggregate_max_page or @aggregate_page_loading?}
           >
             <svg
               class="h-4 w-4"
@@ -877,7 +1002,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             {if @aggregate_total_pages > 0, do: @aggregate_page + 1, else: 0}
           </span>
           of <span class="font-semibold">{@aggregate_total_pages}</span>
+          <span :if={@aggregate_page_loading?} class="ml-2 text-blue-600">Loading...</span>
         </div>
+      </div>
+
+      <div
+        :if={@aggregate_rows_capped?}
+        class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+      >
+        Showing the first <span class="font-semibold tabular-nums">{@aggregate_total_rows}</span>
+        rows out of <span class="font-semibold tabular-nums">{@aggregate_total_rows_before_cap}</span>
+        to keep rendering responsive. Narrow filters/grouping, or increase
+        <code class="rounded bg-amber-100 px-1 py-0.5">:aggregate_max_client_rows</code>
+        (currently <span class="font-semibold">{inspect(@aggregate_max_client_rows)}</span>)
+        if you need to render more rows at once.
       </div>
 
       <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
@@ -900,9 +1038,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         </thead>
         <tbody class="divide-y divide-gray-200 bg-white">
           <.rollup_row
-            :for={{level, row} <- @paged_rollup_rows}
+            :for={{level, row, continued?} <- @paged_rollup_rows}
             level={level}
             row={row}
+            continued?={continued?}
             num_group_by={@num_group_by}
             group_by={@group_by}
             aggregate={@aggregate}
@@ -930,7 +1069,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       |> normalize_page()
       |> clamp_aggregate_page_if_known(socket.assigns)
 
-    {:noreply, assign(socket, :aggregate_page, page)}
+    if Map.get(socket.assigns, :aggregate_server_paged?, false) do
+      send(self(), {:update_aggregate_page, page})
+
+      {:noreply,
+       assign(socket,
+         aggregate_page_loading?: true,
+         aggregate_requested_page: page
+       )}
+    else
+      {:noreply, assign(socket, :aggregate_page, page)}
+    end
   end
 
   defp parse_page_param(page_param) when is_binary(page_param) do

@@ -3,9 +3,44 @@ defmodule SelectoComponents.Views.Aggregate.Options do
 
   @per_page_options [30, 100, 200, 300, "all"]
   @default_per_page "100"
+  @default_max_client_rows 10_000
 
   def per_page_options, do: @per_page_options
   def default_per_page, do: @default_per_page
+  def default_max_client_rows, do: @default_max_client_rows
+
+  def max_client_rows do
+    configured =
+      Application.get_env(
+        :selecto_components,
+        :aggregate_max_client_rows,
+        @default_max_client_rows
+      )
+
+    normalize_max_client_rows(configured)
+  end
+
+  def normalize_max_client_rows(:infinity), do: :infinity
+
+  def normalize_max_client_rows(value) when is_integer(value) and value > 0,
+    do: value
+
+  def normalize_max_client_rows(value) when is_binary(value) do
+    normalized = String.trim(value) |> String.downcase()
+
+    case normalized do
+      "infinity" ->
+        :infinity
+
+      _ ->
+        case Integer.parse(normalized) do
+          {parsed, ""} when parsed > 0 -> parsed
+          _ -> @default_max_client_rows
+        end
+    end
+  end
+
+  def normalize_max_client_rows(_value), do: @default_max_client_rows
 
   def normalize_per_page_param(value) when is_binary(value) do
     normalized = value |> String.trim() |> String.downcase()
