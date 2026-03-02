@@ -5,6 +5,9 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.9
+-------
+
 - Added server-side aggregate pagination flow that executes page-scoped queries
   (`LIMIT/OFFSET`) and aggregate total-row counting, instead of always loading
   full aggregate result sets into memory before paging.
@@ -22,6 +25,7 @@ V NEXT
 - Added configurable aggregate client-row cap (`:aggregate_max_client_rows`,
   default `10_000`) to protect render responsiveness when aggregate mode uses
   `per_page = all`.
+- Bump package version to `0.3.9`.
 
 V 0.3.8
 -------
