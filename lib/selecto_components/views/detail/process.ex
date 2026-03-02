@@ -8,6 +8,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       order_by: SelectoComponents.Views.view_param_process(params, "order_by", "field"),
       per_page: normalize_per_page_param(Map.get(params, "per_page")),
       max_rows: Options.normalize_max_rows_param(Map.get(params, "max_rows")),
+      count_mode: Options.normalize_count_mode_param(Map.get(params, "count_mode")),
       prevent_denormalization:
         params["prevent_denormalization"] in ["on", "true"] ||
           (params["prevent_denormalization"] == nil && params["selected"] == nil)
@@ -24,6 +25,7 @@ defmodule SelectoComponents.Views.Detail.Process do
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: "30",
       max_rows: Options.default_max_rows(),
+      count_mode: Options.default_count_mode(),
       prevent_denormalization: true
     }
   end
@@ -32,6 +34,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   def view(_opt, params, columns, filtered, selecto) do
     per_page = parse_positive_integer(Map.get(params, "per_page"), 30)
     max_rows = Options.normalize_max_rows_param(Map.get(params, "max_rows"))
+    count_mode = Options.normalize_count_mode_param(Map.get(params, "count_mode"))
 
     detail_columns =
       params
@@ -107,6 +110,7 @@ defmodule SelectoComponents.Views.Detail.Process do
        page: String.to_integer(Map.get(params, "detail_page", "0")),
        per_page: per_page,
        max_rows: max_rows,
+       count_mode: count_mode,
        prevent_denormalization: prevent_denorm,
        subselect_configs: subselect_configs
      }}

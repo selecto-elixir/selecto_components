@@ -75,6 +75,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert view_set.denorm_groups == %{"posts" => ["posts.title"]}
     assert view_meta.prevent_denormalization == true
     assert view_meta.max_rows == "1000"
+    assert view_meta.count_mode == "bounded"
     assert [%{key: "posts"}] = view_meta.subselect_configs
   end
 
@@ -99,6 +100,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert view_set.denorm_groups == %{}
     assert view_meta.prevent_denormalization == false
     assert view_meta.max_rows == "all"
+    assert view_meta.count_mode == "bounded"
     assert view_meta.subselect_configs == []
   end
 
@@ -123,6 +125,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert selected_fields == ["name"]
     assert view_set.denorm_groups == %{"posts" => ["posts.title"]}
     assert view_meta.max_rows == "10000"
+    assert view_meta.count_mode == "bounded"
     assert [%{key: "posts"}] = view_meta.subselect_configs
   end
 
@@ -140,6 +143,7 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     {_view_set, view_meta} = Process.view(nil, params, view_columns(), [], selecto)
 
     assert view_meta.max_rows == "1000"
+    assert view_meta.count_mode == "bounded"
   end
 
   test "selected entries inherit uuid from param keys when missing in payload" do
@@ -177,5 +181,22 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
 
     assert Enum.map(view_set.columns, & &1["uuid"]) == ["c1", "c2"]
     assert Enum.map(view_set.columns, & &1["field"]) == ["name", "posts.title"]
+  end
+
+  test "count_mode param is normalized in view meta" do
+    selecto = test_selecto()
+
+    params = %{
+      "selected" => %{
+        "c1" => %{"field" => "name", "index" => "0", "alias" => "", "uuid" => "c1"}
+      },
+      "order_by" => %{},
+      "per_page" => "30",
+      "count_mode" => "exact"
+    }
+
+    {_view_set, view_meta} = Process.view(nil, params, view_columns(), [], selecto)
+
+    assert view_meta.count_mode == "exact"
   end
 end

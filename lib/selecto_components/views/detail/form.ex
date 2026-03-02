@@ -38,6 +38,11 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.get(:max_rows, Map.get(detail_config, "max_rows", "1000"))
       |> to_string()
 
+    count_mode =
+      detail_config
+      |> Map.get(:count_mode, Map.get(detail_config, "count_mode", Options.default_count_mode()))
+      |> to_string()
+
     prevent_denormalization =
       Map.get(
         detail_config,
@@ -51,9 +56,11 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.put(:order_by_items_converted, order_by_items)
       |> Map.put(:detail_per_page, per_page)
       |> Map.put(:detail_max_rows, max_rows)
+      |> Map.put(:detail_count_mode, count_mode)
       |> Map.put(:detail_prevent_denormalization, prevent_denormalization)
       |> Map.put(:detail_per_page_options, @detail_per_page_options)
       |> Map.put(:detail_max_rows_options, Options.max_rows_options())
+      |> Map.put(:detail_count_mode_options, Options.count_mode_options())
 
     ~H"""
     <div>
@@ -109,7 +116,7 @@ defmodule SelectoComponents.Views.Detail.Form do
         </:item_form>
       </.live_component>
       <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-        <div class="grid gap-3 md:grid-cols-2">
+        <div class="grid gap-3 md:grid-cols-3">
           <label class="block text-sm">
             <span class="text-xs font-medium text-gray-700">Rows Per Page</span>
             <select name="per_page" class="mt-1 select select-bordered select-sm w-full bg-white">
@@ -135,6 +142,24 @@ defmodule SelectoComponents.Views.Detail.Form do
                 value={to_string(option)}
               >
                 {if option == "all", do: "All", else: option}
+              </option>
+            </select>
+          </label>
+
+          <label class="block text-sm">
+            <span class="text-xs font-medium text-gray-700">Count Strategy</span>
+            <select name="count_mode" class="mt-1 select select-bordered select-sm w-full bg-white">
+              <option
+                :for={option <- @detail_count_mode_options}
+                selected={@detail_count_mode == to_string(option)}
+                value={to_string(option)}
+              >
+                {case option do
+                  "exact" -> "Exact"
+                  "bounded" -> "Bounded"
+                  "none" -> "None"
+                  other -> other
+                end}
               </option>
             </select>
           </label>
