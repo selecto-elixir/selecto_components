@@ -50,9 +50,11 @@ defmodule SelectoComponents.Views.Map.Component do
         map_attribution:
           Map.get(map_set, :map_attribution) || "&copy; OpenStreetMap contributors",
         map_background_mode: Map.get(map_set, :map_background_mode) || "tiles",
+        map_coordinate_mode: Map.get(map_set, :map_coordinate_mode) || "latlng",
         map_image_overlay_url: Map.get(map_set, :map_image_overlay_url),
         map_image_overlay_bounds: Map.get(map_set, :map_image_overlay_bounds) || [],
         map_image_overlay_opacity: Map.get(map_set, :map_image_overlay_opacity) || 0.85,
+        map_image_overlay_rotation: Map.get(map_set, :map_image_overlay_rotation) || 0,
         map_zoom: Map.get(map_set, :map_zoom) || 3,
         map_center: center,
         fit_bounds: Map.get(map_set, :map_fit_bounds) != false,
@@ -79,9 +81,11 @@ defmodule SelectoComponents.Views.Map.Component do
           data-tile-url={@map_tile_url}
           data-attribution={@map_attribution}
           data-background-mode={@map_background_mode}
+          data-coordinate-mode={@map_coordinate_mode}
           data-image-overlay-url={@map_image_overlay_url || ""}
           data-image-overlay-bounds={Jason.encode!(@map_image_overlay_bounds)}
           data-image-overlay-opacity={to_string(@map_image_overlay_opacity)}
+          data-image-overlay-rotation={to_string(@map_image_overlay_rotation)}
           data-zoom={@map_zoom}
           data-center={Jason.encode!(@map_center)}
           data-fit-bounds={to_string(@fit_bounds)}
@@ -163,17 +167,45 @@ defmodule SelectoComponents.Views.Map.Component do
             tileLayer: null,
             imageOverlay: null,
             clusterLoadPromise: null,
+            coordinateMode: "latlng",
+            onOverlayRotationUpdate: null,
 
             mounted() {
               this.initializeMap();
             },
 
             updated() {
+              const incomingCoordinateMode = this.getCoordinateMode();
+
+              if (incomingCoordinateMode !== this.coordinateMode) {
+                this.destroyLayers();
+
+                if (this.map && this.onOverlayRotationUpdate) {
+                  this.map.off("zoomend", this.onOverlayRotationUpdate);
+                  this.map.off("moveend", this.onOverlayRotationUpdate);
+                  this.map.off("viewreset", this.onOverlayRotationUpdate);
+                }
+
+                if (this.map) {
+                  this.map.remove();
+                  this.map = null;
+                }
+
+                this.initializeMap();
+                return;
+              }
+
               this.applyBackgroundConfig();
               this.renderFeatures();
             },
 
             destroyed() {
+              if (this.map && this.onOverlayRotationUpdate) {
+                this.map.off("zoomend", this.onOverlayRotationUpdate);
+                this.map.off("moveend", this.onOverlayRotationUpdate);
+                this.map.off("viewreset", this.onOverlayRotationUpdate);
+              }
+
               this.destroyLayers();
 
               if (this.map) {
@@ -200,11 +232,27 @@ defmodule SelectoComponents.Views.Map.Component do
 
               const center = this.getCenter();
               const zoom = Number(this.el.dataset.zoom || 3);
+              this.coordinateMode = this.getCoordinateMode();
 
-              this.map = window.L.map(this.el).setView([center.lat, center.lng], zoom);
+              const mapOptions =
+                this.coordinateMode === "local_xy"
+                  ? { crs: window.L.CRS.Simple }
+                  : {};
+
+              this.map = window.L.map(this.el, mapOptions).setView([center.lat, center.lng], zoom);
+
+              this.onOverlayRotationUpdate = () => this.applyImageOverlayRotation();
+              this.map.on("zoomend", this.onOverlayRotationUpdate);
+              this.map.on("moveend", this.onOverlayRotationUpdate);
+              this.map.on("viewreset", this.onOverlayRotationUpdate);
+
               this.applyBackgroundConfig();
               this.markers = window.L.featureGroup().addTo(this.map);
               this.renderFeatures();
+            },
+
+            getCoordinateMode() {
+              return this.el.dataset.coordinateMode === "local_xy" ? "local_xy" : "latlng";
             },
 
             getBackgroundMode() {
@@ -215,6 +263,28 @@ defmodule SelectoComponents.Views.Map.Component do
               const value = Number(this.el.dataset.imageOverlayOpacity || "0.85");
               if (!Number.isFinite(value)) return 0.85;
               return Math.max(0, Math.min(1, value));
+            },
+
+            getImageOverlayRotation() {
+              const value = Number(this.el.dataset.imageOverlayRotation || "0");
+              if (!Number.isFinite(value)) return 0;
+              return Math.max(-360, Math.min(360, value));
+            },
+
+            applyImageOverlayRotation() {
+              if (!this.imageOverlay) return;
+
+              const imageEl = this.imageOverlay.getElement ? this.imageOverlay.getElement() : null;
+              if (!imageEl) return;
+
+              const rotation = this.getImageOverlayRotation();
+              imageEl.style.transformOrigin = "center center";
+
+              const currentTransform = imageEl.style.transform || "";
+              const withoutRotation = currentTransform.replace(/\s*rotate\([^)]*\)/g, "").trim();
+              const rotatePart = ` rotate(${rotation}deg)`;
+
+              imageEl.style.transform = `${withoutRotation}${rotatePart}`.trim();
             },
 
             getImageOverlayBounds() {
@@ -284,6 +354,8 @@ defmodule SelectoComponents.Views.Map.Component do
                 if (this.imageOverlay.bringToBack) {
                   this.imageOverlay.bringToBack();
                 }
+
+                this.applyImageOverlayRotation();
 
                 return;
               }

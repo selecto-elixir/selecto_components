@@ -10,6 +10,8 @@ defmodule SelectoComponents.Views.Map.Process do
   @default_cluster false
   @default_background_mode "tiles"
   @default_image_overlay_opacity 0.85
+  @default_coordinate_mode "latlng"
+  @default_image_overlay_rotation 0.0
   @min_zoom 1
   @max_zoom 20
 
@@ -20,9 +22,11 @@ defmodule SelectoComponents.Views.Map.Process do
     :tile_url,
     :attribution,
     :background_mode,
+    :coordinate_mode,
     :image_overlay_url,
     :image_overlay_bounds,
     :image_overlay_opacity,
+    :image_overlay_rotation,
     :default_zoom,
     :center_lat,
     :center_lng,
@@ -36,7 +40,9 @@ defmodule SelectoComponents.Views.Map.Process do
     tile_url: @default_tile_url,
     attribution: @default_attribution,
     background_mode: @default_background_mode,
+    coordinate_mode: @default_coordinate_mode,
     image_overlay_opacity: @default_image_overlay_opacity,
+    image_overlay_rotation: @default_image_overlay_rotation,
     default_zoom: @default_zoom,
     center_lat: elem(@default_center, 0),
     center_lng: elem(@default_center, 1),
@@ -76,6 +82,10 @@ defmodule SelectoComponents.Views.Map.Process do
         config
         |> get_map_value(:background_mode)
         |> normalize_background_mode(),
+      coordinate_mode:
+        config
+        |> get_map_value(:coordinate_mode)
+        |> normalize_coordinate_mode(),
       image_overlay_url:
         config
         |> get_map_value(:image_overlay_url)
@@ -89,6 +99,11 @@ defmodule SelectoComponents.Views.Map.Process do
         |> get_map_value(:image_overlay_opacity)
         |> parse_float(nil)
         |> normalize_image_overlay_opacity(),
+      image_overlay_rotation:
+        config
+        |> get_map_value(:image_overlay_rotation)
+        |> parse_float(nil)
+        |> normalize_image_overlay_rotation(),
       default_zoom:
         config
         |> get_map_value(:default_zoom)
@@ -212,10 +227,13 @@ defmodule SelectoComponents.Views.Map.Process do
         map_tile_url: Map.get(config, :tile_url, @default_tile_url),
         map_attribution: Map.get(config, :attribution, @default_attribution),
         map_background_mode: Map.get(config, :background_mode, @default_background_mode),
+        map_coordinate_mode: Map.get(config, :coordinate_mode, @default_coordinate_mode),
         map_image_overlay_url: Map.get(config, :image_overlay_url),
         map_image_overlay_bounds: Map.get(config, :image_overlay_bounds),
         map_image_overlay_opacity:
           Map.get(config, :image_overlay_opacity, @default_image_overlay_opacity),
+        map_image_overlay_rotation:
+          Map.get(config, :image_overlay_rotation, @default_image_overlay_rotation),
         map_zoom: Map.get(config, :default_zoom, @default_zoom),
         map_center: center,
         map_fit_bounds: Map.get(config, :fit_bounds, true),
@@ -280,9 +298,11 @@ defmodule SelectoComponents.Views.Map.Process do
       tile_url: get_map_value(domain, :default_map_tile_url),
       attribution: get_map_value(domain, :default_map_attribution),
       background_mode: get_map_value(domain, :default_map_background_mode),
+      coordinate_mode: get_map_value(domain, :default_map_coordinate_mode),
       image_overlay_url: get_map_value(domain, :default_map_image_overlay_url),
       image_overlay_bounds: get_map_value(domain, :default_map_image_overlay_bounds),
       image_overlay_opacity: get_map_value(domain, :default_map_image_overlay_opacity),
+      image_overlay_rotation: get_map_value(domain, :default_map_image_overlay_rotation),
       default_zoom: get_map_value(domain, :default_map_zoom),
       center: get_map_value(domain, :default_map_center),
       fit_bounds: get_map_value(domain, :default_map_fit_bounds),
@@ -348,6 +368,24 @@ defmodule SelectoComponents.Views.Map.Process do
 
   defp normalize_background_mode(_), do: nil
 
+  defp normalize_coordinate_mode(nil), do: nil
+
+  defp normalize_coordinate_mode(value) when is_atom(value) do
+    value
+    |> Atom.to_string()
+    |> normalize_coordinate_mode()
+  end
+
+  defp normalize_coordinate_mode(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "latlng" -> "latlng"
+      "local_xy" -> "local_xy"
+      _ -> nil
+    end
+  end
+
+  defp normalize_coordinate_mode(_), do: nil
+
   defp normalize_image_overlay_bounds(nil), do: nil
 
   defp normalize_image_overlay_bounds([[south, west], [north, east]]) do
@@ -403,6 +441,16 @@ defmodule SelectoComponents.Views.Map.Process do
   end
 
   defp normalize_image_overlay_opacity(_), do: nil
+
+  defp normalize_image_overlay_rotation(nil), do: nil
+
+  defp normalize_image_overlay_rotation(value) when is_number(value) do
+    value
+    |> Kernel.*(1.0)
+    |> clamp(-360.0, 360.0)
+  end
+
+  defp normalize_image_overlay_rotation(_), do: nil
 
   defp normalize_zoom(nil), do: nil
 

@@ -58,9 +58,11 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           tile_url: "https://tiles.example.test/{z}/{x}/{y}.png",
           attribution: "Example attribution",
           background_mode: "image_overlay",
+          coordinate_mode: "local_xy",
           image_overlay_url: "https://assets.example.test/yard.png",
           image_overlay_bounds: [[33.7, -123.5], [49.5, -117.0]],
           image_overlay_opacity: 0.7,
+          image_overlay_rotation: 19,
           default_zoom: 7,
           center_lat: 41.2,
           center_lng: -87.6,
@@ -80,9 +82,11 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["tile_url"] == "https://tiles.example.test/{z}/{x}/{y}.png"
     assert params["attribution"] == "Example attribution"
     assert params["background_mode"] == "image_overlay"
+    assert params["coordinate_mode"] == "local_xy"
     assert params["image_overlay_url"] == "https://assets.example.test/yard.png"
     assert params["image_overlay_bounds"] == "33.7,-123.5,49.5,-117.0"
     assert params["image_overlay_opacity"] == "0.7"
+    assert params["image_overlay_rotation"] == "19"
     assert params["default_zoom"] == "7"
     assert params["center_lat"] == "41.2"
     assert params["center_lng"] == "-87.6"
@@ -166,9 +170,11 @@ defmodule SelectoComponents.Form.ParamsStateTest do
         "tile_url" => "https://tiles.example.test/{z}/{x}/{y}.png",
         "attribution" => "Saved attribution",
         "background_mode" => "image_overlay",
+        "coordinate_mode" => "local_xy",
         "image_overlay_url" => "https://assets.example.test/yard-saved.png",
         "image_overlay_bounds" => [33.7, -123.5, 49.5, -117.0],
-        "image_overlay_opacity" => 0.6
+        "image_overlay_opacity" => 0.6,
+        "image_overlay_rotation" => -12
       }
     }
 
@@ -187,9 +193,11 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["tile_url"] == "https://tiles.example.test/{z}/{x}/{y}.png"
     assert params["attribution"] == "Saved attribution"
     assert params["background_mode"] == "image_overlay"
+    assert params["coordinate_mode"] == "local_xy"
     assert params["image_overlay_url"] == "https://assets.example.test/yard-saved.png"
     assert params["image_overlay_bounds"] == "33.7,-123.5,49.5,-117.0"
     assert params["image_overlay_opacity"] == "0.6"
+    assert params["image_overlay_rotation"] == "-12"
   end
 
   test "convert_saved_config_to_full_params restores map layer settings" do

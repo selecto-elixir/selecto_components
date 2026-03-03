@@ -128,9 +128,11 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
             map_zoom: 6,
             map_center: {41.8, -87.6},
             map_background_mode: "image_overlay",
+            map_coordinate_mode: "local_xy",
             map_image_overlay_url: "https://assets.example.test/yard.png",
             map_image_overlay_bounds: [[33.7, -123.5], [49.5, -117.0]],
             map_image_overlay_opacity: 0.7,
+            map_image_overlay_rotation: 22,
             map_layers: [
               %{label: "Pickups", scale_type: "numeric_steps", scale_steps: "20,45,90"}
             ]
@@ -142,8 +144,10 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert html =~ "data-features="
     assert html =~ "data-map-layers="
     assert html =~ "data-background-mode=\"image_overlay\""
+    assert html =~ "data-coordinate-mode=\"local_xy\""
     assert html =~ "data-image-overlay-url=\"https://assets.example.test/yard.png\""
     assert html =~ "data-image-overlay-opacity=\"0.7\""
+    assert html =~ "data-image-overlay-rotation=\"22\""
     assert html =~ "Map View"
     assert html =~ "Scale Legend"
   end
