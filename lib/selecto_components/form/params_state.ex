@@ -1275,6 +1275,10 @@ defmodule SelectoComponents.Form.ParamsState do
       "geometry_field",
       normalize_map_scalar(get_map_value(layer, :geometry_field))
     )
+    |> maybe_put_param(
+      "geometry_kind",
+      normalize_map_scalar(get_map_value(layer, :geometry_kind))
+    )
     |> maybe_put_param("popup_field", normalize_map_scalar(get_map_value(layer, :popup_field)))
     |> maybe_put_param("color_field", normalize_map_scalar(get_map_value(layer, :color_field)))
     |> maybe_put_param("point_radius", normalize_map_scalar(get_map_value(layer, :point_radius)))

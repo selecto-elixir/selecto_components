@@ -83,4 +83,55 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert html =~ "Map View"
     assert html =~ "Dwell Time Legend"
   end
+
+  test "render shows layer legend when multiple layers are visible" do
+    html =
+      render_component(Component,
+        id: "map-test-layers",
+        executed: true,
+        query_results:
+          {[
+             [
+               ~s({"type":"Point","coordinates":[-87.6,41.8]}),
+               "Chicago",
+               "#ef4444",
+               ~s({"type":"LineString","coordinates":[[-87.6,41.8],[-87.4,41.9]]}),
+               "Route A",
+               "#2563eb"
+             ]
+           ], [],
+           [
+             "__map_geometry",
+             "__map_popup",
+             "__map_color",
+             "__map_geometry_2",
+             "__map_popup_2",
+             "__map_color_2"
+           ]},
+        selecto: %{
+          set: %{
+            map_zoom: 6,
+            map_center: {41.8, -87.6},
+            map_layers: [
+              %{
+                label: "Pickups",
+                geometry_field: "location",
+                geometry_kind: "point",
+                visible: true
+              },
+              %{
+                label: "Routes",
+                geometry_field: "route_path",
+                geometry_kind: "line",
+                visible: true
+              }
+            ]
+          }
+        }
+      )
+
+    assert html =~ "Layer Legend"
+    assert html =~ "Pickups"
+    assert html =~ "Routes"
+  end
 end

@@ -368,6 +368,10 @@ defmodule SelectoComponents.Views.Map.Process do
           layer
           |> get_map_value(:geometry_field)
           |> normalize_field(),
+        geometry_kind:
+          layer
+          |> get_map_value(:geometry_kind)
+          |> normalize_geometry_kind(),
         popup_field:
           layer
           |> get_map_value(:popup_field)
@@ -470,17 +474,21 @@ defmodule SelectoComponents.Views.Map.Process do
     %{
       label: label,
       geometry_field: resolve_geometry_field(geometry_field, columns, selecto),
+      geometry_kind:
+        layer_opts
+        |> get_map_value(:geometry_kind)
+        |> normalize_geometry_kind(),
       popup_field: resolve_optional_field(popup_field, columns),
       color_field: resolve_optional_field(color_field, columns),
       point_radius:
         layer_opts
         |> get_map_value(:point_radius)
-        |> parse_integer(6)
+        |> parse_integer(point_radius_default(layer_opts))
         |> normalize_point_radius(),
       line_weight:
         layer_opts
         |> get_map_value(:line_weight)
-        |> parse_integer(2)
+        |> parse_integer(line_weight_default(layer_opts))
         |> normalize_line_weight(),
       line_dash_array:
         layer_opts
@@ -489,14 +497,45 @@ defmodule SelectoComponents.Views.Map.Process do
       fill_opacity:
         layer_opts
         |> get_map_value(:fill_opacity)
-        |> parse_float(0.25)
+        |> parse_float(fill_opacity_default(layer_opts))
         |> normalize_fill_opacity(),
       stroke_opacity:
         layer_opts
         |> get_map_value(:stroke_opacity)
-        |> parse_float(0.9)
+        |> parse_float(stroke_opacity_default(layer_opts))
         |> normalize_stroke_opacity()
     }
+  end
+
+  defp point_radius_default(layer_opts) do
+    case get_map_value(layer_opts, :geometry_kind) |> normalize_geometry_kind() do
+      "line" -> 4
+      "area" -> 4
+      _ -> 6
+    end
+  end
+
+  defp line_weight_default(layer_opts) do
+    case get_map_value(layer_opts, :geometry_kind) |> normalize_geometry_kind() do
+      "line" -> 3
+      "area" -> 2
+      _ -> 2
+    end
+  end
+
+  defp fill_opacity_default(layer_opts) do
+    case get_map_value(layer_opts, :geometry_kind) |> normalize_geometry_kind() do
+      "line" -> 0.05
+      "area" -> 0.25
+      _ -> 0.85
+    end
+  end
+
+  defp stroke_opacity_default(layer_opts) do
+    case get_map_value(layer_opts, :geometry_kind) |> normalize_geometry_kind() do
+      "area" -> 0.8
+      _ -> 0.9
+    end
   end
 
   defp normalize_point_radius(nil), do: nil
@@ -518,6 +557,23 @@ defmodule SelectoComponents.Views.Map.Process do
   defp normalize_stroke_opacity(value) when value < 0.0, do: 0.0
   defp normalize_stroke_opacity(value) when value > 1.0, do: 1.0
   defp normalize_stroke_opacity(value), do: value
+
+  defp normalize_geometry_kind(nil), do: "auto"
+
+  defp normalize_geometry_kind(kind) when is_atom(kind) do
+    kind
+    |> Atom.to_string()
+    |> normalize_geometry_kind()
+  end
+
+  defp normalize_geometry_kind(kind) when is_binary(kind) do
+    case kind |> String.trim() |> String.downcase() do
+      value when value in ["point", "line", "area", "auto"] -> value
+      _ -> "auto"
+    end
+  end
+
+  defp normalize_geometry_kind(_), do: "auto"
 
   defp maybe_elem({lat, _lng}, 0), do: lat
   defp maybe_elem({_lat, lng}, 1), do: lng

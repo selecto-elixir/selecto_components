@@ -539,6 +539,23 @@ defmodule SelectoComponents.Views.Map.Component do
             </div>
           </div>
         <% end %>
+
+        <%= if show_layer_legend?(@map_layers) do %>
+          <div class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-700">
+              Layer Legend
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+              <span
+                :for={layer <- visible_layers(@map_layers)}
+                class="inline-flex items-center gap-1.5"
+              >
+                <span class={layer_swatch_class(layer)} style={layer_swatch_style(layer)}></span>
+                {layer_label(layer)}
+              </span>
+            </div>
+          </div>
+        <% end %>
       <% end %>
     </div>
     """
@@ -703,6 +720,78 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp show_dwell_legend?(_), do: false
+
+  defp show_layer_legend?(layers) when is_list(layers), do: length(visible_layers(layers)) > 1
+  defp show_layer_legend?(_), do: false
+
+  defp visible_layers(layers) do
+    Enum.filter(layers, fn layer -> Map.get(layer, :visible, true) != false end)
+  end
+
+  defp layer_label(layer) do
+    Map.get(layer, :label) || Map.get(layer, :geometry_field) || "Layer"
+  end
+
+  defp layer_swatch_class(layer) do
+    case layer_kind(layer) do
+      "line" -> "inline-block w-8 border-t"
+      "area" -> "inline-block h-3.5 w-3.5 rounded-sm border"
+      _ -> "inline-block h-3 w-3 rounded-full border"
+    end
+  end
+
+  defp layer_swatch_style(layer) do
+    color = default_layer_color(layer)
+    stroke = Map.get(layer, :stroke_opacity, 0.9)
+    fill = Map.get(layer, :fill_opacity, 0.25)
+    line_weight = Map.get(layer, :line_weight, 2)
+    dash = Map.get(layer, :line_dash_array)
+
+    case layer_kind(layer) do
+      "line" ->
+        "border-color: #{color}; border-top-width: #{line_weight}px; border-top-style: #{if is_binary(dash) and dash != "", do: "dashed", else: "solid"}; opacity: #{stroke};"
+
+      "area" ->
+        "border-color: #{color}; border-width: #{line_weight}px; background-color: #{color}; opacity: #{max(fill, 0.2)};"
+
+      _ ->
+        "border-color: #{color}; background-color: #{color}; opacity: #{stroke};"
+    end
+  end
+
+  defp default_layer_color(layer) do
+    case Map.get(layer, :geometry_kind) do
+      "line" -> "#2563eb"
+      "area" -> "#0f766e"
+      _ -> "#2563eb"
+    end
+  end
+
+  defp layer_kind(layer) do
+    case Map.get(layer, :geometry_kind) do
+      value when value in ["point", "line", "area"] -> value
+      _ -> infer_kind_from_field(Map.get(layer, :geometry_field))
+    end
+  end
+
+  defp infer_kind_from_field(field) when is_binary(field) do
+    down = String.downcase(field)
+
+    cond do
+      String.contains?(down, "line") or String.contains?(down, "route") or
+          String.contains?(down, "path") ->
+        "line"
+
+      String.contains?(down, "zone") or String.contains?(down, "area") or
+          String.contains?(down, "polygon") ->
+        "area"
+
+      true ->
+        "point"
+    end
+  end
+
+  defp infer_kind_from_field(_), do: "point"
 
   defp index_for_alias(aliases, key, default) do
     Enum.find_index(aliases, fn alias_name -> to_string(alias_name) == key end) || default
