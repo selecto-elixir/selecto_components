@@ -58,6 +58,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
       suggestions
     end
   end
+
   def sanitize_suggestions(suggestions), do: suggestions
 
   # Private functions
@@ -77,9 +78,11 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
     |> Map.delete(:sql_params)
     |> Map.delete(:stack_trace)
   end
+
   defp sanitize_for_production(error), do: error
 
   defp sanitize_message(nil), do: "An error occurred"
+
   defp sanitize_message(message) when is_binary(message) do
     message
     |> remove_sql_content()
@@ -87,6 +90,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
     |> remove_table_names()
     |> generic_fallback()
   end
+
   defp sanitize_message(_), do: "An error occurred"
 
   defp remove_sql_content(message) do
@@ -122,17 +126,17 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
     cond do
       String.contains?(message, ["password", "secret", "token", "key"]) ->
         "A security-related error occurred"
-      
+
       String.contains?(message, ["database", "postgres", "mysql", "sqlite"]) ->
         "A database error occurred"
-      
+
       String.contains?(message, ["connection", "timeout", "refused"]) ->
         "A connection error occurred"
-      
+
       String.length(message) > 200 ->
         # Very long messages might contain dumps, truncate them
         String.slice(message, 0, 100) <> "... [truncated for security]"
-      
+
       true ->
         message
     end
@@ -143,22 +147,23 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
       # Remove suggestions that might reveal schema
       String.contains?(suggestion, ["table", "column", "index", "constraint"]) ->
         "Please check your data configuration"
-      
+
       # Remove suggestions with specific field names
       String.contains?(suggestion, ~r/field: :\w+/) ->
         "Please verify your field selection"
-      
+
       # Keep generic helpful suggestions
       String.contains?(suggestion, ["try", "check", "verify", "ensure"]) ->
         suggestion
         |> remove_sql_content()
         |> remove_parameter_values()
         |> remove_table_names()
-      
+
       true ->
         suggestion
     end
   end
+
   defp sanitize_suggestion(_), do: nil
 
   @doc """
@@ -168,28 +173,28 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
     case error_type do
       :connection_error ->
         "Unable to connect to the data source. Please try again later."
-      
+
       :timeout_error ->
         "The operation took too long to complete. Please try again with a smaller dataset."
-      
+
       :permission_error ->
         "You don't have permission to perform this operation."
-      
+
       :validation_error ->
         "The provided data is invalid. Please check your input."
-      
+
       :configuration_error ->
         "There's a configuration issue. Please contact support."
-      
+
       :query_error ->
         "Unable to retrieve the requested data. Please try a different query."
-      
+
       :aggregate_error ->
         "Unable to calculate aggregates. Please check your grouping configuration."
-      
+
       :filter_error ->
         "Unable to apply filters. Please check your filter configuration."
-      
+
       _ ->
         "An unexpected error occurred. Please try again or contact support if the issue persists."
     end
@@ -206,35 +211,35 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
           "Try refreshing the page",
           "Contact support if the issue persists"
         ]
-      
+
       :timeout_error ->
         [
           "Try using fewer filters",
           "Select a smaller date range",
           "Reduce the number of grouped columns"
         ]
-      
+
       :permission_error ->
         [
           "Verify you're logged in",
           "Check with your administrator for access",
           "Try a different view or report"
         ]
-      
+
       :validation_error ->
         [
           "Check all required fields are filled",
           "Ensure dates are in the correct format",
           "Verify numeric values are valid"
         ]
-      
+
       :query_error ->
         [
           "Try simplifying your query",
           "Remove complex filters temporarily",
           "Start with a basic view and add complexity"
         ]
-      
+
       _ ->
         [
           "Try refreshing the page",

@@ -116,7 +116,8 @@ defmodule SelectoComponents.FilterSetsBehaviour do
   - `{:error, :not_found}` if not found
   - `{:error, :unauthorized}` if user lacks access
   """
-  @callback get_filter_set(id :: String.t(), user_id :: String.t()) :: {:ok, map()} | {:error, atom()}
+  @callback get_filter_set(id :: String.t(), user_id :: String.t()) ::
+              {:ok, map()} | {:error, atom()}
 
   @doc """
   Creates a new filter set.
@@ -151,8 +152,8 @@ defmodule SelectoComponents.FilterSetsBehaviour do
   - `{:error, :unauthorized}` if user lacks permission
   - `{:error, changeset}` on validation failure
   """
-  @callback update_filter_set(id :: String.t(), attrs :: map(), user_id :: String.t()) :: 
-    {:ok, map()} | {:error, atom() | any()}
+  @callback update_filter_set(id :: String.t(), attrs :: map(), user_id :: String.t()) ::
+              {:ok, map()} | {:error, atom() | any()}
 
   @doc """
   Deletes a filter set.
@@ -166,8 +167,8 @@ defmodule SelectoComponents.FilterSetsBehaviour do
   - `{:error, :not_found}` if not found
   - `{:error, :unauthorized}` if user lacks permission
   """
-  @callback delete_filter_set(id :: String.t(), user_id :: String.t()) :: 
-    {:ok, map()} | {:error, atom()}
+  @callback delete_filter_set(id :: String.t(), user_id :: String.t()) ::
+              {:ok, map()} | {:error, atom()}
 
   @doc """
   Sets a filter set as the user's default for a domain.
@@ -181,8 +182,8 @@ defmodule SelectoComponents.FilterSetsBehaviour do
   - `{:error, :not_found}` if not found
   - `{:error, :unauthorized}` if user lacks permission
   """
-  @callback set_default_filter_set(id :: String.t(), user_id :: String.t()) :: 
-    {:ok, map()} | {:error, atom()}
+  @callback set_default_filter_set(id :: String.t(), user_id :: String.t()) ::
+              {:ok, map()} | {:error, atom()}
 
   @doc """
   Gets the user's default filter set for a domain.
@@ -221,6 +222,6 @@ defmodule SelectoComponents.FilterSetsBehaviour do
   - `{:error, :not_found}` if source not found
   - `{:error, :unauthorized}` if user lacks access to source
   """
-  @callback duplicate_filter_set(id :: String.t(), new_name :: String.t(), user_id :: String.t()) :: 
-    {:ok, map()} | {:error, atom()}
+  @callback duplicate_filter_set(id :: String.t(), new_name :: String.t(), user_id :: String.t()) ::
+              {:ok, map()} | {:error, atom()}
 end

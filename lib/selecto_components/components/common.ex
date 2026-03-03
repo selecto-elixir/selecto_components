@@ -100,17 +100,14 @@ defmodule SelectoComponents.Components.Common do
   end
 
   def sc_checkbox(assigns) do
-  attrs = assigns_to_attributes(assigns, [:label, :options, :value])
-  assigns = assign(assigns, attrs: attrs)
+    attrs = assigns_to_attributes(assigns, [:label, :options, :value])
+    assigns = assign(assigns, attrs: attrs)
 
-  ~H"""
-    <label>
-      <input type="checkbox" {@attrs}/>
-      <%= render_slot(@inner_block) %>
-    </label>
-  """
+    ~H"""
+      <label>
+        <input type="checkbox" {@attrs}/>
+        <%= render_slot(@inner_block) %>
+      </label>
+    """
   end
-
-
-
 end

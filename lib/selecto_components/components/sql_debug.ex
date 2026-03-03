@@ -3,30 +3,31 @@ defmodule SelectoComponents.Components.SqlDebug do
   Component for displaying SQL queries in development mode.
   Shows prettified SQL with syntax highlighting and copy functionality.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
 
   @doc """
   Renders SQL debug information if in dev mode.
-  
+
   ## Attributes
   - sql: The SQL query string
   - params: Query parameters (optional)
   - expanded: Whether the debug section is initially expanded
   """
-  attr :sql, :string, default: nil
-  attr :params, :list, default: []
-  attr :expanded, :boolean, default: false
-  attr :execution_time, :integer, default: nil
+  attr(:sql, :string, default: nil)
+  attr(:params, :list, default: [])
+  attr(:expanded, :boolean, default: false)
+  attr(:execution_time, :integer, default: nil)
 
   def sql_debug(assigns) do
     # Only show in development mode
     if Mix.env() == :dev && assigns.sql do
-      assigns = assigns
+      assigns =
+        assigns
         |> Map.put(:formatted_sql, format_sql(assigns.sql))
         |> Map.put(:debug_id, "sql_debug_#{:erlang.unique_integer([:positive])}")
-      
+
       ~H"""
       <div class="sql-debug-container mt-4 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
         <div class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
@@ -92,7 +93,7 @@ defmodule SelectoComponents.Components.SqlDebug do
   @doc """
   Renders a simplified inline SQL display
   """
-  attr :sql, :string, required: true
+  attr(:sql, :string, required: true)
 
   def sql_inline(assigns) do
     if Mix.env() == :dev do
@@ -127,7 +128,7 @@ defmodule SelectoComponents.Components.SqlDebug do
       with recursive union all intersect except
       json_agg array_agg row_to_json to_json jsonb_agg
     )
-    
+
     # Replace keywords with highlighted versions
     Enum.reduce(keywords, sql, fn keyword, acc ->
       # Case-insensitive replacement
@@ -208,34 +209,34 @@ defmodule SelectoComponents.Components.SqlDebug do
     .sql-debug-container {
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     }
-    
+
     .sql-code {
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       line-height: 1.5;
     }
-    
+
     .sql-keyword {
       color: #ff79c6;
       font-weight: bold;
     }
-    
+
     .sql-function {
       color: #50fa7b;
     }
-    
+
     .sql-string {
       color: #f1fa8c;
     }
-    
+
     .sql-number {
       color: #bd93f9;
     }
-    
+
     .sql-comment {
       color: #6272a4;
       font-style: italic;
     }
-    
+
     .sql-inline {
       max-width: 300px;
       display: inline-block;

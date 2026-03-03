@@ -2,15 +2,15 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
   @moduledoc """
   Error recovery mechanisms with retry logic and exponential backoff.
   """
-  
+
   use Phoenix.Component
   import Phoenix.LiveView
-  
+
   @max_retry_attempts 3
   @initial_backoff_ms 1000
   @max_backoff_ms 16000
   @backoff_multiplier 2
-  
+
   # Error types that are retryable
   @retryable_errors [
     :timeout,
@@ -21,7 +21,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     :database_locked,
     :rate_limited
   ]
-  
+
   @doc """
   Determines if an error is retryable based on its type.
   """
@@ -29,15 +29,15 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     error_type = Map.get(error, :type) || classify_error(error)
     error_type in @retryable_errors
   end
-  
+
   def retryable_error?(_), do: false
-  
+
   @doc """
   Classifies an error based on its message or metadata.
   """
   def classify_error(error) when is_map(error) do
     message = Map.get(error, :message, "") |> to_string() |> String.downcase()
-    
+
     cond do
       String.contains?(message, ["timeout", "timed out"]) -> :timeout
       String.contains?(message, ["connection", "connect"]) -> :connection_error
@@ -49,9 +49,9 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
       true -> :unknown
     end
   end
-  
+
   def classify_error(_), do: :unknown
-  
+
   @doc """
   Initializes retry state for a socket.
   """
@@ -64,14 +64,14 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
       preserved_state: nil
     )
   end
-  
+
   @doc """
   Attempts to retry an operation with exponential backoff.
   """
   def retry_operation(socket, operation_fn, opts \\ []) do
     max_attempts = Keyword.get(opts, :max_attempts, @max_retry_attempts)
     retry_count = socket.assigns[:retry_count] || 0
-    
+
     if retry_count >= max_attempts do
       socket
       |> assign(retry_exhausted: true)
@@ -81,7 +81,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
       })
     else
       backoff = calculate_backoff(retry_count)
-      
+
       socket
       |> assign(
         retry_count: retry_count + 1,
@@ -91,7 +91,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
       |> schedule_retry(operation_fn, backoff)
     end
   end
-  
+
   @doc """
   Calculates exponential backoff delay.
   """
@@ -99,7 +99,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     delay = @initial_backoff_ms * :math.pow(@backoff_multiplier, retry_count)
     min(round(delay), @max_backoff_ms)
   end
-  
+
   @doc """
   Schedules a retry after the specified delay.
   """
@@ -108,32 +108,34 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     if socket.assigns[:retry_timer] do
       Process.cancel_timer(socket.assigns.retry_timer)
     end
-    
+
     timer_ref = Process.send_after(self(), {:execute_retry, operation_fn}, delay_ms)
-    
+
     assign(socket, retry_timer: timer_ref)
   end
-  
+
   @doc """
   Preserves current form state for retry.
   """
   def preserve_state(socket, state_to_preserve) do
     assign(socket, preserved_state: state_to_preserve)
   end
-  
+
   @doc """
   Restores preserved state after successful retry.
   """
   def restore_state(socket) do
     case socket.assigns[:preserved_state] do
-      nil -> socket
-      state -> 
+      nil ->
+        socket
+
+      state ->
         socket
         |> assign(state)
         |> assign(preserved_state: nil)
     end
   end
-  
+
   @doc """
   Resets retry state after successful operation.
   """
@@ -142,7 +144,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     if socket.assigns[:retry_timer] do
       Process.cancel_timer(socket.assigns.retry_timer)
     end
-    
+
     assign(socket,
       retry_count: 0,
       retry_timer: nil,
@@ -152,7 +154,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
       next_retry_in: nil
     )
   end
-  
+
   @doc """
   Component for displaying retry status and controls.
   """
@@ -223,7 +225,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     </div>
     """
   end
-  
+
   @doc """
   Component for inline retry button in error displays.
   """
@@ -255,16 +257,16 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     </button>
     """
   end
-  
+
   # Helper functions
-  
+
   defp format_duration(ms) when ms >= 1000 do
     seconds = div(ms, 1000)
     "#{seconds}s"
   end
-  
+
   defp format_duration(ms), do: "#{ms}ms"
-  
+
   @doc """
   Handle retry-related messages in the parent LiveView.
   """
@@ -273,14 +275,14 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
     |> assign(retry_in_progress: true)
     |> operation_fn.()
   end
-  
+
   def handle_retry_message({:retry_succeeded, result}, socket) do
     socket
     |> reset_retry_state()
     |> restore_state()
     |> assign(result: result)
   end
-  
+
   def handle_retry_message({:retry_failed, error}, socket) do
     if retryable_error?(error) do
       socket

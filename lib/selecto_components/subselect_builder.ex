@@ -40,8 +40,10 @@ defmodule SelectoComponents.SubselectBuilder do
     case subselect_config.format do
       :json_agg ->
         format_as_json_array(results)
+
       :array_agg ->
         format_as_array(results)
+
       _ ->
         results
     end
@@ -164,9 +166,10 @@ defmodule SelectoComponents.SubselectBuilder do
   def validate_subselects(selecto) do
     subselects = Map.get(selecto, :subselects, [])
 
-    errors = Enum.flat_map(subselects, fn subselect ->
-      validate_single_subselect(subselect)
-    end)
+    errors =
+      Enum.flat_map(subselects, fn subselect ->
+        validate_single_subselect(subselect)
+      end)
 
     case errors do
       [] -> :ok
@@ -178,18 +181,20 @@ defmodule SelectoComponents.SubselectBuilder do
     errors = []
 
     # Check for required fields
-    errors = if Map.has_key?(subselect, :columns) do
-      errors
-    else
-      ["Subselect missing required 'columns' field" | errors]
-    end
+    errors =
+      if Map.has_key?(subselect, :columns) do
+        errors
+      else
+        ["Subselect missing required 'columns' field" | errors]
+      end
 
     # Check for valid alias
-    errors = if Map.has_key?(subselect, :as) && is_binary(subselect.as) do
-      errors
-    else
-      ["Subselect missing or invalid 'as' alias" | errors]
-    end
+    errors =
+      if Map.has_key?(subselect, :as) && is_binary(subselect.as) do
+        errors
+      else
+        ["Subselect missing or invalid 'as' alias" | errors]
+      end
 
     errors
   end

@@ -3,10 +3,10 @@ defmodule SelectoComponents.Dashboard.Widget do
   Base component for dashboard widgets.
   Provides common functionality for all widget types.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
-  
+
   @default_config %{
     title: "Widget",
     min_width: 2,
@@ -19,23 +19,23 @@ defmodule SelectoComponents.Dashboard.Widget do
     refreshable: true,
     configurable: true
   }
-  
+
   @doc """
   Renders a widget container with standard controls and content area.
   """
-  attr :id, :string, required: true
-  attr :type, :atom, required: true
-  attr :config, :map, default: %{}
-  attr :data, :any, default: nil
-  attr :class, :string, default: ""
-  slot :inner_block
-  slot :header
-  slot :footer
-  slot :actions
-  
+  attr(:id, :string, required: true)
+  attr(:type, :atom, required: true)
+  attr(:config, :map, default: %{})
+  attr(:data, :any, default: nil)
+  attr(:class, :string, default: "")
+  slot(:inner_block)
+  slot(:header)
+  slot(:footer)
+  slot(:actions)
+
   def widget(assigns) do
     assigns = assign_widget_defaults(assigns)
-    
+
     ~H"""
     <div
       id={@id}
@@ -129,16 +129,16 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   @doc """
   Widget configuration modal component.
   """
-  attr :id, :string, required: true
-  attr :widget_id, :string, required: true
-  attr :config, :map, required: true
-  attr :on_save, :any, required: true
-  slot :fields
-  
+  attr(:id, :string, required: true)
+  attr(:widget_id, :string, required: true)
+  attr(:config, :map, required: true)
+  attr(:on_save, :any, required: true)
+  slot(:fields)
+
   def widget_config_modal(assigns) do
     ~H"""
     <div
@@ -260,14 +260,14 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   # Private functions
-  
+
   defp assign_widget_defaults(assigns) do
     config = Map.merge(@default_config, assigns.config)
     assign(assigns, :config, config)
   end
-  
+
   defp render_widget_content(%{type: type, data: _data} = assigns) do
     case type do
       :chart -> render_chart_widget(assigns)
@@ -279,7 +279,7 @@ defmodule SelectoComponents.Dashboard.Widget do
       _ -> render_empty_widget(assigns)
     end
   end
-  
+
   defp render_chart_widget(assigns) do
     ~H"""
     <div class="widget-chart">
@@ -289,7 +289,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_table_widget(assigns) do
     ~H"""
     <div class="widget-table">
@@ -299,7 +299,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_metric_widget(assigns) do
     ~H"""
     <div class="widget-metric">
@@ -309,7 +309,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_map_widget(assigns) do
     ~H"""
     <div class="widget-map">
@@ -319,7 +319,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_text_widget(assigns) do
     ~H"""
     <div class="widget-text">
@@ -329,7 +329,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_custom_widget(assigns) do
     ~H"""
     <div class="widget-custom">
@@ -339,7 +339,7 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp render_empty_widget(assigns) do
     ~H"""
     <div class="widget-empty">
@@ -349,25 +349,25 @@ defmodule SelectoComponents.Dashboard.Widget do
     </div>
     """
   end
-  
+
   defp show_modal(id) do
     JS.show(
       to: "##{id}",
       transition: {"ease-out duration-300", "opacity-0", "opacity-100"}
     )
   end
-  
+
   defp hide_modal(id) do
     JS.hide(
       to: "##{id}",
       transition: {"ease-in duration-200", "opacity-100", "opacity-0"}
     )
   end
-  
+
   defp show_widget_config(widget_id) do
     JS.push("show_widget_config", value: %{widget_id: widget_id})
   end
-  
+
   def __hooks__ do
     """
     export const DashboardWidget = {

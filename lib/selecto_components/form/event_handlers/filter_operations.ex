@@ -56,8 +56,7 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
 
             _ ->
               [
-                {UUID.uuid4(), target,
-                 %{"filter" => new_filter, "value" => nil, "index" => 2000}}
+                {UUID.uuid4(), target, %{"filter" => new_filter, "value" => nil, "index" => 2000}}
               ]
           end
 
@@ -136,11 +135,12 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
               current_types = Map.get(current_selection, "types", [])
 
               # Toggle the entity type
-              new_types = if entity_type in current_types do
-                List.delete(current_types, entity_type)
-              else
-                current_types ++ [entity_type]
-              end
+              new_types =
+                if entity_type in current_types do
+                  List.delete(current_types, entity_type)
+                else
+                  current_types ++ [entity_type]
+                end
 
               # Update the filter config
               new_selection = Map.put(current_selection, "types", new_types)

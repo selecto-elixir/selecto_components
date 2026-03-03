@@ -11,15 +11,17 @@ defmodule SelectoComponents.DenormalizationDetector do
   where denormalizing_groups is a map of relationship_path => columns
   """
   def detect_and_group_columns(selecto, selected_columns) do
-    columns_with_info = Enum.map(selected_columns, fn col_name ->
-      field = Selecto.field(selecto, col_name)
-      {col_name, field, analyze_column(selecto, field, col_name)}
-    end)
+    columns_with_info =
+      Enum.map(selected_columns, fn col_name ->
+        field = Selecto.field(selecto, col_name)
+        {col_name, field, analyze_column(selecto, field, col_name)}
+      end)
 
     # Separate normal columns from denormalizing ones
-    {normal, denormalizing} = Enum.split_with(columns_with_info, fn {_, _, info} ->
-      !info.causes_denormalization
-    end)
+    {normal, denormalizing} =
+      Enum.split_with(columns_with_info, fn {_, _, info} ->
+        !info.causes_denormalization
+      end)
 
     normal_columns = Enum.map(normal, fn {name, _, _} -> name end)
 
@@ -87,7 +89,7 @@ defmodule SelectoComponents.DenormalizationDetector do
         Map.get(normalized_field, :field) ||
         fallback_field_name ||
         ""
-      |> to_string()
+        |> to_string()
 
     cond do
       # Check for bracket notation: "table[column]"
@@ -171,13 +173,17 @@ defmodule SelectoComponents.DenormalizationDetector do
     downcased = join_segment |> to_string() |> String.downcase()
 
     cond do
-      Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(downcased, &1)) ->
+      Enum.any?(
+        ["mapping", "junction", "link", "_join", "_map"],
+        &String.contains?(downcased, &1)
+      ) ->
         :many_to_many
 
       String.ends_with?(downcased, "s") ->
         :one_to_many
 
-      true -> :one_to_one
+      true ->
+        :one_to_one
     end
   end
 
@@ -201,7 +207,10 @@ defmodule SelectoComponents.DenormalizationDetector do
       |> String.downcase()
 
     join_type in [:tagging, :many_to_many] ||
-      Enum.any?(["mapping", "junction", "link", "_join", "_map", "tags"], &String.contains?(descriptor, &1))
+      Enum.any?(
+        ["mapping", "junction", "link", "_join", "_map", "tags"],
+        &String.contains?(descriptor, &1)
+      )
   end
 
   defp one_to_many_join?(selecto, join_segment, join_config) do
@@ -222,6 +231,7 @@ defmodule SelectoComponents.DenormalizationDetector do
       selecto
       |> Map.get(:domain, %{})
       |> Map.get(:schemas, %{})
+
     target_source_table = to_string(Map.get(join_config, :source, ""))
 
     Enum.find_value(schemas, fn {schema_name, schema_config} ->
@@ -275,14 +285,15 @@ defmodule SelectoComponents.DenormalizationDetector do
     joins = Map.get(selecto, :joins, [])
 
     # Analyze each join for denormalization potential
-    join_analysis = Enum.map(joins, fn join ->
-      %{
-        table: join.table,
-        type: join.type,
-        causes_denormalization: join_causes_denormalization?(join),
-        cardinality: estimate_join_cardinality(join)
-      }
-    end)
+    join_analysis =
+      Enum.map(joins, fn join ->
+        %{
+          table: join.table,
+          type: join.type,
+          causes_denormalization: join_causes_denormalization?(join),
+          cardinality: estimate_join_cardinality(join)
+        }
+      end)
 
     %{
       has_denormalizing_joins: Enum.any?(join_analysis, & &1.causes_denormalization),
@@ -301,7 +312,10 @@ defmodule SelectoComponents.DenormalizationDetector do
     # For now, use common naming patterns for fan-out tables.
     table = join.table |> to_string() |> String.downcase()
 
-    Enum.any?(~w(items details events logs payments rentals orders line_items), &String.contains?(table, &1))
+    Enum.any?(
+      ~w(items details events logs payments rentals orders line_items),
+      &String.contains?(table, &1)
+    )
   end
 
   defp estimate_join_cardinality(join) do
@@ -312,8 +326,11 @@ defmodule SelectoComponents.DenormalizationDetector do
       Enum.any?(["mapping", "junction", "link", "_join", "_map"], &String.contains?(table, &1)) ->
         :many_to_many
 
-      is_one_to_many_relationship?(join) -> :one_to_many
-      true -> :one_to_one
+      is_one_to_many_relationship?(join) ->
+        :one_to_many
+
+      true ->
+        :one_to_one
     end
   end
 end

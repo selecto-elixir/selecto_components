@@ -95,7 +95,11 @@ defmodule SelectoComponents.DenormalizationDetectorTest do
       |> Map.put(:source_table, "profiles")
 
     updated_config = Map.put(base.config, :joins, joins)
-    updated_domain = %{base.domain | schemas: Map.put(base.domain.schemas, :post_profile, post_profile_schema)}
+
+    updated_domain = %{
+      base.domain
+      | schemas: Map.put(base.domain.schemas, :post_profile, post_profile_schema)
+    }
 
     %{base | config: updated_config, domain: updated_domain}
   end
@@ -125,7 +129,10 @@ defmodule SelectoComponents.DenormalizationDetectorTest do
     selecto = nested_join_selecto()
 
     {normal_columns, denorm_groups} =
-      DenormalizationDetector.detect_and_group_columns(selecto, ["name", "post_profile.display_name"])
+      DenormalizationDetector.detect_and_group_columns(selecto, [
+        "name",
+        "post_profile.display_name"
+      ])
 
     assert "name" in normal_columns
     refute "post_profile.display_name" in normal_columns

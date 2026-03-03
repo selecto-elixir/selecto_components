@@ -69,16 +69,17 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   def init(opts) do
     # Schedule periodic cleanup
     schedule_cleanup()
-    
+
     state = %{
       queries: [],
       errors: [],
       cache_hits: 0,
       cache_misses: 0,
-      retention_period: Keyword.get(opts, :retention_period, 24 * 60 * 60), # 24 hours
+      # 24 hours
+      retention_period: Keyword.get(opts, :retention_period, 24 * 60 * 60),
       max_queries: Keyword.get(opts, :max_queries, 10000)
     }
-    
+
     {:ok, state}
   end
 
@@ -93,9 +94,9 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       index_scans: Map.get(opts, :index_scans, 0),
       memory_usage: Map.get(opts, :memory_usage, 0)
     }
-    
+
     queries = [query_record | state.queries] |> limit_queries(state.max_queries)
-    
+
     {:noreply, %{state | queries: queries}}
   end
 
@@ -106,36 +107,32 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       error: error,
       timestamp: DateTime.utc_now()
     }
-    
+
     errors = [error_record | state.errors] |> Enum.take(1000)
-    
+
     {:noreply, %{state | errors: errors}}
   end
 
   def handle_cast({:record_cache, hit?}, state) do
-    state = if hit? do
-      %{state | cache_hits: state.cache_hits + 1}
-    else
-      %{state | cache_misses: state.cache_misses + 1}
-    end
-    
+    state =
+      if hit? do
+        %{state | cache_hits: state.cache_hits + 1}
+      else
+        %{state | cache_misses: state.cache_misses + 1}
+      end
+
     {:noreply, state}
   end
 
   def handle_cast(:clear_metrics, state) do
-    {:noreply, %{state | 
-      queries: [],
-      errors: [],
-      cache_hits: 0,
-      cache_misses: 0
-    }}
+    {:noreply, %{state | queries: [], errors: [], cache_hits: 0, cache_misses: 0}}
   end
 
   def handle_call({:get_metrics, time_range}, _from, state) do
     cutoff = get_cutoff_time(time_range)
     recent_queries = filter_by_time(state.queries, cutoff)
     recent_errors = filter_by_time(state.errors, cutoff)
-    
+
     metrics = %{
       total_queries: length(recent_queries),
       avg_response_time: calculate_avg_response_time(recent_queries),
@@ -147,38 +144,38 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       total_memory: calculate_total_memory(recent_queries),
       percentiles: calculate_percentiles(recent_queries)
     }
-    
+
     {:reply, metrics, state}
   end
 
   def handle_call({:get_slow_queries, threshold, limit}, _from, state) do
-    slow_queries = 
+    slow_queries =
       state.queries
       |> Enum.filter(&(&1.execution_time >= threshold))
-      |> Enum.sort_by(&(&1.execution_time), :desc)
+      |> Enum.sort_by(& &1.execution_time, :desc)
       |> Enum.take(limit)
-    
+
     {:reply, slow_queries, state}
   end
 
   def handle_call({:get_timeline, time_range}, _from, state) do
     cutoff = get_cutoff_time(time_range)
     recent_queries = filter_by_time(state.queries, cutoff)
-    
+
     timeline = build_timeline(recent_queries, time_range)
-    
+
     {:reply, timeline, state}
   end
 
   def handle_info(:cleanup, state) do
     cutoff = DateTime.add(DateTime.utc_now(), -state.retention_period, :second)
-    
+
     queries = filter_by_time(state.queries, cutoff)
     errors = filter_by_time(state.errors, cutoff)
-    
+
     # Schedule next cleanup
     schedule_cleanup()
-    
+
     {:noreply, %{state | queries: queries, errors: errors}}
   end
 
@@ -192,17 +189,19 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   defp limit_queries(queries, max) when length(queries) > max do
     Enum.take(queries, max)
   end
+
   defp limit_queries(queries, _max), do: queries
 
   defp get_cutoff_time(time_range) do
-    seconds = case time_range do
-      "1h" -> 3600
-      "6h" -> 6 * 3600
-      "24h" -> 24 * 3600
-      "7d" -> 7 * 24 * 3600
-      _ -> 3600
-    end
-    
+    seconds =
+      case time_range do
+        "1h" -> 3600
+        "6h" -> 6 * 3600
+        "24h" -> 24 * 3600
+        "7d" -> 7 * 24 * 3600
+        _ -> 3600
+      end
+
     DateTime.add(DateTime.utc_now(), -seconds, :second)
   end
 
@@ -211,12 +210,14 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   defp calculate_avg_response_time([]), do: 0
+
   defp calculate_avg_response_time(queries) do
     total = Enum.sum(Enum.map(queries, & &1.execution_time))
     round(total / length(queries))
   end
 
   defp calculate_qpm([]), do: 0
+
   defp calculate_qpm(queries) do
     if queries == [] do
       0
@@ -224,7 +225,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       first = List.last(queries).timestamp
       last = List.first(queries).timestamp
       minutes = DateTime.diff(last, first) / 60
-      
+
       if minutes > 0 do
         round(length(queries) / minutes)
       else
@@ -235,6 +236,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
 
   defp calculate_error_rate(queries, errors) do
     total = length(queries) + length(errors)
+
     if total > 0 do
       Float.round(length(errors) / total * 100, 1)
     else
@@ -244,6 +246,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
 
   defp calculate_cache_hit_rate(state) do
     total = state.cache_hits + state.cache_misses
+
     if total > 0 do
       round(state.cache_hits / total * 100)
     else
@@ -265,7 +268,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
     else
       times = Enum.map(queries, & &1.execution_time) |> Enum.sort()
       count = length(times)
-      
+
       %{
         p50: Enum.at(times, round(count * 0.5)) || 0,
         p95: Enum.at(times, round(count * 0.95)) || 0,
@@ -277,7 +280,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   defp build_timeline(queries, time_range) do
     # Group queries by time bucket
     bucket_size = get_bucket_size(time_range)
-    
+
     queries
     |> Enum.group_by(&time_bucket(&1.timestamp, bucket_size))
     |> Enum.map(fn {bucket, bucket_queries} ->
@@ -285,7 +288,8 @@ defmodule SelectoComponents.Performance.MetricsCollector do
         timestamp: bucket,
         count: length(bucket_queries),
         avg_time: calculate_avg_response_time(bucket_queries),
-        errors: 0  # Would need to track errors with timestamps
+        # Would need to track errors with timestamps
+        errors: 0
       }
     end)
     |> Enum.sort_by(& &1.timestamp)
@@ -293,10 +297,14 @@ defmodule SelectoComponents.Performance.MetricsCollector do
 
   defp get_bucket_size(time_range) do
     case time_range do
-      "1h" -> 60      # 1 minute buckets
-      "6h" -> 300     # 5 minute buckets
-      "24h" -> 900    # 15 minute buckets
-      "7d" -> 3600    # 1 hour buckets
+      # 1 minute buckets
+      "1h" -> 60
+      # 5 minute buckets
+      "6h" -> 300
+      # 15 minute buckets
+      "24h" -> 900
+      # 1 hour buckets
+      "7d" -> 3600
       _ -> 60
     end
   end
@@ -320,21 +328,21 @@ defmodule SelectoComponents.Performance.MetricsHook do
   """
   def track_query(fun) when is_function(fun, 0) do
     start_time = System.monotonic_time(:millisecond)
-    
+
     try do
       result = fun.()
-      
+
       execution_time = System.monotonic_time(:millisecond) - start_time
-      
+
       # Extract query info from result if available
       opts = extract_query_info(result)
-      
+
       MetricsCollector.record_query(
         inspect(fun),
         execution_time,
         opts
       )
-      
+
       result
     rescue
       error ->
@@ -346,5 +354,6 @@ defmodule SelectoComponents.Performance.MetricsHook do
   defp extract_query_info({:ok, %{rows: rows}}) do
     %{row_count: length(rows)}
   end
+
   defp extract_query_info(_), do: %{}
 end

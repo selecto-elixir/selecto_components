@@ -21,10 +21,13 @@ defmodule SelectoComponents.Components.ListPicker do
   def render(assigns) do
     {view_id, _, _, _} = assigns.view
     # Sort available items alphabetically by display name (second element in tuple)
-    sorted_available = Enum.sort_by(assigns.available, fn {_id, name, _format} -> String.downcase(name) end)
-    assigns = assigns
-    |> assign(view_id: view_id)
-    |> assign(available: sorted_available)
+    sorted_available =
+      Enum.sort_by(assigns.available, fn {_id, name, _format} -> String.downcase(name) end)
+
+    assigns =
+      assigns
+      |> assign(view_id: view_id)
+      |> assign(available: sorted_available)
 
     ~H"""
       <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
