@@ -96,6 +96,8 @@ defmodule SelectoComponents.Form.ParamsStateTest do
               geometry_kind: "point",
               popup_field: "pickup_code",
               color_field: "dwell_minutes",
+              scale_type: "numeric_steps",
+              scale_steps: "20,45,90",
               point_radius: 8,
               fill_opacity: 0.35,
               visible: true
@@ -106,6 +108,8 @@ defmodule SelectoComponents.Form.ParamsStateTest do
               geometry_kind: "line",
               popup_field: "pickup_code",
               color_field: "status",
+              scale_type: "categorical",
+              scale_palette: "#2563eb,#ef4444",
               line_weight: 3,
               line_dash_array: "6,4",
               visible: false
@@ -120,11 +124,15 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["view_mode"] == "map"
     assert params["map_layers"]["0"]["geometry_field"] == "location"
     assert params["map_layers"]["0"]["geometry_kind"] == "point"
+    assert params["map_layers"]["0"]["scale_type"] == "numeric_steps"
+    assert params["map_layers"]["0"]["scale_steps"] == "20,45,90"
     assert params["map_layers"]["0"]["point_radius"] == "8"
     assert params["map_layers"]["0"]["fill_opacity"] == "0.35"
     assert params["map_layers"]["0"]["visible"] == "true"
     assert params["map_layers"]["1"]["geometry_field"] == "route_path"
     assert params["map_layers"]["1"]["geometry_kind"] == "line"
+    assert params["map_layers"]["1"]["scale_type"] == "categorical"
+    assert params["map_layers"]["1"]["scale_palette"] == "#2563eb,#ef4444"
     assert params["map_layers"]["1"]["line_weight"] == "3"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
@@ -172,6 +180,8 @@ defmodule SelectoComponents.Form.ParamsStateTest do
             "geometry_kind" => "point",
             "popup_field" => "pickup_code",
             "color_field" => "dwell_minutes",
+            "scale_type" => "numeric_steps",
+            "scale_steps" => "20,45,90",
             "point_radius" => 8,
             "fill_opacity" => 0.35,
             "visible" => true
@@ -182,6 +192,8 @@ defmodule SelectoComponents.Form.ParamsStateTest do
             "geometry_kind" => "line",
             "popup_field" => "pickup_code",
             "color_field" => "status",
+            "scale_type" => "categorical",
+            "scale_palette" => "#2563eb,#ef4444",
             "line_weight" => 3,
             "line_dash_array" => "6,4",
             "visible" => false
@@ -195,9 +207,11 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["view_mode"] == "map"
     assert params["map_layers"]["0"]["geometry_field"] == "location"
     assert params["map_layers"]["0"]["geometry_kind"] == "point"
+    assert params["map_layers"]["0"]["scale_type"] == "numeric_steps"
     assert params["map_layers"]["0"]["point_radius"] == "8"
     assert params["map_layers"]["1"]["geometry_field"] == "route_path"
     assert params["map_layers"]["1"]["geometry_kind"] == "line"
+    assert params["map_layers"]["1"]["scale_type"] == "categorical"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
   end

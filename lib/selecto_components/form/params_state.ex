@@ -1281,6 +1281,12 @@ defmodule SelectoComponents.Form.ParamsState do
     )
     |> maybe_put_param("popup_field", normalize_map_scalar(get_map_value(layer, :popup_field)))
     |> maybe_put_param("color_field", normalize_map_scalar(get_map_value(layer, :color_field)))
+    |> maybe_put_param("scale_type", normalize_map_scalar(get_map_value(layer, :scale_type)))
+    |> maybe_put_param(
+      "scale_palette",
+      normalize_map_scalar(get_map_value(layer, :scale_palette))
+    )
+    |> maybe_put_param("scale_steps", normalize_map_scalar(get_map_value(layer, :scale_steps)))
     |> maybe_put_param("point_radius", normalize_map_scalar(get_map_value(layer, :point_radius)))
     |> maybe_put_param("line_weight", normalize_map_scalar(get_map_value(layer, :line_weight)))
     |> maybe_put_param(

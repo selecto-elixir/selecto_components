@@ -122,6 +122,8 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
             "geometry_kind" => "point",
             "popup_field" => "name",
             "color_field" => "status",
+            "scale_type" => "numeric_steps",
+            "scale_steps" => "20,45,90",
             "point_radius" => "9",
             "fill_opacity" => "0.4"
           },
@@ -130,6 +132,8 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
             "geometry_kind" => "line",
             "popup_field" => "name",
             "color_field" => "status",
+            "scale_type" => "categorical",
+            "scale_palette" => "#2563eb,#ef4444",
             "line_weight" => "4",
             "line_dash_array" => "6,4"
           }
@@ -146,9 +150,11 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert Enum.at(view_set.map_layers, 0).point_radius == 9
       assert Enum.at(view_set.map_layers, 0).fill_opacity == 0.4
       assert Enum.at(view_set.map_layers, 0).geometry_kind == "point"
+      assert Enum.at(view_set.map_layers, 0).scale_type == "numeric_steps"
       assert Enum.at(view_set.map_layers, 1).line_weight == 4
       assert Enum.at(view_set.map_layers, 1).line_dash_array == "6,4"
       assert Enum.at(view_set.map_layers, 1).geometry_kind == "line"
+      assert Enum.at(view_set.map_layers, 1).scale_type == "categorical"
     end
   end
 

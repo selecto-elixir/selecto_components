@@ -64,6 +64,20 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert feature_two["properties"]["layer"] == "2"
   end
 
+  test "prepare_features/3 applies categorical palette by layer config" do
+    rows = [[~s({"type":"Point","coordinates":[-87.6,41.8]}), "Chicago", "queued"]]
+    aliases = ["__map_geometry", "__map_popup", "__map_color"]
+
+    map_layers = [
+      %{scale_type: "categorical", scale_palette: "#2563eb,#ef4444"}
+    ]
+
+    [feature] = Component.prepare_features(rows, aliases, map_layers)
+
+    assert feature["properties"]["color"] in ["#2563eb", "#ef4444"]
+    assert feature["properties"]["raw_color"] == "queued"
+  end
+
   test "render includes map hook when results are present" do
     html =
       render_component(Component,
@@ -73,7 +87,13 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
           {[[~s({"type":"Point","coordinates":[-87.6,41.8]}), "Chicago"]], [],
            ["__map_geometry", "__map_popup"]},
         selecto: %{
-          set: %{map_zoom: 6, map_center: {41.8, -87.6}, map_color_field: "dwell_minutes"}
+          set: %{
+            map_zoom: 6,
+            map_center: {41.8, -87.6},
+            map_layers: [
+              %{label: "Pickups", scale_type: "numeric_steps", scale_steps: "20,45,90"}
+            ]
+          }
         }
       )
 
@@ -81,7 +101,7 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert html =~ "data-features="
     assert html =~ "data-map-layers="
     assert html =~ "Map View"
-    assert html =~ "Dwell Time Legend"
+    assert html =~ "Scale Legend"
   end
 
   test "render shows layer legend when multiple layers are visible" do
