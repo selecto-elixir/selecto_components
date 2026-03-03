@@ -964,9 +964,17 @@ defmodule SelectoComponents.Helpers.Filters do
         # Parse polymorphic selection: types and values for each type
         selected_types =
           case Map.get(f, "selected_types") do
-            json when is_binary(json) -> Jason.decode!(json)
-            list when is_list(list) -> list
-            _ -> []
+            json when is_binary(json) ->
+              case Jason.decode(json) do
+                {:ok, decoded} when is_list(decoded) -> decoded
+                _ -> []
+              end
+
+            list when is_list(list) ->
+              list
+
+            _ ->
+              []
           end
 
         poly_values = Map.get(f, "poly_values", %{})

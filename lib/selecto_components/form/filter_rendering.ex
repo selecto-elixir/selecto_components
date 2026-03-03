@@ -16,6 +16,8 @@ defmodule SelectoComponents.Form.FilterRendering do
   use Phoenix.Component
   require Logger
 
+  @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
+
   @doc """
   Render a filter form based on the filter definition and field type.
 
@@ -470,8 +472,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             name={"filters[#{@uuid}][exclude_articles]"}
             value="true"
             checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
-          />
-          Ignore leading articles (a, an, the)
+          /> Ignore leading articles (a, an, the)
         </div>
       <% end %>
 
@@ -484,8 +485,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             name={"filters[#{@uuid}][ignore_case]"}
             value="true"
             checked={@ignore_case_checked}
-          />
-          Case insensitive
+          /> Case insensitive
         </div>
       <% end %>
 
@@ -962,25 +962,33 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   # Query database for ID+name pairs using Selecto's connection (Repo)
   defp query_table_options(selecto, table, id_field, display_field, limit) do
-    query = """
-    SELECT #{id_field} as id, #{display_field} as name
-    FROM #{table}
-    WHERE #{display_field} IS NOT NULL
-    ORDER BY #{display_field}
-    LIMIT $1
-    """
+    with {:ok, safe_table} <- safe_sql_identifier(table),
+         {:ok, safe_id_field} <- safe_sql_identifier(id_field),
+         {:ok, safe_display_field} <- safe_sql_identifier(display_field) do
+      query = """
+      SELECT #{safe_id_field} as id, #{safe_display_field} as name
+      FROM #{safe_table}
+      WHERE #{safe_display_field} IS NOT NULL
+      ORDER BY #{safe_display_field}
+      LIMIT $1
+      """
 
-    # Use Repo.query directly - selecto.connection is the Repo module
-    repo = selecto.connection
+      # Use Repo.query directly - selecto.connection is the Repo module
+      repo = selecto.connection
 
-    case repo.query(query, [limit]) do
-      {:ok, %{rows: rows}} ->
-        Enum.map(rows, fn [id, name] ->
-          %{id: id, name: to_string(name)}
-        end)
+      case repo.query(query, [limit]) do
+        {:ok, %{rows: rows}} ->
+          Enum.map(rows, fn [id, name] ->
+            %{id: id, name: to_string(name)}
+          end)
 
-      {:error, error} ->
-        Logger.warning("Failed to query options for multi-select filter: #{inspect(error)}")
+        {:error, error} ->
+          Logger.warning("Failed to query options for multi-select filter: #{inspect(error)}")
+          []
+      end
+    else
+      {:error, :invalid_identifier} ->
+        Logger.warning("Skipped multi-select options query due to invalid SQL identifier")
         []
     end
   rescue
@@ -988,6 +996,21 @@ defmodule SelectoComponents.Form.FilterRendering do
       Logger.warning("Exception querying options for multi-select filter: #{inspect(e)}")
       []
   end
+
+  defp safe_sql_identifier(value) when is_atom(value),
+    do: safe_sql_identifier(Atom.to_string(value))
+
+  defp safe_sql_identifier(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    if Regex.match?(@identifier_regex, trimmed) do
+      {:ok, trimmed}
+    else
+      {:error, :invalid_identifier}
+    end
+  end
+
+  defp safe_sql_identifier(_value), do: {:error, :invalid_identifier}
 
   # Parse comma-separated IDs from value string
   defp parse_filter_ids(value) when is_binary(value) do

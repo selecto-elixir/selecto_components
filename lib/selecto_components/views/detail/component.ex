@@ -541,7 +541,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
-    index = String.to_integer(row_index)
+    requested_index = row_index |> parse_page_param() |> max(0)
 
     # Get results from processed_results if available, otherwise extract from query_results
     {results, aliases} =
@@ -566,23 +566,30 @@ defmodule SelectoComponents.Views.Detail.Component do
         results
       end
 
-    record = Enum.at(normalized_results, index)
+    total_records = length(normalized_results)
 
-    # Send event to parent to show modal
-    send(
-      self(),
-      {:show_detail_modal,
-       %{
-         record: record,
-         current_index: index,
-         total_records: length(normalized_results),
-         records: normalized_results,
-         fields: aliases,
-         related_data: build_related_data(record, socket)
-       }}
-    )
+    if total_records == 0 do
+      {:noreply, socket}
+    else
+      index = min(requested_index, total_records - 1)
+      record = Enum.at(normalized_results, index)
 
-    {:noreply, socket}
+      # Send event to parent to show modal
+      send(
+        self(),
+        {:show_detail_modal,
+         %{
+           record: record,
+           current_index: index,
+           total_records: total_records,
+           records: normalized_results,
+           fields: aliases,
+           related_data: build_related_data(record, socket)
+         }}
+      )
+
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:load_more_data, _end_index}, socket) do
@@ -760,22 +767,13 @@ defmodule SelectoComponents.Views.Detail.Component do
       component_fn.(params)
     rescue
       e ->
-        error_html = """
-        <div class="text-red-600 text-xs p-1 bg-red-50 rounded">
-          <div class="font-bold">Component Error:</div>
-          <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
-          #{if Mix.env() == :dev do
-          "<details class='mt-1'>
-              <summary class='cursor-pointer text-xs'>Debug Info</summary>
-              <div class='text-xs'>Row data: #{inspect(params.row)}</div>
-            </details>"
-        else
-          ""
-        end}
-        </div>
-        """
+        base = "Component Error: #{inspect(e.__struct__)}: #{Exception.message(e)}"
 
-        Phoenix.HTML.raw(error_html)
+        if Mix.env() == :dev do
+          "#{base} (Row data: #{inspect(params[:row])})"
+        else
+          base
+        end
     end
   end
 
@@ -783,27 +781,72 @@ defmodule SelectoComponents.Views.Detail.Component do
     try do
       case link_parts_fn.(row_data) do
         {href, txt} ->
-          escaped_txt = txt |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+          text = link_text_value(txt)
 
-          Phoenix.HTML.raw("""
-          <a href="#{href}" class="underline font-bold text-blue-500">
-            #{escaped_txt}
-          </a>
-          """)
+          case sanitize_href(href) do
+            nil ->
+              text
+
+            safe_href ->
+              safe_link_html(text, safe_href)
+          end
 
         _ ->
-          row_data
+          safe_cell_value(row_data)
       end
     rescue
       e ->
-        error_html = """
-        <div class="text-red-600 text-xs p-1 bg-red-50 rounded">
-          <div class="font-bold">Link Error:</div>
-          <div class="text-xs">#{inspect(e.__struct__)}: #{Exception.message(e)}</div>
-        </div>
-        """
-
-        Phoenix.HTML.raw(error_html)
+        "Link Error: #{inspect(e.__struct__)}: #{Exception.message(e)}"
     end
+  end
+
+  defp sanitize_href(href) when is_binary(href) do
+    trimmed = String.trim(href)
+    lower = String.downcase(trimmed)
+    uri = URI.parse(trimmed)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      String.contains?(trimmed, <<0>>) ->
+        nil
+
+      uri.scheme in ["http", "https"] ->
+        trimmed
+
+      is_nil(uri.scheme) and not String.starts_with?(trimmed, "//") and
+          not String.starts_with?(lower, ["javascript:", "data:", "vbscript:"]) ->
+        trimmed
+
+      true ->
+        nil
+    end
+  end
+
+  defp sanitize_href(_href), do: nil
+
+  defp safe_link_html(text, href) when is_binary(text) and is_binary(href) do
+    escaped_text = text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+    escaped_href = href |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+    {:safe,
+     [
+       "<a href=\"",
+       escaped_href,
+       "\" class=\"underline font-bold text-blue-500\">",
+       escaped_text,
+       "</a>"
+     ]}
+  end
+
+  defp link_text_value(nil), do: ""
+  defp link_text_value(value) when is_binary(value), do: value
+  defp link_text_value(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp link_text_value(value) do
+    to_string(value)
+  rescue
+    _ -> inspect(value)
   end
 end

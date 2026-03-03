@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Exporter do
   @moduledoc false
 
+  @csv_formula_prefixes ["=", "+", "-", "@"]
+
   @type export_result :: %{
           filename: String.t(),
           mime_type: String.t(),
@@ -211,7 +213,10 @@ defmodule SelectoComponents.Exporter do
   defp value_to_string(value), do: to_string(sanitize_value(value))
 
   defp csv_cell(value) do
-    escaped = String.replace(value, "\"", "\"\"")
+    escaped =
+      value
+      |> neutralize_csv_formula()
+      |> String.replace("\"", "\"\"")
 
     if String.contains?(escaped, [",", "\n", "\r", "\""]) do
       "\"#{escaped}\""
@@ -243,5 +248,15 @@ defmodule SelectoComponents.Exporter do
     date_time
     |> DateTime.to_naive()
     |> Calendar.strftime("%Y%m%d_%H%M%S")
+  end
+
+  defp neutralize_csv_formula(value) when is_binary(value) do
+    trimmed = String.trim_leading(value)
+
+    if trimmed != "" and String.starts_with?(trimmed, @csv_formula_prefixes) do
+      "'" <> value
+    else
+      value
+    end
   end
 end

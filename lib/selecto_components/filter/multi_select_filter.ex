@@ -11,6 +11,8 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
 
   use Phoenix.LiveComponent
 
+  @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
+
   @impl true
   def mount(socket) do
     {:ok, assign(socket, options: [], selected_ids: [], loading: true, search: "")}
@@ -62,7 +64,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     ~H"""
     <div class="space-y-1">
       <div class="text-xs text-gray-600 mb-2">
-        Select <%= get_in(@field_config, [:display_field]) || "options" %>:
+        Select {get_in(@field_config, [:display_field]) || "options"}:
       </div>
 
       <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white space-y-1">
@@ -76,13 +78,13 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
               checked={opt.id in @selected_ids}
               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
             />
-            <span class="text-sm text-gray-900 flex-1"><%= opt.name %></span>
+            <span class="text-sm text-gray-900 flex-1">{opt.name}</span>
           </label>
         <% end %>
       </div>
 
       <div class="text-xs text-gray-500 mt-1">
-        <%= length(@selected_ids) %> of <%= length(@options) %> selected
+        {length(@selected_ids)} of {length(@options)} selected
       </div>
     </div>
     """
@@ -113,13 +115,13 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
               checked={opt.id in @selected_ids}
               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
             />
-            <span class="text-sm text-gray-900 flex-1"><%= opt.name %></span>
+            <span class="text-sm text-gray-900 flex-1">{opt.name}</span>
           </label>
         <% end %>
       </div>
 
       <div class="text-xs text-gray-500">
-        <%= length(@selected_ids) %> selected
+        {length(@selected_ids)} selected
       </div>
     </div>
     """
@@ -137,21 +139,26 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
 
   @impl true
   def handle_event("toggle", %{"id" => id_str}, socket) do
-    id = String.to_integer(id_str)
-    selected_ids = socket.assigns.selected_ids
+    case Integer.parse(id_str) do
+      {id, ""} ->
+        selected_ids = socket.assigns.selected_ids
 
-    selected_ids =
-      if id in selected_ids do
-        List.delete(selected_ids, id)
-      else
-        [id | selected_ids]
-      end
+        selected_ids =
+          if id in selected_ids do
+            List.delete(selected_ids, id)
+          else
+            [id | selected_ids]
+          end
 
-    # Update parent component with new value (comma-separated IDs)
-    value = Enum.join(selected_ids, ",")
-    send(self(), {:multi_select_changed, socket.assigns.filter_id, value})
+        # Update parent component with new value (comma-separated IDs)
+        value = Enum.join(selected_ids, ",")
+        send(self(), {:multi_select_changed, socket.assigns.filter_id, value})
 
-    {:noreply, assign(socket, selected_ids: selected_ids)}
+        {:noreply, assign(socket, selected_ids: selected_ids)}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -224,26 +231,50 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
 
   # Query database for ID+name pairs
   defp query_table_options(repo, table, id_field, display_field, limit) do
-    query = """
-    SELECT #{id_field} as id, #{display_field} as name
-    FROM #{table}
-    WHERE #{display_field} IS NOT NULL
-    ORDER BY #{display_field}
-    LIMIT $1
-    """
+    require Logger
 
-    case repo.query(query, [limit]) do
-      {:ok, %{rows: rows}} ->
-        Enum.map(rows, fn [id, name] ->
-          %{id: id, name: to_string(name)}
-        end)
+    with {:ok, safe_table} <- safe_sql_identifier(table),
+         {:ok, safe_id_field} <- safe_sql_identifier(id_field),
+         {:ok, safe_display_field} <- safe_sql_identifier(display_field) do
+      query = """
+      SELECT #{safe_id_field} as id, #{safe_display_field} as name
+      FROM #{safe_table}
+      WHERE #{safe_display_field} IS NOT NULL
+      ORDER BY #{safe_display_field}
+      LIMIT $1
+      """
 
-      {:error, error} ->
-        require Logger
-        Logger.warning("Query error loading options: #{inspect(error)}")
+      case repo.query(query, [limit]) do
+        {:ok, %{rows: rows}} ->
+          Enum.map(rows, fn [id, name] ->
+            %{id: id, name: to_string(name)}
+          end)
+
+        {:error, error} ->
+          Logger.warning("Query error loading options: #{inspect(error)}")
+          []
+      end
+    else
+      {:error, :invalid_identifier} ->
+        Logger.warning("Query skipped for multi-select options due to invalid identifier")
         []
     end
   end
+
+  defp safe_sql_identifier(value) when is_atom(value),
+    do: safe_sql_identifier(Atom.to_string(value))
+
+  defp safe_sql_identifier(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    if Regex.match?(@identifier_regex, trimmed) do
+      {:ok, trimmed}
+    else
+      {:error, :invalid_identifier}
+    end
+  end
+
+  defp safe_sql_identifier(_value), do: {:error, :invalid_identifier}
 
   # Parse comma-separated IDs from value string
   defp parse_ids(value) when is_binary(value) do
