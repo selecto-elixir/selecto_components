@@ -35,6 +35,35 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert Enum.at(features, 2)["properties"]["color"] == "#dc2626"
   end
 
+  test "prepare_features/2 builds features for multiple geometry aliases" do
+    rows = [
+      [
+        ~s({"type":"Point","coordinates":[-118.2437,34.0522]}),
+        "LAX-001",
+        18,
+        ~s({"type":"LineString","coordinates":[[-118.2437,34.0522],[-118.1637,34.1022]]}),
+        "Route LAX-001",
+        "#2563eb"
+      ]
+    ]
+
+    aliases = [
+      "__map_geometry",
+      "__map_popup",
+      "__map_color",
+      "__map_geometry_2",
+      "__map_popup_2",
+      "__map_color_2"
+    ]
+
+    [feature_one, feature_two] = Component.prepare_features(rows, aliases)
+
+    assert feature_one["geometry"]["type"] == "Point"
+    assert feature_one["properties"]["layer"] == "1"
+    assert feature_two["geometry"]["type"] == "LineString"
+    assert feature_two["properties"]["layer"] == "2"
+  end
+
   test "render includes map hook when results are present" do
     html =
       render_component(Component,
@@ -50,6 +79,7 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
 
     assert html =~ ~r/phx-hook="[^"]*MapComponent"/
     assert html =~ "data-features="
+    assert html =~ "data-map-layers="
     assert html =~ "Map View"
     assert html =~ "Dwell Time Legend"
   end

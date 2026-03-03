@@ -83,6 +83,49 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["cluster"] == "true"
   end
 
+  test "view_config_to_params includes map layer config" do
+    view_config = %{
+      view_mode: "map",
+      filters: [],
+      views: %{
+        map: %{
+          map_layers: [
+            %{
+              label: "Pickup",
+              geometry_field: "location",
+              popup_field: "pickup_code",
+              color_field: "dwell_minutes",
+              point_radius: 8,
+              fill_opacity: 0.35,
+              visible: true
+            },
+            %{
+              label: "Route",
+              geometry_field: "route_path",
+              popup_field: "pickup_code",
+              color_field: "status",
+              line_weight: 3,
+              line_dash_array: "6,4",
+              visible: false
+            }
+          ]
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["view_mode"] == "map"
+    assert params["map_layers"]["0"]["geometry_field"] == "location"
+    assert params["map_layers"]["0"]["point_radius"] == "8"
+    assert params["map_layers"]["0"]["fill_opacity"] == "0.35"
+    assert params["map_layers"]["0"]["visible"] == "true"
+    assert params["map_layers"]["1"]["geometry_field"] == "route_path"
+    assert params["map_layers"]["1"]["line_weight"] == "3"
+    assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
+    assert params["map_layers"]["1"]["visible"] == "false"
+  end
+
   test "convert_saved_config_to_full_params restores map settings" do
     saved = %{
       "map" => %{
@@ -113,5 +156,41 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["cluster"] == "true"
     assert params["tile_url"] == "https://tiles.example.test/{z}/{x}/{y}.png"
     assert params["attribution"] == "Saved attribution"
+  end
+
+  test "convert_saved_config_to_full_params restores map layer settings" do
+    saved = %{
+      "map" => %{
+        "map_layers" => [
+          %{
+            "label" => "Pickup",
+            "geometry_field" => "location",
+            "popup_field" => "pickup_code",
+            "color_field" => "dwell_minutes",
+            "point_radius" => 8,
+            "fill_opacity" => 0.35,
+            "visible" => true
+          },
+          %{
+            "label" => "Route",
+            "geometry_field" => "route_path",
+            "popup_field" => "pickup_code",
+            "color_field" => "status",
+            "line_weight" => 3,
+            "line_dash_array" => "6,4",
+            "visible" => false
+          }
+        ]
+      }
+    }
+
+    params = ParamsState.convert_saved_config_to_full_params(saved, "map")
+
+    assert params["view_mode"] == "map"
+    assert params["map_layers"]["0"]["geometry_field"] == "location"
+    assert params["map_layers"]["0"]["point_radius"] == "8"
+    assert params["map_layers"]["1"]["geometry_field"] == "route_path"
+    assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
+    assert params["map_layers"]["1"]["visible"] == "false"
   end
 end

@@ -41,6 +41,7 @@ defmodule SelectoComponents.Views.Map.Component do
       assign(assigns,
         map_id: map_id,
         features: features,
+        map_layers: Map.get(map_set, :map_layers, []),
         map_color_field: Map.get(map_set, :map_color_field),
         map_tile_url:
           Map.get(map_set, :map_tile_url) || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -75,6 +76,7 @@ defmodule SelectoComponents.Views.Map.Component do
           data-center={Jason.encode!(@map_center)}
           data-fit-bounds={to_string(@fit_bounds)}
           data-cluster={to_string(@cluster)}
+          data-map-layers={Jason.encode!(@map_layers)}
           class="w-full rounded-lg border border-gray-200"
           style="height: 460px;"
         >
@@ -244,6 +246,30 @@ defmodule SelectoComponents.Views.Map.Component do
               }
             },
 
+            getLayerStyles() {
+              try {
+                const layers = JSON.parse(this.el.dataset.mapLayers || "[]");
+
+                if (!Array.isArray(layers)) return {};
+
+                return layers.reduce((acc, layer, index) => {
+                  const key = String(index + 1);
+
+                  acc[key] = {
+                    pointRadius: Number(layer?.point_radius || 6),
+                    lineWeight: Number(layer?.line_weight || 2),
+                    lineDashArray: layer?.line_dash_array || "",
+                    fillOpacity: Number(layer?.fill_opacity ?? 0.25),
+                    strokeOpacity: Number(layer?.stroke_opacity ?? 0.9)
+                  };
+
+                  return acc;
+                }, {});
+              } catch (_error) {
+                return {};
+              }
+            },
+
             isClusterEnabled() {
               return this.el.dataset.cluster === "true";
             },
@@ -328,7 +354,7 @@ defmodule SelectoComponents.Views.Map.Component do
               if (this.nonPointLayers?.clearLayers) this.nonPointLayers.clearLayers();
             },
 
-            createPointLayer(feature) {
+            createPointLayer(feature, layerStyle) {
               const coords = feature?.geometry?.coordinates;
               if (!Array.isArray(coords) || coords.length < 2) return null;
 
@@ -340,30 +366,40 @@ defmodule SelectoComponents.Views.Map.Component do
               const color = feature?.properties?.color || "#2563eb";
 
               const marker = window.L.circleMarker([lat, lng], {
-                radius: 6,
+                radius: Number(layerStyle?.pointRadius || 6),
                 color,
                 fillColor: color,
-                fillOpacity: 0.85,
-                weight: 1
+                fillOpacity: Number(layerStyle?.fillOpacity ?? 0.85),
+                weight: Number(layerStyle?.lineWeight || 1),
+                opacity: Number(layerStyle?.strokeOpacity ?? 0.9),
+                dashArray: layerStyle?.lineDashArray || null
               });
 
               this.bindPopup(marker, feature?.properties?.popup);
               return marker;
             },
 
-            createGeoLayer(feature) {
+            createGeoLayer(feature, layerStyle) {
               const color = feature?.properties?.color || "#2563eb";
 
               const layer = window.L.geoJSON(feature, {
                 pointToLayer: (_feature, latlng) =>
                   window.L.circleMarker(latlng, {
-                    radius: 6,
+                    radius: Number(layerStyle?.pointRadius || 6),
                     color,
                     fillColor: color,
-                    fillOpacity: 0.85,
-                    weight: 1
+                    fillOpacity: Number(layerStyle?.fillOpacity ?? 0.85),
+                    weight: Number(layerStyle?.lineWeight || 1),
+                    opacity: Number(layerStyle?.strokeOpacity ?? 0.9),
+                    dashArray: layerStyle?.lineDashArray || null
                   }),
-                style: () => ({ color, weight: 2, opacity: 0.9, fillOpacity: 0.25 })
+                style: () => ({
+                  color,
+                  weight: Number(layerStyle?.lineWeight || 2),
+                  opacity: Number(layerStyle?.strokeOpacity ?? 0.9),
+                  fillOpacity: Number(layerStyle?.fillOpacity ?? 0.25),
+                  dashArray: layerStyle?.lineDashArray || null
+                })
               });
 
               this.bindPopup(layer, feature?.properties?.popup);
@@ -379,12 +415,16 @@ defmodule SelectoComponents.Views.Map.Component do
             createLayer(feature, useCluster) {
               if (!window.L || !feature?.geometry) return null;
 
+              const layerId = String(feature?.properties?.layer || "1");
+              const layerStyles = this.getLayerStyles();
+              const layerStyle = layerStyles[layerId] || {};
+
               if (useCluster && feature.geometry.type === "Point") {
-                const layer = this.createPointLayer(feature);
+                const layer = this.createPointLayer(feature, layerStyle);
                 return layer ? { layer, clustered: true } : null;
               }
 
-              const layer = this.createGeoLayer(feature);
+              const layer = this.createGeoLayer(feature, layerStyle);
               return layer ? { layer, clustered: false } : null;
             },
 
@@ -533,27 +573,28 @@ defmodule SelectoComponents.Views.Map.Component do
 
   @doc false
   def prepare_features(rows, aliases) when is_list(rows) and is_list(aliases) do
-    geometry_ix = index_for_alias(aliases, "__map_geometry", 0)
-    popup_ix = index_for_alias(aliases, "__map_popup", nil)
-    color_ix = index_for_alias(aliases, "__map_color", nil)
+    layers = map_layer_indexes(aliases)
 
     rows
     |> Enum.map(&row_to_list/1)
-    |> Enum.map(fn row ->
-      geometry = row |> Enum.at(geometry_ix) |> parse_geometry()
+    |> Enum.flat_map(fn row ->
+      Enum.map(layers, fn layer ->
+        geometry = row |> Enum.at(layer.geometry_ix) |> parse_geometry()
 
-      if geometry do
-        %{
-          "type" => "Feature",
-          "geometry" => geometry,
-          "properties" => %{
-            "popup" => optional_value(row, popup_ix),
-            "color" => row |> optional_value(color_ix) |> normalize_marker_color()
+        if geometry do
+          %{
+            "type" => "Feature",
+            "geometry" => geometry,
+            "properties" => %{
+              "popup" => optional_value(row, layer.popup_ix),
+              "color" => row |> optional_value(layer.color_ix) |> normalize_marker_color(),
+              "layer" => layer.layer_id
+            }
           }
-        }
-      else
-        nil
-      end
+        else
+          nil
+        end
+      end)
     end)
     |> Enum.reject(&is_nil/1)
   end
@@ -566,6 +607,46 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp optional_value(_row, nil), do: nil
   defp optional_value(row, index), do: Enum.at(row, index)
+
+  defp map_layer_indexes(aliases) do
+    layers =
+      aliases
+      |> Enum.with_index()
+      |> Enum.filter(fn {alias_name, _ix} ->
+        String.starts_with?(to_string(alias_name), "__map_geometry")
+      end)
+      |> Enum.map(fn {alias_name, geometry_ix} ->
+        suffix = String.replace_prefix(to_string(alias_name), "__map_geometry", "")
+
+        %{
+          geometry_ix: geometry_ix,
+          popup_ix: index_for_alias(aliases, "__map_popup#{suffix}", nil),
+          color_ix: index_for_alias(aliases, "__map_color#{suffix}", nil),
+          layer_id: layer_id_from_suffix(suffix)
+        }
+      end)
+
+    if layers == [] do
+      [
+        %{
+          geometry_ix: 0,
+          popup_ix: index_for_alias(aliases, "__map_popup", nil),
+          color_ix: index_for_alias(aliases, "__map_color", nil),
+          layer_id: "1"
+        }
+      ]
+    else
+      layers
+    end
+  end
+
+  defp layer_id_from_suffix(""), do: "1"
+
+  defp layer_id_from_suffix("_" <> rest) when rest != "" do
+    rest
+  end
+
+  defp layer_id_from_suffix(value), do: value
 
   defp normalize_marker_color(nil), do: @default_marker_color
 

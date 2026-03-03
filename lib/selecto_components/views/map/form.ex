@@ -16,75 +16,170 @@ defmodule SelectoComponents.Views.Map.Form do
         popup_columns: popup_columns(assigns.selecto)
       )
 
+    assigns = assign(assigns, :map_layers, map_layers_for_form(assigns.map_config, assigns))
+
     ~H"""
     <div class="space-y-6">
+      <div class="rounded-lg border border-gray-200 p-4">
+        <div class="mb-3">
+          <h4 class="text-sm font-semibold text-gray-800">Map Layers</h4>
+          <p class="text-xs text-gray-600">
+            Configure up to 3 geometry layers (points, lines, areas) rendered together.
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            :for={{layer, index} <- Enum.with_index(@map_layers)}
+            class="rounded-md border border-gray-200 bg-gray-50 p-3"
+          >
+            <div class="mb-2 flex items-center justify-between">
+              <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                Layer {index + 1}
+              </div>
+              <label class="inline-flex items-center gap-2 text-xs text-gray-700">
+                <input type="hidden" name={"map_layers[#{index}][visible]"} value="false" />
+                <input
+                  type="checkbox"
+                  name={"map_layers[#{index}][visible]"}
+                  value="true"
+                  checked={Map.get(layer, :visible, true)}
+                  class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                /> Visible
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                <input
+                  type="text"
+                  name={"map_layers[#{index}][label]"}
+                  value={Map.get(layer, :label, "")}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Geometry Field</label>
+                <select
+                  name={"map_layers[#{index}][geometry_field]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option
+                    :for={{field, label} <- @spatial_columns}
+                    value={field}
+                    selected={Map.get(layer, :geometry_field) == field}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Popup Field</label>
+                <select
+                  name={"map_layers[#{index}][popup_field]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" selected={Map.get(layer, :popup_field) in [nil, ""]}>None</option>
+                  <option
+                    :for={{field, label} <- @popup_columns}
+                    value={field}
+                    selected={Map.get(layer, :popup_field) == field}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Color Field</label>
+                <select
+                  name={"map_layers[#{index}][color_field]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" selected={Map.get(layer, :color_field) in [nil, ""]}>None</option>
+                  <option
+                    :for={{field, label} <- @popup_columns}
+                    value={field}
+                    selected={Map.get(layer, :color_field) == field}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Point Radius</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  name={"map_layers[#{index}][point_radius]"}
+                  value={Map.get(layer, :point_radius, 6)}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Line Weight</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  name={"map_layers[#{index}][line_weight]"}
+                  value={Map.get(layer, :line_weight, 2)}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Line Dash</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 6,4"
+                  name={"map_layers[#{index}][line_dash_array]"}
+                  value={Map.get(layer, :line_dash_array, "")}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Fill Opacity</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  name={"map_layers[#{index}][fill_opacity]"}
+                  value={Map.get(layer, :fill_opacity, 0.25)}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Stroke Opacity</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  name={"map_layers[#{index}][stroke_opacity]"}
+                  value={Map.get(layer, :stroke_opacity, 0.9)}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" name="geometry_field" value={Map.get(hd(@map_layers), :geometry_field)} />
+      <input type="hidden" name="popup_field" value={Map.get(hd(@map_layers), :popup_field, "")} />
+      <input type="hidden" name="color_field" value={Map.get(hd(@map_layers), :color_field, "")} />
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Geometry Field</label>
-          <select
-            name="geometry_field"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option
-              :for={{field, label} <- @spatial_columns}
-              value={field}
-              selected={map_value(@map_config, :geometry_field) == field}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Popup Field</label>
-          <select
-            name="popup_field"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option
-              value=""
-              selected={
-                is_nil(map_value(@map_config, :popup_field)) or
-                  map_value(@map_config, :popup_field) == ""
-              }
-            >
-              None
-            </option>
-            <option
-              :for={{field, label} <- @popup_columns}
-              value={field}
-              selected={map_value(@map_config, :popup_field) == field}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Color Field (Optional)</label>
-          <select
-            name="color_field"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option
-              value=""
-              selected={
-                is_nil(map_value(@map_config, :color_field)) or
-                  map_value(@map_config, :color_field) == ""
-              }
-            >
-              None
-            </option>
-            <option
-              :for={{field, label} <- @popup_columns}
-              value={field}
-              selected={map_value(@map_config, :color_field) == field}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
-
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Zoom</label>
           <input
@@ -196,6 +291,82 @@ defmodule SelectoComponents.Views.Map.Form do
       value when value in [false, "false", "off", "0", 0] -> false
       _ -> default
     end
+  end
+
+  defp map_layers_for_form(map_config, assigns) do
+    existing_layers = map_value(map_config, :map_layers, [])
+
+    layers =
+      case existing_layers do
+        layers when is_list(layers) and layers != [] -> layers
+        _ -> [default_primary_layer(map_config)]
+      end
+
+    geometry_defaults =
+      assigns.spatial_columns
+      |> Enum.map(fn {field, _label} -> field end)
+
+    layers
+    |> Enum.take(3)
+    |> Enum.with_index()
+    |> Enum.map(fn {layer, index} ->
+      %{
+        label: Map.get(layer, :label) || "Layer #{index + 1}",
+        geometry_field: Map.get(layer, :geometry_field) || Enum.at(geometry_defaults, index),
+        popup_field: Map.get(layer, :popup_field),
+        color_field: Map.get(layer, :color_field),
+        point_radius: Map.get(layer, :point_radius, 6),
+        line_weight: Map.get(layer, :line_weight, 2),
+        line_dash_array: Map.get(layer, :line_dash_array),
+        fill_opacity: Map.get(layer, :fill_opacity, 0.25),
+        stroke_opacity: Map.get(layer, :stroke_opacity, 0.9),
+        visible: Map.get(layer, :visible, true)
+      }
+    end)
+    |> ensure_three_layers(geometry_defaults)
+  end
+
+  defp default_primary_layer(map_config) do
+    %{
+      label: "Layer 1",
+      geometry_field: map_value(map_config, :geometry_field),
+      popup_field: map_value(map_config, :popup_field),
+      color_field: map_value(map_config, :color_field),
+      point_radius: 6,
+      line_weight: 2,
+      line_dash_array: nil,
+      fill_opacity: 0.25,
+      stroke_opacity: 0.9,
+      visible: true
+    }
+  end
+
+  defp ensure_three_layers(layers, geometry_defaults) do
+    missing = max(3 - length(layers), 0)
+
+    padding =
+      if missing == 0 do
+        []
+      else
+        Enum.map(0..(missing - 1), fn idx ->
+          absolute_index = length(layers) + idx
+
+          %{
+            label: "Layer #{absolute_index + 1}",
+            geometry_field: Enum.at(geometry_defaults, absolute_index),
+            popup_field: nil,
+            color_field: nil,
+            point_radius: 6,
+            line_weight: 2,
+            line_dash_array: nil,
+            fill_opacity: 0.25,
+            stroke_opacity: 0.9,
+            visible: false
+          }
+        end)
+      end
+
+    layers ++ padding
   end
 
   defp spatial_columns(selecto) do
