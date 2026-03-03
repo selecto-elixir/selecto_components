@@ -26,8 +26,9 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp render_map(assigns) do
     {rows, _fields, aliases} = assigns.query_results
-    features = prepare_features(rows, aliases)
     map_set = selecto_set(assigns)
+    map_layers = Map.get(map_set, :map_layers, [])
+    features = prepare_features(rows, aliases, map_layers)
 
     map_id = "map-#{assigns[:id] || :rand.uniform(10000)}"
 
@@ -41,7 +42,8 @@ defmodule SelectoComponents.Views.Map.Component do
       assign(assigns,
         map_id: map_id,
         features: features,
-        map_layers: Map.get(map_set, :map_layers, []),
+        map_layers: map_layers,
+        scale_legends: scale_legends(features, map_layers),
         map_color_field: Map.get(map_set, :map_color_field),
         map_tile_url:
           Map.get(map_set, :map_tile_url) || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -518,24 +520,18 @@ defmodule SelectoComponents.Views.Map.Component do
           };
         </script>
 
-        <%= if show_dwell_legend?(@map_color_field) do %>
+        <%= if @scale_legends != [] do %>
           <div class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
             <div class="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              Dwell Time Legend
+              Scale Legend
             </div>
-            <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-700">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="h-2.5 w-2.5 rounded-full bg-[#16a34a]"></span>0-20 min
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <span class="h-2.5 w-2.5 rounded-full bg-[#f59e0b]"></span>21-45 min
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <span class="h-2.5 w-2.5 rounded-full bg-[#f97316]"></span>46-90 min
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <span class="h-2.5 w-2.5 rounded-full bg-[#dc2626]"></span>91+ min
-              </span>
+            <div :for={legend <- @scale_legends} class="mt-2">
+              <div class="text-[11px] font-semibold text-slate-600">{legend.title}</div>
+              <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+                <span :for={entry <- legend.entries} class="inline-flex items-center gap-1.5">
+                  <span class="h-2.5 w-2.5 rounded-full" style={"background-color: #{entry.color}"}></span>{entry.label}
+                </span>
+              </div>
             </div>
           </div>
         <% end %>
@@ -590,13 +586,20 @@ defmodule SelectoComponents.Views.Map.Component do
 
   @doc false
   def prepare_features(rows, aliases) when is_list(rows) and is_list(aliases) do
-    layers = map_layer_indexes(aliases)
+    prepare_features(rows, aliases, [])
+  end
+
+  def prepare_features(_rows, _aliases), do: []
+
+  def prepare_features(rows, aliases, map_layers) when is_list(rows) and is_list(aliases) do
+    layers = map_layer_indexes(aliases, map_layers)
 
     rows
     |> Enum.map(&row_to_list/1)
     |> Enum.flat_map(fn row ->
       Enum.map(layers, fn layer ->
         geometry = row |> Enum.at(layer.geometry_ix) |> parse_geometry()
+        raw_color = row |> optional_value(layer.color_ix)
 
         if geometry do
           %{
@@ -604,7 +607,8 @@ defmodule SelectoComponents.Views.Map.Component do
             "geometry" => geometry,
             "properties" => %{
               "popup" => optional_value(row, layer.popup_ix),
-              "color" => row |> optional_value(layer.color_ix) |> normalize_marker_color(),
+              "color" => normalize_marker_color(raw_color, layer.config),
+              "raw_color" => raw_color,
               "layer" => layer.layer_id
             }
           }
@@ -616,7 +620,7 @@ defmodule SelectoComponents.Views.Map.Component do
     |> Enum.reject(&is_nil/1)
   end
 
-  def prepare_features(_rows, _aliases), do: []
+  def prepare_features(_rows, _aliases, _map_layers), do: []
 
   defp row_to_list(row) when is_tuple(row), do: Tuple.to_list(row)
   defp row_to_list(row) when is_list(row), do: row
@@ -625,7 +629,7 @@ defmodule SelectoComponents.Views.Map.Component do
   defp optional_value(_row, nil), do: nil
   defp optional_value(row, index), do: Enum.at(row, index)
 
-  defp map_layer_indexes(aliases) do
+  defp map_layer_indexes(aliases, map_layers) do
     layers =
       aliases
       |> Enum.with_index()
@@ -642,6 +646,10 @@ defmodule SelectoComponents.Views.Map.Component do
           layer_id: layer_id_from_suffix(suffix)
         }
       end)
+      |> Enum.map(fn layer ->
+        config = layer_config(map_layers, layer.layer_id)
+        Map.put(layer, :config, config)
+      end)
 
     if layers == [] do
       [
@@ -649,7 +657,8 @@ defmodule SelectoComponents.Views.Map.Component do
           geometry_ix: 0,
           popup_ix: index_for_alias(aliases, "__map_popup", nil),
           color_ix: index_for_alias(aliases, "__map_color", nil),
-          layer_id: "1"
+          layer_id: "1",
+          config: layer_config(map_layers, "1")
         }
       ]
     else
@@ -665,61 +674,224 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp layer_id_from_suffix(value), do: value
 
-  defp normalize_marker_color(nil), do: @default_marker_color
-
-  defp normalize_marker_color(value) when is_integer(value) do
-    dwell_color(value)
+  defp layer_config(map_layers, layer_id) do
+    case Integer.parse(to_string(layer_id)) do
+      {index, ""} when index > 0 -> Enum.at(map_layers, index - 1, %{})
+      _ -> %{}
+    end
   end
 
-  defp normalize_marker_color(value) when is_float(value) do
-    value
-    |> round()
-    |> dwell_color()
-  end
-
-  defp normalize_marker_color(value) when is_binary(value) do
-    trimmed = String.trim(value)
+  defp normalize_marker_color(value, config) do
+    scale_type = normalize_scale_type(Map.get(config, :scale_type))
+    palette = parse_palette(Map.get(config, :scale_palette))
+    trimmed = if is_binary(value), do: String.trim(value), else: value
 
     cond do
-      trimmed == "" ->
-        @default_marker_color
+      trimmed in [nil, ""] -> @default_marker_color
+      is_binary(trimmed) and css_color?(trimmed) -> trimmed
+      scale_type == "categorical" -> categorical_color(trimmed, palette)
+      scale_type == "linear" -> linear_color(trimmed, palette)
+      true -> numeric_steps_color(trimmed, Map.get(config, :scale_steps), palette)
+    end
+  end
 
-      css_color?(trimmed) ->
-        trimmed
+  defp normalize_scale_type(value) when value in [nil, ""], do: "auto"
 
-      true ->
-        case Integer.parse(trimmed) do
-          {minutes, ""} -> dwell_color(minutes)
-          _ -> @default_marker_color
+  defp normalize_scale_type(value) when is_atom(value),
+    do: normalize_scale_type(Atom.to_string(value))
+
+  defp normalize_scale_type(value) when is_binary(value) do
+    case String.downcase(String.trim(value)) do
+      "categorical" -> "categorical"
+      "linear" -> "linear"
+      "numeric_steps" -> "numeric_steps"
+      _ -> "auto"
+    end
+  end
+
+  defp normalize_scale_type(_), do: "auto"
+
+  defp parse_palette(nil), do: []
+
+  defp parse_palette(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&css_color?/1)
+  end
+
+  defp parse_palette(_), do: []
+
+  defp parse_steps(nil), do: [20, 45, 90]
+
+  defp parse_steps(value) when is_binary(value) do
+    parsed =
+      value
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.map(&Integer.parse/1)
+      |> Enum.flat_map(fn
+        {n, ""} -> [n]
+        _ -> []
+      end)
+      |> Enum.sort()
+
+    if parsed == [], do: [20, 45, 90], else: parsed
+  end
+
+  defp parse_steps(_), do: [20, 45, 90]
+
+  defp numeric_steps_color(value, steps_value, palette) do
+    case parse_number(value) do
+      nil ->
+        categorical_color(value, palette)
+
+      number ->
+        steps = parse_steps(steps_value)
+        [c1, c2, c3, c4] = palette_for_steps(palette)
+
+        cond do
+          number <= Enum.at(steps, 0) -> c1
+          number <= Enum.at(steps, 1) -> c2
+          number <= Enum.at(steps, 2) -> c3
+          true -> c4
         end
     end
   end
 
-  defp normalize_marker_color(_), do: @default_marker_color
+  defp linear_color(value, palette) do
+    case parse_number(value) do
+      nil ->
+        categorical_color(value, palette)
 
-  defp dwell_color(minutes) when minutes <= 20, do: "#16a34a"
-  defp dwell_color(minutes) when minutes <= 45, do: "#f59e0b"
-  defp dwell_color(minutes) when minutes <= 90, do: "#f97316"
-  defp dwell_color(_minutes), do: "#dc2626"
+      number ->
+        {low, high} = linear_palette(palette)
+        t = max(0.0, min(number / 100.0, 1.0))
+        lerp_hex(low, high, t)
+    end
+  end
+
+  defp categorical_color(value, palette) do
+    colors = if palette == [], do: default_categorical_palette(), else: palette
+    idx = :erlang.phash2(to_string(value), max(length(colors), 1))
+    Enum.at(colors, idx, @default_marker_color)
+  end
+
+  defp parse_number(value) when is_integer(value), do: value * 1.0
+  defp parse_number(value) when is_float(value), do: value
+
+  defp parse_number(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case Float.parse(trimmed) do
+      {number, ""} -> number
+      _ -> nil
+    end
+  end
+
+  defp parse_number(_), do: nil
+
+  defp palette_for_steps([a, b, c, d | _]), do: [a, b, c, d]
+  defp palette_for_steps(_), do: ["#16a34a", "#f59e0b", "#f97316", "#dc2626"]
+
+  defp linear_palette([low, high | _]), do: {low, high}
+  defp linear_palette(_), do: {"#16a34a", "#dc2626"}
+
+  defp default_categorical_palette do
+    ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#f59e0b", "#f97316", "#ef4444", "#a855f7"]
+  end
+
+  defp lerp_hex(low, high, t) do
+    with {:ok, {lr, lg, lb}} <- hex_to_rgb(low),
+         {:ok, {hr, hg, hb}} <- hex_to_rgb(high) do
+      r = round(lr + (hr - lr) * t)
+      g = round(lg + (hg - lg) * t)
+      b = round(lb + (hb - lb) * t)
+      rgb_to_hex({r, g, b})
+    else
+      _ -> @default_marker_color
+    end
+  end
+
+  defp hex_to_rgb("#" <> hex) when byte_size(hex) == 6 do
+    case Integer.parse(hex, 16) do
+      {value, ""} ->
+        {:ok,
+         {Bitwise.band(Bitwise.bsr(value, 16), 255), Bitwise.band(Bitwise.bsr(value, 8), 255),
+          Bitwise.band(value, 255)}}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp hex_to_rgb(_), do: :error
+
+  defp rgb_to_hex({r, g, b}) do
+    "#" <> String.upcase(Base.encode16(<<r, g, b>>))
+  end
+
+  defp scale_legends(features, map_layers) do
+    map_layers
+    |> Enum.with_index(1)
+    |> Enum.filter(fn {layer, _idx} -> Map.get(layer, :visible, true) != false end)
+    |> Enum.map(fn {layer, idx} -> build_scale_legend(layer, idx, features) end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp build_scale_legend(layer, idx, features) do
+    scale_type = normalize_scale_type(Map.get(layer, :scale_type))
+    title = layer_label(layer)
+    layer_id = to_string(idx)
+
+    entries =
+      case scale_type do
+        "categorical" -> categorical_legend_entries(layer, layer_id, features)
+        "linear" -> linear_legend_entries(layer)
+        _ -> numeric_steps_legend_entries(layer)
+      end
+
+    if entries == [], do: nil, else: %{title: title, entries: entries}
+  end
+
+  defp categorical_legend_entries(layer, layer_id, features) do
+    values =
+      features
+      |> Enum.filter(fn feature -> get_in(feature, ["properties", "layer"]) == layer_id end)
+      |> Enum.map(fn feature -> get_in(feature, ["properties", "raw_color"]) end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.take(6)
+
+    palette = parse_palette(Map.get(layer, :scale_palette))
+
+    Enum.map(values, fn value ->
+      %{label: to_string(value), color: categorical_color(value, palette)}
+    end)
+  end
+
+  defp linear_legend_entries(layer) do
+    {low, high} = linear_palette(parse_palette(Map.get(layer, :scale_palette)))
+    [%{label: "Low", color: low}, %{label: "High", color: high}]
+  end
+
+  defp numeric_steps_legend_entries(layer) do
+    steps = parse_steps(Map.get(layer, :scale_steps))
+    [c1, c2, c3, c4] = palette_for_steps(parse_palette(Map.get(layer, :scale_palette)))
+
+    [
+      %{label: "<=#{Enum.at(steps, 0)}", color: c1},
+      %{label: "#{Enum.at(steps, 0) + 1}-#{Enum.at(steps, 1)}", color: c2},
+      %{label: "#{Enum.at(steps, 1) + 1}-#{Enum.at(steps, 2)}", color: c3},
+      %{label: ">#{Enum.at(steps, 2)}", color: c4}
+    ]
+  end
 
   defp css_color?(value) do
     String.match?(value, ~r/^#[0-9A-Fa-f]{3,8}$/) or
       String.match?(value, ~r/^rgba?\(.+\)$/i) or
-      String.match?(value, ~r/^hsla?\(.+\)$/i) or
-      String.match?(value, ~r/^[A-Za-z]+$/)
+      String.match?(value, ~r/^hsla?\(.+\)$/i)
   end
-
-  defp show_dwell_legend?(nil), do: false
-
-  defp show_dwell_legend?(field) when is_atom(field) do
-    show_dwell_legend?(Atom.to_string(field))
-  end
-
-  defp show_dwell_legend?(field) when is_binary(field) do
-    String.contains?(String.downcase(field), "dwell")
-  end
-
-  defp show_dwell_legend?(_), do: false
 
   defp show_layer_legend?(layers) when is_list(layers), do: length(visible_layers(layers)) > 1
   defp show_layer_legend?(_), do: false

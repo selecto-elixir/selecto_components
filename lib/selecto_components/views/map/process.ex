@@ -380,6 +380,18 @@ defmodule SelectoComponents.Views.Map.Process do
           layer
           |> get_map_value(:color_field)
           |> normalize_field(),
+        scale_type:
+          layer
+          |> get_map_value(:scale_type)
+          |> normalize_scale_type(),
+        scale_palette:
+          layer
+          |> get_map_value(:scale_palette)
+          |> normalize_text(),
+        scale_steps:
+          layer
+          |> get_map_value(:scale_steps)
+          |> normalize_text(),
         point_radius:
           layer
           |> get_map_value(:point_radius)
@@ -480,6 +492,18 @@ defmodule SelectoComponents.Views.Map.Process do
         |> normalize_geometry_kind(),
       popup_field: resolve_optional_field(popup_field, columns),
       color_field: resolve_optional_field(color_field, columns),
+      scale_type:
+        layer_opts
+        |> get_map_value(:scale_type)
+        |> normalize_scale_type(),
+      scale_palette:
+        layer_opts
+        |> get_map_value(:scale_palette)
+        |> normalize_text(),
+      scale_steps:
+        layer_opts
+        |> get_map_value(:scale_steps)
+        |> normalize_text(),
       point_radius:
         layer_opts
         |> get_map_value(:point_radius)
@@ -557,6 +581,23 @@ defmodule SelectoComponents.Views.Map.Process do
   defp normalize_stroke_opacity(value) when value < 0.0, do: 0.0
   defp normalize_stroke_opacity(value) when value > 1.0, do: 1.0
   defp normalize_stroke_opacity(value), do: value
+
+  defp normalize_scale_type(nil), do: "auto"
+
+  defp normalize_scale_type(value) when is_atom(value) do
+    value
+    |> Atom.to_string()
+    |> normalize_scale_type()
+  end
+
+  defp normalize_scale_type(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      scale when scale in ["auto", "categorical", "numeric_steps", "linear"] -> scale
+      _ -> "auto"
+    end
+  end
+
+  defp normalize_scale_type(_), do: "auto"
 
   defp normalize_geometry_kind(nil), do: "auto"
 
