@@ -911,6 +911,9 @@ defmodule SelectoComponents.Views.Map.Component do
       end)
       |> Enum.flat_map(fn layer ->
         layer_id = layer.layer_id
+        config = Map.get(layer, :config, %{})
+        show_endpoints = truthy?(Map.get(config, :show_track_endpoints, true))
+        show_arrows = truthy?(Map.get(config, :show_track_arrows, true))
 
         features
         |> Enum.filter(fn feature ->
@@ -952,52 +955,60 @@ defmodule SelectoComponents.Views.Map.Component do
                 }
               }
 
-            start_feature =
-              %{
-                "type" => "Feature",
-                "geometry" => %{"type" => "Point", "coordinates" => start_coord},
-                "properties" => %{
-                  "popup" => "Start #{track_key}",
-                  "color" => "#16a34a",
-                  "layer" => layer_id,
-                  "feature_kind" => "track_start"
-                }
-              }
-
-            end_feature =
-              %{
-                "type" => "Feature",
-                "geometry" => %{"type" => "Point", "coordinates" => end_coord},
-                "properties" => %{
-                  "popup" => "End #{track_key}",
-                  "color" => "#dc2626",
-                  "layer" => layer_id,
-                  "feature_kind" => "track_end"
-                }
-              }
+            endpoint_features =
+              if show_endpoints do
+                [
+                  %{
+                    "type" => "Feature",
+                    "geometry" => %{"type" => "Point", "coordinates" => start_coord},
+                    "properties" => %{
+                      "popup" => "Start #{track_key}",
+                      "color" => "#16a34a",
+                      "layer" => layer_id,
+                      "feature_kind" => "track_start"
+                    }
+                  },
+                  %{
+                    "type" => "Feature",
+                    "geometry" => %{"type" => "Point", "coordinates" => end_coord},
+                    "properties" => %{
+                      "popup" => "End #{track_key}",
+                      "color" => "#dc2626",
+                      "layer" => layer_id,
+                      "feature_kind" => "track_end"
+                    }
+                  }
+                ]
+              else
+                []
+              end
 
             arrow_features =
-              coords
-              |> Enum.chunk_every(2, 1, :discard)
-              |> Enum.with_index(1)
-              |> Enum.map(fn {[from_coord, to_coord], segment_index} ->
-                midpoint = midpoint(from_coord, to_coord)
-                symbol = arrow_symbol(from_coord, to_coord)
+              if show_arrows do
+                coords
+                |> Enum.chunk_every(2, 1, :discard)
+                |> Enum.with_index(1)
+                |> Enum.map(fn {[from_coord, to_coord], segment_index} ->
+                  midpoint = midpoint(from_coord, to_coord)
+                  symbol = arrow_symbol(from_coord, to_coord)
 
-                %{
-                  "type" => "Feature",
-                  "geometry" => %{"type" => "Point", "coordinates" => midpoint},
-                  "properties" => %{
-                    "popup" => "Direction #{track_key} segment #{segment_index}",
-                    "color" => color,
-                    "layer" => layer_id,
-                    "feature_kind" => "track_arrow",
-                    "arrow_symbol" => symbol
+                  %{
+                    "type" => "Feature",
+                    "geometry" => %{"type" => "Point", "coordinates" => midpoint},
+                    "properties" => %{
+                      "popup" => "Direction #{track_key} segment #{segment_index}",
+                      "color" => color,
+                      "layer" => layer_id,
+                      "feature_kind" => "track_arrow",
+                      "arrow_symbol" => symbol
+                    }
                   }
-                }
-              end)
+                end)
+              else
+                []
+              end
 
-            [line_feature, start_feature, end_feature] ++ arrow_features
+            [line_feature] ++ endpoint_features ++ arrow_features
           end
         end)
       end)
@@ -1029,6 +1040,9 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp arrow_symbol(_from, _to), do: "→"
+
+  defp truthy?(value) when value in [true, "true", "1", 1], do: true
+  defp truthy?(_), do: false
 
   defp parse_track_order(value) when is_integer(value), do: value
   defp parse_track_order(value) when is_float(value), do: value
