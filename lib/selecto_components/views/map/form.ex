@@ -354,6 +354,66 @@ defmodule SelectoComponents.Views.Map.Form do
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Background Mode</label>
+          <select
+            name="background_mode"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option
+              value="tiles"
+              selected={map_value(@map_config, :background_mode, "tiles") == "tiles"}
+            >
+              Tile Map
+            </option>
+            <option
+              value="image_overlay"
+              selected={map_value(@map_config, :background_mode) == "image_overlay"}
+            >
+              Image Overlay
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Image Overlay Opacity</label>
+          <input
+            name="image_overlay_opacity"
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            value={map_value(@map_config, :image_overlay_opacity, 0.85)}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Image Overlay URL</label>
+          <input
+            name="image_overlay_url"
+            type="text"
+            placeholder="https://example.com/yard-overlay.png"
+            value={map_value(@map_config, :image_overlay_url, "")}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Image Bounds (south,west,north,east)
+          </label>
+          <input
+            name="image_overlay_bounds"
+            type="text"
+            placeholder="33.7,-123.5,49.5,-117.0"
+            value={image_overlay_bounds_value(@map_config)}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Tile URL</label>
           <input
             name="tile_url"
@@ -416,6 +476,19 @@ defmodule SelectoComponents.Views.Map.Form do
       value when value in [true, "true", "on", "1", 1] -> true
       value when value in [false, "false", "off", "0", 0] -> false
       _ -> default
+    end
+  end
+
+  defp image_overlay_bounds_value(config) do
+    case map_value(config, :image_overlay_bounds, nil) do
+      [[south, west], [north, east]] ->
+        Enum.join([south, west, north, east], ",")
+
+      value when is_binary(value) ->
+        String.trim(value)
+
+      _ ->
+        ""
     end
   end
 
