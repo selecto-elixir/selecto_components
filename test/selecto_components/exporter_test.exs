@@ -33,6 +33,33 @@ defmodule SelectoComponents.ExporterTest do
     assert export.content =~ "\"Line\nBreak\",1904"
   end
 
+  test "neutralizes spreadsheet formulas in CSV export" do
+    query_results =
+      {
+        [
+          ["=2+2"],
+          [" +SUM(A1:A2)"],
+          ["-10"],
+          ["@cmd"],
+          ["safe value"]
+        ],
+        ["value"],
+        ["Value"]
+      }
+
+    assert {:ok, export} =
+             Exporter.build("csv", query_results,
+               view_mode: "detail",
+               exported_at: @exported_at
+             )
+
+    assert export.content =~ "'=2+2"
+    assert export.content =~ "' +SUM(A1:A2)"
+    assert export.content =~ "'-10"
+    assert export.content =~ "'@cmd"
+    assert export.content =~ "safe value"
+  end
+
   test "builds JSON export from map rows" do
     query_results =
       {

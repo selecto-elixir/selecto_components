@@ -7,6 +7,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   alias SelectoComponents.EnhancedTable.RowSelection
   alias Phoenix.LiveView.JS
 
+  @export_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>)
+
+  @delete_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>)
+
+  @trusted_icons MapSet.new([@export_icon_svg, @delete_icon_svg])
+
   @impl true
   def mount(socket) do
     {:ok,
@@ -108,8 +114,8 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
               phx-value-action={action.id}
               phx-target={@myself}
             >
-              <%= if action.icon do %>
-                {Phoenix.HTML.raw(action.icon)}
+              <%= if icon = safe_icon(action.icon) do %>
+                {icon}
               <% end %>
               <span>{action.label}</span>
             </button>
@@ -274,9 +280,9 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         phx-value-action={@action.id}
         phx-target={@myself}
       >
-        <%= if @action.icon do %>
+        <%= if icon = safe_icon(@action.icon) do %>
           <span class={@action.icon_class || "text-gray-500"}>
-            {Phoenix.HTML.raw(@action.icon)}
+            {icon}
           </span>
         <% end %>
         <span class={@action.text_class || "text-gray-700"}>{@action.label}</span>
@@ -563,21 +569,29 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     Phoenix.LiveView.send_update(__MODULE__, id: component_id, all_row_ids: row_ids)
   end
 
+  defp safe_icon(icon) when is_binary(icon) do
+    if MapSet.member?(@trusted_icons, icon) do
+      Phoenix.HTML.raw(icon)
+    else
+      nil
+    end
+  end
+
+  defp safe_icon(_icon), do: nil
+
   defp default_actions do
     [
       %{
         id: "export",
         label: "Export",
-        icon:
-          ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>),
+        icon: @export_icon_svg,
         quick_action: true,
         requires_confirmation: false
       },
       %{
         id: "delete",
         label: "Delete",
-        icon:
-          ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>),
+        icon: @delete_icon_svg,
         icon_class: "text-red-500",
         text_class: "text-red-700",
         quick_action: true,

@@ -6,6 +6,7 @@ defmodule SelectoComponents.ViewConfigManager do
 
   use Phoenix.LiveComponent
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.SafeAtom
 
   @impl true
   def mount(socket) do
@@ -308,7 +309,7 @@ defmodule SelectoComponents.ViewConfigManager do
   end
 
   def handle_event("do_save_view_config", _params, socket) do
-    view_type = socket.assigns.view_config.view_mode || "detail"
+    view_type = normalize_view_type(socket.assigns.view_config.view_mode || "detail")
 
     # Only save view-specific configuration (not filters)
     view_specific_config = extract_view_specific_config(socket.assigns.view_config, view_type)
@@ -350,7 +351,7 @@ defmodule SelectoComponents.ViewConfigManager do
   end
 
   def handle_event("load_view_config", %{"name" => name}, socket) do
-    view_type = socket.assigns.view_config.view_mode || "detail"
+    view_type = normalize_view_type(socket.assigns.view_config.view_mode || "detail")
 
     config =
       socket.assigns.saved_view_config_module.load_view_config(
@@ -376,7 +377,7 @@ defmodule SelectoComponents.ViewConfigManager do
 
   defp load_saved_configs(socket) do
     if has_view_config_module?(socket) do
-      view_type = socket.assigns.view_config.view_mode || "detail"
+      view_type = normalize_view_type(socket.assigns.view_config.view_mode || "detail")
 
       configs =
         socket.assigns.saved_view_config_module.list_view_configs(
@@ -398,16 +399,18 @@ defmodule SelectoComponents.ViewConfigManager do
   end
 
   defp extract_view_specific_config(view_config, view_type) do
+    normalized_view_type = normalize_view_type(view_type)
+
     # Extract only the configuration for the current view type
     # Exclude filters as they have their own save system
     views = Map.get(view_config, :views, %{})
 
-    view_type_atom = String.to_existing_atom(view_type)
+    view_type_atom = SafeAtom.to_view_mode(normalized_view_type)
     current_view_config = Map.get(views, view_type_atom, %{})
 
     # For detail view, ensure we have the actual selected columns from the view_config
     current_view_config =
-      case view_type do
+      case normalized_view_type do
         "detail" ->
           # Get the selected columns from the main Selecto configuration
           selected = get_selected_from_selecto(view_config)
@@ -424,9 +427,15 @@ defmodule SelectoComponents.ViewConfigManager do
 
     # Return only the view-specific configuration
     %{
-      view_type => current_view_config
+      normalized_view_type => current_view_config
     }
     |> sanitize_for_json()
+  end
+
+  defp normalize_view_type(view_type) do
+    view_type
+    |> SafeAtom.to_view_mode()
+    |> Atom.to_string()
   end
 
   defp get_selected_from_selecto(view_config) do

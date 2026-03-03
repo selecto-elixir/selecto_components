@@ -8,6 +8,11 @@ defmodule SelectoComponents.Filter.FilterSets do
   import Phoenix.Component
   require Logger
 
+  @max_shared_filters_param_bytes 32_768
+  @max_shared_filters_compressed_bytes 24_576
+  @max_shared_filters_json_bytes 262_144
+  @max_shared_filter_entries 500
+
   def render(assigns) do
     ~H"""
     <div class="filter-sets-component">
@@ -819,17 +824,20 @@ defmodule SelectoComponents.Filter.FilterSets do
   Returns {:ok, filters} or {:error, reason}.
   """
   def decode_shared_filters(encoded) when is_binary(encoded) do
-    try do
-      filters =
-        encoded
-        |> Base.url_decode64!(padding: false)
-        |> :zlib.uncompress()
-        |> Jason.decode!()
-
+    with :ok <- validate_shared_filters_param_size(encoded),
+         {:ok, compressed} <- Base.url_decode64(encoded, padding: false),
+         :ok <- validate_shared_filters_compressed_size(compressed),
+         {:ok, json_payload} <- safe_uncompress_shared_filters(compressed),
+         :ok <- validate_shared_filters_json_size(json_payload),
+         {:ok, filters} <- Jason.decode(json_payload),
+         :ok <- validate_shared_filters_shape(filters) do
       {:ok, filters}
-    rescue
-      e in [ArgumentError, ErlangError, Jason.DecodeError] ->
-        {:error, {:decode_failed, e}}
+    else
+      :error ->
+        {:error, {:decode_failed, :invalid_base64}}
+
+      {:error, reason} ->
+        {:error, {:decode_failed, reason}}
     end
   end
 
@@ -871,6 +879,51 @@ defmodule SelectoComponents.Filter.FilterSets do
   end
 
   def import_filter_set(_, _), do: {:error, :invalid_input}
+
+  defp validate_shared_filters_param_size(encoded)
+       when byte_size(encoded) <= @max_shared_filters_param_bytes,
+       do: :ok
+
+  defp validate_shared_filters_param_size(_encoded), do: {:error, :shared_filters_param_too_large}
+
+  defp validate_shared_filters_compressed_size(compressed)
+       when byte_size(compressed) <= @max_shared_filters_compressed_bytes,
+       do: :ok
+
+  defp validate_shared_filters_compressed_size(_compressed),
+    do: {:error, :shared_filters_payload_too_large}
+
+  defp safe_uncompress_shared_filters(compressed) when is_binary(compressed) do
+    {:ok, :zlib.uncompress(compressed)}
+  rescue
+    ArgumentError -> {:error, :invalid_compressed_payload}
+    ErlangError -> {:error, :invalid_compressed_payload}
+  end
+
+  defp validate_shared_filters_json_size(json_payload)
+       when byte_size(json_payload) <= @max_shared_filters_json_bytes,
+       do: :ok
+
+  defp validate_shared_filters_json_size(_json_payload),
+    do: {:error, :shared_filters_json_too_large}
+
+  defp validate_shared_filters_shape(filters) when is_map(filters) do
+    if map_size(filters) <= @max_shared_filter_entries do
+      :ok
+    else
+      {:error, :too_many_filters}
+    end
+  end
+
+  defp validate_shared_filters_shape(filters) when is_list(filters) do
+    if length(filters) <= @max_shared_filter_entries do
+      :ok
+    else
+      {:error, :too_many_filters}
+    end
+  end
+
+  defp validate_shared_filters_shape(_filters), do: {:error, :invalid_filters_shape}
 
   # Flash helper removed - using Phoenix.LiveView.put_flash directly
 end

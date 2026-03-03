@@ -273,7 +273,7 @@ defmodule SelectoComponents.Router do
 
   defp handle_list_picker_remove(_view, list, item_uuid, state) do
     # Remove item from list picker (selected fields, group_by, etc.)
-    list_key = String.to_existing_atom(list)
+    list_key = SafeAtom.to_list_name(list)
     current_list = Map.get(state.view_config, list_key, %{})
 
     updated_list = Map.delete(current_list, item_uuid)
@@ -284,7 +284,7 @@ defmodule SelectoComponents.Router do
 
   defp handle_list_picker_move(_view, list, uuid, direction, state) do
     # Reorder items in list picker
-    list_key = String.to_existing_atom(list)
+    list_key = SafeAtom.to_list_name(list)
     current_list = Map.get(state.view_config, list_key, %{})
 
     # Convert map to ordered list
@@ -300,7 +300,9 @@ defmodule SelectoComponents.Router do
       new_index =
         case direction do
           :up -> max(0, current_index - 1)
+          "up" -> max(0, current_index - 1)
           :down -> min(length(items) - 1, current_index + 1)
+          "down" -> min(length(items) - 1, current_index + 1)
           _ -> current_index
         end
 
@@ -327,7 +329,7 @@ defmodule SelectoComponents.Router do
 
   defp handle_list_picker_add(_view, list, item, state) do
     # Add item to list picker
-    list_key = String.to_existing_atom(list)
+    list_key = SafeAtom.to_list_name(list)
     current_list = Map.get(state.view_config, list_key, %{})
 
     # Generate UUID for new item
