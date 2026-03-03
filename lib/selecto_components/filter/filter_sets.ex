@@ -446,9 +446,9 @@ defmodule SelectoComponents.Filter.FilterSets do
       "is_shared" => to_string(socket.assigns.save_form.is_shared)
     }
 
-    require Logger
-    Logger.debug("Saving filter set with params: #{inspect(params)}")
-    Logger.debug("Current filters: #{inspect(socket.assigns[:current_filters])}")
+    Logger.debug(fn ->
+      "Saving filter set request name_present=#{params["name"] not in [nil, ""]} is_default=#{params["is_default"]} is_shared=#{params["is_shared"]} filter_count=#{filter_count(socket.assigns[:current_filters])}"
+    end)
 
     # Validate that name is not empty
     if params["name"] == "" || is_nil(params["name"]) do
@@ -668,9 +668,8 @@ defmodule SelectoComponents.Filter.FilterSets do
   end
 
   defp save_filter_set(params, assigns) do
-    require Logger
     adapter = assigns[:filter_sets_adapter]
-    Logger.debug("Adapter: #{inspect(adapter)}")
+    Logger.debug(fn -> "Filter set adapter configured=#{not is_nil(adapter)}" end)
 
     if adapter do
       # Convert filters from list format to map format
@@ -704,9 +703,16 @@ defmodule SelectoComponents.Filter.FilterSets do
         is_shared: params["is_shared"] == "true"
       }
 
-      Logger.debug("Creating filter set with attrs: #{inspect(attrs)}")
+      Logger.debug(fn ->
+        "Creating filter set domain=#{normalized_domain} user_id_present=#{not is_nil(assigns.user_id)} is_shared=#{attrs.is_shared} filter_count=#{map_size(filters_map)}"
+      end)
+
       result = adapter.create_filter_set(attrs)
-      Logger.debug("Create result: #{inspect(result)}")
+
+      Logger.debug(fn ->
+        "Create filter set result=#{create_result_status(result)}"
+      end)
+
       result
     else
       Logger.debug("No adapter found")
@@ -714,9 +720,20 @@ defmodule SelectoComponents.Filter.FilterSets do
     end
   rescue
     e ->
-      Logger.error("Error creating filter set: #{inspect(e)}")
+      Logger.error(fn ->
+        "Error creating filter set exception=#{inspect(e.__struct__)} message=#{Exception.message(e)}"
+      end)
+
       {:error, :adapter_error}
   end
+
+  defp filter_count(filters) when is_map(filters), do: map_size(filters)
+  defp filter_count(filters) when is_list(filters), do: length(filters)
+  defp filter_count(_filters), do: 0
+
+  defp create_result_status({:ok, _}), do: "ok"
+  defp create_result_status({:error, _}), do: "error"
+  defp create_result_status(_), do: "unknown"
 
   defp delete_filter_set(id, assigns) do
     adapter = assigns[:filter_sets_adapter]
