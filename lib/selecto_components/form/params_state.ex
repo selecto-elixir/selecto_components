@@ -58,6 +58,9 @@ defmodule SelectoComponents.Form.ParamsState do
         view_data ->
           Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
             cond do
+              selected_view == :map and list_name in [:map_layers, "map_layers"] ->
+                merge_scalar_view_param(acc, selected_view, list_name, items)
+
               is_list(items) ->
                 Map.put(acc, to_string(list_name), view_items_to_params(items))
 
@@ -117,6 +120,11 @@ defmodule SelectoComponents.Form.ParamsState do
   defp merge_scalar_view_param(acc, :map, key, value)
        when key in [:center, "center"] do
     maybe_put_center_params(acc, value)
+  end
+
+  defp merge_scalar_view_param(acc, :map, key, value)
+       when key in [:map_layers, "map_layers"] do
+    maybe_put_param(acc, "map_layers", normalize_map_layers_param(value))
   end
 
   defp merge_scalar_view_param(acc, :map, key, value) do
@@ -1218,7 +1226,14 @@ defmodule SelectoComponents.Form.ParamsState do
   defp merge_saved_map_params(params, map_config) do
     params_with_center = maybe_put_center_params(params, get_map_value(map_config, :center))
 
-    Enum.reduce(@map_param_keys, params_with_center, fn param_key, acc ->
+    params_with_layers =
+      maybe_put_param(
+        params_with_center,
+        "map_layers",
+        normalize_map_layers_param(get_map_value(map_config, :map_layers))
+      )
+
+    Enum.reduce(@map_param_keys, params_with_layers, fn param_key, acc ->
       maybe_put_param(
         acc,
         param_key,
@@ -1226,6 +1241,57 @@ defmodule SelectoComponents.Form.ParamsState do
       )
     end)
   end
+
+  defp normalize_map_layers_param(nil), do: nil
+
+  defp normalize_map_layers_param(layers) when is_list(layers) do
+    layers
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {layer, index}, acc ->
+      Map.put(acc, Integer.to_string(index), normalize_map_layer_param(layer))
+    end)
+  end
+
+  defp normalize_map_layers_param(layers) when is_map(layers) do
+    layers
+    |> Enum.sort_by(fn {key, _value} ->
+      case Integer.parse(to_string(key)) do
+        {parsed, ""} -> parsed
+        _ -> 999
+      end
+    end)
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {{_key, layer}, index}, acc ->
+      Map.put(acc, Integer.to_string(index), normalize_map_layer_param(layer))
+    end)
+  end
+
+  defp normalize_map_layers_param(_), do: nil
+
+  defp normalize_map_layer_param(layer) when is_map(layer) do
+    %{}
+    |> maybe_put_param("label", normalize_map_scalar(get_map_value(layer, :label)))
+    |> maybe_put_param(
+      "geometry_field",
+      normalize_map_scalar(get_map_value(layer, :geometry_field))
+    )
+    |> maybe_put_param("popup_field", normalize_map_scalar(get_map_value(layer, :popup_field)))
+    |> maybe_put_param("color_field", normalize_map_scalar(get_map_value(layer, :color_field)))
+    |> maybe_put_param("point_radius", normalize_map_scalar(get_map_value(layer, :point_radius)))
+    |> maybe_put_param("line_weight", normalize_map_scalar(get_map_value(layer, :line_weight)))
+    |> maybe_put_param(
+      "line_dash_array",
+      normalize_map_scalar(get_map_value(layer, :line_dash_array))
+    )
+    |> maybe_put_param("fill_opacity", normalize_map_scalar(get_map_value(layer, :fill_opacity)))
+    |> maybe_put_param(
+      "stroke_opacity",
+      normalize_map_scalar(get_map_value(layer, :stroke_opacity))
+    )
+    |> maybe_put_param("visible", normalize_map_boolean(get_map_value(layer, :visible)))
+  end
+
+  defp normalize_map_layer_param(_), do: %{}
 
   defp maybe_put_center_params(params, center_value) do
     case parse_center_value(center_value) do

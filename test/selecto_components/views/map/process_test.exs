@@ -104,6 +104,48 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert {:field, {:st_asgeojson, "location"}, "__map_geometry"} in view_set.selected
       assert {:field, "name", "__map_popup"} in view_set.selected
     end
+
+    test "builds selected fields for configured map layers" do
+      selecto = build_selecto()
+
+      columns = %{
+        "location" => %{name: "location", type: :geometry, colid: :location},
+        "route_path" => %{name: "route_path", type: :geometry, colid: :route_path},
+        "name" => %{name: "name", type: :string, colid: :name},
+        "status" => %{name: "status", type: :string, colid: :status}
+      }
+
+      params = %{
+        "map_layers" => [
+          %{
+            "geometry_field" => "location",
+            "popup_field" => "name",
+            "color_field" => "status",
+            "point_radius" => "9",
+            "fill_opacity" => "0.4"
+          },
+          %{
+            "geometry_field" => "route_path",
+            "popup_field" => "name",
+            "color_field" => "status",
+            "line_weight" => "4",
+            "line_dash_array" => "6,4"
+          }
+        ]
+      }
+
+      {view_set, _meta} = Process.view(%{}, params, columns, [], selecto)
+
+      assert length(view_set.map_layers) == 2
+      assert {:field, {:st_asgeojson, "location"}, "__map_geometry"} in view_set.selected
+      assert {:field, {:st_asgeojson, "route_path"}, "__map_geometry_2"} in view_set.selected
+      assert {:field, "name", "__map_popup_2"} in view_set.selected
+      assert {:field, "status", "__map_color_2"} in view_set.selected
+      assert Enum.at(view_set.map_layers, 0).point_radius == 9
+      assert Enum.at(view_set.map_layers, 0).fill_opacity == 0.4
+      assert Enum.at(view_set.map_layers, 1).line_weight == 4
+      assert Enum.at(view_set.map_layers, 1).line_dash_array == "6,4"
+    end
   end
 
   defp build_selecto do

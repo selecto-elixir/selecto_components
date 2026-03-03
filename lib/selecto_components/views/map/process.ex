@@ -22,7 +22,8 @@ defmodule SelectoComponents.Views.Map.Process do
     :center_lng,
     :fit_bounds,
     :max_points,
-    :cluster
+    :cluster,
+    :map_layers
   ]
 
   @default_config %{
@@ -33,7 +34,8 @@ defmodule SelectoComponents.Views.Map.Process do
     center_lng: elem(@default_center, 1),
     fit_bounds: @default_fit_bounds,
     max_points: @default_max_points,
-    cluster: @default_cluster
+    cluster: @default_cluster,
+    map_layers: []
   }
 
   def config_keys, do: @config_keys
@@ -95,7 +97,8 @@ defmodule SelectoComponents.Views.Map.Process do
       cluster:
         config
         |> get_map_value(:cluster)
-        |> parse_bool(nil)
+        |> parse_bool(nil),
+      map_layers: maybe_normalize_layers(config)
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Map.new()
@@ -136,12 +139,30 @@ defmodule SelectoComponents.Views.Map.Process do
     popup_field = resolve_optional_field(config[:popup_field], columns)
     color_field = resolve_optional_field(config[:color_field], columns)
 
+    layers =
+      resolve_layers(
+        config[:map_layers],
+        geometry_field,
+        popup_field,
+        color_field,
+        columns,
+        selecto
+      )
+
+    primary_layer = hd(layers)
+
     selected =
-      [
-        {:field, {:st_asgeojson, geometry_field}, "__map_geometry"}
-      ] ++
-        optional_select_field(popup_field, "__map_popup") ++
-        optional_select_field(color_field, "__map_color")
+      layers
+      |> Enum.with_index(1)
+      |> Enum.flat_map(fn {layer, index} ->
+        alias_suffix = if index == 1, do: "", else: "_#{index}"
+
+        [
+          {:field, {:st_asgeojson, layer.geometry_field}, "__map_geometry#{alias_suffix}"}
+        ] ++
+          optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
+          optional_select_field(layer.color_field, "__map_color#{alias_suffix}")
+      end)
 
     center =
       normalize_center({Map.get(config, :center_lat), Map.get(config, :center_lng)})
@@ -157,9 +178,10 @@ defmodule SelectoComponents.Views.Map.Process do
         order_by: Map.get(base_set, :order_by, []),
         aggregates: [],
         limit: Map.get(config, :max_points, @default_max_points),
-        map_geometry_field: geometry_field,
-        map_popup_field: popup_field,
-        map_color_field: color_field,
+        map_geometry_field: primary_layer.geometry_field,
+        map_popup_field: primary_layer.popup_field,
+        map_color_field: primary_layer.color_field,
+        map_layers: layers,
         map_tile_url: Map.get(config, :tile_url, @default_tile_url),
         map_attribution: Map.get(config, :attribution, @default_attribution),
         map_zoom: Map.get(config, :default_zoom, @default_zoom),
@@ -325,6 +347,177 @@ defmodule SelectoComponents.Views.Map.Process do
     value
     |> blank_to_nil()
   end
+
+  defp normalize_layers(nil), do: []
+
+  defp normalize_layers(layers) when is_map(layers) do
+    layers
+    |> Enum.sort_by(fn {key, _value} -> parse_integer(to_string(key), 0) end)
+    |> Enum.map(fn {_key, value} -> value end)
+    |> normalize_layers()
+  end
+
+  defp normalize_layers(layers) when is_list(layers) do
+    Enum.map(layers, fn layer ->
+      %{
+        label:
+          layer
+          |> get_map_value(:label)
+          |> normalize_text(),
+        geometry_field:
+          layer
+          |> get_map_value(:geometry_field)
+          |> normalize_field(),
+        popup_field:
+          layer
+          |> get_map_value(:popup_field)
+          |> normalize_field(),
+        color_field:
+          layer
+          |> get_map_value(:color_field)
+          |> normalize_field(),
+        point_radius:
+          layer
+          |> get_map_value(:point_radius)
+          |> parse_integer(nil)
+          |> normalize_point_radius(),
+        line_weight:
+          layer
+          |> get_map_value(:line_weight)
+          |> parse_integer(nil)
+          |> normalize_line_weight(),
+        line_dash_array:
+          layer
+          |> get_map_value(:line_dash_array)
+          |> normalize_text(),
+        fill_opacity:
+          layer
+          |> get_map_value(:fill_opacity)
+          |> parse_float(nil)
+          |> normalize_fill_opacity(),
+        stroke_opacity:
+          layer
+          |> get_map_value(:stroke_opacity)
+          |> parse_float(nil)
+          |> normalize_stroke_opacity(),
+        visible:
+          layer
+          |> get_map_value(:visible)
+          |> parse_bool(true)
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+    end)
+    |> Enum.filter(fn layer -> Map.get(layer, :geometry_field) not in [nil, ""] end)
+  end
+
+  defp normalize_layers(_), do: []
+
+  defp maybe_normalize_layers(config) when is_map(config) do
+    if has_map_key?(config, :map_layers) do
+      config
+      |> get_map_value(:map_layers)
+      |> normalize_layers()
+    else
+      nil
+    end
+  end
+
+  defp maybe_normalize_layers(_), do: nil
+
+  defp has_map_key?(map, key) when is_map(map) and is_atom(key) do
+    Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
+  end
+
+  defp resolve_layers(raw_layers, geometry_field, popup_field, color_field, columns, selecto) do
+    fallback_layer = [build_layer(geometry_field, popup_field, color_field, columns, selecto)]
+
+    case normalize_layers(raw_layers) do
+      [] ->
+        fallback_layer
+
+      layers ->
+        layers
+        |> Enum.filter(fn layer -> Map.get(layer, :visible, true) != false end)
+        |> Enum.map(fn layer ->
+          build_layer(
+            Map.get(layer, :geometry_field),
+            Map.get(layer, :popup_field),
+            Map.get(layer, :color_field),
+            columns,
+            selecto,
+            Map.get(layer, :label),
+            layer
+          )
+        end)
+        |> Enum.filter(fn layer -> layer.geometry_field not in [nil, ""] end)
+        |> case do
+          [] -> fallback_layer
+          resolved -> resolved
+        end
+    end
+  end
+
+  defp build_layer(
+         geometry_field,
+         popup_field,
+         color_field,
+         columns,
+         selecto,
+         label \\ nil,
+         layer_opts \\ %{}
+       ) do
+    %{
+      label: label,
+      geometry_field: resolve_geometry_field(geometry_field, columns, selecto),
+      popup_field: resolve_optional_field(popup_field, columns),
+      color_field: resolve_optional_field(color_field, columns),
+      point_radius:
+        layer_opts
+        |> get_map_value(:point_radius)
+        |> parse_integer(6)
+        |> normalize_point_radius(),
+      line_weight:
+        layer_opts
+        |> get_map_value(:line_weight)
+        |> parse_integer(2)
+        |> normalize_line_weight(),
+      line_dash_array:
+        layer_opts
+        |> get_map_value(:line_dash_array)
+        |> normalize_text(),
+      fill_opacity:
+        layer_opts
+        |> get_map_value(:fill_opacity)
+        |> parse_float(0.25)
+        |> normalize_fill_opacity(),
+      stroke_opacity:
+        layer_opts
+        |> get_map_value(:stroke_opacity)
+        |> parse_float(0.9)
+        |> normalize_stroke_opacity()
+    }
+  end
+
+  defp normalize_point_radius(nil), do: nil
+  defp normalize_point_radius(value) when value < 1, do: 1
+  defp normalize_point_radius(value) when value > 30, do: 30
+  defp normalize_point_radius(value), do: value
+
+  defp normalize_line_weight(nil), do: nil
+  defp normalize_line_weight(value) when value < 1, do: 1
+  defp normalize_line_weight(value) when value > 12, do: 12
+  defp normalize_line_weight(value), do: value
+
+  defp normalize_fill_opacity(nil), do: nil
+  defp normalize_fill_opacity(value) when value < 0.0, do: 0.0
+  defp normalize_fill_opacity(value) when value > 1.0, do: 1.0
+  defp normalize_fill_opacity(value), do: value
+
+  defp normalize_stroke_opacity(nil), do: nil
+  defp normalize_stroke_opacity(value) when value < 0.0, do: 0.0
+  defp normalize_stroke_opacity(value) when value > 1.0, do: 1.0
+  defp normalize_stroke_opacity(value), do: value
 
   defp maybe_elem({lat, _lng}, 0), do: lat
   defp maybe_elem({_lat, lng}, 1), do: lng
