@@ -3,29 +3,30 @@ defmodule SelectoComponents.Components.NestedTable do
   Component for rendering nested tables from subselect results.
   Provides expandable/collapsible sections for related data.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
 
   @doc """
   Renders a nested table for subselect results.
-  
+
   ## Attributes
   - data: The subselect data (JSON array or list of maps)
   - config: Configuration for the nested table display
   - row_id: Unique identifier for this row (for expand/collapse)
   """
-  attr :data, :any, required: true
-  attr :config, :map, required: true
-  attr :row_id, :string, required: true
-  attr :expanded, :boolean, default: false
+  attr(:data, :any, required: true)
+  attr(:config, :map, required: true)
+  attr(:row_id, :string, required: true)
+  attr(:expanded, :boolean, default: false)
 
   def nested_table(assigns) do
-    assigns = assigns
+    assigns =
+      assigns
       |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
       |> Map.put(:table_id, "nested_#{assigns.row_id}")
       |> Map.put(:column_headers, get_column_headers(assigns))
-    
+
     ~H"""
     <div class="nested-table-container ml-4 mt-2">
       <div class="flex items-center">
@@ -93,9 +94,9 @@ defmodule SelectoComponents.Components.NestedTable do
   @doc """
   Renders multiple nested tables for a row with subselect data
   """
-  attr :row, :map, required: true
-  attr :subselect_configs, :list, default: []
-  attr :row_id, :string, required: true
+  attr(:row, :map, required: true)
+  attr(:subselect_configs, :list, default: [])
+  attr(:row_id, :string, required: true)
 
   def nested_tables(assigns) do
     ~H"""
@@ -128,6 +129,7 @@ defmodule SelectoComponents.Components.NestedTable do
       _ -> []
     end
   end
+
   def parse_subselect_data(_, _config), do: []
 
   # defp get_nested_value(item, field) do
@@ -154,16 +156,18 @@ defmodule SelectoComponents.Components.NestedTable do
       [first | _] when is_map(first) ->
         Map.keys(first)
         |> Enum.map(&humanize_key/1)
+
       _ ->
         # Fallback to config columns if available
         case Map.get(assigns.config, :columns, []) do
           columns when is_list(columns) and length(columns) > 0 ->
-            Enum.map(columns, fn 
+            Enum.map(columns, fn
               {_, field, _} -> humanize_key(extract_field_name(field))
               %{field: field} -> humanize_key(extract_field_name(field))
               field when is_binary(field) -> humanize_key(extract_field_name(field))
               _ -> "Column"
             end)
+
           _ ->
             []
         end
@@ -182,6 +186,7 @@ defmodule SelectoComponents.Components.NestedTable do
     |> String.replace("_", " ")
     |> String.capitalize()
   end
+
   def humanize_key(key), do: to_string(key)
 
   defp extract_field_name(field) when is_binary(field) do
@@ -245,14 +250,15 @@ defmodule SelectoComponents.Components.NestedTable do
   Renders an inline nested table for subselect results.
   Designed to appear as part of the parent table column.
   """
-  attr :data, :any, required: true
-  attr :config, :map, required: true
-  attr :row_id, :string, required: true
+  attr(:data, :any, required: true)
+  attr(:config, :map, required: true)
+  attr(:row_id, :string, required: true)
 
   def inline_nested_table(assigns) do
-    assigns = assigns
+    assigns =
+      assigns
       |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
-    
+
     ~H"""
     <div class="inline-nested-table">
       <%= if length(@parsed_data) > 0 do %>
@@ -305,7 +311,7 @@ defmodule SelectoComponents.Components.NestedTable do
             icon.classList.remove('rotate-90');
           }
         };
-        
+
         this.el.querySelectorAll('[data-toggle]').forEach(btn => {
           btn.addEventListener('click', this.handleToggle);
         });
@@ -329,15 +335,15 @@ defmodule SelectoComponents.Components.NestedTable do
       padding-left: 1rem;
       margin-bottom: 0.5rem;
     }
-    
+
     .nested-table-container table {
       font-size: 0.875rem;
     }
-    
+
     .nested-table-container .rotate-90 {
       transform: rotate(90deg);
     }
-    
+
     .nested-tables {
       margin-top: 0.5rem;
     }

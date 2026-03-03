@@ -6,8 +6,6 @@ defmodule SelectoComponents.Helpers do
     }
   end
 
-
-
   def build_initial_state(list) do
     list
     |> Enum.map(fn

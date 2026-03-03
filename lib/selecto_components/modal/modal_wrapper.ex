@@ -2,10 +2,10 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   @moduledoc """
   Provides a reusable modal wrapper component with animations and backdrop.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
-  
+
   @doc """
   Modal wrapper component with backdrop and animations.
   """
@@ -98,7 +98,7 @@ defmodule SelectoComponents.Modal.ModalWrapper do
     </div>
     """
   end
-  
+
   @doc """
   Show modal with animation.
   """
@@ -131,7 +131,7 @@ defmodule SelectoComponents.Modal.ModalWrapper do
     )
     |> JS.focus_first(to: "#modal-content")
   end
-  
+
   @doc """
   Hide modal with animation.
   """
@@ -156,22 +156,22 @@ defmodule SelectoComponents.Modal.ModalWrapper do
     |> JS.hide(to: "#modal", time: 200)
     |> JS.pop_focus()
   end
-  
+
   # Helper functions
-  
+
   defp size_classes(:sm), do: "sm:w-full sm:max-w-sm"
   defp size_classes(:md), do: "sm:w-full sm:max-w-lg"
   defp size_classes(:lg), do: "sm:w-full sm:max-w-xl"
   defp size_classes(:xl), do: "sm:w-full sm:max-w-2xl"
   defp size_classes(:full), do: "sm:w-full sm:max-w-4xl"
   defp size_classes(_), do: "sm:w-full sm:max-w-lg"
-  
+
   defp icon_bg_class(:info), do: "bg-blue-100"
   defp icon_bg_class(:success), do: "bg-green-100"
   defp icon_bg_class(:warning), do: "bg-yellow-100"
   defp icon_bg_class(:error), do: "bg-red-100"
   defp icon_bg_class(_), do: "bg-gray-100"
-  
+
   @doc """
   JavaScript hooks for modal functionality.
   """
@@ -181,22 +181,20 @@ defmodule SelectoComponents.Modal.ModalWrapper do
         mounted: """
         this.handleKeyPress = this.handleKeyPress.bind(this);
         this.handleClickOutside = this.handleClickOutside.bind(this);
-        
+
         // Add keyboard event listener
         document.addEventListener('keydown', this.handleKeyPress);
-        
+
         // Setup click outside handler
         const modalContent = this.el.querySelector('[id$="-content"]');
         if (modalContent) {
           document.addEventListener('click', this.handleClickOutside);
         }
         """,
-        
         destroyed: """
         document.removeEventListener('keydown', this.handleKeyPress);
         document.removeEventListener('click', this.handleClickOutside);
         """,
-        
         handleKeyPress: """
         function(e) {
           // Close on ESC
@@ -212,7 +210,6 @@ defmodule SelectoComponents.Modal.ModalWrapper do
           }
         }
         """,
-        
         handleClickOutside: """
         function(e) {
           const modalContent = this.el.querySelector('[id$="-content"]');

@@ -1,7 +1,7 @@
 defmodule SelectoComponents.State do
   @moduledoc """
   State management for SelectoComponents.
-  
+
   Handles state transitions, validation, and state updates for the form components
   without concern for UI rendering or routing logic.
   """
@@ -33,7 +33,7 @@ defmodule SelectoComponents.State do
   def update_view_config(state, params) do
     # Extract view configuration from params
     view_config = Map.get(params, "view_config", %{})
-    
+
     # Update the state with new view config
     Map.put(state, :view_config, Map.merge(state.view_config, view_config))
   end
@@ -69,7 +69,7 @@ defmodule SelectoComponents.State do
   # Private helper functions
 
   defp init_view_config(views, opts) do
-    default_view_mode = 
+    default_view_mode =
       case List.first(views) do
         {id, _, _, _} -> Atom.to_string(id)
         _ -> "aggregate"

@@ -7,28 +7,29 @@ defmodule SelectoComponents.Modal.DetailModal do
   import SelectoComponents.Modal.ModalWrapper
   alias Phoenix.LiveView.JS
   alias SelectoComponents.SafeAtom
-  
+
   @impl true
   def mount(socket) do
-    {:ok, assign(socket,
-      record: nil,
-      loading: false,
-      current_tab: "details",
-      navigation_enabled: true,
-      edit_mode: false
-    )}
+    {:ok,
+     assign(socket,
+       record: nil,
+       loading: false,
+       current_tab: "details",
+       navigation_enabled: true,
+       edit_mode: false
+     )}
   end
-  
+
   @impl true
   def update(assigns, socket) do
-    socket = 
+    socket =
       socket
       |> assign(assigns)
       |> load_record_data()
-    
+
     {:ok, socket}
   end
-  
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -166,7 +167,7 @@ defmodule SelectoComponents.Modal.DetailModal do
     </div>
     """
   end
-  
+
   # Render the content for the current tab
   defp render_tab_content(%{current_tab: "details"} = assigns) do
     ~H"""
@@ -233,10 +234,10 @@ defmodule SelectoComponents.Modal.DetailModal do
     </div>
     """
   end
-  
+
   defp render_tab_content(%{current_tab: tab} = assigns) when tab != "details" do
     assigns = assign(assigns, :related_records, get_related_records(assigns, tab))
-    
+
     ~H"""
     <div class="overflow-x-auto">
       <%= if @related_records == [] do %>
@@ -268,37 +269,38 @@ defmodule SelectoComponents.Modal.DetailModal do
     </div>
     """
   end
-  
+
   # Event handlers
-  
+
   @impl true
   def handle_event("close_modal", _params, socket) do
     send(self(), {:close_detail_modal, socket.assigns.id})
     {:noreply, socket}
   end
-  
+
   def handle_event("navigate_record", %{"direction" => direction}, socket) do
-    new_index = case direction do
-      "prev" -> max(0, socket.assigns.current_index - 1)
-      "next" -> min(socket.assigns.total_records - 1, socket.assigns.current_index + 1)
-    end
-    
-    socket = 
+    new_index =
+      case direction do
+        "prev" -> max(0, socket.assigns.current_index - 1)
+        "next" -> min(socket.assigns.total_records - 1, socket.assigns.current_index + 1)
+      end
+
+    socket =
       socket
       |> assign(current_index: new_index)
       |> load_record_at_index(new_index)
-    
+
     {:noreply, socket}
   end
-  
+
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, current_tab: tab)}
   end
-  
+
   def handle_event("toggle_edit_mode", _params, socket) do
     {:noreply, update(socket, :edit_mode, &(!&1))}
   end
-  
+
   def handle_event("update_field", %{"field" => field, "value" => value}, socket) do
     # Use to_existing to only allow schema-defined field names (atoms already in table)
     case SafeAtom.to_existing(field) do
@@ -311,15 +313,15 @@ defmodule SelectoComponents.Modal.DetailModal do
         {:noreply, assign(socket, record: updated_record)}
     end
   end
-  
+
   def handle_event("save_changes", _params, socket) do
     # Send save event to parent
     send(self(), {:save_record_changes, socket.assigns.record})
     {:noreply, assign(socket, edit_mode: false)}
   end
-  
+
   # Helper functions
-  
+
   defp load_record_data(socket) do
     if socket.assigns[:record_id] && !socket.assigns[:record] do
       assign(socket, loading: true)
@@ -330,7 +332,7 @@ defmodule SelectoComponents.Modal.DetailModal do
       socket
     end
   end
-  
+
   defp load_record_at_index(socket, index) do
     if socket.assigns[:records] do
       record = Enum.at(socket.assigns.records, index)
@@ -339,7 +341,7 @@ defmodule SelectoComponents.Modal.DetailModal do
       socket
     end
   end
-  
+
   defp build_subtitle(assigns) do
     if assigns[:subtitle_field] && assigns[:record] do
       Map.get(assigns.record, assigns.subtitle_field)
@@ -347,20 +349,20 @@ defmodule SelectoComponents.Modal.DetailModal do
       nil
     end
   end
-  
+
   defp has_prev_record?(assigns) do
     assigns[:current_index] && assigns.current_index > 0
   end
-  
+
   defp has_next_record?(assigns) do
-    assigns[:current_index] && assigns[:total_records] && 
-    assigns.current_index < assigns.total_records - 1
+    assigns[:current_index] && assigns[:total_records] &&
+      assigns.current_index < assigns.total_records - 1
   end
-  
+
   defp has_related_data?(assigns) do
     assigns[:related_data] && map_size(assigns.related_data) > 0
   end
-  
+
   defp get_related_records(assigns, tab) do
     # Use to_existing to only allow tab names that are already atoms (from related_data keys)
     tab_atom = SafeAtom.to_existing(tab)
@@ -371,36 +373,43 @@ defmodule SelectoComponents.Modal.DetailModal do
       []
     end
   end
-  
+
   defp get_related_fields(records) when is_list(records) and length(records) > 0 do
     records
     |> List.first()
     |> Map.keys()
     |> Enum.reject(&(&1 in [:__meta__, :__struct__]))
   end
+
   defp get_related_fields(_), do: []
-  
+
   defp format_record_fields(nil, _fields), do: []
+
   defp format_record_fields(record, _fields) when is_map(record) do
     # Return all fields from the record, including nested ones
     record
     |> Map.drop(["__meta__", "__struct__", :__meta__, :__struct__])
     |> Enum.map(fn {key, value} -> {to_string(key), value} end)
   end
+
   defp format_record_fields(_record, _fields) do
     # Fallback for unexpected data
     []
   end
-  
+
   defp format_value(nil), do: "-"
   defp format_value(value) when is_binary(value), do: value
   defp format_value(value) when is_number(value), do: to_string(value)
   defp format_value(value) when is_boolean(value), do: to_string(value)
   defp format_value(%{__struct__: Date} = date), do: Date.to_string(date)
-  defp format_value(%{__struct__: DateTime} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
+
+  defp format_value(%{__struct__: DateTime} = datetime),
+    do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
+
   defp format_value(value), do: inspect(value)
-  
+
   defp humanize(atom) when is_atom(atom), do: humanize(Atom.to_string(atom))
+
   defp humanize(string) when is_binary(string) do
     string
     |> String.replace("_", " ")
@@ -417,6 +426,7 @@ defmodule SelectoComponents.Modal.DetailModal do
     end)
     |> Enum.map(fn {key, value} -> {key, value} end)
   end
+
   defp get_nested_fields(_), do: []
 
   defp get_nested_keys([first | _]) when is_map(first) do
@@ -425,10 +435,12 @@ defmodule SelectoComponents.Modal.DetailModal do
     |> Enum.reject(&(&1 in [:__meta__, :__struct__, "__meta__", "__struct__"]))
     |> Enum.sort()
   end
+
   defp get_nested_keys(_), do: []
-  
+
   defp tab_class(active) do
     base = "py-2 px-1 border-b-2 font-medium text-sm"
+
     if active do
       "#{base} border-blue-500 text-blue-600"
     else

@@ -57,4 +57,3 @@ defmodule SelectoComponents.Views.Runtime do
 
   defp process_module(view_module), do: Module.concat(view_module, Process)
 end
-

@@ -21,12 +21,15 @@ defmodule SelectoComponents.Views.Graph.Process do
     domain = Selecto.domain(selecto)
 
     %{
-      x_axis: Map.get(domain, :default_graph_x_axis, [])
-              |> SelectoComponents.Helpers.build_initial_state(),
-      y_axis: Map.get(domain, :default_graph_y_axis, [])
-              |> SelectoComponents.Helpers.build_initial_state(),
-      series: Map.get(domain, :default_graph_series, [])
-              |> SelectoComponents.Helpers.build_initial_state(),
+      x_axis:
+        Map.get(domain, :default_graph_x_axis, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
+      y_axis:
+        Map.get(domain, :default_graph_y_axis, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
+      series:
+        Map.get(domain, :default_graph_series, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
       chart_type: Map.get(domain, :default_chart_type, "bar"),
       options: Map.get(domain, :default_chart_options, %{})
     }
@@ -58,26 +61,35 @@ defmodule SelectoComponents.Views.Graph.Process do
     selected_fields = Enum.map(all_group_by, fn {_col, sel} -> sel end) ++ y_axis_fields
 
     {%{
-      groups: all_group_by,
-      x_axis_groups: x_axis_fields,
-      series_groups: series_fields,
-      aggregates: y_axis_fields,
-      graph_series_defs: y_axis_defs,
-      selected: selected_fields,
-      filtered: filtered,
-      chart_type: chart_type,
-      graph_options: Map.get(params, "options", %{}),
-      group_by: case all_group_by do
-        [] -> []
-        group_fields -> [
-          {:rollup, Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)}
-        ]
-      end,
-      order_by: case all_group_by do
-        [] -> []
-        group_fields -> Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)
-      end
-    }, %{}}
+       groups: all_group_by,
+       x_axis_groups: x_axis_fields,
+       series_groups: series_fields,
+       aggregates: y_axis_fields,
+       graph_series_defs: y_axis_defs,
+       selected: selected_fields,
+       filtered: filtered,
+       chart_type: chart_type,
+       graph_options: Map.get(params, "options", %{}),
+       group_by:
+         case all_group_by do
+           [] ->
+             []
+
+           group_fields ->
+             [
+               {:rollup,
+                Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)}
+             ]
+         end,
+       order_by:
+         case all_group_by do
+           [] ->
+             []
+
+           group_fields ->
+             Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)
+         end
+     }, %{}}
   end
 
   @doc """
@@ -95,27 +107,29 @@ defmodule SelectoComponents.Views.Graph.Process do
         nil
       else
         # Generate alias
-        alias_name = case field_config["alias"] do
-          "" -> field_config["field"]
-          nil -> field_config["field"]
-          custom_alias -> custom_alias
-        end
-
-        # Build field selector based on column type
-        field_selector = case col.type do
-        x when x in [:naive_datetime, :utc_datetime] ->
-          {:field, datetime_group_by_processor(col, field_config), alias_name}
-
-        :custom_column ->
-          case Map.get(col, :requires_select) do
-            x when is_list(x) -> {:row, col.requires_select, alias_name}
-            x when is_function(x) -> {:row, col.requires_select.(field_config), alias_name}
-            nil -> {col.colid, alias_name}
+        alias_name =
+          case field_config["alias"] do
+            "" -> field_config["field"]
+            nil -> field_config["field"]
+            custom_alias -> custom_alias
           end
 
-        _ ->
-          {:field, col.colid, alias_name}
-        end
+        # Build field selector based on column type
+        field_selector =
+          case col.type do
+            x when x in [:naive_datetime, :utc_datetime] ->
+              {:field, datetime_group_by_processor(col, field_config), alias_name}
+
+            :custom_column ->
+              case Map.get(col, :requires_select) do
+                x when is_list(x) -> {:row, col.requires_select, alias_name}
+                x when is_function(x) -> {:row, col.requires_select.(field_config), alias_name}
+                nil -> {col.colid, alias_name}
+              end
+
+            _ ->
+              {:field, col.colid, alias_name}
+          end
 
         {col, field_selector}
       end
@@ -138,21 +152,23 @@ defmodule SelectoComponents.Views.Graph.Process do
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn field_config ->
       # Generate alias
-      alias_name = case field_config["alias"] do
-        "" -> field_config["field"]
-        nil -> field_config["field"]
-        custom_alias -> custom_alias
-      end
+      alias_name =
+        case field_config["alias"] do
+          "" -> field_config["field"]
+          nil -> field_config["field"]
+          custom_alias -> custom_alias
+        end
 
       # Build aggregate function
       # Use SafeAtom to prevent atom table exhaustion from user input
-      aggregate_function = SafeAtom.to_aggregate_function(
-        case field_config["function"] do
-          nil -> "count"
-          "" -> "count"
-          func -> func
-        end
-      )
+      aggregate_function =
+        SafeAtom.to_aggregate_function(
+          case field_config["function"] do
+            nil -> "count"
+            "" -> "count"
+            func -> func
+          end
+        )
 
       series_type =
         case field_config["series_type"] do
@@ -185,13 +201,15 @@ defmodule SelectoComponents.Views.Graph.Process do
     end)
   end
 
-  #Process datetime fields for grouping (Year, Month, Day, etc.)
+  # Process datetime fields for grouping (Year, Month, Day, etc.)
   defp datetime_group_by_processor(col, config) do
     case config["format"] do
       format when format in ~w(YYYY-MM-DD YYYY-MM YYYY) ->
         {:to_char, {col.colid, format}}
+
       format when format in ~w(Year Month Day Hour) ->
         {:extract, col.colid, String.downcase(format)}
+
       _ ->
         col.colid
     end

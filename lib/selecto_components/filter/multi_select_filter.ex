@@ -21,11 +21,12 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     socket = assign(socket, assigns)
 
     # Load options on first mount or when field changes
-    socket = if socket.assigns.loading or should_reload?(socket, assigns) do
-      load_options(socket)
-    else
-      socket
-    end
+    socket =
+      if socket.assigns.loading or should_reload?(socket, assigns) do
+        load_options(socket)
+      else
+        socket
+      end
 
     {:ok, socket}
   end
@@ -125,8 +126,10 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
   end
 
   defp filtered_options(options, ""), do: options
+
   defp filtered_options(options, search) when is_binary(search) do
     search_lower = String.downcase(search)
+
     Enum.filter(options, fn opt ->
       String.contains?(String.downcase(to_string(opt.name)), search_lower)
     end)
@@ -137,11 +140,12 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     id = String.to_integer(id_str)
     selected_ids = socket.assigns.selected_ids
 
-    selected_ids = if id in selected_ids do
-      List.delete(selected_ids, id)
-    else
-      [id | selected_ids]
-    end
+    selected_ids =
+      if id in selected_ids do
+        List.delete(selected_ids, id)
+      else
+        [id | selected_ids]
+      end
 
     # Update parent component with new value (comma-separated IDs)
     value = Enum.join(selected_ids, ",")
@@ -169,11 +173,12 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
       # Get schema configuration from domain
       domain = Selecto.domain(selecto)
 
-      schema_atom = try do
-        String.to_existing_atom(schema_name)
-      rescue
-        ArgumentError -> nil
-      end
+      schema_atom =
+        try do
+          String.to_existing_atom(schema_name)
+        rescue
+          ArgumentError -> nil
+        end
 
       if schema_atom do
         schema_config = get_in(domain, [:schemas, schema_atom])
@@ -186,11 +191,12 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
           join_mode = field_config[:join_mode] || :lookup
 
           # Determine limit based on join mode
-          limit = case join_mode do
-            :lookup -> 100
-            :star -> 500
-            :tag -> 100
-          end
+          limit =
+            case join_mode do
+              :lookup -> 100
+              :star -> 500
+              :tag -> 100
+            end
 
           # Query options
           options = query_table_options(repo, table, id_field, display_field, limit)
@@ -253,5 +259,6 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     end)
     |> Enum.reject(&is_nil/1)
   end
+
   defp parse_ids(_), do: []
 end

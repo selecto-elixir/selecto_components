@@ -57,6 +57,7 @@ defmodule SelectoComponents.Router do
 
   def handle_event("filter_remove", params, state) do
     IO.puts("Handling filter_remove event")
+
     case handle_filter_remove(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
     end
@@ -107,6 +108,7 @@ defmodule SelectoComponents.Router do
   defp handle_save_view(params, state) do
     # Extract save view params
     view_name = get_in(params, ["view", "name"]) || get_in(params, ["name"])
+
     view_params = %{
       name: view_name,
       context: state.context,
@@ -134,6 +136,7 @@ defmodule SelectoComponents.Router do
         case apply(module, :save_view, [view_params]) do
           {:ok, _saved_view} ->
             {:ok, state}
+
           {:error, reason} ->
             {:ok, State.set_execution_error(state, "Failed to save view: #{inspect(reason)}")}
         end
@@ -202,7 +205,8 @@ defmodule SelectoComponents.Router do
     # Handle drag-and-drop reordering in filter tree
     source_uuid = Map.get(params, "source_uuid")
     target_uuid = Map.get(params, "target_uuid")
-    position = Map.get(params, "position", "after") # "before", "after", or "inside"
+    # "before", "after", or "inside"
+    position = Map.get(params, "position", "after")
 
     filters = Map.get(state.view_config, :filters, [])
 
@@ -211,7 +215,9 @@ defmodule SelectoComponents.Router do
 
     if source_item do
       # Insert at new position
-      updated_filters = insert_filter_at_position(remaining_filters, source_item, target_uuid, position)
+      updated_filters =
+        insert_filter_at_position(remaining_filters, source_item, target_uuid, position)
+
       updated_view_config = Map.put(state.view_config, :filters, updated_filters)
       updated_state = State.update_view_config(state, updated_view_config)
       {:ok, updated_state}
@@ -235,16 +241,17 @@ defmodule SelectoComponents.Router do
   defp handle_agg_add_filters(params, state) do
     # Add filters when clicking aggregate view cells (drill-down)
     # Extract field values from phx-value-* params
-    filter_values = params
-    |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field_") end)
-    |> Enum.map(fn {"field_" <> field_name, value} ->
-      %{
-        "uuid" => UUID.uuid4(),
-        "field" => field_name,
-        "value" => value,
-        "comp" => "="
-      }
-    end)
+    filter_values =
+      params
+      |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field_") end)
+      |> Enum.map(fn {"field_" <> field_name, value} ->
+        %{
+          "uuid" => UUID.uuid4(),
+          "field" => field_name,
+          "value" => value,
+          "comp" => "="
+        }
+      end)
 
     if length(filter_values) > 0 do
       # Add new filters
@@ -252,9 +259,10 @@ defmodule SelectoComponents.Router do
       updated_filters = existing_filters ++ filter_values
 
       # Switch to detail view
-      updated_view_config = state.view_config
-      |> Map.put(:filters, updated_filters)
-      |> Map.put(:view_mode, "detail")
+      updated_view_config =
+        state.view_config
+        |> Map.put(:filters, updated_filters)
+        |> Map.put(:view_mode, "detail")
 
       updated_state = %{state | view_config: updated_view_config}
       {:ok, updated_state}
@@ -280,28 +288,31 @@ defmodule SelectoComponents.Router do
     current_list = Map.get(state.view_config, list_key, %{})
 
     # Convert map to ordered list
-    items = current_list
-    |> Enum.sort_by(fn {_k, v} -> Map.get(v, "order", 0) end)
-    |> Enum.map(fn {k, v} -> {k, v} end)
+    items =
+      current_list
+      |> Enum.sort_by(fn {_k, v} -> Map.get(v, "order", 0) end)
+      |> Enum.map(fn {k, v} -> {k, v} end)
 
     # Find current index
     current_index = Enum.find_index(items, fn {k, _v} -> k == uuid end)
 
     if current_index do
-      new_index = case direction do
-        :up -> max(0, current_index - 1)
-        :down -> min(length(items) - 1, current_index + 1)
-        _ -> current_index
-      end
+      new_index =
+        case direction do
+          :up -> max(0, current_index - 1)
+          :down -> min(length(items) - 1, current_index + 1)
+          _ -> current_index
+        end
 
       if new_index != current_index do
         # Swap items
-        reordered = items
-        |> List.delete_at(current_index)
-        |> List.insert_at(new_index, Enum.at(items, current_index))
-        |> Enum.with_index()
-        |> Enum.map(fn {{k, v}, idx} -> {k, Map.put(v, "order", idx)} end)
-        |> Enum.into(%{})
+        reordered =
+          items
+          |> List.delete_at(current_index)
+          |> List.insert_at(new_index, Enum.at(items, current_index))
+          |> Enum.with_index()
+          |> Enum.map(fn {{k, v}, idx} -> {k, Map.put(v, "order", idx)} end)
+          |> Enum.into(%{})
 
         updated_view_config = Map.put(state.view_config, list_key, reordered)
         updated_state = %{state | view_config: updated_view_config}
@@ -336,44 +347,55 @@ defmodule SelectoComponents.Router do
       apply_single_filter(acc, filter)
     end)
   end
+
   defp apply_filters(selecto, _), do: selecto
 
-  defp apply_single_filter(selecto, %{"field" => field, "value" => value, "comp" => comp}) when not is_nil(field) and not is_nil(value) do
-    filter_tuple = case comp do
-      "=" -> {field, value}
-      "!=" -> {field, {:ne, value}}
-      ">" -> {field, {:gt, value}}
-      ">=" -> {field, {:gte, value}}
-      "<" -> {field, {:lt, value}}
-      "<=" -> {field, {:lte, value}}
-      "like" -> {field, {:like, value}}
-      "ilike" -> {field, {:ilike, value}}
-      "in" -> {field, {:in, value}}
-      "not_in" -> {field, {:not_in, value}}
-      "is_null" -> {field, {:is_null, true}}
-      "is_not_null" -> {field, {:is_null, false}}
-      _ -> {field, value}
-    end
+  defp apply_single_filter(selecto, %{"field" => field, "value" => value, "comp" => comp})
+       when not is_nil(field) and not is_nil(value) do
+    filter_tuple =
+      case comp do
+        "=" -> {field, value}
+        "!=" -> {field, {:ne, value}}
+        ">" -> {field, {:gt, value}}
+        ">=" -> {field, {:gte, value}}
+        "<" -> {field, {:lt, value}}
+        "<=" -> {field, {:lte, value}}
+        "like" -> {field, {:like, value}}
+        "ilike" -> {field, {:ilike, value}}
+        "in" -> {field, {:in, value}}
+        "not_in" -> {field, {:not_in, value}}
+        "is_null" -> {field, {:is_null, true}}
+        "is_not_null" -> {field, {:is_null, false}}
+        _ -> {field, value}
+      end
+
     Selecto.filter(selecto, filter_tuple)
   end
+
   defp apply_single_filter(selecto, %{"comp" => "AND", "filters" => nested_filters}) do
     # AND group - apply all filters
     apply_filters(selecto, nested_filters)
   end
+
   defp apply_single_filter(selecto, %{"comp" => "OR", "filters" => nested_filters}) do
     # OR group - apply as OR filter
     Selecto.filter(selecto, {:or, Enum.map(nested_filters, &filter_to_tuple/1)})
   end
+
   defp apply_single_filter(selecto, _), do: selecto
 
-  defp filter_to_tuple(%{"field" => field, "value" => value}) when not is_nil(field), do: {field, value}
+  defp filter_to_tuple(%{"field" => field, "value" => value}) when not is_nil(field),
+    do: {field, value}
+
   defp filter_to_tuple(_), do: nil
 
   # Helper functions for filter manipulation
 
   defp extract_filter_by_uuid(filters, uuid) do
     case Enum.find_index(filters, fn f -> Map.get(f, "uuid") == uuid end) do
-      nil -> {nil, filters}
+      nil ->
+        {nil, filters}
+
       index ->
         {item, remaining} = List.pop_at(filters, index)
         {item, remaining}
@@ -391,13 +413,17 @@ defmodule SelectoComponents.Router do
       nil ->
         # Target not found, append at end
         filters ++ [item]
+
       target_index ->
-        insert_index = case position do
-          "before" -> target_index
-          "after" -> target_index + 1
-          "inside" -> target_index + 1  # For nested groups
-          _ -> target_index + 1
-        end
+        insert_index =
+          case position do
+            "before" -> target_index
+            "after" -> target_index + 1
+            # For nested groups
+            "inside" -> target_index + 1
+            _ -> target_index + 1
+          end
+
         List.insert_at(filters, insert_index, item)
     end
   end
@@ -407,15 +433,17 @@ defmodule SelectoComponents.Router do
     selected_columns = get_selected_columns(view_config)
 
     # Clean column names (remove qualified prefixes like "film.title" -> "title")
-    clean_columns = Enum.map(selected_columns, fn col ->
-      col_str = to_string(col)
-      if String.contains?(col_str, ".") do
-        [_, column_name] = String.split(col_str, ".", parts: 2)
-        column_name
-      else
-        col_str
-      end
-    end)
+    clean_columns =
+      Enum.map(selected_columns, fn col ->
+        col_str = to_string(col)
+
+        if String.contains?(col_str, ".") do
+          [_, column_name] = String.split(col_str, ".", parts: 2)
+          column_name
+        else
+          col_str
+        end
+      end)
 
     if should_auto_pivot?(selecto, selected_columns) do
       target_table = find_pivot_target(selecto, selected_columns)
@@ -455,13 +483,15 @@ defmodule SelectoComponents.Router do
 
     case view_mode do
       "aggregate" ->
-        group_by_cols = Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{}))
-                       |> Map.values()
-                       |> Enum.map(fn item -> Map.get(item, "field") end)
+        group_by_cols =
+          Map.get(view_config, :group_by, Map.get(view_config, "group_by", %{}))
+          |> Map.values()
+          |> Enum.map(fn item -> Map.get(item, "field") end)
 
-        aggregate_cols = Map.get(view_config, :aggregate, Map.get(view_config, "aggregate", %{}))
-                        |> Map.values()
-                        |> Enum.map(fn item -> Map.get(item, "field") end)
+        aggregate_cols =
+          Map.get(view_config, :aggregate, Map.get(view_config, "aggregate", %{}))
+          |> Map.values()
+          |> Enum.map(fn item -> Map.get(item, "field") end)
 
         group_by_cols ++ aggregate_cols
 
@@ -500,24 +530,25 @@ defmodule SelectoComponents.Router do
     # or are qualified column names (e.g., "film.description")
     source_columns = get_source_columns(selecto)
 
-    result = Enum.any?(selected_columns, fn col ->
-      col_str = to_string(col)
+    result =
+      Enum.any?(selected_columns, fn col ->
+        col_str = to_string(col)
 
-      # Check if it's a qualified column name (contains a dot)
-      if String.contains?(col_str, ".") do
-        # Qualified columns like "film.description" should trigger pivot
-        parts = String.split(col_str, ".", parts: 2)
+        # Check if it's a qualified column name (contains a dot)
+        if String.contains?(col_str, ".") do
+          # Qualified columns like "film.description" should trigger pivot
+          parts = String.split(col_str, ".", parts: 2)
 
-        [table_name, _column_name] = parts
-        # Pivot should be triggered for qualified names from joined tables
-        should_pivot = table_name != "selecto_root" && table_name != ""
-        should_pivot
-      else
-        # For simple column names, check if they exist in source
-        exists = column_exists_in_source?(col, source_columns)
-        not exists
-      end
-    end)
+          [table_name, _column_name] = parts
+          # Pivot should be triggered for qualified names from joined tables
+          should_pivot = table_name != "selecto_root" && table_name != ""
+          should_pivot
+        else
+          # For simple column names, check if they exist in source
+          exists = column_exists_in_source?(col, source_columns)
+          not exists
+        end
+      end)
 
     result
   end
@@ -536,7 +567,7 @@ defmodule SelectoComponents.Router do
 
     Enum.any?(source_columns, fn source_col ->
       source_col == col_atom or source_col == col_string or
-      Atom.to_string(source_col) == col_string
+        Atom.to_string(source_col) == col_string
     end)
   end
 
@@ -544,12 +575,12 @@ defmodule SelectoComponents.Router do
     # Find the first joined table that has all the selected columns
     # Handle both simple and qualified column names
 
-
     # Extract table names from qualified columns
     table_targets =
       selected_columns
       |> Enum.map(fn col ->
         col_str = to_string(col)
+
         if String.contains?(col_str, ".") do
           [table_name, _] = String.split(col_str, ".", parts: 2)
           # Use SafeAtom.to_existing to prevent atom table exhaustion
@@ -561,7 +592,6 @@ defmodule SelectoComponents.Router do
       |> Enum.filter(&(&1 != nil))
       |> Enum.uniq()
 
-
     # If we have explicit table references, use the first one
     if length(table_targets) > 0 do
       # Return the first table that was explicitly referenced
@@ -571,15 +601,16 @@ defmodule SelectoComponents.Router do
       # Fall back to original logic for simple column names
       schemas = Map.get(selecto.domain, :schemas, %{})
 
-      result = Enum.find_value(schemas, fn {schema_name, schema_config} ->
-        schema_columns = Map.keys(schema_config.columns || %{})
+      result =
+        Enum.find_value(schemas, fn {schema_name, schema_config} ->
+          schema_columns = Map.keys(schema_config.columns || %{})
 
-        if has_all_columns?(selected_columns, schema_columns) do
-          schema_name
-        else
-          nil
-        end
-      end)
+          if has_all_columns?(selected_columns, schema_columns) do
+            schema_name
+          else
+            nil
+          end
+        end)
 
       result
     end
@@ -605,7 +636,7 @@ defmodule SelectoComponents.Router do
 
       Enum.any?(schema_columns, fn schema_col ->
         schema_col == col_atom or
-        Atom.to_string(schema_col) == col_name
+          Atom.to_string(schema_col) == col_name
       end)
     end)
   end

@@ -2,7 +2,7 @@ defmodule SelectoComponents.Components.Tabs do
   @doc """
   Tab-based navigation component for view type selection.
   Displays tabs at the top with corresponding content sections below.
-  
+
   ## Attributes
   - @fieldname: The form field name for the selected tab
   - @view_mode: Currently selected view mode (string)

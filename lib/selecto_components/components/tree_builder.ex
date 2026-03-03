@@ -212,7 +212,9 @@ defmodule SelectoComponents.Components.TreeBuilder do
     assigns = Map.put(assigns, :new_uuid, UUID.uuid4())
     # Create a unique key based on component ID and filter UUIDs to force proper re-rendering
     component_id = Map.get(assigns, :component_id, "")
-    filter_key = assigns.filters
+
+    filter_key =
+      assigns.filters
       |> Enum.map(fn {{uuid, _, _}, _} -> uuid end)
       |> Enum.join("-")
       |> then(fn key -> "#{component_id}-#{assigns.section}-#{key}" end)

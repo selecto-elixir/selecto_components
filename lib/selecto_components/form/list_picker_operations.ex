@@ -23,13 +23,14 @@ defmodule SelectoComponents.Form.ListPickerOperations do
 
     original_list = view_config.views[view][list]
 
-    filtered_list = Enum.filter(original_list, fn
-      {id, _, _} when is_binary(id) -> id != item
-      [id, _, _] when is_binary(id) -> id != item
-      {id, _, _} -> to_string(id) != item
-      [id, _, _] -> to_string(id) != item
-      _ -> true
-    end)
+    filtered_list =
+      Enum.filter(original_list, fn
+        {id, _, _} when is_binary(id) -> id != item
+        [id, _, _] when is_binary(id) -> id != item
+        {id, _, _} -> to_string(id) != item
+        [id, _, _] -> to_string(id) != item
+        _ -> true
+      end)
 
     # Update the view_config
     put_in(view_config.views[view][list], filtered_list)
@@ -47,13 +48,14 @@ defmodule SelectoComponents.Form.ListPickerOperations do
 
     item_list = view_config.views[view][list]
 
-    item_index = Enum.find_index(item_list, fn
-      {id, _, _} when is_binary(id) -> id == uuid
-      [id, _, _] when is_binary(id) -> id == uuid
-      {id, _, _} -> to_string(id) == uuid
-      [id, _, _] -> to_string(id) == uuid
-      _ -> false
-    end)
+    item_index =
+      Enum.find_index(item_list, fn
+        {id, _, _} when is_binary(id) -> id == uuid
+        [id, _, _] when is_binary(id) -> id == uuid
+        {id, _, _} -> to_string(id) == uuid
+        [id, _, _] -> to_string(id) == uuid
+        _ -> false
+      end)
 
     # Handle case where item not found
     if item_index == nil do

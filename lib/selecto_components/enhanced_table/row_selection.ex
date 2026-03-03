@@ -2,10 +2,10 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
   @moduledoc """
   Row selection management for tables with support for bulk operations.
   """
-  
+
   use Phoenix.Component
   alias Phoenix.LiveView.JS
-  
+
   @doc """
   Initialize row selection state.
   """
@@ -16,17 +16,18 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
       select_all: false,
       selection_count: 0,
       total_rows: 0,
-      selection_mode: :none  # :none, :single, :multiple
+      # :none, :single, :multiple
+      selection_mode: :none
     )
   end
-  
+
   @doc """
   Toggle selection for a single row.
   """
   def toggle_row_selection(socket, row_id) do
     selected_rows = socket.assigns.selected_rows
-    
-    updated_rows = 
+
+    updated_rows =
       if MapSet.member?(selected_rows, row_id) do
         MapSet.delete(selected_rows, row_id)
       else
@@ -35,7 +36,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
           _ -> MapSet.put(selected_rows, row_id)
         end
       end
-    
+
     socket
     |> assign(
       selected_rows: updated_rows,
@@ -44,7 +45,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     )
     |> broadcast_selection_change()
   end
-  
+
   @doc """
   Select all rows.
   """
@@ -57,7 +58,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     )
     |> broadcast_selection_change()
   end
-  
+
   @doc """
   Clear all selections.
   """
@@ -70,7 +71,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     )
     |> broadcast_selection_change()
   end
-  
+
   @doc """
   Invert current selection.
   """
@@ -78,7 +79,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     current_selected = socket.assigns.selected_rows
     all_ids = MapSet.new(all_row_ids)
     inverted = MapSet.difference(all_ids, current_selected)
-    
+
     socket
     |> assign(
       selected_rows: inverted,
@@ -87,27 +88,28 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     )
     |> broadcast_selection_change()
   end
-  
+
   @doc """
   Select rows in a range (shift-click).
   """
   def select_range(socket, from_id, to_id, all_row_ids) do
-    from_index = Enum.find_index(all_row_ids, & &1 == from_id) || 0
-    to_index = Enum.find_index(all_row_ids, & &1 == to_id) || 0
-    
-    {start_idx, end_idx} = if from_index <= to_index do
-      {from_index, to_index}
-    else
-      {to_index, from_index}
-    end
-    
-    range_ids = 
+    from_index = Enum.find_index(all_row_ids, &(&1 == from_id)) || 0
+    to_index = Enum.find_index(all_row_ids, &(&1 == to_id)) || 0
+
+    {start_idx, end_idx} =
+      if from_index <= to_index do
+        {from_index, to_index}
+      else
+        {to_index, from_index}
+      end
+
+    range_ids =
       all_row_ids
       |> Enum.slice(start_idx..end_idx)
       |> MapSet.new()
-    
+
     updated_rows = MapSet.union(socket.assigns.selected_rows, range_ids)
-    
+
     socket
     |> assign(
       selected_rows: updated_rows,
@@ -116,7 +118,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     )
     |> broadcast_selection_change()
   end
-  
+
   @doc """
   Selection checkbox component for table header.
   """
@@ -194,7 +196,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     </th>
     """
   end
-  
+
   @doc """
   Selection checkbox component for table rows.
   """
@@ -215,7 +217,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     </td>
     """
   end
-  
+
   @doc """
   Selection indicator bar component.
   """
@@ -248,35 +250,35 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
     </div>
     """
   end
-  
+
   @doc """
   Get selected row IDs as a list.
   """
   def get_selected_ids(socket) do
     MapSet.to_list(socket.assigns.selected_rows)
   end
-  
+
   @doc """
   Check if any rows are selected.
   """
   def has_selection?(socket) do
     socket.assigns.selection_count > 0
   end
-  
+
   @doc """
   Check if a specific row is selected.
   """
   def is_selected?(socket, row_id) do
     MapSet.member?(socket.assigns.selected_rows, row_id)
   end
-  
+
   # Private functions
-  
+
   defp broadcast_selection_change(socket) do
     send(self(), {:selection_changed, socket.assigns.selected_rows})
     socket
   end
-  
+
   defp toggle_selection_menu do
     JS.toggle(
       to: "#selection-menu",
@@ -284,7 +286,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
       out: {"ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
   end
-  
+
   @doc """
   JavaScript hooks for row selection.
   """
@@ -298,19 +300,17 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
           const selected = parseInt(this.el.dataset.selected || '0');
           this.el.indeterminate = selected > 0 && selected < total;
         };
-        
+
         this.updateIndeterminate();
         """,
-        
         updated: """
         this.updateIndeterminate();
         """
       },
-      
       "RowCheckbox" => %{
         mounted: """
         this.lastChecked = null;
-        
+
         // Handle shift-click for range selection
         this.handleClick = (e) => {
           const rowId = this.el.dataset.rowId;
@@ -325,9 +325,9 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
           
           this.lastChecked = rowId;
         };
-        
+
         this.el.addEventListener('click', this.handleClick);
-        
+
         // Handle keyboard shortcuts
         this.handleKeydown = (e) => {
           if (e.key === ' ' && e.target === this.el) {
@@ -335,16 +335,14 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
             this.el.click();
           }
         };
-        
+
         this.el.addEventListener('keydown', this.handleKeydown);
         """,
-        
         destroyed: """
         this.el.removeEventListener('click', this.handleClick);
         this.el.removeEventListener('keydown', this.handleKeydown);
         """
       },
-      
       "SelectionKeyboardShortcuts" => %{
         mounted: """
         this.handleKeydown = (e) => {
@@ -366,10 +364,9 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
             this.pushEvent('invert_selection', {});
           }
         };
-        
+
         document.addEventListener('keydown', this.handleKeydown);
         """,
-        
         destroyed: """
         document.removeEventListener('keydown', this.handleKeydown);
         """
