@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Views.Map.Component do
   use Phoenix.LiveComponent
 
+  @default_marker_color "#2563eb"
+
   def update(assigns, socket) do
     {:ok, assign(socket, assigns)}
   end
@@ -39,6 +41,7 @@ defmodule SelectoComponents.Views.Map.Component do
       assign(assigns,
         map_id: map_id,
         features: features,
+        map_color_field: Map.get(map_set, :map_color_field),
         map_tile_url:
           Map.get(map_set, :map_tile_url) || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         map_attribution:
@@ -474,6 +477,28 @@ defmodule SelectoComponents.Views.Map.Component do
             }
           };
         </script>
+
+        <%= if show_dwell_legend?(@map_color_field) do %>
+          <div class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-700">
+              Dwell Time Legend
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+              <span class="inline-flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-[#16a34a]"></span>0-20 min
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-[#f59e0b]"></span>21-45 min
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-[#f97316]"></span>46-90 min
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-[#dc2626]"></span>91+ min
+              </span>
+            </div>
+          </div>
+        <% end %>
       <% end %>
     </div>
     """
@@ -523,7 +548,7 @@ defmodule SelectoComponents.Views.Map.Component do
           "geometry" => geometry,
           "properties" => %{
             "popup" => optional_value(row, popup_ix),
-            "color" => optional_value(row, color_ix)
+            "color" => row |> optional_value(color_ix) |> normalize_marker_color()
           }
         }
       else
@@ -541,6 +566,62 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp optional_value(_row, nil), do: nil
   defp optional_value(row, index), do: Enum.at(row, index)
+
+  defp normalize_marker_color(nil), do: @default_marker_color
+
+  defp normalize_marker_color(value) when is_integer(value) do
+    dwell_color(value)
+  end
+
+  defp normalize_marker_color(value) when is_float(value) do
+    value
+    |> round()
+    |> dwell_color()
+  end
+
+  defp normalize_marker_color(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        @default_marker_color
+
+      css_color?(trimmed) ->
+        trimmed
+
+      true ->
+        case Integer.parse(trimmed) do
+          {minutes, ""} -> dwell_color(minutes)
+          _ -> @default_marker_color
+        end
+    end
+  end
+
+  defp normalize_marker_color(_), do: @default_marker_color
+
+  defp dwell_color(minutes) when minutes <= 20, do: "#16a34a"
+  defp dwell_color(minutes) when minutes <= 45, do: "#f59e0b"
+  defp dwell_color(minutes) when minutes <= 90, do: "#f97316"
+  defp dwell_color(_minutes), do: "#dc2626"
+
+  defp css_color?(value) do
+    String.match?(value, ~r/^#[0-9A-Fa-f]{3,8}$/) or
+      String.match?(value, ~r/^rgba?\(.+\)$/i) or
+      String.match?(value, ~r/^hsla?\(.+\)$/i) or
+      String.match?(value, ~r/^[A-Za-z]+$/)
+  end
+
+  defp show_dwell_legend?(nil), do: false
+
+  defp show_dwell_legend?(field) when is_atom(field) do
+    show_dwell_legend?(Atom.to_string(field))
+  end
+
+  defp show_dwell_legend?(field) when is_binary(field) do
+    String.contains?(String.downcase(field), "dwell")
+  end
+
+  defp show_dwell_legend?(_), do: false
 
   defp index_for_alias(aliases, key, default) do
     Enum.find_index(aliases, fn alias_name -> to_string(alias_name) == key end) || default
