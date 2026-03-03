@@ -1287,6 +1287,15 @@ defmodule SelectoComponents.Form.ParamsState do
       normalize_map_scalar(get_map_value(layer, :scale_palette))
     )
     |> maybe_put_param("scale_steps", normalize_map_scalar(get_map_value(layer, :scale_steps)))
+    |> maybe_put_param(
+      "scale_categories",
+      normalize_map_scalar(get_map_value(layer, :scale_categories))
+    )
+    |> maybe_put_param("track_by", normalize_map_scalar(get_map_value(layer, :track_by)))
+    |> maybe_put_param(
+      "track_order_field",
+      normalize_map_scalar(get_map_value(layer, :track_order_field))
+    )
     |> maybe_put_param("point_radius", normalize_map_scalar(get_map_value(layer, :point_radius)))
     |> maybe_put_param("line_weight", normalize_map_scalar(get_map_value(layer, :line_weight)))
     |> maybe_put_param(

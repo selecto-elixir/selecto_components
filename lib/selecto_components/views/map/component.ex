@@ -600,6 +600,8 @@ defmodule SelectoComponents.Views.Map.Component do
       Enum.map(layers, fn layer ->
         geometry = row |> Enum.at(layer.geometry_ix) |> parse_geometry()
         raw_color = row |> optional_value(layer.color_ix)
+        track_key = row |> optional_value(layer.track_by_ix)
+        track_order = row |> optional_value(layer.track_order_ix)
 
         if geometry do
           %{
@@ -609,6 +611,8 @@ defmodule SelectoComponents.Views.Map.Component do
               "popup" => optional_value(row, layer.popup_ix),
               "color" => normalize_marker_color(raw_color, layer.config),
               "raw_color" => raw_color,
+              "track_key" => track_key,
+              "track_order" => track_order,
               "layer" => layer.layer_id
             }
           }
@@ -618,6 +622,7 @@ defmodule SelectoComponents.Views.Map.Component do
       end)
     end)
     |> Enum.reject(&is_nil/1)
+    |> append_track_features(layers)
   end
 
   def prepare_features(_rows, _aliases, _map_layers), do: []
@@ -643,6 +648,8 @@ defmodule SelectoComponents.Views.Map.Component do
           geometry_ix: geometry_ix,
           popup_ix: index_for_alias(aliases, "__map_popup#{suffix}", nil),
           color_ix: index_for_alias(aliases, "__map_color#{suffix}", nil),
+          track_by_ix: index_for_alias(aliases, "__map_track_by#{suffix}", nil),
+          track_order_ix: index_for_alias(aliases, "__map_track_order#{suffix}", nil),
           layer_id: layer_id_from_suffix(suffix)
         }
       end)
@@ -657,6 +664,8 @@ defmodule SelectoComponents.Views.Map.Component do
           geometry_ix: 0,
           popup_ix: index_for_alias(aliases, "__map_popup", nil),
           color_ix: index_for_alias(aliases, "__map_color", nil),
+          track_by_ix: index_for_alias(aliases, "__map_track_by", nil),
+          track_order_ix: index_for_alias(aliases, "__map_track_order", nil),
           layer_id: "1",
           config: layer_config(map_layers, "1")
         }
@@ -684,14 +693,15 @@ defmodule SelectoComponents.Views.Map.Component do
   defp normalize_marker_color(value, config) do
     scale_type = normalize_scale_type(Map.get(config, :scale_type))
     palette = parse_palette(Map.get(config, :scale_palette))
+    categories = parse_categories(Map.get(config, :scale_categories))
     trimmed = if is_binary(value), do: String.trim(value), else: value
 
     cond do
       trimmed in [nil, ""] -> @default_marker_color
       is_binary(trimmed) and css_color?(trimmed) -> trimmed
-      scale_type == "categorical" -> categorical_color(trimmed, palette)
+      scale_type == "categorical" -> categorical_color(trimmed, palette, categories)
       scale_type == "linear" -> linear_color(trimmed, palette)
-      true -> numeric_steps_color(trimmed, Map.get(config, :scale_steps), palette)
+      true -> numeric_steps_color(trimmed, Map.get(config, :scale_steps), palette, categories)
     end
   end
 
@@ -722,6 +732,31 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp parse_palette(_), do: []
 
+  defp parse_categories(nil), do: %{}
+
+  defp parse_categories(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.reduce(%{}, fn pair, acc ->
+      case String.split(pair, ":", parts: 2) do
+        [raw_key, raw_color] ->
+          key = String.trim(raw_key)
+          color = String.trim(raw_color)
+
+          if key != "" and css_color?(color) do
+            Map.put(acc, key, color)
+          else
+            acc
+          end
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp parse_categories(_), do: %{}
+
   defp parse_steps(nil), do: [20, 45, 90]
 
   defp parse_steps(value) when is_binary(value) do
@@ -741,20 +776,26 @@ defmodule SelectoComponents.Views.Map.Component do
 
   defp parse_steps(_), do: [20, 45, 90]
 
-  defp numeric_steps_color(value, steps_value, palette) do
-    case parse_number(value) do
-      nil ->
-        categorical_color(value, palette)
+  defp numeric_steps_color(value, steps_value, palette, categories) do
+    case category_color(value, categories) do
+      color when is_binary(color) ->
+        color
 
-      number ->
-        steps = parse_steps(steps_value)
-        [c1, c2, c3, c4] = palette_for_steps(palette)
+      _ ->
+        case parse_number(value) do
+          nil ->
+            categorical_color(value, palette, categories)
 
-        cond do
-          number <= Enum.at(steps, 0) -> c1
-          number <= Enum.at(steps, 1) -> c2
-          number <= Enum.at(steps, 2) -> c3
-          true -> c4
+          number ->
+            steps = parse_steps(steps_value)
+            [c1, c2, c3, c4] = palette_for_steps(palette)
+
+            cond do
+              number <= Enum.at(steps, 0) -> c1
+              number <= Enum.at(steps, 1) -> c2
+              number <= Enum.at(steps, 2) -> c3
+              true -> c4
+            end
         end
     end
   end
@@ -762,7 +803,7 @@ defmodule SelectoComponents.Views.Map.Component do
   defp linear_color(value, palette) do
     case parse_number(value) do
       nil ->
-        categorical_color(value, palette)
+        categorical_color(value, palette, %{})
 
       number ->
         {low, high} = linear_palette(palette)
@@ -771,11 +812,23 @@ defmodule SelectoComponents.Views.Map.Component do
     end
   end
 
-  defp categorical_color(value, palette) do
-    colors = if palette == [], do: default_categorical_palette(), else: palette
-    idx = :erlang.phash2(to_string(value), max(length(colors), 1))
-    Enum.at(colors, idx, @default_marker_color)
+  defp categorical_color(value, palette, categories) do
+    case category_color(value, categories) do
+      color when is_binary(color) ->
+        color
+
+      _ ->
+        colors = if palette == [], do: default_categorical_palette(), else: palette
+        idx = :erlang.phash2(to_string(value), max(length(colors), 1))
+        Enum.at(colors, idx, @default_marker_color)
+    end
   end
+
+  defp category_color(value, categories) when is_map(categories) do
+    Map.get(categories, to_string(value))
+  end
+
+  defp category_color(_value, _categories), do: nil
 
   defp parse_number(value) when is_integer(value), do: value * 1.0
   defp parse_number(value) when is_float(value), do: value
@@ -831,6 +884,82 @@ defmodule SelectoComponents.Views.Map.Component do
     "#" <> String.upcase(Base.encode16(<<r, g, b>>))
   end
 
+  defp append_track_features(features, layers) do
+    track_lines =
+      layers
+      |> Enum.filter(fn layer ->
+        config = Map.get(layer, :config, %{})
+        Map.get(config, :track_by) not in [nil, ""]
+      end)
+      |> Enum.flat_map(fn layer ->
+        layer_id = layer.layer_id
+
+        features
+        |> Enum.filter(fn feature ->
+          get_in(feature, ["properties", "layer"]) == layer_id and
+            get_in(feature, ["geometry", "type"]) == "Point"
+        end)
+        |> Enum.group_by(fn feature -> get_in(feature, ["properties", "track_key"]) end)
+        |> Enum.flat_map(fn {track_key, points} ->
+          if track_key in [nil, ""] or length(points) < 2 do
+            []
+          else
+            sorted =
+              Enum.sort_by(points, fn feature ->
+                feature
+                |> get_in(["properties", "track_order"])
+                |> parse_track_order()
+              end)
+
+            coords = Enum.map(sorted, &get_in(&1, ["geometry", "coordinates"]))
+
+            color =
+              sorted
+              |> List.first()
+              |> get_in(["properties", "color"])
+              |> Kernel.||(@default_marker_color)
+
+            [
+              %{
+                "type" => "Feature",
+                "geometry" => %{"type" => "LineString", "coordinates" => coords},
+                "properties" => %{
+                  "popup" => "Track #{track_key}",
+                  "color" => color,
+                  "layer" => layer_id,
+                  "feature_kind" => "track"
+                }
+              }
+            ]
+          end
+        end)
+      end)
+
+    features ++ track_lines
+  end
+
+  defp parse_track_order(value) when is_integer(value), do: value
+  defp parse_track_order(value) when is_float(value), do: value
+
+  defp parse_track_order(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case Integer.parse(trimmed) do
+      {int_value, ""} ->
+        int_value
+
+      _ ->
+        case Float.parse(trimmed) do
+          {float_value, ""} -> float_value
+          _ -> trimmed
+        end
+    end
+  end
+
+  defp parse_track_order(%DateTime{} = value), do: DateTime.to_unix(value, :microsecond)
+  defp parse_track_order(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  defp parse_track_order(value), do: value
+
   defp scale_legends(features, map_layers) do
     map_layers
     |> Enum.with_index(1)
@@ -864,9 +993,10 @@ defmodule SelectoComponents.Views.Map.Component do
       |> Enum.take(6)
 
     palette = parse_palette(Map.get(layer, :scale_palette))
+    categories = parse_categories(Map.get(layer, :scale_categories))
 
     Enum.map(values, fn value ->
-      %{label: to_string(value), color: categorical_color(value, palette)}
+      %{label: to_string(value), color: categorical_color(value, palette, categories)}
     end)
   end
 
