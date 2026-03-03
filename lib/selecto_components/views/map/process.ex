@@ -55,7 +55,14 @@ defmodule SelectoComponents.Views.Map.Process do
   def config_keys, do: @config_keys
 
   def normalize_config(config) when is_map(config) do
-    center = config |> get_map_value(:center) |> normalize_center_value()
+    coordinate_mode =
+      config
+      |> get_map_value(:coordinate_mode)
+      |> normalize_coordinate_mode()
+
+    mode = coordinate_mode || @default_coordinate_mode
+
+    center = config |> get_map_value(:center) |> normalize_center_value(mode)
 
     %{
       geometry_field:
@@ -82,10 +89,7 @@ defmodule SelectoComponents.Views.Map.Process do
         config
         |> get_map_value(:background_mode)
         |> normalize_background_mode(),
-      coordinate_mode:
-        config
-        |> get_map_value(:coordinate_mode)
-        |> normalize_coordinate_mode(),
+      coordinate_mode: coordinate_mode,
       image_overlay_url:
         config
         |> get_map_value(:image_overlay_url)
@@ -93,7 +97,7 @@ defmodule SelectoComponents.Views.Map.Process do
       image_overlay_bounds:
         config
         |> get_map_value(:image_overlay_bounds)
-        |> normalize_image_overlay_bounds(),
+        |> normalize_image_overlay_bounds(mode),
       image_overlay_opacity:
         config
         |> get_map_value(:image_overlay_opacity)
@@ -114,7 +118,7 @@ defmodule SelectoComponents.Views.Map.Process do
           config
           |> get_map_value(:center_lat)
           |> parse_float(nil)
-          |> normalize_lat(),
+          |> normalize_axis(:lat, mode),
           maybe_elem(center, 0)
         ]),
       center_lng:
@@ -122,7 +126,7 @@ defmodule SelectoComponents.Views.Map.Process do
           config
           |> get_map_value(:center_lng)
           |> parse_float(nil)
-          |> normalize_lng(),
+          |> normalize_axis(:lng, mode),
           maybe_elem(center, 1)
         ]),
       fit_bounds:
@@ -207,7 +211,10 @@ defmodule SelectoComponents.Views.Map.Process do
       end)
 
     center =
-      normalize_center({Map.get(config, :center_lat), Map.get(config, :center_lng)})
+      normalize_center(
+        {Map.get(config, :center_lat), Map.get(config, :center_lng)},
+        Map.get(config, :coordinate_mode, @default_coordinate_mode)
+      )
 
     base_set = Map.get(selecto, :set, %{})
 
@@ -324,28 +331,28 @@ defmodule SelectoComponents.Views.Map.Process do
 
   defp extract_option_config(_), do: %{}
 
-  defp normalize_center_value({lat, lng}), do: normalize_center({lat, lng})
+  defp normalize_center_value({lat, lng}, mode), do: normalize_center({lat, lng}, mode)
 
-  defp normalize_center_value([lat, lng]) do
-    normalize_center({lat, lng})
+  defp normalize_center_value([lat, lng], mode) do
+    normalize_center({lat, lng}, mode)
   end
 
-  defp normalize_center_value(%{} = center) do
-    normalize_center({get_map_value(center, :lat), get_map_value(center, :lng)})
+  defp normalize_center_value(%{} = center, mode) do
+    normalize_center({get_map_value(center, :lat), get_map_value(center, :lng)}, mode)
   end
 
-  defp normalize_center_value(center) when is_binary(center) do
+  defp normalize_center_value(center, mode) when is_binary(center) do
     case String.split(center, ",", parts: 2) do
-      [lat, lng] -> normalize_center({lat, lng})
+      [lat, lng] -> normalize_center({lat, lng}, mode)
       _ -> nil
     end
   end
 
-  defp normalize_center_value(_), do: nil
+  defp normalize_center_value(_, _mode), do: nil
 
-  defp normalize_center({lat, lng}) do
-    lat = lat |> parse_float(nil) |> normalize_lat()
-    lng = lng |> parse_float(nil) |> normalize_lng()
+  defp normalize_center({lat, lng}, mode) do
+    lat = lat |> parse_float(nil) |> normalize_axis(:lat, mode)
+    lng = lng |> parse_float(nil) |> normalize_axis(:lng, mode)
 
     if is_number(lat) and is_number(lng), do: {lat, lng}, else: nil
   end
@@ -386,44 +393,43 @@ defmodule SelectoComponents.Views.Map.Process do
 
   defp normalize_coordinate_mode(_), do: nil
 
-  defp normalize_image_overlay_bounds(nil), do: nil
-
-  defp normalize_image_overlay_bounds([[south, west], [north, east]]) do
-    normalize_bounds_coords(south, west, north, east)
+  defp normalize_image_overlay_bounds([[south, west], [north, east]], mode) do
+    normalize_bounds_coords(south, west, north, east, mode)
   end
 
-  defp normalize_image_overlay_bounds([south, west, north, east]) do
-    normalize_bounds_coords(south, west, north, east)
+  defp normalize_image_overlay_bounds([south, west, north, east], mode) do
+    normalize_bounds_coords(south, west, north, east, mode)
   end
 
-  defp normalize_image_overlay_bounds(%{} = bounds) do
+  defp normalize_image_overlay_bounds(%{} = bounds, mode) do
     normalize_bounds_coords(
       get_map_value(bounds, :south) || get_map_value(bounds, :min_lat),
       get_map_value(bounds, :west) || get_map_value(bounds, :min_lng),
       get_map_value(bounds, :north) || get_map_value(bounds, :max_lat),
-      get_map_value(bounds, :east) || get_map_value(bounds, :max_lng)
+      get_map_value(bounds, :east) || get_map_value(bounds, :max_lng),
+      mode
     )
   end
 
-  defp normalize_image_overlay_bounds(bounds) when is_binary(bounds) do
+  defp normalize_image_overlay_bounds(bounds, mode) when is_binary(bounds) do
     values =
       bounds
       |> String.split(",", trim: true)
       |> Enum.map(&(&1 |> String.trim() |> parse_float(nil)))
 
     case values do
-      [south, west, north, east] -> normalize_bounds_coords(south, west, north, east)
+      [south, west, north, east] -> normalize_bounds_coords(south, west, north, east, mode)
       _ -> nil
     end
   end
 
-  defp normalize_image_overlay_bounds(_), do: nil
+  defp normalize_image_overlay_bounds(_, _mode), do: nil
 
-  defp normalize_bounds_coords(south, west, north, east) do
-    south = south |> parse_float(nil) |> normalize_lat()
-    west = west |> parse_float(nil) |> normalize_lng()
-    north = north |> parse_float(nil) |> normalize_lat()
-    east = east |> parse_float(nil) |> normalize_lng()
+  defp normalize_bounds_coords(south, west, north, east, mode) do
+    south = south |> parse_float(nil) |> normalize_axis(:lat, mode)
+    west = west |> parse_float(nil) |> normalize_axis(:lng, mode)
+    north = north |> parse_float(nil) |> normalize_axis(:lat, mode)
+    east = east |> parse_float(nil) |> normalize_axis(:lng, mode)
 
     if Enum.any?([south, west, north, east], &is_nil/1) do
       nil
@@ -486,6 +492,15 @@ defmodule SelectoComponents.Views.Map.Process do
   end
 
   defp normalize_lng(_), do: nil
+
+  defp normalize_axis(nil, _axis, _mode), do: nil
+
+  defp normalize_axis(value, _axis, "local_xy") when is_number(value) do
+    value * 1.0
+  end
+
+  defp normalize_axis(value, :lat, _mode), do: normalize_lat(value)
+  defp normalize_axis(value, :lng, _mode), do: normalize_lng(value)
 
   defp normalize_field(nil), do: nil
 
