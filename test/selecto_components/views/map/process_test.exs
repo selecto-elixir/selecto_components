@@ -25,8 +25,8 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert config.geometry_field == "location"
       refute Map.has_key?(config, :popup_field)
       assert config.default_zoom == 20
-      assert config.center_lat == 90.0
-      assert config.center_lng == -180.0
+      assert config.center_lat == 95.0
+      assert config.center_lng == -190.0
       assert config.background_mode == "image_overlay"
       assert config.coordinate_mode == "local_xy"
       assert config.image_overlay_url == "https://assets.example.test/yard.png"
