@@ -28,6 +28,10 @@ defmodule SelectoComponents.Form.ParamsState do
     color_field
     tile_url
     attribution
+    background_mode
+    image_overlay_url
+    image_overlay_bounds
+    image_overlay_opacity
     default_zoom
     center_lat
     center_lng
@@ -59,6 +63,9 @@ defmodule SelectoComponents.Form.ParamsState do
           Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
             cond do
               selected_view == :map and list_name in [:map_layers, "map_layers"] ->
+                merge_scalar_view_param(acc, selected_view, list_name, items)
+
+              selected_view == :map ->
                 merge_scalar_view_param(acc, selected_view, list_name, items)
 
               is_list(items) ->
@@ -1362,7 +1369,31 @@ defmodule SelectoComponents.Form.ParamsState do
     normalize_map_boolean(value)
   end
 
+  defp normalize_map_param_value("image_overlay_bounds", value) do
+    normalize_map_bounds(value)
+  end
+
   defp normalize_map_param_value(_key, value), do: normalize_map_scalar(value)
+
+  defp normalize_map_bounds(nil), do: nil
+
+  defp normalize_map_bounds([[south, west], [north, east]]) do
+    values = [south, west, north, east] |> Enum.map(&normalize_map_scalar/1)
+
+    if Enum.any?(values, &is_nil/1), do: nil, else: Enum.join(values, ",")
+  end
+
+  defp normalize_map_bounds([south, west, north, east]) do
+    values = [south, west, north, east] |> Enum.map(&normalize_map_scalar/1)
+
+    if Enum.any?(values, &is_nil/1), do: nil, else: Enum.join(values, ",")
+  end
+
+  defp normalize_map_bounds(value) when is_binary(value) do
+    normalize_map_scalar(value)
+  end
+
+  defp normalize_map_bounds(_value), do: nil
 
   defp normalize_map_boolean(value) when value in [true, "true", "on", "1", 1], do: "true"
   defp normalize_map_boolean(value) when value in [false, "false", "off", "0", 0], do: "false"

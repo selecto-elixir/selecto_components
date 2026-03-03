@@ -49,6 +49,10 @@ defmodule SelectoComponents.Views.Map.Component do
           Map.get(map_set, :map_tile_url) || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         map_attribution:
           Map.get(map_set, :map_attribution) || "&copy; OpenStreetMap contributors",
+        map_background_mode: Map.get(map_set, :map_background_mode) || "tiles",
+        map_image_overlay_url: Map.get(map_set, :map_image_overlay_url),
+        map_image_overlay_bounds: Map.get(map_set, :map_image_overlay_bounds) || [],
+        map_image_overlay_opacity: Map.get(map_set, :map_image_overlay_opacity) || 0.85,
         map_zoom: Map.get(map_set, :map_zoom) || 3,
         map_center: center,
         fit_bounds: Map.get(map_set, :map_fit_bounds) != false,
@@ -74,6 +78,10 @@ defmodule SelectoComponents.Views.Map.Component do
           data-features={Jason.encode!(@features)}
           data-tile-url={@map_tile_url}
           data-attribution={@map_attribution}
+          data-background-mode={@map_background_mode}
+          data-image-overlay-url={@map_image_overlay_url || ""}
+          data-image-overlay-bounds={Jason.encode!(@map_image_overlay_bounds)}
+          data-image-overlay-opacity={to_string(@map_image_overlay_opacity)}
           data-zoom={@map_zoom}
           data-center={Jason.encode!(@map_center)}
           data-fit-bounds={to_string(@fit_bounds)}
@@ -153,6 +161,7 @@ defmodule SelectoComponents.Views.Map.Component do
             clusterMarkers: null,
             nonPointLayers: null,
             tileLayer: null,
+            imageOverlay: null,
             clusterLoadPromise: null,
 
             mounted() {
@@ -160,7 +169,7 @@ defmodule SelectoComponents.Views.Map.Component do
             },
 
             updated() {
-              this.applyTileLayerConfig();
+              this.applyBackgroundConfig();
               this.renderFeatures();
             },
 
@@ -193,27 +202,123 @@ defmodule SelectoComponents.Views.Map.Component do
               const zoom = Number(this.el.dataset.zoom || 3);
 
               this.map = window.L.map(this.el).setView([center.lat, center.lng], zoom);
-
-              this.tileLayer = window.L.tileLayer(this.el.dataset.tileUrl, {
-                attribution: this.el.dataset.attribution,
-                maxZoom: 20
-              });
-
-              this.tileLayer.addTo(this.map);
+              this.applyBackgroundConfig();
               this.markers = window.L.featureGroup().addTo(this.map);
               this.renderFeatures();
             },
 
-            applyTileLayerConfig() {
-              if (!this.map || !this.tileLayer || !window.L) return;
+            getBackgroundMode() {
+              return this.el.dataset.backgroundMode === "image_overlay" ? "image_overlay" : "tiles";
+            },
+
+            getImageOverlayOpacity() {
+              const value = Number(this.el.dataset.imageOverlayOpacity || "0.85");
+              if (!Number.isFinite(value)) return 0.85;
+              return Math.max(0, Math.min(1, value));
+            },
+
+            getImageOverlayBounds() {
+              try {
+                const bounds = JSON.parse(this.el.dataset.imageOverlayBounds || "[]");
+                if (!Array.isArray(bounds) || bounds.length !== 2) return null;
+
+                const southWest = Array.isArray(bounds[0]) ? bounds[0] : null;
+                const northEast = Array.isArray(bounds[1]) ? bounds[1] : null;
+
+                if (!southWest || !northEast || southWest.length < 2 || northEast.length < 2) {
+                  return null;
+                }
+
+                const south = Number(southWest[0]);
+                const west = Number(southWest[1]);
+                const north = Number(northEast[0]);
+                const east = Number(northEast[1]);
+
+                if (
+                  !Number.isFinite(south) ||
+                  !Number.isFinite(west) ||
+                  !Number.isFinite(north) ||
+                  !Number.isFinite(east)
+                ) {
+                  return null;
+                }
+
+                return [
+                  [Math.min(south, north), Math.min(west, east)],
+                  [Math.max(south, north), Math.max(west, east)]
+                ];
+              } catch (_error) {
+                return null;
+              }
+            },
+
+            applyBackgroundConfig() {
+              if (!this.map || !window.L) return;
+
+              const mode = this.getBackgroundMode();
+
+              if (mode === "image_overlay") {
+                if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
+                  this.map.removeLayer(this.tileLayer);
+                }
+
+                if (this.imageOverlay && this.map.hasLayer(this.imageOverlay)) {
+                  this.map.removeLayer(this.imageOverlay);
+                }
+
+                const overlayUrl = this.el.dataset.imageOverlayUrl || "";
+                const overlayBounds = this.getImageOverlayBounds();
+
+                if (!overlayUrl || !overlayBounds) {
+                  this.imageOverlay = null;
+                  return;
+                }
+
+                this.imageOverlay = window.L.imageOverlay(overlayUrl, overlayBounds, {
+                  opacity: this.getImageOverlayOpacity(),
+                  interactive: false
+                });
+
+                this.imageOverlay.addTo(this.map);
+
+                if (this.imageOverlay.bringToBack) {
+                  this.imageOverlay.bringToBack();
+                }
+
+                return;
+              }
+
+              if (this.imageOverlay && this.map.hasLayer(this.imageOverlay)) {
+                this.map.removeLayer(this.imageOverlay);
+              }
+
+              this.imageOverlay = null;
 
               const nextTileUrl = this.el.dataset.tileUrl;
               const nextAttribution = this.el.dataset.attribution || "";
 
+              if (!nextTileUrl) return;
+
+              if (!this.tileLayer) {
+                this.tileLayer = window.L.tileLayer(nextTileUrl, {
+                  attribution: nextAttribution,
+                  maxZoom: 20
+                });
+
+                this.tileLayer.addTo(this.map);
+                return;
+              }
+
               const urlChanged = nextTileUrl && this.tileLayer._url !== nextTileUrl;
               const attributionChanged = this.tileLayer.options.attribution !== nextAttribution;
 
-              if (!urlChanged && !attributionChanged) return;
+              if (!urlChanged && !attributionChanged) {
+                if (!this.map.hasLayer(this.tileLayer)) {
+                  this.tileLayer.addTo(this.map);
+                }
+
+                return;
+              }
 
               if (this.map.hasLayer(this.tileLayer)) {
                 this.map.removeLayer(this.tileLayer);
@@ -476,6 +581,14 @@ defmodule SelectoComponents.Views.Map.Component do
                 bounds = this.layerBounds(this.markers);
               }
 
+              if (!bounds && this.getBackgroundMode() === "image_overlay") {
+                const overlayBounds = this.getImageOverlayBounds();
+
+                if (overlayBounds) {
+                  bounds = window.L.latLngBounds(overlayBounds);
+                }
+              }
+
               if (bounds && bounds.isValid && bounds.isValid()) {
                 this.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
               }
@@ -528,12 +641,17 @@ defmodule SelectoComponents.Views.Map.Component do
                 if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
                   this.map.removeLayer(this.tileLayer);
                 }
+
+                if (this.imageOverlay && this.map.hasLayer(this.imageOverlay)) {
+                  this.map.removeLayer(this.imageOverlay);
+                }
               }
 
               this.markers = null;
               this.clusterMarkers = null;
               this.nonPointLayers = null;
               this.tileLayer = null;
+              this.imageOverlay = null;
             }
           };
         </script>

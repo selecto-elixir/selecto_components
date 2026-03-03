@@ -11,6 +11,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
           "popup_field" => "",
           "default_zoom" => "21",
           "center" => "95,-190",
+          "background_mode" => "image_overlay",
+          "image_overlay_url" => "https://assets.example.test/yard.png",
+          "image_overlay_bounds" => "49.2,-124.5,31.8,-116.9",
+          "image_overlay_opacity" => "1.5",
           "fit_bounds" => "false",
           "max_points" => "0",
           "cluster" => "true"
@@ -21,6 +25,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert config.default_zoom == 20
       assert config.center_lat == 90.0
       assert config.center_lng == -180.0
+      assert config.background_mode == "image_overlay"
+      assert config.image_overlay_url == "https://assets.example.test/yard.png"
+      assert config.image_overlay_bounds == [[31.8, -124.5], [49.2, -116.9]]
+      assert config.image_overlay_opacity == 1.0
       assert config.fit_bounds == false
       assert config.max_points == 1
       assert config.cluster == true
@@ -40,6 +48,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert state.center_lng == -87.6
       assert state.fit_bounds == true
       assert state.cluster == false
+      assert state.background_mode == "tiles"
+      assert state.image_overlay_url == "https://assets.example.test/default-yard.png"
+      assert state.image_overlay_bounds == [[33.7, -123.5], [49.5, -117.0]]
+      assert state.image_overlay_opacity == 0.75
     end
 
     test "view options override domain and postgis defaults" do
@@ -53,7 +65,11 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
             "fit_bounds" => "false",
             "max_points" => "333",
             "cluster" => "true",
-            "tile_url" => "https://tiles.example.test/{z}/{x}/{y}.png"
+            "tile_url" => "https://tiles.example.test/{z}/{x}/{y}.png",
+            "background_mode" => "image_overlay",
+            "image_overlay_url" => "https://assets.example.test/custom-yard.png",
+            "image_overlay_bounds" => "35.2,-123.9,47.4,-118.2",
+            "image_overlay_opacity" => "0.55"
           }
         })
 
@@ -64,6 +80,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert state.max_points == 333
       assert state.cluster == true
       assert state.tile_url == "https://tiles.example.test/{z}/{x}/{y}.png"
+      assert state.background_mode == "image_overlay"
+      assert state.image_overlay_url == "https://assets.example.test/custom-yard.png"
+      assert state.image_overlay_bounds == [[35.2, -123.9], [47.4, -118.2]]
+      assert state.image_overlay_opacity == 0.55
     end
 
     test "config keys include contract fields" do
@@ -71,6 +91,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert :popup_field in Process.config_keys()
       assert :color_field in Process.config_keys()
       assert :cluster in Process.config_keys()
+      assert :background_mode in Process.config_keys()
+      assert :image_overlay_url in Process.config_keys()
+      assert :image_overlay_bounds in Process.config_keys()
+      assert :image_overlay_opacity in Process.config_keys()
     end
   end
 
@@ -88,7 +112,11 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
         "popup_field" => "name",
         "default_zoom" => "5",
         "max_points" => "250",
-        "cluster" => "true"
+        "cluster" => "true",
+        "background_mode" => "image_overlay",
+        "image_overlay_url" => "https://assets.example.test/runtime-yard.png",
+        "image_overlay_bounds" => "34.0,-122.0,38.0,-118.0",
+        "image_overlay_opacity" => "0.42"
       }
 
       {view_set, _meta} = Process.view(%{}, params, columns, [], selecto)
@@ -98,6 +126,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert view_set.map_popup_field == "name"
       assert view_set.map_zoom == 5
       assert view_set.map_cluster == true
+      assert view_set.map_background_mode == "image_overlay"
+      assert view_set.map_image_overlay_url == "https://assets.example.test/runtime-yard.png"
+      assert view_set.map_image_overlay_bounds == [[34.0, -122.0], [38.0, -118.0]]
+      assert view_set.map_image_overlay_opacity == 0.42
       assert view_set.group_by == []
       assert view_set.aggregates == []
 
@@ -189,6 +221,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
           "popup_field" => "name",
           "tile_url" => "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           "attribution" => "&copy; OpenStreetMap contributors",
+          "background_mode" => "tiles",
+          "image_overlay_url" => "https://assets.example.test/default-yard.png",
+          "image_overlay_bounds" => "33.7,-123.5,49.5,-117.0",
+          "image_overlay_opacity" => "0.75",
           "default_zoom" => "4",
           "center" => [41.2, -87.6],
           "fit_bounds" => "true",

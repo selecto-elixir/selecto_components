@@ -8,6 +8,8 @@ defmodule SelectoComponents.Views.Map.Process do
   @default_center {0.0, 0.0}
   @default_fit_bounds true
   @default_cluster false
+  @default_background_mode "tiles"
+  @default_image_overlay_opacity 0.85
   @min_zoom 1
   @max_zoom 20
 
@@ -17,6 +19,10 @@ defmodule SelectoComponents.Views.Map.Process do
     :color_field,
     :tile_url,
     :attribution,
+    :background_mode,
+    :image_overlay_url,
+    :image_overlay_bounds,
+    :image_overlay_opacity,
     :default_zoom,
     :center_lat,
     :center_lng,
@@ -29,6 +35,8 @@ defmodule SelectoComponents.Views.Map.Process do
   @default_config %{
     tile_url: @default_tile_url,
     attribution: @default_attribution,
+    background_mode: @default_background_mode,
+    image_overlay_opacity: @default_image_overlay_opacity,
     default_zoom: @default_zoom,
     center_lat: elem(@default_center, 0),
     center_lng: elem(@default_center, 1),
@@ -64,6 +72,23 @@ defmodule SelectoComponents.Views.Map.Process do
         config
         |> get_map_value(:attribution)
         |> normalize_text(),
+      background_mode:
+        config
+        |> get_map_value(:background_mode)
+        |> normalize_background_mode(),
+      image_overlay_url:
+        config
+        |> get_map_value(:image_overlay_url)
+        |> normalize_text(),
+      image_overlay_bounds:
+        config
+        |> get_map_value(:image_overlay_bounds)
+        |> normalize_image_overlay_bounds(),
+      image_overlay_opacity:
+        config
+        |> get_map_value(:image_overlay_opacity)
+        |> parse_float(nil)
+        |> normalize_image_overlay_opacity(),
       default_zoom:
         config
         |> get_map_value(:default_zoom)
@@ -186,6 +211,11 @@ defmodule SelectoComponents.Views.Map.Process do
         map_layers: layers,
         map_tile_url: Map.get(config, :tile_url, @default_tile_url),
         map_attribution: Map.get(config, :attribution, @default_attribution),
+        map_background_mode: Map.get(config, :background_mode, @default_background_mode),
+        map_image_overlay_url: Map.get(config, :image_overlay_url),
+        map_image_overlay_bounds: Map.get(config, :image_overlay_bounds),
+        map_image_overlay_opacity:
+          Map.get(config, :image_overlay_opacity, @default_image_overlay_opacity),
         map_zoom: Map.get(config, :default_zoom, @default_zoom),
         map_center: center,
         map_fit_bounds: Map.get(config, :fit_bounds, true),
@@ -249,6 +279,10 @@ defmodule SelectoComponents.Views.Map.Process do
       color_field: get_map_value(domain, :default_map_color_field),
       tile_url: get_map_value(domain, :default_map_tile_url),
       attribution: get_map_value(domain, :default_map_attribution),
+      background_mode: get_map_value(domain, :default_map_background_mode),
+      image_overlay_url: get_map_value(domain, :default_map_image_overlay_url),
+      image_overlay_bounds: get_map_value(domain, :default_map_image_overlay_bounds),
+      image_overlay_opacity: get_map_value(domain, :default_map_image_overlay_opacity),
       default_zoom: get_map_value(domain, :default_map_zoom),
       center: get_map_value(domain, :default_map_center),
       fit_bounds: get_map_value(domain, :default_map_fit_bounds),
@@ -295,6 +329,80 @@ defmodule SelectoComponents.Views.Map.Process do
 
     if is_number(lat) and is_number(lng), do: {lat, lng}, else: nil
   end
+
+  defp normalize_background_mode(nil), do: nil
+
+  defp normalize_background_mode(value) when is_atom(value) do
+    value
+    |> Atom.to_string()
+    |> normalize_background_mode()
+  end
+
+  defp normalize_background_mode(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "tiles" -> "tiles"
+      "image_overlay" -> "image_overlay"
+      _ -> nil
+    end
+  end
+
+  defp normalize_background_mode(_), do: nil
+
+  defp normalize_image_overlay_bounds(nil), do: nil
+
+  defp normalize_image_overlay_bounds([[south, west], [north, east]]) do
+    normalize_bounds_coords(south, west, north, east)
+  end
+
+  defp normalize_image_overlay_bounds([south, west, north, east]) do
+    normalize_bounds_coords(south, west, north, east)
+  end
+
+  defp normalize_image_overlay_bounds(%{} = bounds) do
+    normalize_bounds_coords(
+      get_map_value(bounds, :south) || get_map_value(bounds, :min_lat),
+      get_map_value(bounds, :west) || get_map_value(bounds, :min_lng),
+      get_map_value(bounds, :north) || get_map_value(bounds, :max_lat),
+      get_map_value(bounds, :east) || get_map_value(bounds, :max_lng)
+    )
+  end
+
+  defp normalize_image_overlay_bounds(bounds) when is_binary(bounds) do
+    values =
+      bounds
+      |> String.split(",", trim: true)
+      |> Enum.map(&(&1 |> String.trim() |> parse_float(nil)))
+
+    case values do
+      [south, west, north, east] -> normalize_bounds_coords(south, west, north, east)
+      _ -> nil
+    end
+  end
+
+  defp normalize_image_overlay_bounds(_), do: nil
+
+  defp normalize_bounds_coords(south, west, north, east) do
+    south = south |> parse_float(nil) |> normalize_lat()
+    west = west |> parse_float(nil) |> normalize_lng()
+    north = north |> parse_float(nil) |> normalize_lat()
+    east = east |> parse_float(nil) |> normalize_lng()
+
+    if Enum.any?([south, west, north, east], &is_nil/1) do
+      nil
+    else
+      [[min(south, north), min(west, east)], [max(south, north), max(west, east)]]
+    end
+  end
+
+  defp normalize_image_overlay_opacity(nil), do: nil
+
+  defp normalize_image_overlay_opacity(value) when is_number(value) do
+    value
+    |> Kernel.*(1.0)
+    |> clamp(0.0, 1.0)
+  end
+
+  defp normalize_image_overlay_opacity(_), do: nil
 
   defp normalize_zoom(nil), do: nil
 
