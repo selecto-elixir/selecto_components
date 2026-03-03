@@ -462,6 +462,14 @@ SELECTO_ECOSYSTEM_USE_LOCAL=true
 When enabled, `selecto_components` resolves `{:selecto, path: "../selecto"}`.
 This is the same local-development switch used across Selecto ecosystem repos.
 
+## Property Testing
+
+Run the SelectoComponents property suite:
+
+```bash
+SELECTO_ECOSYSTEM_USE_LOCAL=true mix test test/selecto_components/property_roundtrip_test.exs
+```
+
 ## License
 
 MIT License - see LICENSE file for details.

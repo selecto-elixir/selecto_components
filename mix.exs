@@ -53,6 +53,7 @@ defmodule SelectoComponents.MixProject do
       {:ecto, ">= 3.9.1 and < 4.0.0"},
       {:makeup, "~> 1.1"},
       {:makeup_sql, "~> 0.1.0"},
+      {:stream_data, "~> 1.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test}
     ]
   end
