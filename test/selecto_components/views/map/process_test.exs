@@ -119,6 +119,7 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
         "map_layers" => [
           %{
             "geometry_field" => "location",
+            "geometry_kind" => "point",
             "popup_field" => "name",
             "color_field" => "status",
             "point_radius" => "9",
@@ -126,6 +127,7 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
           },
           %{
             "geometry_field" => "route_path",
+            "geometry_kind" => "line",
             "popup_field" => "name",
             "color_field" => "status",
             "line_weight" => "4",
@@ -143,8 +145,10 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert {:field, "status", "__map_color_2"} in view_set.selected
       assert Enum.at(view_set.map_layers, 0).point_radius == 9
       assert Enum.at(view_set.map_layers, 0).fill_opacity == 0.4
+      assert Enum.at(view_set.map_layers, 0).geometry_kind == "point"
       assert Enum.at(view_set.map_layers, 1).line_weight == 4
       assert Enum.at(view_set.map_layers, 1).line_dash_array == "6,4"
+      assert Enum.at(view_set.map_layers, 1).geometry_kind == "line"
     end
   end
 

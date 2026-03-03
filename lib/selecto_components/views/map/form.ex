@@ -77,6 +77,27 @@ defmodule SelectoComponents.Views.Map.Form do
               </div>
 
               <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Geometry Kind</label>
+                <select
+                  name={"map_layers[#{index}][geometry_kind]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="auto" selected={Map.get(layer, :geometry_kind, "auto") == "auto"}>
+                    Auto
+                  </option>
+                  <option value="point" selected={Map.get(layer, :geometry_kind) == "point"}>
+                    Point
+                  </option>
+                  <option value="line" selected={Map.get(layer, :geometry_kind) == "line"}>
+                    Line
+                  </option>
+                  <option value="area" selected={Map.get(layer, :geometry_kind) == "area"}>
+                    Area
+                  </option>
+                </select>
+              </div>
+
+              <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Popup Field</label>
                 <select
                   name={"map_layers[#{index}][popup_field]"}
@@ -110,53 +131,61 @@ defmodule SelectoComponents.Views.Map.Form do
                 </select>
               </div>
 
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Point Radius</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  name={"map_layers[#{index}][point_radius]"}
-                  value={Map.get(layer, :point_radius, 6)}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point"] do %>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Point Radius</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    name={"map_layers[#{index}][point_radius]"}
+                    value={Map.get(layer, :point_radius, 6)}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              <% end %>
 
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Line Weight</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="12"
-                  name={"map_layers[#{index}][line_weight]"}
-                  value={Map.get(layer, :line_weight, 2)}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line", "area"] do %>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Line Weight</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    name={"map_layers[#{index}][line_weight]"}
+                    value={Map.get(layer, :line_weight, 2)}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              <% end %>
 
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Line Dash</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 6,4"
-                  name={"map_layers[#{index}][line_dash_array]"}
-                  value={Map.get(layer, :line_dash_array, "")}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line"] do %>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Line Dash</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 6,4"
+                    name={"map_layers[#{index}][line_dash_array]"}
+                    value={Map.get(layer, :line_dash_array, "")}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              <% end %>
 
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Fill Opacity</label>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  name={"map_layers[#{index}][fill_opacity]"}
-                  value={Map.get(layer, :fill_opacity, 0.25)}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point", "area"] do %>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Fill Opacity</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    max="1"
+                    name={"map_layers[#{index}][fill_opacity]"}
+                    value={Map.get(layer, :fill_opacity, 0.25)}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              <% end %>
 
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Stroke Opacity</label>
@@ -310,16 +339,20 @@ defmodule SelectoComponents.Views.Map.Form do
     |> Enum.take(3)
     |> Enum.with_index()
     |> Enum.map(fn {layer, index} ->
+      geometry_kind = normalize_geometry_kind(Map.get(layer, :geometry_kind))
+      defaults = style_defaults_for_kind(geometry_kind)
+
       %{
         label: Map.get(layer, :label) || "Layer #{index + 1}",
         geometry_field: Map.get(layer, :geometry_field) || Enum.at(geometry_defaults, index),
+        geometry_kind: geometry_kind,
         popup_field: Map.get(layer, :popup_field),
         color_field: Map.get(layer, :color_field),
-        point_radius: Map.get(layer, :point_radius, 6),
-        line_weight: Map.get(layer, :line_weight, 2),
+        point_radius: Map.get(layer, :point_radius, defaults.point_radius),
+        line_weight: Map.get(layer, :line_weight, defaults.line_weight),
         line_dash_array: Map.get(layer, :line_dash_array),
-        fill_opacity: Map.get(layer, :fill_opacity, 0.25),
-        stroke_opacity: Map.get(layer, :stroke_opacity, 0.9),
+        fill_opacity: Map.get(layer, :fill_opacity, defaults.fill_opacity),
+        stroke_opacity: Map.get(layer, :stroke_opacity, defaults.stroke_opacity),
         visible: Map.get(layer, :visible, true)
       }
     end)
@@ -327,16 +360,19 @@ defmodule SelectoComponents.Views.Map.Form do
   end
 
   defp default_primary_layer(map_config) do
+    defaults = style_defaults_for_kind("auto")
+
     %{
       label: "Layer 1",
       geometry_field: map_value(map_config, :geometry_field),
+      geometry_kind: "auto",
       popup_field: map_value(map_config, :popup_field),
       color_field: map_value(map_config, :color_field),
-      point_radius: 6,
-      line_weight: 2,
+      point_radius: defaults.point_radius,
+      line_weight: defaults.line_weight,
       line_dash_array: nil,
-      fill_opacity: 0.25,
-      stroke_opacity: 0.9,
+      fill_opacity: defaults.fill_opacity,
+      stroke_opacity: defaults.stroke_opacity,
       visible: true
     }
   end
@@ -354,6 +390,7 @@ defmodule SelectoComponents.Views.Map.Form do
           %{
             label: "Layer #{absolute_index + 1}",
             geometry_field: Enum.at(geometry_defaults, absolute_index),
+            geometry_kind: "auto",
             popup_field: nil,
             color_field: nil,
             point_radius: 6,
@@ -368,6 +405,35 @@ defmodule SelectoComponents.Views.Map.Form do
 
     layers ++ padding
   end
+
+  defp normalize_geometry_kind(nil), do: "auto"
+
+  defp normalize_geometry_kind(kind) when is_atom(kind) do
+    kind
+    |> Atom.to_string()
+    |> normalize_geometry_kind()
+  end
+
+  defp normalize_geometry_kind(kind) when is_binary(kind) do
+    case String.downcase(String.trim(kind)) do
+      value when value in ["auto", "point", "line", "area"] -> value
+      _ -> "auto"
+    end
+  end
+
+  defp normalize_geometry_kind(_), do: "auto"
+
+  defp style_defaults_for_kind("point"),
+    do: %{point_radius: 6, line_weight: 2, fill_opacity: 0.85, stroke_opacity: 0.9}
+
+  defp style_defaults_for_kind("line"),
+    do: %{point_radius: 4, line_weight: 3, fill_opacity: 0.05, stroke_opacity: 0.9}
+
+  defp style_defaults_for_kind("area"),
+    do: %{point_radius: 4, line_weight: 2, fill_opacity: 0.25, stroke_opacity: 0.8}
+
+  defp style_defaults_for_kind(_),
+    do: %{point_radius: 6, line_weight: 2, fill_opacity: 0.25, stroke_opacity: 0.9}
 
   defp spatial_columns(selecto) do
     selecto

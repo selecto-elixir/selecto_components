@@ -93,6 +93,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
             %{
               label: "Pickup",
               geometry_field: "location",
+              geometry_kind: "point",
               popup_field: "pickup_code",
               color_field: "dwell_minutes",
               point_radius: 8,
@@ -102,6 +103,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
             %{
               label: "Route",
               geometry_field: "route_path",
+              geometry_kind: "line",
               popup_field: "pickup_code",
               color_field: "status",
               line_weight: 3,
@@ -117,10 +119,12 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert params["view_mode"] == "map"
     assert params["map_layers"]["0"]["geometry_field"] == "location"
+    assert params["map_layers"]["0"]["geometry_kind"] == "point"
     assert params["map_layers"]["0"]["point_radius"] == "8"
     assert params["map_layers"]["0"]["fill_opacity"] == "0.35"
     assert params["map_layers"]["0"]["visible"] == "true"
     assert params["map_layers"]["1"]["geometry_field"] == "route_path"
+    assert params["map_layers"]["1"]["geometry_kind"] == "line"
     assert params["map_layers"]["1"]["line_weight"] == "3"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
@@ -165,6 +169,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           %{
             "label" => "Pickup",
             "geometry_field" => "location",
+            "geometry_kind" => "point",
             "popup_field" => "pickup_code",
             "color_field" => "dwell_minutes",
             "point_radius" => 8,
@@ -174,6 +179,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           %{
             "label" => "Route",
             "geometry_field" => "route_path",
+            "geometry_kind" => "line",
             "popup_field" => "pickup_code",
             "color_field" => "status",
             "line_weight" => 3,
@@ -188,8 +194,10 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert params["view_mode"] == "map"
     assert params["map_layers"]["0"]["geometry_field"] == "location"
+    assert params["map_layers"]["0"]["geometry_kind"] == "point"
     assert params["map_layers"]["0"]["point_radius"] == "8"
     assert params["map_layers"]["1"]["geometry_field"] == "route_path"
+    assert params["map_layers"]["1"]["geometry_kind"] == "line"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
   end
