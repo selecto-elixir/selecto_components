@@ -105,10 +105,14 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
 
     features = Component.prepare_features(rows, aliases, map_layers)
     line = Enum.find(features, fn f -> get_in(f, ["geometry", "type"]) == "LineString" end)
+    kinds = Enum.map(features, &get_in(&1, ["properties", "feature_kind"]))
 
     assert line
     assert line["properties"]["feature_kind"] == "track"
     assert line["geometry"]["coordinates"] == [[-118.20, 34.08], [-118.24, 34.05]]
+    assert "track_start" in kinds
+    assert "track_end" in kinds
+    assert "track_arrow" in kinds
   end
 
   test "render includes map hook when results are present" do
