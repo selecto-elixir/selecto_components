@@ -68,14 +68,47 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     rows = [[~s({"type":"Point","coordinates":[-87.6,41.8]}), "Chicago", "queued"]]
     aliases = ["__map_geometry", "__map_popup", "__map_color"]
 
-    map_layers = [
-      %{scale_type: "categorical", scale_palette: "#2563eb,#ef4444"}
-    ]
+    map_layers = [%{scale_type: "categorical", scale_palette: "#2563eb,#ef4444"}]
 
     [feature] = Component.prepare_features(rows, aliases, map_layers)
 
     assert feature["properties"]["color"] in ["#2563eb", "#ef4444"]
     assert feature["properties"]["raw_color"] == "queued"
+  end
+
+  test "prepare_features/3 prefers explicit category color mapping" do
+    rows = [[~s({"type":"Point","coordinates":[-87.6,41.8]}), "Chicago", "queued"]]
+    aliases = ["__map_geometry", "__map_popup", "__map_color"]
+
+    map_layers = [
+      %{
+        scale_type: "categorical",
+        scale_palette: "#2563eb,#ef4444",
+        scale_categories: "queued:#22c55e,loading:#f59e0b"
+      }
+    ]
+
+    [feature] = Component.prepare_features(rows, aliases, map_layers)
+
+    assert feature["properties"]["color"] == "#22c55e"
+  end
+
+  test "prepare_features/3 emits breadcrumb track line for grouped points" do
+    rows = [
+      [~s({"type":"Point","coordinates":[-118.24,34.05]}), "veh-1", 2],
+      [~s({"type":"Point","coordinates":[-118.20,34.08]}), "veh-1", 1]
+    ]
+
+    aliases = ["__map_geometry", "__map_track_by", "__map_track_order"]
+
+    map_layers = [%{track_by: "vehicle_id", track_order_field: "occurred_at"}]
+
+    features = Component.prepare_features(rows, aliases, map_layers)
+    line = Enum.find(features, fn f -> get_in(f, ["geometry", "type"]) == "LineString" end)
+
+    assert line
+    assert line["properties"]["feature_kind"] == "track"
+    assert line["geometry"]["coordinates"] == [[-118.20, 34.08], [-118.24, 34.05]]
   end
 
   test "render includes map hook when results are present" do

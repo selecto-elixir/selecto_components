@@ -179,6 +179,55 @@ defmodule SelectoComponents.Views.Map.Form do
                 />
               </div>
 
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Category Colors</label>
+                <input
+                  type="text"
+                  placeholder="queued:#22c55e,loading:#f59e0b"
+                  name={"map_layers[#{index}][scale_categories]"}
+                  value={Map.get(layer, :scale_categories, "")}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">
+                  Track By (breadcrumbs)
+                </label>
+                <select
+                  name={"map_layers[#{index}][track_by]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" selected={Map.get(layer, :track_by) in [nil, ""]}>None</option>
+                  <option
+                    :for={{field, label} <- @popup_columns}
+                    value={field}
+                    selected={Map.get(layer, :track_by) == field}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Track Order Field</label>
+                <select
+                  name={"map_layers[#{index}][track_order_field]"}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" selected={Map.get(layer, :track_order_field) in [nil, ""]}>
+                    None
+                  </option>
+                  <option
+                    :for={{field, label} <- @popup_columns}
+                    value={field}
+                    selected={Map.get(layer, :track_order_field) == field}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </div>
+
               <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point"] do %>
                 <div>
                   <label class="block text-xs font-medium text-gray-700 mb-1">Point Radius</label>
@@ -399,6 +448,9 @@ defmodule SelectoComponents.Views.Map.Form do
         scale_type: Map.get(layer, :scale_type, "auto"),
         scale_palette: Map.get(layer, :scale_palette),
         scale_steps: Map.get(layer, :scale_steps),
+        scale_categories: Map.get(layer, :scale_categories),
+        track_by: Map.get(layer, :track_by),
+        track_order_field: Map.get(layer, :track_order_field),
         point_radius: Map.get(layer, :point_radius, defaults.point_radius),
         line_weight: Map.get(layer, :line_weight, defaults.line_weight),
         line_dash_array: Map.get(layer, :line_dash_array),
@@ -422,6 +474,9 @@ defmodule SelectoComponents.Views.Map.Form do
       scale_type: "auto",
       scale_palette: nil,
       scale_steps: nil,
+      scale_categories: nil,
+      track_by: nil,
+      track_order_field: nil,
       point_radius: defaults.point_radius,
       line_weight: defaults.line_weight,
       line_dash_array: nil,
@@ -450,6 +505,9 @@ defmodule SelectoComponents.Views.Map.Form do
             scale_type: "auto",
             scale_palette: nil,
             scale_steps: nil,
+            scale_categories: nil,
+            track_by: nil,
+            track_order_field: nil,
             point_radius: 6,
             line_weight: 2,
             line_dash_array: nil,

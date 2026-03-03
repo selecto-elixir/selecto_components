@@ -124,6 +124,8 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
             "color_field" => "status",
             "scale_type" => "numeric_steps",
             "scale_steps" => "20,45,90",
+            "track_by" => "name",
+            "track_order_field" => "status",
             "point_radius" => "9",
             "fill_opacity" => "0.4"
           },
@@ -134,6 +136,7 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
             "color_field" => "status",
             "scale_type" => "categorical",
             "scale_palette" => "#2563eb,#ef4444",
+            "scale_categories" => "queued:#22c55e,loading:#f59e0b",
             "line_weight" => "4",
             "line_dash_array" => "6,4"
           }
@@ -147,14 +150,19 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert {:field, {:st_asgeojson, "route_path"}, "__map_geometry_2"} in view_set.selected
       assert {:field, "name", "__map_popup_2"} in view_set.selected
       assert {:field, "status", "__map_color_2"} in view_set.selected
+      assert {:field, "name", "__map_track_by"} in view_set.selected
+      assert {:field, "status", "__map_track_order"} in view_set.selected
       assert Enum.at(view_set.map_layers, 0).point_radius == 9
       assert Enum.at(view_set.map_layers, 0).fill_opacity == 0.4
       assert Enum.at(view_set.map_layers, 0).geometry_kind == "point"
       assert Enum.at(view_set.map_layers, 0).scale_type == "numeric_steps"
+      assert Enum.at(view_set.map_layers, 0).track_by == "name"
+      assert Enum.at(view_set.map_layers, 0).track_order_field == "status"
       assert Enum.at(view_set.map_layers, 1).line_weight == 4
       assert Enum.at(view_set.map_layers, 1).line_dash_array == "6,4"
       assert Enum.at(view_set.map_layers, 1).geometry_kind == "line"
       assert Enum.at(view_set.map_layers, 1).scale_type == "categorical"
+      assert Enum.at(view_set.map_layers, 1).scale_categories == "queued:#22c55e,loading:#f59e0b"
     end
   end
 

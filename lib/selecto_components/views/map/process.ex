@@ -161,7 +161,9 @@ defmodule SelectoComponents.Views.Map.Process do
           {:field, {:st_asgeojson, layer.geometry_field}, "__map_geometry#{alias_suffix}"}
         ] ++
           optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
-          optional_select_field(layer.color_field, "__map_color#{alias_suffix}")
+          optional_select_field(layer.color_field, "__map_color#{alias_suffix}") ++
+          optional_select_field(layer.track_by, "__map_track_by#{alias_suffix}") ++
+          optional_select_field(layer.track_order_field, "__map_track_order#{alias_suffix}")
       end)
 
     center =
@@ -392,6 +394,18 @@ defmodule SelectoComponents.Views.Map.Process do
           layer
           |> get_map_value(:scale_steps)
           |> normalize_text(),
+        scale_categories:
+          layer
+          |> get_map_value(:scale_categories)
+          |> normalize_text(),
+        track_by:
+          layer
+          |> get_map_value(:track_by)
+          |> normalize_field(),
+        track_order_field:
+          layer
+          |> get_map_value(:track_order_field)
+          |> normalize_field(),
         point_radius:
           layer
           |> get_map_value(:point_radius)
@@ -504,6 +518,20 @@ defmodule SelectoComponents.Views.Map.Process do
         layer_opts
         |> get_map_value(:scale_steps)
         |> normalize_text(),
+      scale_categories:
+        layer_opts
+        |> get_map_value(:scale_categories)
+        |> normalize_text(),
+      track_by:
+        layer_opts
+        |> get_map_value(:track_by)
+        |> normalize_field()
+        |> resolve_optional_field(columns),
+      track_order_field:
+        layer_opts
+        |> get_map_value(:track_order_field)
+        |> normalize_field()
+        |> resolve_optional_field(columns),
       point_radius:
         layer_opts
         |> get_map_value(:point_radius)
