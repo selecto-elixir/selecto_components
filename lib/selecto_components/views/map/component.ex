@@ -46,7 +46,8 @@ defmodule SelectoComponents.Views.Map.Component do
             "&copy; OpenStreetMap contributors",
         map_zoom: get_in(assigns, [:selecto, :set, :map_zoom]) || 3,
         map_center: center,
-        fit_bounds: get_in(assigns, [:selecto, :set, :map_fit_bounds]) != false
+        fit_bounds: get_in(assigns, [:selecto, :set, :map_fit_bounds]) != false,
+        cluster: get_in(assigns, [:selecto, :set, :map_cluster]) == true
       )
 
     ~H"""
@@ -71,6 +72,7 @@ defmodule SelectoComponents.Views.Map.Component do
           data-zoom={@map_zoom}
           data-center={Jason.encode!(@map_center)}
           data-fit-bounds={to_string(@fit_bounds)}
+          data-cluster={to_string(@cluster)}
           class="w-full rounded-lg border border-gray-200"
           style="height: 460px;"
         >
@@ -79,36 +81,62 @@ defmodule SelectoComponents.Views.Map.Component do
         <script :type={Phoenix.LiveView.ColocatedHook} name=".MapComponent">
           const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
           const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+          const MARKER_CLUSTER_JS = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js";
+          const MARKER_CLUSTER_CSS = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
+          const MARKER_CLUSTER_DEFAULT_CSS = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css";
 
-          function loadCssOnce(url) {
-            if (document.querySelector(`link[data-leaflet-css="${url}"]`)) return;
+          function loadCssOnce(url, attrName) {
+            if (document.querySelector(`link[${attrName}="${url}"]`)) return;
+
             const link = document.createElement("link");
             link.rel = "stylesheet";
             link.href = url;
-            link.dataset.leafletCss = url;
+            link.setAttribute(attrName, url);
             document.head.appendChild(link);
           }
 
-          function loadScriptOnce(url) {
+          function loadScriptOnce(url, attrName, readyCheck, errorMessage) {
             return new Promise((resolve, reject) => {
-              if (window.L) {
+              if (readyCheck()) {
                 resolve();
                 return;
               }
 
-              const existing = document.querySelector(`script[data-leaflet-js="${url}"]`);
+              const existing = document.querySelector(`script[${attrName}="${url}"]`);
               if (existing) {
-                existing.addEventListener("load", () => resolve(), { once: true });
-                existing.addEventListener("error", () => reject(new Error("Leaflet failed to load")), { once: true });
+                existing.addEventListener(
+                  "load",
+                  () => {
+                    if (readyCheck()) {
+                      resolve();
+                    } else {
+                      reject(new Error(errorMessage));
+                    }
+                  },
+                  { once: true }
+                );
+
+                existing.addEventListener("error", () => reject(new Error(errorMessage)), {
+                  once: true
+                });
+
                 return;
               }
 
               const script = document.createElement("script");
               script.src = url;
-              script.dataset.leafletJs = url;
+              script.setAttribute(attrName, url);
               script.async = true;
-              script.onload = () => resolve();
-              script.onerror = () => reject(new Error("Leaflet failed to load"));
+
+              script.onload = () => {
+                if (readyCheck()) {
+                  resolve();
+                } else {
+                  reject(new Error(errorMessage));
+                }
+              };
+
+              script.onerror = () => reject(new Error(errorMessage));
               document.head.appendChild(script);
             });
           }
@@ -116,17 +144,23 @@ defmodule SelectoComponents.Views.Map.Component do
           export default {
             map: null,
             markers: null,
+            clusterMarkers: null,
+            nonPointLayers: null,
             tileLayer: null,
+            clusterLoadPromise: null,
 
             mounted() {
               this.initializeMap();
             },
 
             updated() {
+              this.applyTileLayerConfig();
               this.renderFeatures();
             },
 
             destroyed() {
+              this.destroyLayers();
+
               if (this.map) {
                 this.map.remove();
                 this.map = null;
@@ -134,9 +168,15 @@ defmodule SelectoComponents.Views.Map.Component do
             },
 
             async initializeMap() {
-              loadCssOnce(LEAFLET_CSS);
+              loadCssOnce(LEAFLET_CSS, "data-leaflet-css");
+
               try {
-                await loadScriptOnce(LEAFLET_JS);
+                await loadScriptOnce(
+                  LEAFLET_JS,
+                  "data-leaflet-js",
+                  () => Boolean(window.L),
+                  "Leaflet failed to load"
+                );
               } catch (_error) {
                 return;
               }
@@ -158,6 +198,29 @@ defmodule SelectoComponents.Views.Map.Component do
               this.renderFeatures();
             },
 
+            applyTileLayerConfig() {
+              if (!this.map || !this.tileLayer || !window.L) return;
+
+              const nextTileUrl = this.el.dataset.tileUrl;
+              const nextAttribution = this.el.dataset.attribution || "";
+
+              const urlChanged = nextTileUrl && this.tileLayer._url !== nextTileUrl;
+              const attributionChanged = this.tileLayer.options.attribution !== nextAttribution;
+
+              if (!urlChanged && !attributionChanged) return;
+
+              if (this.map.hasLayer(this.tileLayer)) {
+                this.map.removeLayer(this.tileLayer);
+              }
+
+              this.tileLayer = window.L.tileLayer(nextTileUrl, {
+                attribution: nextAttribution,
+                maxZoom: 20
+              });
+
+              this.tileLayer.addTo(this.map);
+            },
+
             getCenter() {
               try {
                 const center = JSON.parse(this.el.dataset.center || "{}");
@@ -170,47 +233,247 @@ defmodule SelectoComponents.Views.Map.Component do
               }
             },
 
-            renderFeatures() {
-              if (!this.map || !this.markers || !window.L) return;
-
-              let features = [];
+            getFeatures() {
               try {
-                features = JSON.parse(this.el.dataset.features || "[]");
+                const features = JSON.parse(this.el.dataset.features || "[]");
+                return Array.isArray(features) ? features : [];
               } catch (_error) {
-                features = [];
+                return [];
+              }
+            },
+
+            isClusterEnabled() {
+              return this.el.dataset.cluster === "true";
+            },
+
+            async ensureClusterAssets() {
+              if (!this.isClusterEnabled()) return false;
+              if (window.L && window.L.markerClusterGroup) return true;
+
+              if (!this.clusterLoadPromise) {
+                this.clusterLoadPromise = (async () => {
+                  loadCssOnce(MARKER_CLUSTER_CSS, "data-marker-cluster-css");
+                  loadCssOnce(MARKER_CLUSTER_DEFAULT_CSS, "data-marker-cluster-default-css");
+
+                  await loadScriptOnce(
+                    MARKER_CLUSTER_JS,
+                    "data-marker-cluster-js",
+                    () => Boolean(window.L && window.L.markerClusterGroup),
+                    "Leaflet marker cluster failed to load"
+                  );
+
+                  return true;
+                })()
+                  .catch(() => false)
+                  .finally(() => {
+                    this.clusterLoadPromise = null;
+                  });
               }
 
-              this.markers.clearLayers();
+              return this.clusterLoadPromise;
+            },
 
-              for (const feature of features) {
-                const color = feature?.properties?.color || "#2563eb";
+            syncLayerMode(useCluster) {
+              if (!this.map || !window.L) return;
 
-                const layer = window.L.geoJSON(feature, {
-                  pointToLayer: (_feature, latlng) =>
-                    window.L.circleMarker(latlng, {
-                      radius: 6,
-                      color,
-                      fillColor: color,
-                      fillOpacity: 0.85,
-                      weight: 1
-                    }),
-                  style: () => ({ color, weight: 2, opacity: 0.9, fillOpacity: 0.25 })
-                });
-
-                const popup = feature?.properties?.popup;
-                if (popup !== null && popup !== undefined && popup !== "") {
-                  layer.bindPopup(String(popup));
+              if (useCluster) {
+                if (this.markers && this.map.hasLayer(this.markers)) {
+                  this.map.removeLayer(this.markers);
                 }
 
-                layer.addTo(this.markers);
+                if (!this.clusterMarkers) {
+                  this.clusterMarkers = window.L.markerClusterGroup({
+                    showCoverageOnHover: false,
+                    disableClusteringAtZoom: 15
+                  });
+                }
+
+                if (!this.nonPointLayers) {
+                  this.nonPointLayers = window.L.featureGroup();
+                }
+
+                if (!this.map.hasLayer(this.clusterMarkers)) {
+                  this.clusterMarkers.addTo(this.map);
+                }
+
+                if (!this.map.hasLayer(this.nonPointLayers)) {
+                  this.nonPointLayers.addTo(this.map);
+                }
+
+                return;
               }
 
-              const fitBounds = this.el.dataset.fitBounds === "true";
-              if (fitBounds && this.markers.getLayers().length > 0) {
-                this.map.fitBounds(this.markers.getBounds(), { padding: [24, 24], maxZoom: 14 });
+              if (this.clusterMarkers && this.map.hasLayer(this.clusterMarkers)) {
+                this.map.removeLayer(this.clusterMarkers);
               }
+
+              if (this.nonPointLayers && this.map.hasLayer(this.nonPointLayers)) {
+                this.map.removeLayer(this.nonPointLayers);
+              }
+
+              if (!this.markers) {
+                this.markers = window.L.featureGroup();
+              }
+
+              if (!this.map.hasLayer(this.markers)) {
+                this.markers.addTo(this.map);
+              }
+            },
+
+            clearLayers() {
+              if (this.markers?.clearLayers) this.markers.clearLayers();
+              if (this.clusterMarkers?.clearLayers) this.clusterMarkers.clearLayers();
+              if (this.nonPointLayers?.clearLayers) this.nonPointLayers.clearLayers();
+            },
+
+            createPointLayer(feature) {
+              const coords = feature?.geometry?.coordinates;
+              if (!Array.isArray(coords) || coords.length < 2) return null;
+
+              const lng = Number(coords[0]);
+              const lat = Number(coords[1]);
+
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+              const color = feature?.properties?.color || "#2563eb";
+
+              const marker = window.L.circleMarker([lat, lng], {
+                radius: 6,
+                color,
+                fillColor: color,
+                fillOpacity: 0.85,
+                weight: 1
+              });
+
+              this.bindPopup(marker, feature?.properties?.popup);
+              return marker;
+            },
+
+            createGeoLayer(feature) {
+              const color = feature?.properties?.color || "#2563eb";
+
+              const layer = window.L.geoJSON(feature, {
+                pointToLayer: (_feature, latlng) =>
+                  window.L.circleMarker(latlng, {
+                    radius: 6,
+                    color,
+                    fillColor: color,
+                    fillOpacity: 0.85,
+                    weight: 1
+                  }),
+                style: () => ({ color, weight: 2, opacity: 0.9, fillOpacity: 0.25 })
+              });
+
+              this.bindPopup(layer, feature?.properties?.popup);
+              return layer;
+            },
+
+            bindPopup(layer, popup) {
+              if (!layer) return;
+              if (popup === null || popup === undefined || popup === "") return;
+              layer.bindPopup(String(popup));
+            },
+
+            createLayer(feature, useCluster) {
+              if (!window.L || !feature?.geometry) return null;
+
+              if (useCluster && feature.geometry.type === "Point") {
+                const layer = this.createPointLayer(feature);
+                return layer ? { layer, clustered: true } : null;
+              }
+
+              const layer = this.createGeoLayer(feature);
+              return layer ? { layer, clustered: false } : null;
+            },
+
+            layerBounds(layer) {
+              if (!layer || !layer.getLayers || layer.getLayers().length === 0) return null;
+
+              const bounds = layer.getBounds ? layer.getBounds() : null;
+              if (!bounds || !bounds.isValid || !bounds.isValid()) return null;
+
+              return bounds;
+            },
+
+            mergeBounds(base, next) {
+              if (!next) return base;
+              if (!base) return next;
+              return base.extend(next);
+            },
+
+            fitMapToData(useCluster) {
+              if (!this.map) return;
+              if (this.el.dataset.fitBounds !== "true") return;
+
+              let bounds = null;
+
+              if (useCluster) {
+                bounds = this.mergeBounds(bounds, this.layerBounds(this.clusterMarkers));
+                bounds = this.mergeBounds(bounds, this.layerBounds(this.nonPointLayers));
+              } else {
+                bounds = this.layerBounds(this.markers);
+              }
+
+              if (bounds && bounds.isValid && bounds.isValid()) {
+                this.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+              }
+            },
+
+            async renderFeatures() {
+              if (!this.map || !window.L) return;
+
+              const clusterReady = await this.ensureClusterAssets();
+              const useCluster =
+                this.isClusterEnabled() && clusterReady && Boolean(window.L.markerClusterGroup);
+
+              this.syncLayerMode(useCluster);
+              this.clearLayers();
+
+              const features = this.getFeatures();
+
+              for (const feature of features) {
+                const built = this.createLayer(feature, useCluster);
+                if (!built) continue;
+
+                if (useCluster && built.clustered && this.clusterMarkers) {
+                  this.clusterMarkers.addLayer(built.layer);
+                } else if (useCluster && this.nonPointLayers) {
+                  this.nonPointLayers.addLayer(built.layer);
+                } else if (this.markers) {
+                  this.markers.addLayer(built.layer);
+                }
+              }
+
+              this.fitMapToData(useCluster);
+            },
+
+            destroyLayers() {
+              this.clearLayers();
+
+              if (this.map) {
+                if (this.markers && this.map.hasLayer(this.markers)) {
+                  this.map.removeLayer(this.markers);
+                }
+
+                if (this.clusterMarkers && this.map.hasLayer(this.clusterMarkers)) {
+                  this.map.removeLayer(this.clusterMarkers);
+                }
+
+                if (this.nonPointLayers && this.map.hasLayer(this.nonPointLayers)) {
+                  this.map.removeLayer(this.nonPointLayers);
+                }
+
+                if (this.tileLayer && this.map.hasLayer(this.tileLayer)) {
+                  this.map.removeLayer(this.tileLayer);
+                }
+              }
+
+              this.markers = null;
+              this.clusterMarkers = null;
+              this.nonPointLayers = null;
+              this.tileLayer = null;
             }
-          }
+          };
         </script>
       <% end %>
     </div>

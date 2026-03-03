@@ -22,6 +22,22 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
+  @map_param_keys ~w(
+    geometry_field
+    popup_field
+    color_field
+    tile_url
+    attribution
+    default_zoom
+    center_lat
+    center_lng
+    fit_bounds
+    max_points
+    cluster
+  )
+
+  @map_boolean_param_keys ~w(fit_bounds cluster)
+
   @doc """
   Convert view_config structure to URL parameters format.
   """
@@ -96,6 +112,21 @@ defmodule SelectoComponents.Form.ParamsState do
   defp merge_scalar_view_param(acc, :detail, key, value)
        when key in [:count_mode, "count_mode"] do
     Map.put(acc, "count_mode", DetailOptions.normalize_count_mode_param(value))
+  end
+
+  defp merge_scalar_view_param(acc, :map, key, value)
+       when key in [:center, "center"] do
+    maybe_put_center_params(acc, value)
+  end
+
+  defp merge_scalar_view_param(acc, :map, key, value) do
+    case map_param_key(key) do
+      nil ->
+        acc
+
+      param_key ->
+        maybe_put_param(acc, param_key, normalize_map_param_value(param_key, value))
+    end
   end
 
   defp merge_scalar_view_param(acc, _selected_view, key, value)
@@ -1165,12 +1196,110 @@ defmodule SelectoComponents.Form.ParamsState do
         params
       end
 
+    params =
+      if view_type_str == "map" do
+        map_config =
+          view_config
+          |> get_map_value(:map_view, %{})
+          |> Map.merge(view_config)
+
+        merge_saved_map_params(params, map_config)
+      else
+        params
+      end
+
     Map.put(
       params,
       "prevent_denormalization",
       to_string(get_map_value(view_config, :prevent_denormalization, true))
     )
   end
+
+  defp merge_saved_map_params(params, map_config) do
+    params_with_center = maybe_put_center_params(params, get_map_value(map_config, :center))
+
+    Enum.reduce(@map_param_keys, params_with_center, fn param_key, acc ->
+      maybe_put_param(
+        acc,
+        param_key,
+        normalize_map_param_value(param_key, get_map_value(map_config, param_key))
+      )
+    end)
+  end
+
+  defp maybe_put_center_params(params, center_value) do
+    case parse_center_value(center_value) do
+      {lat, lng} ->
+        params
+        |> maybe_put_param("center_lat", normalize_map_param_value("center_lat", lat), false)
+        |> maybe_put_param("center_lng", normalize_map_param_value("center_lng", lng), false)
+
+      _ ->
+        params
+    end
+  end
+
+  defp parse_center_value({lat, lng}), do: {lat, lng}
+  defp parse_center_value([lat, lng]), do: {lat, lng}
+
+  defp parse_center_value(center_value) when is_map(center_value) do
+    {get_map_value(center_value, :lat), get_map_value(center_value, :lng)}
+  end
+
+  defp parse_center_value(center_value) when is_binary(center_value) do
+    case String.split(center_value, ",", parts: 2) do
+      [lat, lng] -> {lat, lng}
+      _ -> nil
+    end
+  end
+
+  defp parse_center_value(_), do: nil
+
+  defp maybe_put_param(params, _key, nil, _replace?), do: params
+
+  defp maybe_put_param(params, key, value, true), do: Map.put(params, key, value)
+
+  defp maybe_put_param(params, key, value, false) do
+    if Map.has_key?(params, key), do: params, else: Map.put(params, key, value)
+  end
+
+  defp maybe_put_param(params, key, value), do: maybe_put_param(params, key, value, true)
+
+  defp map_param_key(key) when is_atom(key), do: map_param_key(Atom.to_string(key))
+
+  defp map_param_key(key) when is_binary(key) do
+    if key in @map_param_keys, do: key, else: nil
+  end
+
+  defp map_param_key(_), do: nil
+
+  defp normalize_map_param_value(key, value) when key in @map_boolean_param_keys do
+    normalize_map_boolean(value)
+  end
+
+  defp normalize_map_param_value(_key, value), do: normalize_map_scalar(value)
+
+  defp normalize_map_boolean(value) when value in [true, "true", "on", "1", 1], do: "true"
+  defp normalize_map_boolean(value) when value in [false, "false", "off", "0", 0], do: "false"
+  defp normalize_map_boolean(_value), do: nil
+
+  defp normalize_map_scalar(nil), do: nil
+
+  defp normalize_map_scalar(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_map_scalar(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_map_scalar()
+
+  defp normalize_map_scalar(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp normalize_map_scalar(value) when is_float(value),
+    do: value |> Float.round(6) |> to_string()
+
+  defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
+  defp normalize_map_scalar(_value), do: nil
 
   @doc """
   Check if view parameters have changed significantly enough to require a view reset.

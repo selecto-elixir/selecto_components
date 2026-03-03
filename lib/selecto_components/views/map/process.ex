@@ -5,87 +5,132 @@ defmodule SelectoComponents.Views.Map.Process do
   @default_attribution "&copy; OpenStreetMap contributors"
   @default_zoom 3
   @default_max_points 2000
+  @default_center {0.0, 0.0}
+  @default_fit_bounds true
+  @default_cluster false
+  @min_zoom 1
+  @max_zoom 20
 
-  def param_to_state(params, _view) do
-    %{
-      geometry_field: Map.get(params, "geometry_field"),
-      popup_field: blank_to_nil(Map.get(params, "popup_field")),
-      color_field: blank_to_nil(Map.get(params, "color_field")),
-      tile_url: blank_to_nil(Map.get(params, "tile_url")),
-      attribution: blank_to_nil(Map.get(params, "attribution")),
-      default_zoom: parse_integer(Map.get(params, "default_zoom"), nil),
-      center_lat: parse_float(Map.get(params, "center_lat"), nil),
-      center_lng: parse_float(Map.get(params, "center_lng"), nil),
-      fit_bounds: parse_bool(Map.get(params, "fit_bounds"), nil),
-      max_points: parse_integer(Map.get(params, "max_points"), nil)
-    }
-    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-    |> Map.new()
-  end
+  @config_keys [
+    :geometry_field,
+    :popup_field,
+    :color_field,
+    :tile_url,
+    :attribution,
+    :default_zoom,
+    :center_lat,
+    :center_lng,
+    :fit_bounds,
+    :max_points,
+    :cluster
+  ]
 
-  def initial_state(selecto, _view) do
-    domain = Selecto.domain(selecto)
-    map_view = map_view_config(domain)
-    center = normalize_center(Map.get(map_view, :center, {0.0, 0.0}))
+  @default_config %{
+    tile_url: @default_tile_url,
+    attribution: @default_attribution,
+    default_zoom: @default_zoom,
+    center_lat: elem(@default_center, 0),
+    center_lng: elem(@default_center, 1),
+    fit_bounds: @default_fit_bounds,
+    max_points: @default_max_points,
+    cluster: @default_cluster
+  }
+
+  def config_keys, do: @config_keys
+
+  def normalize_config(config) when is_map(config) do
+    center = config |> get_map_value(:center) |> normalize_center_value()
 
     %{
       geometry_field:
-        first_non_nil([
-          Map.get(map_view, :geometry_field),
-          Map.get(domain, :default_map_geometry_field),
-          first_spatial_field(selecto)
-        ]),
+        config
+        |> get_map_value(:geometry_field)
+        |> normalize_field(),
       popup_field:
-        first_non_nil([
-          Map.get(map_view, :popup_field),
-          Map.get(domain, :default_map_popup_field)
-        ]),
+        config
+        |> get_map_value(:popup_field)
+        |> normalize_field(),
       color_field:
-        first_non_nil([
-          Map.get(map_view, :color_field),
-          Map.get(domain, :default_map_color_field)
-        ]),
+        config
+        |> get_map_value(:color_field)
+        |> normalize_field(),
       tile_url:
-        first_non_nil([
-          Map.get(map_view, :tile_url),
-          Map.get(domain, :default_map_tile_url),
-          @default_tile_url
-        ]),
+        config
+        |> get_map_value(:tile_url)
+        |> normalize_text(),
       attribution:
-        first_non_nil([
-          Map.get(map_view, :attribution),
-          Map.get(domain, :default_map_attribution),
-          @default_attribution
-        ]),
+        config
+        |> get_map_value(:attribution)
+        |> normalize_text(),
       default_zoom:
+        config
+        |> get_map_value(:default_zoom)
+        |> parse_integer(nil)
+        |> normalize_zoom(),
+      center_lat:
         first_non_nil([
-          Map.get(map_view, :default_zoom),
-          Map.get(domain, :default_map_zoom),
-          @default_zoom
+          config
+          |> get_map_value(:center_lat)
+          |> parse_float(nil)
+          |> normalize_lat(),
+          maybe_elem(center, 0)
         ]),
-      center_lat: elem(center, 0),
-      center_lng: elem(center, 1),
+      center_lng:
+        first_non_nil([
+          config
+          |> get_map_value(:center_lng)
+          |> parse_float(nil)
+          |> normalize_lng(),
+          maybe_elem(center, 1)
+        ]),
       fit_bounds:
-        first_non_nil([
-          Map.get(map_view, :fit_bounds),
-          Map.get(domain, :default_map_fit_bounds),
-          true
-        ]),
+        config
+        |> get_map_value(:fit_bounds)
+        |> parse_bool(nil),
       max_points:
-        first_non_nil([
-          Map.get(map_view, :max_points),
-          Map.get(domain, :default_map_limit),
-          @default_max_points
-        ])
+        config
+        |> get_map_value(:max_points)
+        |> parse_integer(nil)
+        |> normalize_max_points(),
+      cluster:
+        config
+        |> get_map_value(:cluster)
+        |> parse_bool(nil)
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Map.new()
   end
 
-  def view(_opt, params, columns, filtered, selecto) do
-    initial = initial_state(selecto, nil)
-    incoming = param_to_state(params, nil)
-    config = Map.merge(initial, incoming)
+  def normalize_config(_), do: %{}
+
+  def param_to_state(params, _view) do
+    normalize_config(params)
+  end
+
+  def initial_state(selecto, view_options) do
+    domain = Selecto.domain(selecto)
+
+    merged_config =
+      merge_non_nil_configs([
+        @default_config,
+        domain_defaults_config(domain),
+        normalize_config(map_view_config(domain)),
+        normalize_config(extract_option_config(view_options))
+      ])
+
+    merged_config
+    |> Map.put(
+      :geometry_field,
+      first_non_nil([Map.get(merged_config, :geometry_field), first_spatial_field(selecto)])
+    )
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  def view(opt, params, columns, filtered, selecto) do
+    initial = initial_state(selecto, opt)
+    incoming = param_to_state(params, opt)
+    config = merge_non_nil_configs([initial, incoming])
 
     geometry_field = resolve_geometry_field(config[:geometry_field], columns, selecto)
     popup_field = resolve_optional_field(config[:popup_field], columns)
@@ -113,7 +158,8 @@ defmodule SelectoComponents.Views.Map.Process do
       map_zoom: Map.get(config, :default_zoom, @default_zoom),
       map_center: center,
       map_fit_bounds: Map.get(config, :fit_bounds, true),
-      map_max_points: Map.get(config, :max_points, @default_max_points)
+      map_max_points: Map.get(config, :max_points, @default_max_points),
+      map_cluster: Map.get(config, :cluster, @default_cluster)
     }
 
     {view_set, %{}}
@@ -157,15 +203,154 @@ defmodule SelectoComponents.Views.Map.Process do
   end
 
   defp map_view_config(domain) do
-    domain
-    |> Map.get(:postgis, %{})
-    |> Map.get(:map_view, %{})
+    merge_non_nil_configs([
+      get_map_value(domain, :map_view, %{}),
+      domain
+      |> Map.get(:postgis, %{})
+      |> get_map_value(:map_view, %{})
+    ])
   end
 
-  defp normalize_center({lat, lng}) when is_number(lat) and is_number(lng),
-    do: {lat * 1.0, lng * 1.0}
+  defp domain_defaults_config(domain) do
+    normalize_config(%{
+      geometry_field: get_map_value(domain, :default_map_geometry_field),
+      popup_field: get_map_value(domain, :default_map_popup_field),
+      color_field: get_map_value(domain, :default_map_color_field),
+      tile_url: get_map_value(domain, :default_map_tile_url),
+      attribution: get_map_value(domain, :default_map_attribution),
+      default_zoom: get_map_value(domain, :default_map_zoom),
+      center: get_map_value(domain, :default_map_center),
+      fit_bounds: get_map_value(domain, :default_map_fit_bounds),
+      max_points: get_map_value(domain, :default_map_limit),
+      cluster: get_map_value(domain, :default_map_cluster)
+    })
+  end
 
-  defp normalize_center(_), do: {0.0, 0.0}
+  defp extract_option_config(options) when is_map(options) do
+    map_view_opts = get_map_value(options, :map_view)
+    map_opts = get_map_value(options, :map)
+
+    cond do
+      is_map(map_view_opts) -> merge_non_nil_configs([options, map_view_opts])
+      is_map(map_opts) -> merge_non_nil_configs([options, map_opts])
+      true -> options
+    end
+  end
+
+  defp extract_option_config(_), do: %{}
+
+  defp normalize_center_value({lat, lng}), do: normalize_center({lat, lng})
+
+  defp normalize_center_value([lat, lng]) do
+    normalize_center({lat, lng})
+  end
+
+  defp normalize_center_value(%{} = center) do
+    normalize_center({get_map_value(center, :lat), get_map_value(center, :lng)})
+  end
+
+  defp normalize_center_value(center) when is_binary(center) do
+    case String.split(center, ",", parts: 2) do
+      [lat, lng] -> normalize_center({lat, lng})
+      _ -> nil
+    end
+  end
+
+  defp normalize_center_value(_), do: nil
+
+  defp normalize_center({lat, lng}) do
+    lat = lat |> parse_float(nil) |> normalize_lat()
+    lng = lng |> parse_float(nil) |> normalize_lng()
+
+    if is_number(lat) and is_number(lng), do: {lat, lng}, else: nil
+  end
+
+  defp normalize_zoom(nil), do: nil
+
+  defp normalize_zoom(value) when is_integer(value) do
+    value
+    |> clamp(@min_zoom, @max_zoom)
+  end
+
+  defp normalize_zoom(_), do: nil
+
+  defp normalize_max_points(nil), do: nil
+
+  defp normalize_max_points(value) when is_integer(value) and value > 0, do: value
+  defp normalize_max_points(value) when is_integer(value), do: 1
+  defp normalize_max_points(_), do: nil
+
+  defp normalize_lat(nil), do: nil
+
+  defp normalize_lat(value) when is_number(value) do
+    value
+    |> Kernel.*(1.0)
+    |> clamp(-90.0, 90.0)
+  end
+
+  defp normalize_lat(_), do: nil
+
+  defp normalize_lng(nil), do: nil
+
+  defp normalize_lng(value) when is_number(value) do
+    value
+    |> Kernel.*(1.0)
+    |> clamp(-180.0, 180.0)
+  end
+
+  defp normalize_lng(_), do: nil
+
+  defp normalize_field(nil), do: nil
+
+  defp normalize_field(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp normalize_field(value) do
+    value
+    |> normalize_text()
+  end
+
+  defp normalize_text(nil), do: nil
+
+  defp normalize_text(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_text()
+
+  defp normalize_text(value) do
+    value
+    |> blank_to_nil()
+  end
+
+  defp maybe_elem({lat, _lng}, 0), do: lat
+  defp maybe_elem({_lat, lng}, 1), do: lng
+  defp maybe_elem(_, _), do: nil
+
+  defp merge_non_nil_configs(configs) when is_list(configs) do
+    Enum.reduce(configs, %{}, fn
+      config, acc when is_map(config) ->
+        Enum.reduce(config, acc, fn
+          {_key, nil}, cfg_acc -> cfg_acc
+          {key, value}, cfg_acc -> Map.put(cfg_acc, key, value)
+        end)
+
+      _config, acc ->
+        acc
+    end)
+  end
+
+  defp clamp(value, min, _max) when value < min, do: min
+  defp clamp(value, _min, max) when value > max, do: max
+  defp clamp(value, _min, _max), do: value
+
+  defp get_map_value(map, key, default \\ nil)
+
+  defp get_map_value(map, key, default) when is_map(map) and is_atom(key) do
+    Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp get_map_value(map, key, default) when is_map(map) and is_binary(key) do
+    Map.get(map, key, default)
+  end
+
+  defp get_map_value(_map, _key, default), do: default
 
   defp parse_integer(nil, default), do: default
   defp parse_integer(value, _default) when is_integer(value), do: value
@@ -193,8 +378,17 @@ defmodule SelectoComponents.Views.Map.Process do
   defp parse_float(_, default), do: default
 
   defp parse_bool(nil, default), do: default
-  defp parse_bool(value, _default) when value in [true, "true", "on", "1", 1], do: true
-  defp parse_bool(value, _default) when value in [false, "false", "off", "0", 0], do: false
+  defp parse_bool(value, _default) when value in [true, 1], do: true
+  defp parse_bool(value, _default) when value in [false, 0], do: false
+
+  defp parse_bool(value, default) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      value when value in ["true", "on", "1"] -> true
+      value when value in ["false", "off", "0"] -> false
+      _ -> default
+    end
+  end
+
   defp parse_bool(_, default), do: default
 
   defp blank_to_nil(value) when is_binary(value) do
