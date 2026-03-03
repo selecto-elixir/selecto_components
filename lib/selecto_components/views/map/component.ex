@@ -25,11 +25,12 @@ defmodule SelectoComponents.Views.Map.Component do
   defp render_map(assigns) do
     {rows, _fields, aliases} = assigns.query_results
     features = prepare_features(rows, aliases)
+    map_set = selecto_set(assigns)
 
     map_id = "map-#{assigns[:id] || :rand.uniform(10000)}"
 
     center =
-      case get_in(assigns, [:selecto, :set, :map_center]) do
+      case Map.get(map_set, :map_center) do
         {lat, lng} when is_number(lat) and is_number(lng) -> %{lat: lat, lng: lng}
         _ -> %{lat: 0.0, lng: 0.0}
       end
@@ -39,15 +40,13 @@ defmodule SelectoComponents.Views.Map.Component do
         map_id: map_id,
         features: features,
         map_tile_url:
-          get_in(assigns, [:selecto, :set, :map_tile_url]) ||
-            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          Map.get(map_set, :map_tile_url) || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         map_attribution:
-          get_in(assigns, [:selecto, :set, :map_attribution]) ||
-            "&copy; OpenStreetMap contributors",
-        map_zoom: get_in(assigns, [:selecto, :set, :map_zoom]) || 3,
+          Map.get(map_set, :map_attribution) || "&copy; OpenStreetMap contributors",
+        map_zoom: Map.get(map_set, :map_zoom) || 3,
         map_center: center,
-        fit_bounds: get_in(assigns, [:selecto, :set, :map_fit_bounds]) != false,
-        cluster: get_in(assigns, [:selecto, :set, :map_cluster]) == true
+        fit_bounds: Map.get(map_set, :map_fit_bounds) != false,
+        cluster: Map.get(map_set, :map_cluster) == true
       )
 
     ~H"""
@@ -589,6 +588,13 @@ defmodule SelectoComponents.Views.Map.Component do
       %{"type" => "Point", "coordinates" => [lng, lat]}
     else
       _ -> nil
+    end
+  end
+
+  defp selecto_set(assigns) do
+    case Map.get(assigns, :selecto) do
+      %{set: set} when is_map(set) -> set
+      _ -> %{}
     end
   end
 end

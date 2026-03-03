@@ -408,8 +408,8 @@ defmodule SelectoComponents.Form.ParamsState do
                   ),
                 columns_count: length(columns),
                 view_mode: socket.assigns.view_config.view_mode,
-                has_filters: length(selecto.set.filtered) > 0,
-                has_grouping: length(selecto.set.group_by) > 0,
+                has_filters: length(list_field(selecto.set, :filtered)) > 0,
+                has_grouping: length(list_field(selecto.set, :group_by)) > 0,
                 params: query_params
               }
             )
@@ -1300,6 +1300,15 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
   defp normalize_map_scalar(_value), do: nil
+
+  defp list_field(map, key) when is_map(map) and is_atom(key) do
+    case Map.get(map, key, []) do
+      list when is_list(list) -> list
+      _ -> []
+    end
+  end
+
+  defp list_field(_map, _key), do: []
 
   @doc """
   Check if view parameters have changed significantly enough to require a view reset.

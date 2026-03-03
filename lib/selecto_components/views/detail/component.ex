@@ -397,7 +397,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                     <% %{format: :link} = def -> %>
                       {safe_render_link(def.link_parts, row_value)}
                     <% _ -> %>
-                      {row_value}
+                      {safe_cell_value(row_value)}
                   <% end %>
                 </td>
 
@@ -708,6 +708,18 @@ defmodule SelectoComponents.Views.Detail.Component do
   end
 
   defp config_get(_config, _key), do: nil
+
+  defp safe_cell_value(value) do
+    if Phoenix.HTML.Safe.impl_for(value) do
+      value
+    else
+      case value do
+        nil -> ""
+        value when is_atom(value) -> Atom.to_string(value)
+        _ -> inspect(value)
+      end
+    end
+  end
 
   @doc """
   JavaScript hooks for row click handling.

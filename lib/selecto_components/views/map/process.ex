@@ -146,21 +146,28 @@ defmodule SelectoComponents.Views.Map.Process do
     center =
       normalize_center({Map.get(config, :center_lat), Map.get(config, :center_lng)})
 
-    view_set = %{
-      selected: selected,
-      filtered: filtered,
-      limit: Map.get(config, :max_points, @default_max_points),
-      map_geometry_field: geometry_field,
-      map_popup_field: popup_field,
-      map_color_field: color_field,
-      map_tile_url: Map.get(config, :tile_url, @default_tile_url),
-      map_attribution: Map.get(config, :attribution, @default_attribution),
-      map_zoom: Map.get(config, :default_zoom, @default_zoom),
-      map_center: center,
-      map_fit_bounds: Map.get(config, :fit_bounds, true),
-      map_max_points: Map.get(config, :max_points, @default_max_points),
-      map_cluster: Map.get(config, :cluster, @default_cluster)
-    }
+    base_set = Map.get(selecto, :set, %{})
+
+    view_set =
+      base_set
+      |> Map.merge(%{
+        selected: selected,
+        filtered: filtered,
+        group_by: [],
+        order_by: Map.get(base_set, :order_by, []),
+        aggregates: [],
+        limit: Map.get(config, :max_points, @default_max_points),
+        map_geometry_field: geometry_field,
+        map_popup_field: popup_field,
+        map_color_field: color_field,
+        map_tile_url: Map.get(config, :tile_url, @default_tile_url),
+        map_attribution: Map.get(config, :attribution, @default_attribution),
+        map_zoom: Map.get(config, :default_zoom, @default_zoom),
+        map_center: center,
+        map_fit_bounds: Map.get(config, :fit_bounds, true),
+        map_max_points: Map.get(config, :max_points, @default_max_points),
+        map_cluster: Map.get(config, :cluster, @default_cluster)
+      })
 
     {view_set, %{}}
   end

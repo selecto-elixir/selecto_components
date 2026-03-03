@@ -144,15 +144,27 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         "[NULL]"
 
       {display_value, _id} ->
-        display_value
+        safe_cell_value(display_value)
 
       tuple when is_tuple(tuple) ->
         elem_val = elem(tuple, 0)
-        if is_nil(elem_val) or elem_val == "", do: "[NULL]", else: elem_val
+        if is_nil(elem_val) or elem_val == "", do: "[NULL]", else: safe_cell_value(elem_val)
 
       # Includes "[NULL]" strings from COALESCE
       _ ->
-        value
+        safe_cell_value(value)
+    end
+  end
+
+  defp safe_cell_value(value) do
+    if Phoenix.HTML.Safe.impl_for(value) do
+      value
+    else
+      case value do
+        nil -> ""
+        value when is_atom(value) -> Atom.to_string(value)
+        _ -> inspect(value)
+      end
     end
   end
 

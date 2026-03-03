@@ -98,6 +98,8 @@ defmodule SelectoComponents.Views.Map.ProcessTest do
       assert view_set.map_popup_field == "name"
       assert view_set.map_zoom == 5
       assert view_set.map_cluster == true
+      assert view_set.group_by == []
+      assert view_set.aggregates == []
 
       assert {:field, {:st_asgeojson, "location"}, "__map_geometry"} in view_set.selected
       assert {:field, "name", "__map_popup"} in view_set.selected
