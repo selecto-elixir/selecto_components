@@ -29,9 +29,11 @@ defmodule SelectoComponents.Form.ParamsState do
     tile_url
     attribution
     background_mode
+    coordinate_mode
     image_overlay_url
     image_overlay_bounds
     image_overlay_opacity
+    image_overlay_rotation
     default_zoom
     center_lat
     center_lng

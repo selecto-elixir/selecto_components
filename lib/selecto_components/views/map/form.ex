@@ -375,6 +375,24 @@ defmodule SelectoComponents.Views.Map.Form do
         </div>
 
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Coordinate Mode</label>
+          <select
+            name="coordinate_mode"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option
+              value="latlng"
+              selected={map_value(@map_config, :coordinate_mode, "latlng") == "latlng"}
+            >
+              Geographic (lat/lng)
+            </option>
+            <option value="local_xy" selected={map_value(@map_config, :coordinate_mode) == "local_xy"}>
+              Local XY
+            </option>
+          </select>
+        </div>
+
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Image Overlay Opacity</label>
           <input
             name="image_overlay_opacity"
@@ -383,6 +401,19 @@ defmodule SelectoComponents.Views.Map.Form do
             min="0"
             max="1"
             value={map_value(@map_config, :image_overlay_opacity, 0.85)}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Image Rotation (degrees)</label>
+          <input
+            name="image_overlay_rotation"
+            type="number"
+            step="1"
+            min="-360"
+            max="360"
+            value={map_value(@map_config, :image_overlay_rotation, 0)}
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
