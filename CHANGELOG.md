@@ -5,6 +5,22 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.10
+--------
+
+- Added configurable multi-layer map styling controls for map views.
+- Added geometry-aware layer controls and generated map legends.
+- Added map scale controls and generated scale legend rendering.
+- Added categorical map mappings and breadcrumb track overlays.
+- Added track start/end markers and optional direction arrows.
+- Added optional breadcrumb arrow endpoint controls.
+- Added map clustering support and saved-map roundtrip persistence handling.
+- Hardened map rendering and set-shape compatibility handling.
+- Hardened shared filter decoding paths and redacted filter-set debug logs.
+- Added StreamData property roundtrip tests for shared filter decoding and
+  params/filter-state processing.
+- Bump package version to `0.3.10`.
+
 V 0.3.9
 -------
 
