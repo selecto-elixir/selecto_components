@@ -366,13 +366,31 @@ defmodule SelectoComponents.Views.Map.Component do
               if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
               const color = feature?.properties?.color || "#2563eb";
+              const kind = feature?.properties?.feature_kind || "point";
+
+              if (kind === "track_arrow") {
+                const symbol = feature?.properties?.arrow_symbol || "→";
+                const marker = window.L.marker([lat, lng], {
+                  icon: window.L.divIcon({
+                    className: "selecto-track-arrow-icon",
+                    html: `<span style="color:${color};font-size:14px;font-weight:700;line-height:1;">${symbol}</span>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                  })
+                });
+
+                this.bindPopup(marker, feature?.properties?.popup);
+                return marker;
+              }
+
+              const isTrackEndpoint = kind === "track_start" || kind === "track_end";
 
               const marker = window.L.circleMarker([lat, lng], {
-                radius: Number(layerStyle?.pointRadius || 6),
+                radius: isTrackEndpoint ? Number(layerStyle?.pointRadius || 6) + 2 : Number(layerStyle?.pointRadius || 6),
                 color,
-                fillColor: color,
-                fillOpacity: Number(layerStyle?.fillOpacity ?? 0.85),
-                weight: Number(layerStyle?.lineWeight || 1),
+                fillColor: isTrackEndpoint ? "#ffffff" : color,
+                fillOpacity: isTrackEndpoint ? 1.0 : Number(layerStyle?.fillOpacity ?? 0.85),
+                weight: isTrackEndpoint ? Math.max(Number(layerStyle?.lineWeight || 1), 2) : Number(layerStyle?.lineWeight || 1),
                 opacity: Number(layerStyle?.strokeOpacity ?? 0.9),
                 dashArray: layerStyle?.lineDashArray || null
               });
@@ -885,7 +903,7 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp append_track_features(features, layers) do
-    track_lines =
+    track_features =
       layers
       |> Enum.filter(fn layer ->
         config = Map.get(layer, :config, %{})
@@ -919,7 +937,10 @@ defmodule SelectoComponents.Views.Map.Component do
               |> get_in(["properties", "color"])
               |> Kernel.||(@default_marker_color)
 
-            [
+            start_coord = List.first(coords)
+            end_coord = List.last(coords)
+
+            line_feature =
               %{
                 "type" => "Feature",
                 "geometry" => %{"type" => "LineString", "coordinates" => coords},
@@ -930,13 +951,84 @@ defmodule SelectoComponents.Views.Map.Component do
                   "feature_kind" => "track"
                 }
               }
-            ]
+
+            start_feature =
+              %{
+                "type" => "Feature",
+                "geometry" => %{"type" => "Point", "coordinates" => start_coord},
+                "properties" => %{
+                  "popup" => "Start #{track_key}",
+                  "color" => "#16a34a",
+                  "layer" => layer_id,
+                  "feature_kind" => "track_start"
+                }
+              }
+
+            end_feature =
+              %{
+                "type" => "Feature",
+                "geometry" => %{"type" => "Point", "coordinates" => end_coord},
+                "properties" => %{
+                  "popup" => "End #{track_key}",
+                  "color" => "#dc2626",
+                  "layer" => layer_id,
+                  "feature_kind" => "track_end"
+                }
+              }
+
+            arrow_features =
+              coords
+              |> Enum.chunk_every(2, 1, :discard)
+              |> Enum.with_index(1)
+              |> Enum.map(fn {[from_coord, to_coord], segment_index} ->
+                midpoint = midpoint(from_coord, to_coord)
+                symbol = arrow_symbol(from_coord, to_coord)
+
+                %{
+                  "type" => "Feature",
+                  "geometry" => %{"type" => "Point", "coordinates" => midpoint},
+                  "properties" => %{
+                    "popup" => "Direction #{track_key} segment #{segment_index}",
+                    "color" => color,
+                    "layer" => layer_id,
+                    "feature_kind" => "track_arrow",
+                    "arrow_symbol" => symbol
+                  }
+                }
+              end)
+
+            [line_feature, start_feature, end_feature] ++ arrow_features
           end
         end)
       end)
 
-    features ++ track_lines
+    features ++ track_features
   end
+
+  defp midpoint([lng1, lat1], [lng2, lat2]) do
+    [(lng1 + lng2) / 2.0, (lat1 + lat2) / 2.0]
+  end
+
+  defp midpoint(_from, to), do: to
+
+  defp arrow_symbol([lng1, lat1], [lng2, lat2]) do
+    dx = lng2 - lng1
+    dy = lat2 - lat1
+
+    cond do
+      abs(dx) <= 1.0e-9 and abs(dy) <= 1.0e-9 -> "•"
+      abs(dx) > abs(dy) and dx > 0 -> "→"
+      abs(dx) > abs(dy) and dx < 0 -> "←"
+      abs(dy) > abs(dx) and dy > 0 -> "↑"
+      abs(dy) > abs(dx) and dy < 0 -> "↓"
+      dx > 0 and dy > 0 -> "↗"
+      dx > 0 and dy < 0 -> "↘"
+      dx < 0 and dy > 0 -> "↖"
+      true -> "↙"
+    end
+  end
+
+  defp arrow_symbol(_from, _to), do: "→"
 
   defp parse_track_order(value) when is_integer(value), do: value
   defp parse_track_order(value) when is_float(value), do: value
