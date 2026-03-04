@@ -110,6 +110,7 @@ defmodule SelectoComponents.Helpers.Filters do
           |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
 
+        if ids == [], do: raise(ArgumentError, "IN requires at least one value")
         {:in, ids}
 
       "NOT IN" ->
@@ -119,6 +120,7 @@ defmodule SelectoComponents.Helpers.Filters do
           |> parse_csv_values()
           |> Enum.map(&parse_num(type, &1))
 
+        if ids == [], do: raise(ArgumentError, "NOT IN requires at least one value")
         {:not_in, ids}
 
       x when x in ~w( != <= >= < >) ->
@@ -532,6 +534,8 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp process_single_filter(selecto, _filters, f) when is_map(f) do
+    f = normalize_multiselect_filter(f)
+
     try do
       filter_key = Map.get(f, "filter")
       filter_config = Selecto.filters(selecto)[filter_key]
@@ -557,6 +561,28 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp process_single_filter(_selecto, _filters, filter_item) do
     {:skip, {:invalid_format, filter_item}}
+  end
+
+  defp normalize_multiselect_filter(f) when is_map(f) do
+    comp = normalize_comp(f, "=")
+
+    if Map.has_key?(f, "selected_ids") and comp in ["IN", "NOT IN"] do
+      selected_ids =
+        case Map.get(f, "selected_ids") do
+          ids when is_list(ids) -> ids
+          ids when is_binary(ids) -> String.split(ids, ",")
+          _ -> []
+        end
+        |> Enum.map(&to_string/1)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&blank?/1)
+
+      f
+      |> Map.put("value", Enum.join(selected_ids, ","))
+      |> Map.delete("selected_ids")
+    else
+      f
+    end
   end
 
   defp present_field?(filter_config) do
