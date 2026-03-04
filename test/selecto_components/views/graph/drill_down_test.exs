@@ -21,4 +21,26 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
     assert {:error, message} = DrillDown.apply(socket, %{"label" => nil})
     assert message =~ "Could not drill down"
   end
+
+  test "uses current timeseries x-axis config for drilldown filters" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        view_config: %{
+          view_mode: "timeseries",
+          views: %{timeseries: %{x_axis: [{"x1", "recorded_at", %{}}]}},
+          filters: []
+        },
+        selecto: %{set: %{}},
+        columns: [{"recorded_at", "Recorded At", :utc_datetime}],
+        views: [{:timeseries, nil, "Time Series", %{drill_down: :detail}}],
+        used_params: %{}
+      }
+    }
+
+    assert {:ok, updated_socket, _view_params} =
+             DrillDown.apply(socket, %{"label" => "2026-03-04"})
+
+    {_id, _section, filter_map} = List.last(updated_socket.assigns.view_config.filters)
+    assert filter_map["filter"] == "recorded_at"
+  end
 end
