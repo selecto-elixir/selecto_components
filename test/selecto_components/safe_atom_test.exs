@@ -8,6 +8,7 @@ defmodule SelectoComponents.SafeAtomTest do
       assert SafeAtom.to_view_mode("detail") == :detail
       assert SafeAtom.to_view_mode("aggregate") == :aggregate
       assert SafeAtom.to_view_mode("graph") == :graph
+      assert SafeAtom.to_view_mode("timeseries") == :timeseries
       assert SafeAtom.to_view_mode("map") == :map
       assert SafeAtom.to_view_mode("chart") == :chart
       assert SafeAtom.to_view_mode("table") == :table
@@ -31,6 +32,7 @@ defmodule SelectoComponents.SafeAtomTest do
     test "passes through valid atoms" do
       assert SafeAtom.to_view_mode(:detail) == :detail
       assert SafeAtom.to_view_mode(:aggregate) == :aggregate
+      assert SafeAtom.to_view_mode(:timeseries) == :timeseries
     end
 
     test "returns default for invalid atoms" do

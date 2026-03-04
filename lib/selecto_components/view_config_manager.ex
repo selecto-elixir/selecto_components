@@ -508,6 +508,7 @@ defmodule SelectoComponents.ViewConfigManager do
 
   defp get_view_type_label("aggregate"), do: "Aggregate"
   defp get_view_type_label("graph"), do: "Graph"
+  defp get_view_type_label("timeseries"), do: "Time Series"
   defp get_view_type_label("map"), do: "Map"
   defp get_view_type_label(_), do: "Detail"
 
