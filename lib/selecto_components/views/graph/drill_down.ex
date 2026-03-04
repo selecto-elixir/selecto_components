@@ -8,7 +8,7 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
 
   def apply(socket, params) do
     label = Map.get(params, "label")
-    graph_config = socket.assigns.view_config.views[:graph] || %{}
+    graph_config = current_graph_config(socket)
 
     field_name = extract_chart_filter_field(socket, graph_config)
     field_type = lookup_column_type(socket, field_name)
@@ -33,7 +33,7 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
         |> Map.put("filters", filters_map)
         |> Map.put_new("aggregate", %{})
         |> Map.put_new("detail", %{})
-        |> Map.put_new("graph", %{})
+        |> Map.put_new(view_mode_param, %{})
 
       updated_socket =
         socket
@@ -61,6 +61,16 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
   defp normalize_view_mode_param(view_mode) when is_atom(view_mode), do: Atom.to_string(view_mode)
   defp normalize_view_mode_param(view_mode) when is_binary(view_mode), do: view_mode
   defp normalize_view_mode_param(_view_mode), do: "detail"
+
+  defp current_graph_config(socket) do
+    selected_view = SafeAtom.to_view_mode(socket.assigns.view_config.view_mode)
+    views = Map.get(socket.assigns.view_config, :views, %{})
+
+    Map.get(views, selected_view) ||
+      Map.get(views, Atom.to_string(selected_view)) ||
+      Map.get(views, :graph) ||
+      %{}
+  end
 
   defp build_filter_tuple(field_name, filter_value, comp) do
     new_filter_id = UUID.uuid4()
