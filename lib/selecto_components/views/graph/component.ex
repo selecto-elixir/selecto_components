@@ -371,146 +371,49 @@ defmodule SelectoComponents.Views.Graph.Component do
   defp prepare_line_data(
          results,
          _aliases,
-         x_axis_groups,
+         _x_axis_groups,
          metric_defs,
-         series_groups,
+         _series_groups,
          chart_type
        ) do
-    num_x_fields = max(Enum.count(x_axis_groups), 1)
-    num_series_fields = Enum.count(series_groups)
+    labels = Enum.map(results, fn row -> format_chart_label(Enum.at(row, 0)) end)
 
-    filtered_results =
-      results
-      |> filter_rollup_rows(num_x_fields, num_series_fields)
-      |> case do
-        [] -> results
-        rows -> rows
-      end
-
-    if num_series_fields == 0 do
-      labels = Enum.map(filtered_results, &x_label(&1, num_x_fields))
-
-      datasets =
-        metric_defs
-        |> Enum.with_index()
-        |> Enum.map(fn {metric_def, index} ->
-          data =
-            Enum.map(filtered_results, fn row ->
-              value = Enum.at(row, num_x_fields + index)
-              format_numeric_value(value)
-            end)
-
-          series_type = dataset_type(metric_def, chart_type)
-
-          dataset = %{
-            label: metric_def.alias,
-            data: data,
-            yAxisID: axis_id(metric_def),
-            borderColor: metric_color(metric_def, index, 1.0),
-            borderWidth: 2
-          }
-
-          case series_type do
-            "bar" ->
-              dataset
-              |> Map.put(:type, "bar")
-              |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.7))
-
-            _ ->
-              dataset
-              |> Map.put(:type, "line")
-              |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.1))
-              |> Map.put(:fill, false)
-              |> Map.put(:tension, 0.4)
-          end
-        end)
-
-      %{labels: labels, datasets: datasets}
-    else
-      labels =
-        filtered_results
-        |> Enum.map(&x_label(&1, num_x_fields))
-        |> Enum.uniq()
-
-      series_keys =
-        filtered_results
-        |> Enum.map(&series_key(&1, num_x_fields, num_series_fields))
-        |> Enum.uniq()
-
-      datasets =
-        metric_defs
-        |> Enum.with_index()
-        |> Enum.flat_map(fn {metric_def, metric_index} ->
-          series_keys
-          |> Enum.with_index()
-          |> Enum.map(fn {series_key, series_index} ->
-            rows_for_series =
-              Enum.filter(filtered_results, fn row ->
-                series_key(row, num_x_fields, num_series_fields) == series_key
-              end)
-
-            values_by_label =
-              Map.new(rows_for_series, fn row ->
-                value = Enum.at(row, num_x_fields + num_series_fields + metric_index)
-                {x_label(row, num_x_fields), format_numeric_value(value)}
-              end)
-
-            data = Enum.map(labels, &Map.get(values_by_label, &1, nil))
-            series_type = dataset_type(metric_def, chart_type)
-            dataset_offset = metric_index * max(length(series_keys), 1) + series_index
-
-            dataset = %{
-              label: "#{metric_def.alias} - #{format_series_key(series_key)}",
-              data: data,
-              yAxisID: axis_id(metric_def),
-              borderColor: metric_color(metric_def, dataset_offset, 1.0),
-              borderWidth: 2
-            }
-
-            case series_type do
-              "bar" ->
-                dataset
-                |> Map.put(:type, "bar")
-                |> Map.put(:backgroundColor, metric_color(metric_def, dataset_offset, 0.7))
-
-              _ ->
-                dataset
-                |> Map.put(:type, "line")
-                |> Map.put(:backgroundColor, metric_color(metric_def, dataset_offset, 0.1))
-                |> Map.put(:fill, false)
-                |> Map.put(:tension, 0.4)
-            end
+    datasets =
+      metric_defs
+      |> Enum.with_index()
+      |> Enum.map(fn {metric_def, index} ->
+        data =
+          Enum.map(results, fn row ->
+            value = Enum.at(row, index + 1)
+            format_numeric_value(value)
           end)
-        end)
 
-      %{labels: labels, datasets: datasets}
-    end
-  end
+        series_type = dataset_type(metric_def, chart_type)
 
-  defp filter_rollup_rows(results, num_x_fields, num_series_fields) do
-    Enum.reject(results, fn row ->
-      x_values = Enum.take(row, num_x_fields)
-      series_values = Enum.slice(row, num_x_fields, num_series_fields)
+        dataset = %{
+          label: metric_def.alias,
+          data: data,
+          yAxisID: axis_id(metric_def),
+          borderColor: metric_color(metric_def, index, 1.0),
+          borderWidth: 2
+        }
 
-      Enum.any?(x_values, &is_nil/1) || Enum.any?(series_values, &is_nil/1)
-    end)
-  end
+        case series_type do
+          "bar" ->
+            dataset
+            |> Map.put(:type, "bar")
+            |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.7))
 
-  defp x_label(row, num_x_fields) do
-    row
-    |> Enum.take(num_x_fields)
-    |> Enum.map(&format_chart_label/1)
-    |> Enum.join(" / ")
-  end
+          _ ->
+            dataset
+            |> Map.put(:type, "line")
+            |> Map.put(:backgroundColor, metric_color(metric_def, index, 0.1))
+            |> Map.put(:fill, false)
+            |> Map.put(:tension, 0.4)
+        end
+      end)
 
-  defp series_key(row, num_x_fields, num_series_fields) do
-    Enum.slice(row, num_x_fields, num_series_fields)
-  end
-
-  defp format_series_key(series_key) when is_list(series_key) do
-    series_key
-    |> Enum.map(&format_chart_label/1)
-    |> Enum.join(" / ")
+    %{labels: labels, datasets: datasets}
   end
 
   defp prepare_pie_data(results, _aliases, _x_axis_groups, _metric_defs) do
