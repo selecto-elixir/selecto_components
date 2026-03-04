@@ -973,10 +973,9 @@ defmodule SelectoComponents.Form.FilterRendering do
       LIMIT $1
       """
 
-      # Use Repo.query directly - selecto.connection is the Repo module
-      repo = selecto.connection
+      connection = selecto.connection
 
-      case repo.query(query, [limit]) do
+      case execute_options_query(connection, query, [limit]) do
         {:ok, %{rows: rows}} ->
           Enum.map(rows, fn [id, name] ->
             %{id: id, name: to_string(name)}
@@ -995,6 +994,33 @@ defmodule SelectoComponents.Form.FilterRendering do
     e ->
       Logger.warning("Exception querying options for multi-select filter: #{inspect(e)}")
       []
+  end
+
+  defp execute_options_query(connection, query, params) when is_atom(connection) do
+    cond do
+      function_exported?(connection, :query, 2) ->
+        connection.query(query, params)
+
+      function_exported?(connection, :query, 3) ->
+        connection.query(query, params, [])
+
+      true ->
+        do_postgrex_query(connection, query, params)
+    end
+  end
+
+  defp execute_options_query(connection, query, params) when is_pid(connection) do
+    do_postgrex_query(connection, query, params)
+  end
+
+  defp execute_options_query(_connection, _query, _params), do: {:error, :invalid_connection}
+
+  defp do_postgrex_query(connection, query, params) do
+    if Code.ensure_loaded?(Postgrex) do
+      apply(Postgrex, :query, [connection, query, params])
+    else
+      {:error, :postgrex_not_available}
+    end
   end
 
   defp safe_sql_identifier(value) when is_atom(value),
