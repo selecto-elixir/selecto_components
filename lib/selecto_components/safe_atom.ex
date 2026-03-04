@@ -24,7 +24,7 @@ defmodule SelectoComponents.SafeAtom do
   ## Functions
 
   Each function validates against a specific whitelist:
-  - `to_view_mode/2` - :detail, :aggregate, :graph, :chart, :table, :map
+  - `to_view_mode/2` - :detail, :aggregate, :graph, :timeseries, :chart, :table, :map
   - `to_theme/2` - :light, :dark, :high_contrast, :system, :auto
   - `to_sort_direction/2` - :asc, :desc
   - `to_form_mode/2` - :collapsed, :inline, :modal, :expanded
@@ -37,7 +37,7 @@ defmodule SelectoComponents.SafeAtom do
   """
 
   # Whitelists for known valid values
-  @valid_view_modes ~w(detail aggregate graph chart table map)a
+  @valid_view_modes ~w(detail aggregate graph timeseries chart table map)a
   @valid_themes ~w(light dark high_contrast system auto)a
   @valid_sort_directions ~w(asc desc)a
   @valid_form_modes ~w(collapsed inline modal expanded)a
