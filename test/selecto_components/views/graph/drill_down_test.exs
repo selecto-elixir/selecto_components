@@ -6,6 +6,7 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
   test "returns user-friendly error for invalid array chart labels" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
+        __changed__: %{},
         view_config: %{
           view_mode: "graph",
           views: %{graph: %{x_axis: [{"x1", "tags", %{}}]}},
@@ -25,6 +26,7 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
   test "uses current timeseries x-axis config for drilldown filters" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
+        __changed__: %{},
         view_config: %{
           view_mode: "timeseries",
           views: %{timeseries: %{x_axis: [{"x1", "recorded_at", %{}}]}},
