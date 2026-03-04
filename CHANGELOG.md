@@ -5,6 +5,19 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.11
+--------
+
+- Added an OTP application runtime (`SelectoComponents.Application`) that boots
+  a supervised task supervisor and metrics collector.
+- Moved performance metrics storage from process state into bounded ETS tables
+  with periodic retention cleanup and explicit query/error caps.
+- Switched cache hit/miss tracking to `:counters` for better throughput under
+  sustained UI query activity.
+- Added/expanded tests for runtime supervision, metrics retention behavior,
+  cache counter accuracy, timeline output, and cleanup paths.
+- Bump package version to `0.3.11`.
+
 V 0.3.10
 --------
 
