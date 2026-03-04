@@ -37,7 +37,7 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.14
-- Selecto ~> 0.3.8 (core library)
+- Selecto ~> 0.3.9 (core library)
 - selecto_mix ~> 0.3.10 (for code generation and integration tasks)
 
 ## Installation
@@ -49,8 +49,8 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.10"},
-    {:selecto, "~> 0.3.8"},
+    {:selecto_components, "~> 0.3.11"},
+    {:selecto, "~> 0.3.9"},
     # Optional extension package for map/spatial views
     {:selecto_postgis, "~> 0.1"},
     {:selecto_mix, "~> 0.3.10"}  # For generators and integration
