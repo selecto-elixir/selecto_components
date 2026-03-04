@@ -117,7 +117,8 @@ defmodule SelectoComponents.Views.Graph.Process do
         # Build field selector based on column type
         field_selector =
           case col.type do
-            x when x in [:naive_datetime, :utc_datetime] ->
+            x
+            when x in [:naive_datetime, :utc_datetime, :naive_datetime_usec, :utc_datetime_usec] ->
               {:field, datetime_group_by_processor(col, field_config), alias_name}
 
             :custom_column ->
