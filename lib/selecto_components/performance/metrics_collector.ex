@@ -12,6 +12,9 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   @default_max_queries 10_000
   @default_max_errors 1_000
 
+  @counter_cache_hits 1
+  @counter_cache_misses 2
+
   # Client API
 
   @doc """
@@ -82,8 +85,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
     state = %{
       queries_table: ensure_table(@queries_table),
       errors_table: ensure_table(@errors_table),
-      cache_hits: 0,
-      cache_misses: 0,
+      cache_counter: :counters.new(2, [:write_concurrency]),
       retention_period: Keyword.get(opts, :retention_period, @default_retention_seconds),
       max_queries: Keyword.get(opts, :max_queries, @default_max_queries),
       max_errors: Keyword.get(opts, :max_errors, @default_max_errors)
@@ -125,12 +127,11 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   def handle_cast({:record_cache, hit?}, state) do
-    state =
-      if hit? do
-        %{state | cache_hits: state.cache_hits + 1}
-      else
-        %{state | cache_misses: state.cache_misses + 1}
-      end
+    if hit? do
+      :counters.add(state.cache_counter, @counter_cache_hits, 1)
+    else
+      :counters.add(state.cache_counter, @counter_cache_misses, 1)
+    end
 
     {:noreply, state}
   end
@@ -139,7 +140,10 @@ defmodule SelectoComponents.Performance.MetricsCollector do
     :ets.delete_all_objects(state.queries_table)
     :ets.delete_all_objects(state.errors_table)
 
-    {:noreply, %{state | cache_hits: 0, cache_misses: 0}}
+    :counters.put(state.cache_counter, @counter_cache_hits, 0)
+    :counters.put(state.cache_counter, @counter_cache_misses, 0)
+
+    {:noreply, state}
   end
 
   def handle_call({:get_metrics, time_range}, _from, state) do
@@ -315,10 +319,12 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   defp calculate_cache_hit_rate(state) do
-    total = state.cache_hits + state.cache_misses
+    hits = :counters.get(state.cache_counter, @counter_cache_hits)
+    misses = :counters.get(state.cache_counter, @counter_cache_misses)
+    total = hits + misses
 
     if total > 0 do
-      round(state.cache_hits / total * 100)
+      round(hits / total * 100)
     else
       0
     end

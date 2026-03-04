@@ -75,6 +75,17 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
     assert reset.cache_hit_rate == 0
   end
 
+  test "cache counters remain accurate under sustained updates" do
+    Enum.each(1..40, fn _ -> MetricsCollector.record_cache(true) end)
+    Enum.each(1..20, fn _ -> MetricsCollector.record_cache(false) end)
+
+    metrics = MetricsCollector.get_metrics("1h")
+    assert metrics.cache_hit_rate == 67
+
+    MetricsCollector.clear_metrics()
+    assert MetricsCollector.get_metrics("1h").cache_hit_rate == 0
+  end
+
   test "enforces max error retention" do
     MetricsCollector.record_error("q1", "err1")
     MetricsCollector.record_error("q2", "err2")
