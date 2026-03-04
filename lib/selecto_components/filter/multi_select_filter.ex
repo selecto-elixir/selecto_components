@@ -171,7 +171,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     field_config = socket.assigns[:field_config] || %{}
     field = socket.assigns[:field]
     selecto = socket.assigns[:selecto]
-    repo = socket.assigns[:repo]
+    connection = socket.assigns[:repo] || selecto.connection
 
     # Parse field name to get schema and field
     if is_binary(field) && String.contains?(field, ".") do
@@ -206,7 +206,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
             end
 
           # Query options
-          options = query_table_options(repo, table, id_field, display_field, limit)
+          options = query_table_options(connection, table, id_field, display_field, limit)
 
           # Parse currently selected IDs from value
           current_value = socket.assigns[:value] || ""
@@ -230,7 +230,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
   end
 
   # Query database for ID+name pairs
-  defp query_table_options(repo, table, id_field, display_field, limit) do
+  defp query_table_options(connection, table, id_field, display_field, limit) do
     require Logger
 
     with {:ok, safe_table} <- safe_sql_identifier(table),
@@ -244,7 +244,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
       LIMIT $1
       """
 
-      case repo.query(query, [limit]) do
+      case execute_options_query(connection, query, [limit]) do
         {:ok, %{rows: rows}} ->
           Enum.map(rows, fn [id, name] ->
             %{id: id, name: to_string(name)}
@@ -258,6 +258,33 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
       {:error, :invalid_identifier} ->
         Logger.warning("Query skipped for multi-select options due to invalid identifier")
         []
+    end
+  end
+
+  defp execute_options_query(connection, query, params) when is_atom(connection) do
+    cond do
+      function_exported?(connection, :query, 2) ->
+        connection.query(query, params)
+
+      function_exported?(connection, :query, 3) ->
+        connection.query(query, params, [])
+
+      true ->
+        do_postgrex_query(connection, query, params)
+    end
+  end
+
+  defp execute_options_query(connection, query, params) when is_pid(connection) do
+    do_postgrex_query(connection, query, params)
+  end
+
+  defp execute_options_query(_connection, _query, _params), do: {:error, :invalid_connection}
+
+  defp do_postgrex_query(connection, query, params) do
+    if Code.ensure_loaded?(Postgrex) do
+      apply(Postgrex, :query, [connection, query, params])
+    else
+      {:error, :postgrex_not_available}
     end
   end
 
