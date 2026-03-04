@@ -33,6 +33,7 @@ defmodule SelectoComponents.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {SelectoComponents.Application, []},
       extra_applications: [:logger, :crypto]
     ]
   end
