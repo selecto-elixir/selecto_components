@@ -4,7 +4,13 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   """
 
   use GenServer
-  require Logger
+
+  @queries_table :selecto_components_perf_queries
+  @errors_table :selecto_components_perf_errors
+  @cleanup_interval_ms 60 * 60 * 1000
+  @default_retention_seconds 24 * 60 * 60
+  @default_max_queries 10_000
+  @default_max_errors 1_000
 
   # Client API
 
@@ -12,7 +18,11 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   Starts the metrics collector.
   """
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    case GenServer.start_link(__MODULE__, opts, name: __MODULE__) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      other -> other
+    end
   end
 
   @doc """
@@ -67,17 +77,16 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   # Server Callbacks
 
   def init(opts) do
-    # Schedule periodic cleanup
     schedule_cleanup()
 
     state = %{
-      queries: [],
-      errors: [],
+      queries_table: ensure_table(@queries_table),
+      errors_table: ensure_table(@errors_table),
       cache_hits: 0,
       cache_misses: 0,
-      # 24 hours
-      retention_period: Keyword.get(opts, :retention_period, 24 * 60 * 60),
-      max_queries: Keyword.get(opts, :max_queries, 10000)
+      retention_period: Keyword.get(opts, :retention_period, @default_retention_seconds),
+      max_queries: Keyword.get(opts, :max_queries, @default_max_queries),
+      max_errors: Keyword.get(opts, :max_errors, @default_max_errors)
     }
 
     {:ok, state}
@@ -95,9 +104,10 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       memory_usage: Map.get(opts, :memory_usage, 0)
     }
 
-    queries = [query_record | state.queries] |> limit_queries(state.max_queries)
+    insert_record(state.queries_table, query_record)
+    prune_table_to_limit(state.queries_table, state.max_queries)
 
-    {:noreply, %{state | queries: queries}}
+    {:noreply, state}
   end
 
   def handle_cast({:record_error, query, error}, state) do
@@ -108,9 +118,10 @@ defmodule SelectoComponents.Performance.MetricsCollector do
       timestamp: DateTime.utc_now()
     }
 
-    errors = [error_record | state.errors] |> Enum.take(1000)
+    insert_record(state.errors_table, error_record)
+    prune_table_to_limit(state.errors_table, state.max_errors)
 
-    {:noreply, %{state | errors: errors}}
+    {:noreply, state}
   end
 
   def handle_cast({:record_cache, hit?}, state) do
@@ -125,13 +136,16 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   def handle_cast(:clear_metrics, state) do
-    {:noreply, %{state | queries: [], errors: [], cache_hits: 0, cache_misses: 0}}
+    :ets.delete_all_objects(state.queries_table)
+    :ets.delete_all_objects(state.errors_table)
+
+    {:noreply, %{state | cache_hits: 0, cache_misses: 0}}
   end
 
   def handle_call({:get_metrics, time_range}, _from, state) do
-    cutoff = get_cutoff_time(time_range)
-    recent_queries = filter_by_time(state.queries, cutoff)
-    recent_errors = filter_by_time(state.errors, cutoff)
+    cutoff = get_cutoff_timestamp(time_range)
+    recent_queries = records_since(state.queries_table, cutoff)
+    recent_errors = records_since(state.errors_table, cutoff)
 
     metrics = %{
       total_queries: length(recent_queries),
@@ -150,7 +164,7 @@ defmodule SelectoComponents.Performance.MetricsCollector do
 
   def handle_call({:get_slow_queries, threshold, limit}, _from, state) do
     slow_queries =
-      state.queries
+      all_records(state.queries_table)
       |> Enum.filter(&(&1.execution_time >= threshold))
       |> Enum.sort_by(& &1.execution_time, :desc)
       |> Enum.take(limit)
@@ -159,8 +173,8 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   def handle_call({:get_timeline, time_range}, _from, state) do
-    cutoff = get_cutoff_time(time_range)
-    recent_queries = filter_by_time(state.queries, cutoff)
+    cutoff = get_cutoff_timestamp(time_range)
+    recent_queries = records_since(state.queries_table, cutoff)
 
     timeline = build_timeline(recent_queries, time_range)
 
@@ -168,31 +182,80 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   def handle_info(:cleanup, state) do
-    cutoff = DateTime.add(DateTime.utc_now(), -state.retention_period, :second)
+    cutoff = cutoff_for_retention(state.retention_period)
 
-    queries = filter_by_time(state.queries, cutoff)
-    errors = filter_by_time(state.errors, cutoff)
+    delete_older_than(state.queries_table, cutoff)
+    delete_older_than(state.errors_table, cutoff)
 
-    # Schedule next cleanup
     schedule_cleanup()
 
-    {:noreply, %{state | queries: queries, errors: errors}}
+    {:noreply, state}
   end
 
   # Helper Functions
 
   defp schedule_cleanup do
-    # Cleanup every hour
-    Process.send_after(self(), :cleanup, 60 * 60 * 1000)
+    Process.send_after(self(), :cleanup, @cleanup_interval_ms)
   end
 
-  defp limit_queries(queries, max) when length(queries) > max do
-    Enum.take(queries, max)
+  defp ensure_table(name) do
+    case :ets.whereis(name) do
+      :undefined ->
+        try do
+          :ets.new(name, [
+            :ordered_set,
+            :public,
+            :named_table,
+            read_concurrency: true,
+            write_concurrency: true
+          ])
+        rescue
+          ArgumentError -> :ets.whereis(name)
+        end
+
+      table ->
+        table
+    end
   end
 
-  defp limit_queries(queries, _max), do: queries
+  defp insert_record(table, %{timestamp: timestamp} = record) do
+    key =
+      {DateTime.to_unix(timestamp, :millisecond), System.unique_integer([:positive, :monotonic])}
 
-  defp get_cutoff_time(time_range) do
+    :ets.insert(table, {key, record})
+  end
+
+  defp prune_table_to_limit(table, max) do
+    size = :ets.info(table, :size)
+    overflow = max(size - max, 0)
+
+    if overflow > 0 do
+      Enum.each(1..overflow, fn _ ->
+        case :ets.first(table) do
+          :"$end_of_table" -> :ok
+          key -> :ets.delete(table, key)
+        end
+      end)
+    end
+  end
+
+  defp all_records(table) do
+    :ets.foldl(fn {_key, record}, acc -> [record | acc] end, [], table)
+  end
+
+  defp records_since(table, cutoff_ms) do
+    :ets.select(table, [
+      {{{:"$1", :_}, :"$2"}, [{:>=, :"$1", cutoff_ms}], [:"$2"]}
+    ])
+  end
+
+  defp delete_older_than(table, cutoff_ms) do
+    :ets.select_delete(table, [
+      {{{:"$1", :_}, :_}, [{:<, :"$1", cutoff_ms}], [true]}
+    ])
+  end
+
+  defp get_cutoff_timestamp(time_range) do
     seconds =
       case time_range do
         "1h" -> 3600
@@ -202,11 +265,11 @@ defmodule SelectoComponents.Performance.MetricsCollector do
         _ -> 3600
       end
 
-    DateTime.add(DateTime.utc_now(), -seconds, :second)
+    System.system_time(:millisecond) - seconds * 1000
   end
 
-  defp filter_by_time(records, cutoff) do
-    Enum.filter(records, &(DateTime.compare(&1.timestamp, cutoff) == :gt))
+  defp cutoff_for_retention(retention_seconds) do
+    System.system_time(:millisecond) - retention_seconds * 1000
   end
 
   defp calculate_avg_response_time([]), do: 0
@@ -219,18 +282,25 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   defp calculate_qpm([]), do: 0
 
   defp calculate_qpm(queries) do
-    if queries == [] do
-      0
-    else
-      first = List.last(queries).timestamp
-      last = List.first(queries).timestamp
-      minutes = DateTime.diff(last, first) / 60
+    sorted = Enum.sort_by(queries, &DateTime.to_unix(&1.timestamp, :millisecond))
 
-      if minutes > 0 do
-        round(length(queries) / minutes)
-      else
-        length(queries)
-      end
+    case sorted do
+      [] ->
+        0
+
+      [_single] ->
+        length(sorted)
+
+      _ ->
+        first = hd(sorted).timestamp
+        last = List.last(sorted).timestamp
+        minutes = DateTime.diff(last, first) / 60
+
+        if minutes > 0 do
+          round(length(sorted) / minutes)
+        else
+          length(sorted)
+        end
     end
   end
 
@@ -278,7 +348,6 @@ defmodule SelectoComponents.Performance.MetricsCollector do
   end
 
   defp build_timeline(queries, time_range) do
-    # Group queries by time bucket
     bucket_size = get_bucket_size(time_range)
 
     queries
