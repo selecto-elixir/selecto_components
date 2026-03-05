@@ -28,44 +28,35 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
     Selecto.configure(domain, nil)
   end
 
-  describe "extract_field_name/2" do
-    test "extracts field name from phx-value- prefix" do
-      socket = %{assigns: %{used_params: %{}}}
+  describe "build_filter_map/2 indexed params" do
+    test "builds filters from indexed field/value pairs" do
+      socket = %{assigns: %{used_params: %{"filters" => %{}}, selecto: selecto()}}
 
-      assert DrillDownFilters.extract_field_name("phx-value-category", socket) == "category"
-      assert DrillDownFilters.extract_field_name("phx-value-order_date", socket) == "order_date"
-      assert DrillDownFilters.extract_field_name("phx-value-customer_id", socket) == "customer_id"
+      result =
+        DrillDownFilters.build_filter_map(%{"field0" => "category", "value0" => "Action"}, socket)
+
+      assert is_map(result)
+      [filter] = Map.values(result)
+      assert filter["filter"] == "category"
+      assert filter["value"] == "Action"
     end
 
-    test "falls back to id for empty field names" do
-      socket = %{assigns: %{used_params: %{"group_by" => %{}}}}
+    test "supports single non-indexed field/value keys" do
+      socket = %{assigns: %{used_params: %{"filters" => %{}}, selecto: selecto()}}
 
-      assert DrillDownFilters.extract_field_name("", socket) == "id"
-      assert DrillDownFilters.extract_field_name(nil, socket) == "id"
+      result = DrillDownFilters.build_filter_map(%{"field" => "price", "value" => "42"}, socket)
+
+      [filter] = Map.values(result)
+      assert filter["filter"] == "price"
+      assert filter["value"] == "42"
     end
 
-    test "returns field name as-is if not prefixed" do
-      socket = %{assigns: %{used_params: %{}}}
+    test "ignores unrelated params" do
+      socket = %{assigns: %{used_params: %{"filters" => %{}}, selecto: selecto()}}
 
-      assert DrillDownFilters.extract_field_name("category", socket) == "category"
-      assert DrillDownFilters.extract_field_name("price", socket) == "price"
-    end
+      result = DrillDownFilters.build_filter_map(%{"foo" => "bar", "baz" => "qux"}, socket)
 
-    test "prevents SQL injection in field names" do
-      socket = %{assigns: %{used_params: %{}}}
-
-      malicious_names = [
-        "phx-value-category'; DROP TABLE products--",
-        "phx-value-id OR 1=1--",
-        "phx-value-name' UNION SELECT password FROM users--"
-      ]
-
-      for malicious_name <- malicious_names do
-        # Should extract the full malicious string
-        # Field name validation happens at Selecto level
-        result = DrillDownFilters.extract_field_name(malicious_name, socket)
-        assert is_binary(result)
-      end
+      assert result == %{}
     end
   end
 
@@ -261,9 +252,12 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
     test "prevents SQL injection through filter values", %{socket: socket} do
       malicious_params = %{
-        "phx-value-username" => "admin'; DROP TABLE users--",
-        "phx-value-email" => "user@example.com' OR '1'='1",
-        "phx-value-id" => "1 UNION SELECT password FROM admin"
+        "field0" => "username",
+        "value0" => "admin'; DROP TABLE users--",
+        "field1" => "email",
+        "value1" => "user@example.com' OR '1'='1",
+        "field2" => "id",
+        "value2" => "1 UNION SELECT password FROM admin"
       }
 
       # The function should handle these values safely
@@ -281,8 +275,10 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
     test "prevents SQL injection through field names", %{socket: socket} do
       malicious_params = %{
-        "phx-value-column'; DROP TABLE--" => "value",
-        "phx-value-id OR 1=1--" => "value"
+        "field0" => "column'; DROP TABLE--",
+        "value0" => "value",
+        "field1" => "id OR 1=1--",
+        "value1" => "value"
       }
 
       result = DrillDownFilters.build_filter_map(malicious_params, socket)
@@ -309,8 +305,10 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
     test "prevents SQL injection in filter tuples", %{socket: socket} do
       malicious_params = %{
-        "phx-value-category" => "Electronics'; DROP TABLE--",
-        "phx-value-price" => "100 OR 1=1"
+        "field0" => "category",
+        "value0" => "Electronics'; DROP TABLE--",
+        "field1" => "price",
+        "value1" => "100 OR 1=1"
       }
 
       result = DrillDownFilters.build_filter_tuples(malicious_params, socket)
