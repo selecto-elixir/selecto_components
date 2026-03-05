@@ -15,11 +15,15 @@ defmodule SelectoComponents.Views.Aggregate.DrillDown do
       |> Map.put("view_mode", new_view_mode)
 
     filter_tuples = DrillDownFilters.build_filter_tuples(params, socket)
+    clicked_fields = clicked_filter_fields(params)
 
     updated_filters =
       Enum.filter(socket.assigns.view_config.filters, fn
-        {_id, "filters", %{} = f} -> !Map.has_key?(params, Map.get(f, "filter"))
-        _ -> true
+        {_id, "filters", %{} = f} ->
+          not MapSet.member?(clicked_fields, Map.get(f, "filter"))
+
+        _ ->
+          true
       end) ++ filter_tuples
 
     updated_socket =
@@ -37,4 +41,11 @@ defmodule SelectoComponents.Views.Aggregate.DrillDown do
   defp normalize_view_mode(view_mode) when is_atom(view_mode), do: Atom.to_string(view_mode)
   defp normalize_view_mode(view_mode) when is_binary(view_mode), do: view_mode
   defp normalize_view_mode(_view_mode), do: "detail"
+
+  defp clicked_filter_fields(params) do
+    params
+    |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "field") end)
+    |> Enum.map(fn {_key, field_name} -> field_name end)
+    |> MapSet.new()
+  end
 end

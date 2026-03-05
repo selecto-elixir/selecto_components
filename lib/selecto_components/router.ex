@@ -240,11 +240,15 @@ defmodule SelectoComponents.Router do
 
   defp handle_agg_add_filters(params, state) do
     # Add filters when clicking aggregate view cells (drill-down)
-    # Extract field values from phx-value-* params
+    # Extract indexed field/value pairs from drill-down params
     filter_values =
       params
-      |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field_") end)
-      |> Enum.map(fn {"field_" <> field_name, value} ->
+      |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field") end)
+      |> Enum.sort_by(fn {k, _v} -> k end)
+      |> Enum.map(fn {field_key, field_name} ->
+        idx = String.replace_prefix(field_key, "field", "")
+        value = Map.get(params, "value#{idx}", "")
+
         %{
           "uuid" => UUID.uuid4(),
           "field" => field_name,

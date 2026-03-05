@@ -30,21 +30,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   @doc """
-  Build filters map from drill-down parameters.
-
-  Supports two formats:
-  1. Legacy: phx-value-<fieldname> (doesn't work with dots in field names)
-  2. New indexed: phx-value-field0/phx-value-value0, field1/value1, etc.
+  Build filters map from indexed drill-down parameters.
   """
   def build_filter_map(params, socket) do
-    # Check if using new indexed format (field0, value0, field1, value1, etc.)
-    has_indexed_params = Map.has_key?(params, "field0") || Map.has_key?(params, "field")
-
-    if has_indexed_params do
-      build_filter_map_indexed(params, socket)
-    else
-      build_filter_map_legacy(params, socket)
-    end
+    build_filter_map_indexed(params, socket)
   end
 
   # New indexed format: field0/value0, field1/value1
@@ -107,6 +96,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     # Find all field<N> keys
     params
     |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "field") end)
+    |> Enum.sort_by(fn {k, _v} -> k end)
     |> Enum.map(fn {field_key, field_name} ->
       # Extract index from "field0" -> "0"
       idx = String.replace_prefix(field_key, "field", "")
@@ -114,102 +104,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       value = Map.get(params, value_key, "")
       {field_name, value}
     end)
-  end
-
-  # Legacy format: phx-value-<fieldname>
-  defp build_filter_map_legacy(params, socket) do
-    Enum.reduce(
-      params,
-      existing_filters(socket),
-      fn {f, v}, acc ->
-        newid = UUID.uuid4()
-
-        # Extract field name from phx-value-* parameters
-        field_name = extract_field_name(f, socket)
-
-        # Get field configuration
-        conf = Selecto.field(socket.assigns.selecto, field_name)
-
-        # If filtering on a join mode ID field, find the display field with metadata
-        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
-
-        # Collect group-by context for bucket-aware drill-down filters
-        group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-        field_group_config = find_field_group_config(group_by_config, field_name)
-        drill_context = drill_context_from_group_config(field_group_config)
-
-        # Determine comparison mode and values based on format
-        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, drill_context)
-
-        # Build filter configuration
-        filter_config =
-          %{
-            "comp" => comp_mode,
-            "filter" => field_name,
-            "index" => "0",
-            "section" => "filters",
-            "uuid" => newid,
-            "value" => v1,
-            "value2" => v2,
-            "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
-            "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
-          }
-          |> maybe_put_text_prefix_options(drill_context, comp_mode)
-
-        # Use group_by_filter if configured
-        actual_filter_field =
-          if conf && Map.get(conf, :group_by_filter) do
-            Map.get(conf, :group_by_filter)
-          else
-            field_name
-          end
-
-        # Update the filter config to use the correct field
-        filter_config = Map.put(filter_config, "filter", actual_filter_field)
-        Map.put(acc, newid, filter_config)
-      end
-    )
-  end
-
-  @doc """
-  Extract field name from parameter key, handling phx-value-* prefixes.
-  """
-  def extract_field_name(field_key, socket) do
-    case field_key do
-      "phx-value-" <> actual_field ->
-        actual_field
-
-      "" ->
-        fallback_field_from_group_by(socket)
-
-      nil ->
-        fallback_field_from_group_by(socket)
-
-      _ ->
-        field_key
-    end
-  end
-
-  defp fallback_field_from_group_by(socket) do
-    current_group_by =
-      case socket.assigns[:used_params] do
-        map when is_map(map) -> Map.get(map, "group_by", %{})
-        _ -> %{}
-      end
-
-    first_group =
-      current_group_by
-      |> Map.values()
-      |> Enum.sort(fn a, b ->
-        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
-      end)
-      |> List.first()
-
-    case first_group do
-      %{"field" => field} -> field
-      # Fallback to basic field
-      _ -> "id"
-    end
   end
 
   defp existing_filters(socket) do
@@ -487,8 +381,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   Build filter tuples for view_config from drill-down parameters (simpler version for view_config.filters).
   """
   def build_filter_tuples(params, socket) do
-    Enum.map(params, fn {f, v} ->
-      field_name = extract_field_name(f, socket)
+    params
+    |> extract_indexed_pairs()
+    |> Enum.map(fn {field_name, v} ->
       conf = Selecto.field(socket.assigns.selecto, field_name)
 
       if conf != nil do

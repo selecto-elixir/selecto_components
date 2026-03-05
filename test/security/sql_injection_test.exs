@@ -242,13 +242,15 @@ defmodule SelectoComponents.Security.SqlInjectionTest do
     test "sanitizes drill-down filter values" do
       # Test drill-down from aggregate views
       params = %{
-        "phx-value-category" => "Electronics'; DROP TABLE products--",
-        "phx-value-year" => "2024 UNION SELECT * FROM passwords"
+        "field0" => "category",
+        "value0" => "Electronics'; DROP TABLE products--",
+        "field1" => "year",
+        "value1" => "2024 UNION SELECT * FROM passwords"
       }
 
       for {key, value} <- params do
         # Drill-down values should be parameterized
-        assert String.starts_with?(key, "phx-value-")
+        assert String.starts_with?(key, "field") or String.starts_with?(key, "value")
         assert is_binary(value)
       end
     end
@@ -262,11 +264,11 @@ defmodule SelectoComponents.Security.SqlInjectionTest do
       ]
 
       for date <- malicious_dates do
-        params = %{"phx-value-order_date" => date}
+        params = %{"field0" => "order_date", "value0" => date}
 
         # Date parsing should fail gracefully
         # Invalid dates should not cause SQL injection
-        assert is_binary(params["phx-value-order_date"])
+        assert is_binary(params["value0"])
       end
     end
 
@@ -278,10 +280,10 @@ defmodule SelectoComponents.Security.SqlInjectionTest do
       ]
 
       for bucket <- malicious_buckets do
-        params = %{"phx-value-age_bucket" => bucket}
+        params = %{"field0" => "age_bucket", "value0" => bucket}
 
         # Bucket parsing should be safe
-        assert is_binary(params["phx-value-age_bucket"])
+        assert is_binary(params["value0"])
       end
     end
   end
