@@ -43,10 +43,10 @@ defmodule SelectoComponents.Components.NestedTable do
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
-          <%= @config.title %> (<%= length(@parsed_data) %> items)
+          {@config.title} ({length(@parsed_data)} items)
         </button>
       </div>
-      
+
       <div id={@table_id} class={if @expanded, do: "block", else: "hidden"}>
         <%= if length(@parsed_data) > 0 do %>
           <div class="mt-2 overflow-x-auto">
@@ -55,7 +55,7 @@ defmodule SelectoComponents.Components.NestedTable do
                 <tr>
                   <%= for header <- @column_headers do %>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <%= header %>
+                      {header}
                     </th>
                   <% end %>
                 </tr>
@@ -66,7 +66,7 @@ defmodule SelectoComponents.Components.NestedTable do
                     <tr class="hover:bg-gray-50">
                       <%= for key <- get_data_keys(@parsed_data) do %>
                         <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                          <%= format_value(Map.get(item, key, "")) %>
+                          {format_value(Map.get(item, key, ""))}
                         </td>
                       <% end %>
                     </tr>
@@ -74,16 +74,16 @@ defmodule SelectoComponents.Components.NestedTable do
                 <% end %>
               </tbody>
             </table>
-            
+
             <%= if length(@parsed_data) > max_display_rows(@config) do %>
               <div class="px-3 py-2 text-sm text-gray-500">
-                ... and <%= length(@parsed_data) - max_display_rows(@config) %> more items
+                ... and {length(@parsed_data) - max_display_rows(@config)} more items
               </div>
             <% end %>
           </div>
         <% else %>
           <div class="mt-2 px-3 py-2 text-sm text-gray-500 italic">
-            No related <%= String.downcase(@config.title) %> found
+            No related {String.downcase(@config.title)} found
           </div>
         <% end %>
       </div>
@@ -190,19 +190,10 @@ defmodule SelectoComponents.Components.NestedTable do
   def humanize_key(key), do: to_string(key)
 
   defp extract_field_name(field) when is_binary(field) do
-    case Regex.run(~r/^[^[]+\[([^]]+)\]$/, field, capture: :all_but_first) do
-      [inner] ->
-        inner
-        |> String.split(",", parts: 2)
-        |> hd()
-        |> String.trim()
-
-      _ ->
-        field
-        |> String.split(".")
-        |> List.last()
-        |> String.trim()
-    end
+    field
+    |> String.split(".")
+    |> List.last()
+    |> String.trim()
   end
 
   defp normalize_subselect_rows([], _config), do: []
@@ -267,7 +258,7 @@ defmodule SelectoComponents.Components.NestedTable do
             <tr class="bg-gray-100">
               <%= for key <- get_data_keys(@parsed_data) do %>
                 <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
-                  <%= humanize_key(key) %>
+                  {humanize_key(key)}
                 </th>
               <% end %>
             </tr>
@@ -277,7 +268,7 @@ defmodule SelectoComponents.Components.NestedTable do
               <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
                 <%= for key <- get_data_keys(@parsed_data) do %>
                   <td class="px-2 py-1 text-xs text-gray-700">
-                    <%= format_value(Map.get(item, key, "")) %>
+                    {format_value(Map.get(item, key, ""))}
                   </td>
                 <% end %>
               </tr>

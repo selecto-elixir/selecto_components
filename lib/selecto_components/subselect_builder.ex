@@ -237,7 +237,7 @@ defmodule SelectoComponents.SubselectBuilder do
 
   defp prepare_nested_columns(columns) do
     Enum.map(columns, fn col ->
-      # Extract the actual column name from formats like "table[field]" or "table.field"
+      # Extract the actual column name from dot notation like "table.field"
       display_name = extract_field_name(col) || to_string(col)
 
       %{
@@ -255,19 +255,10 @@ defmodule SelectoComponents.SubselectBuilder do
   end
 
   defp extract_field_name(field) when is_binary(field) do
-    case Regex.run(~r/^[^[]+\[([^]]+)\]$/, field, capture: :all_but_first) do
-      [inner] ->
-        inner
-        |> String.split(",", parts: 2)
-        |> hd()
-        |> String.trim()
-
-      _ ->
-        field
-        |> String.split(".")
-        |> List.last()
-        |> String.trim()
-    end
+    field
+    |> String.split(".")
+    |> List.last()
+    |> String.trim()
   end
 
   defp extract_field_name(_), do: nil

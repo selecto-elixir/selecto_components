@@ -92,11 +92,6 @@ defmodule SelectoComponents.DenormalizationDetector do
         |> to_string()
 
     cond do
-      # Check for bracket notation: "table[column]"
-      String.contains?(field_name, "[") ->
-        [table, _] = String.split(field_name, ["[", "]"], trim: true)
-        [table]
-
       # Check for dot notation: "table.column"
       String.contains?(field_name, ".") ->
         parts = String.split(field_name, ".")
