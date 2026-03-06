@@ -31,10 +31,7 @@ defmodule SelectoComponents.Views do
   - `form_component/0`
   - `result_component/0`
 
-  Built-in views use this behavior (`Aggregate`, `Detail`, `Graph`).
-
-  Legacy namespace-style modules (`MyView.Process`, `MyView.Form`,
-  `MyView.Component`) are still supported via `SelectoComponents.Views.Runtime`.
+  Built-in views use this behavior (`Aggregate`, `Detail`, `Graph`, `Map`).
   """
 
   @type view_id :: atom()
