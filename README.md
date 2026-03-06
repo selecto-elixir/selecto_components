@@ -293,8 +293,8 @@ views = [
 ]
 ```
 
-Legacy namespace-style modules (`MyView.Process`, `MyView.Form`,
-`MyView.Component`) are still supported.
+Custom views should implement `SelectoComponents.Views.System` directly
+or use `use SelectoComponents.Views.System, ...`.
 
 ### Implementing A New View System
 

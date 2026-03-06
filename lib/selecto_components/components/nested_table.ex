@@ -132,15 +132,6 @@ defmodule SelectoComponents.Components.NestedTable do
 
   def parse_subselect_data(_, _config), do: []
 
-  # defp get_nested_value(item, field) do
-  #   # Extract value from nested data
-  #   # Handle both "column" and "table[column]" formats
-  #   case String.split(field, ["[", "]"], trim: true) do
-  #     [_table, column] -> Map.get(item, column, "")
-  #     [column] -> Map.get(item, column, "")
-  #   end
-  # end
-
   defp max_display_rows(config) do
     Map.get(config, :max_rows, 10)
   end
