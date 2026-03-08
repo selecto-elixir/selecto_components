@@ -480,7 +480,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
 
     # Format the SQL with Makeup
     sql
-    |> Makeup.highlight(lexer: Makeup.Lexers.SQLLexer)
+    |> Makeup.highlight(lexer: "sql")
     |> add_makeup_styles()
   rescue
     _ ->
@@ -495,17 +495,15 @@ defmodule SelectoComponents.Debug.DebugDisplay do
     """
     <style>
       .highlight { font-family: monospace; font-size: 0.75rem; line-height: 1.25rem; color: #e5e7eb; }
-      .highlight .k { color: #93c5fd; font-weight: 600; } /* Keywords */
-      .highlight .kc { color: #86efac; font-weight: 600; } /* Keyword constants (TRUE, FALSE, NULL) */
-      .highlight .kd { color: #f87171; font-weight: 600; } /* Keyword declarations (CREATE, ALTER, DROP) */
-      .highlight .o { color: #9ca3af; } /* Operators */
-      .highlight .s { color: #fde047; } /* Strings */
-      .highlight .si { color: #fbbf24; } /* String interpolation */
-      .highlight .n { color: #e5e7eb; } /* Names */
-      .highlight .nf { color: #fbbf24; } /* Function names */
-      .highlight .m { color: #67e8f9; } /* Numbers */
-      .highlight .c { color: #6b7280; font-style: italic; } /* Comments */
+      .highlight pre { margin: 0; white-space: pre; }
+      .highlight [class^="k"] { color: #93c5fd; font-weight: 600; } /* Keywords */
+      .highlight [class^="o"] { color: #9ca3af; } /* Operators */
+      .highlight [class^="s"] { color: #fde047; } /* Strings */
+      .highlight [class^="n"] { color: #e5e7eb; } /* Names */
+      .highlight [class^="m"] { color: #67e8f9; } /* Numbers */
+      .highlight [class^="c"] { color: #6b7280; font-style: italic; } /* Comments */
       .highlight .p { color: #9ca3af; } /* Punctuation */
+      .highlight .w { color: inherit; } /* Whitespace */
     </style>
     <div class="highlight">#{html}</div>
     """
