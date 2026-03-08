@@ -5,6 +5,22 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.12
+--------
+
+- Removed remaining legacy bracket field parsing helpers in table/detail helper
+  paths so joined-field parsing consistently uses current syntax handling.
+- Removed legacy view runtime/UI compatibility paths to keep view wiring
+  aligned with the current runtime surface.
+- Hardened drill-down routing by requiring indexed drill-down filter params and
+  updating aggregate drill-down parameter handling accordingly.
+- Added/expanded drill-down and SQL-injection test coverage for stricter param
+  handling.
+- Fixed debug-panel SQL highlighting by using the registered `makeup_sql`
+  lexer and token-compatible style classes.
+- Updated Selecto dependency expectation to `>= 0.3.10 and < 0.4.0`.
+- Bump package version to `0.3.12`.
+
 V 0.3.11
 --------
 
