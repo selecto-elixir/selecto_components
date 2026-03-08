@@ -7,7 +7,8 @@ defmodule SelectoComponents.MixProject do
       version: "0.3.12",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      description: "ALPHA: LiveView components for Selecto",
+      description:
+        "Alpha: Phoenix LiveView components for interactive Selecto query building and data exploration",
       aliases: aliases(),
       package: package(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
@@ -77,7 +78,11 @@ defmodule SelectoComponents.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/selecto-elixir/selecto_components"},
+      links: %{
+        "GitHub" => "https://github.com/selecto-elixir/selecto_components",
+        "SQL Patterns" => "https://seeken.github.io/selecto-sql-patterns",
+        "Demo (Fly)" => "https://testselecto.fly.dev"
+      },
       source_url: "https://github.com/selecto-elixir/selecto_components",
       files:
         ~w(mix.exs README.md CHANGELOG.md LICENSE lib/**/*.ex lib/**/*.js package.json priv/static/selecto_components.min.js)
