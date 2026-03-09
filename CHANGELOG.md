@@ -5,6 +5,16 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.13
+--------
+
+- Updated package metadata description to better communicate the LiveView query
+  builder and data exploration focus.
+- Added package links for SQL pattern references and the hosted demo
+  (`https://seeken.github.io/selecto-sql-patterns`,
+  `https://testselecto.fly.dev`).
+- Bump package version to `0.3.13`.
+
 V 0.3.12
 --------
 
