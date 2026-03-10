@@ -161,4 +161,21 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "Supplier A"
     assert html =~ "Customer B"
   end
+
+  test "show_row_details dedupes duplicate modal keys" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        processed_results: {[["Supplier A", "Customer B"]], ["co_name", "co_name"]},
+        query_results:
+          {[["Supplier A", "Customer B"]], ["co_name", "co_name"], ["co_name", "co_name"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.record["co_name"] == "Supplier A"
+    assert detail_data.record["co_name_2"] == "Customer B"
+  end
 end

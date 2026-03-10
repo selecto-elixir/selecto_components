@@ -5,6 +5,16 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.15
+--------
+
+- Kept detail-mode rows positional through params-state normalization and detail
+  rendering to prevent value loss when duplicate DB column names are returned.
+- Updated detail modal row mapping to build collision-safe record maps with
+  deterministic deduped keys (`field`, `field_2`, `field_3`, ...).
+- Added regression coverage for duplicate-key modal mapping behavior.
+- Bump package version to `0.3.15`.
+
 V 0.3.14
 --------
 

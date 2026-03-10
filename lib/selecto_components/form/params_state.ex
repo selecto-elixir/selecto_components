@@ -1027,11 +1027,10 @@ defmodule SelectoComponents.Form.ParamsState do
     _ -> 0
   end
 
-  defp normalize_rows_for_view(rows, columns, "detail")
+  defp normalize_rows_for_view(rows, _columns, "detail")
        when is_list(rows) and rows != [] and (is_list(hd(rows)) or is_tuple(hd(rows))) do
     Enum.map(rows, fn row ->
-      row_values = if is_tuple(row), do: Tuple.to_list(row), else: row
-      Enum.zip(columns, row_values) |> Map.new()
+      if is_tuple(row), do: Tuple.to_list(row), else: row
     end)
   end
 
