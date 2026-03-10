@@ -5,6 +5,18 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.14
+--------
+
+- Fixed detail-mode row mapping to preserve Selecto alias semantics when
+  database-returned column names collide (for example, selecting multiple
+  `co_name` fields from different joins).
+- Fixed denormalization nested-table column ordering so subselect fields render
+  in view-config selection order instead of map-key/alphabetical order.
+- Added regression tests for detail alias-collision mapping and nested subselect
+  key ordering.
+- Bump package version to `0.3.14`.
+
 V 0.3.13
 --------
 

@@ -64,7 +64,7 @@ defmodule SelectoComponents.Components.NestedTable do
                 <%= for {item, idx} <- Enum.with_index(@parsed_data) do %>
                   <%= if idx < max_display_rows(@config) do %>
                     <tr class="hover:bg-gray-50">
-                      <%= for key <- get_data_keys(@parsed_data) do %>
+                      <%= for key <- get_data_keys(@parsed_data, @config) do %>
                         <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
                           {format_value(Map.get(item, key, ""))}
                         </td>
@@ -142,33 +142,32 @@ defmodule SelectoComponents.Components.NestedTable do
   end
 
   defp get_column_headers(assigns) do
-    # Try to get headers from the first data item or config
-    case parse_subselect_data(assigns.data, assigns.config) do
-      [first | _] when is_map(first) ->
-        Map.keys(first)
-        |> Enum.map(&humanize_key/1)
-
-      _ ->
-        # Fallback to config columns if available
-        case Map.get(assigns.config, :columns, []) do
-          columns when is_list(columns) and length(columns) > 0 ->
-            Enum.map(columns, fn
-              {_, field, _} -> humanize_key(extract_field_name(field))
-              %{field: field} -> humanize_key(extract_field_name(field))
-              field when is_binary(field) -> humanize_key(extract_field_name(field))
-              _ -> "Column"
-            end)
+    case ordered_keys_from_config(assigns.config) do
+      [] ->
+        case parse_subselect_data(assigns.data, assigns.config) do
+          [first | _] when is_map(first) ->
+            Map.keys(first)
+            |> Enum.map(&humanize_key/1)
 
           _ ->
             []
         end
+
+      keys ->
+        Enum.map(keys, &humanize_key/1)
     end
   end
 
-  def get_data_keys(parsed_data) do
-    case parsed_data do
-      [first | _] when is_map(first) -> Map.keys(first)
-      _ -> []
+  def get_data_keys(parsed_data, config \\ %{}) do
+    case ordered_keys_from_config(config) do
+      [] ->
+        case parsed_data do
+          [first | _] when is_map(first) -> Map.keys(first)
+          _ -> []
+        end
+
+      keys ->
+        keys
     end
   end
 
@@ -223,6 +222,20 @@ defmodule SelectoComponents.Components.NestedTable do
     end
   end
 
+  defp ordered_keys_from_config(config) when is_map(config) do
+    config
+    |> Map.get(:columns, [])
+    |> Enum.map(fn
+      {_, field, _} -> extract_field_name(field)
+      %{field: field} -> extract_field_name(field)
+      field when is_binary(field) -> extract_field_name(field)
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp ordered_keys_from_config(_), do: []
+
   def format_value(value) when is_binary(value), do: value
   def format_value(value) when is_number(value), do: to_string(value)
   def format_value(nil), do: ""
@@ -247,7 +260,7 @@ defmodule SelectoComponents.Components.NestedTable do
         <table class="min-w-full border border-gray-300 rounded">
           <thead>
             <tr class="bg-gray-100">
-              <%= for key <- get_data_keys(@parsed_data) do %>
+              <%= for key <- get_data_keys(@parsed_data, @config) do %>
                 <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
                   {humanize_key(key)}
                 </th>
@@ -257,7 +270,7 @@ defmodule SelectoComponents.Components.NestedTable do
           <tbody>
             <%= for {item, _idx} <- Enum.with_index(@parsed_data) do %>
               <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
-                <%= for key <- get_data_keys(@parsed_data) do %>
+                <%= for key <- get_data_keys(@parsed_data, @config) do %>
                   <td class="px-2 py-1 text-xs text-gray-700">
                     {format_value(Map.get(item, key, ""))}
                   </td>

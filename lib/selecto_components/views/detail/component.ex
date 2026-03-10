@@ -112,13 +112,14 @@ defmodule SelectoComponents.Views.Detail.Component do
   defp render_detail_view(assigns) do
     {results, aliases} = assigns.processed_results
 
-    # Ensure results are normalized to maps if they're lists
+    # Ensure results are normalized to maps if they're lists.
+    # Use aliases first to avoid collisions when DB columns share base names.
     normalized_results =
       if length(results) > 0 and is_list(hd(results)) do
-        {_results, columns, _aliases} = assigns.query_results
+        {_results, columns, aliases_from_query} = assigns.query_results
 
         Enum.map(results, fn row ->
-          Enum.zip(columns, row) |> Map.new()
+          build_row_map(row, columns, aliases_from_query)
         end)
       else
         results
@@ -341,9 +342,17 @@ defmodule SelectoComponents.Views.Detail.Component do
                     resrow
 
                   is_map(resrow) ->
-                    # If it's already a map, extract values in column order
-                    {_results, columns_from_query, _aliases} = @query_results
-                    Enum.map(columns_from_query, fn col -> map_get_flexible(resrow, col) end)
+                    # If it's already a map, extract values in column order.
+                    # Fall back to alias at the same position to avoid collisions
+                    # from duplicate DB column names.
+                    {_results, columns_from_query, aliases_from_query} = @query_results
+
+                    columns_from_query
+                    |> Enum.with_index()
+                    |> Enum.map(fn {col, idx} ->
+                      map_get_flexible(resrow, Enum.at(aliases_from_query, idx)) ||
+                        map_get_flexible(resrow, col)
+                    end)
 
                   true ->
                     [resrow]
@@ -415,7 +424,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                           <table class="min-w-full border border-gray-300 rounded">
                             <thead>
                               <tr class="bg-gray-100">
-                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
                                   <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
                                     {SelectoComponents.Components.NestedTable.humanize_key(key)}
                                   </th>
@@ -425,7 +434,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                             <tbody>
                               <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
                                 <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
-                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
                                     <td class="px-2 py-1 text-xs text-gray-700">
                                       {SelectoComponents.Components.NestedTable.format_value(
                                         Map.get(item, key, "")
@@ -640,6 +649,25 @@ defmodule SelectoComponents.Views.Detail.Component do
     # This would be configured based on the domain/schema relationships
     # For now, return empty map - parent component can override
     %{}
+  end
+
+  defp build_row_map(row, columns, aliases) when is_list(row) do
+    base =
+      columns
+      |> Enum.zip(row)
+      |> Enum.reduce(%{}, fn {column_name, value}, acc ->
+        Map.put_new(acc, column_name, value)
+      end)
+
+    aliases
+    |> Enum.zip(row)
+    |> Enum.reduce(base, fn {alias_name, value}, acc ->
+      if is_binary(alias_name) and alias_name != "" do
+        Map.put(acc, alias_name, value)
+      else
+        acc
+      end
+    end)
   end
 
   defp map_get_flexible(map, key) when is_map(map) do
