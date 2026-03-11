@@ -69,7 +69,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Prepare ROLLUP results with hierarchy metadata
   # With COALESCE, data NULLs show as "[NULL]", ROLLUP NULLs show as nil/empty
-  # Filter out redundant [NULL] rows that are identical to their rollup subtotal
+  # Filter out redundant [NULL] rows that are identical to their rollup subtotal.
+  # Also mark which level-0 row is the true grand total so data NULL groups
+  # can still render as clickable [NULL] buckets.
   defp prepare_rollup_rows(results, num_group_by_cols) do
     rows_with_metadata =
       results
@@ -87,44 +89,61 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end)
 
     # Filter out [NULL] rows if the next row (rollup subtotal) has identical aggregates
-    rows_with_metadata
-    |> Enum.with_index()
-    |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
-      if has_null_at_level do
-        # This is a row ending with [NULL] - check if next row is its rollup with same values
-        next_row = Enum.at(rows_with_metadata, current_idx + 1)
-        group_cols = Enum.take(row, num_group_by_cols)
+    filtered_rows =
+      rows_with_metadata
+      |> Enum.with_index()
+      |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
+        if has_null_at_level do
+          # This is a row ending with [NULL] - check if next row is its rollup with same values
+          next_row = Enum.at(rows_with_metadata, current_idx + 1)
+          group_cols = Enum.take(row, num_group_by_cols)
 
-        case next_row do
-          {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
-            # Next row is at the right level - verify it's OUR rollup by checking group columns
-            current_group_prefix = Enum.take(group_cols, level - 1)
-            next_group_cols = Enum.take(next_row_data, num_group_by_cols)
-            next_group_prefix = Enum.take(next_group_cols, level - 1)
+          case next_row do
+            {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
+              # Next row is at the right level - verify it's OUR rollup by checking group columns
+              current_group_prefix = Enum.take(group_cols, level - 1)
+              next_group_cols = Enum.take(next_row_data, num_group_by_cols)
+              next_group_prefix = Enum.take(next_group_cols, level - 1)
 
-            if current_group_prefix == next_group_prefix do
-              # Same group - this is our rollup subtotal, compare aggregates
-              current_aggs = Enum.drop(row, num_group_by_cols)
-              next_aggs = Enum.drop(next_row_data, num_group_by_cols)
+              if current_group_prefix == next_group_prefix do
+                # Same group - this is our rollup subtotal, compare aggregates
+                current_aggs = Enum.drop(row, num_group_by_cols)
+                next_aggs = Enum.drop(next_row_data, num_group_by_cols)
 
-              # If aggregates are identical, skip this [NULL] row (redundant)
-              not (current_aggs == next_aggs)
-            else
-              # Different group - this must be end of our group, skip [NULL] row (redundant)
+                # If aggregates are identical, skip this [NULL] row (redundant)
+                not (current_aggs == next_aggs)
+              else
+                # Different group - this must be end of our group, skip [NULL] row (redundant)
+                false
+              end
+
+            _ ->
+              # Next row is not at the right level or doesn't exist - skip [NULL] row
               false
-            end
-
-          _ ->
-            # Next row is not at the right level or doesn't exist - skip [NULL] row
-            false
+          end
+        else
+          # Not a [NULL] row, always keep
+          true
         end
-      else
-        # Not a [NULL] row, always keep
-        true
-      end
-    end)
-    |> Enum.map(fn {{level, row, _has_null, _orig_idx}, _current_idx} ->
-      {level, row}
+      end)
+
+    last_level0_idx =
+      filtered_rows
+      |> Enum.with_index()
+      |> Enum.reduce(nil, fn
+        {{{0, row, _has_null, _orig_idx}, _current_idx}, idx}, acc ->
+          group_cols = Enum.take(row, num_group_by_cols)
+          if Enum.all?(group_cols, &(&1 in [nil, ""])), do: idx, else: acc
+
+        _other, acc ->
+          acc
+      end)
+
+    filtered_rows
+    |> Enum.with_index()
+    |> Enum.map(fn {{{level, row, _has_null, _orig_idx}, _current_idx}, idx} ->
+      grand_total? = idx == last_level0_idx
+      {level, row, grand_total?}
     end)
   end
 
@@ -323,6 +342,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # Render a single row with hierarchy styling
   defp rollup_row(assigns) do
     continued? = Map.get(assigns, :continued?, false)
+    grand_total? = Map.get(assigns, :grand_total?, false)
+
+    display_level =
+      if assigns.level == 0 and not grand_total? and assigns.num_group_by > 0 do
+        1
+      else
+        assigns.level
+      end
 
     # Extract group columns and aggregate columns from the row
     group_cols = Enum.take(assigns.row, assigns.num_group_by)
@@ -330,7 +357,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     # Determine styling based on hierarchy level
     {row_class, font_weight, indent_px} =
-      case assigns.level do
+      case display_level do
         # Grand total
         0 -> {"bg-blue-50 border-t-2 border-blue-300", "font-bold", 0}
         # Level 1 subtotal
@@ -345,7 +372,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     # The maximum level is the number of group-by columns
     # If we're at max level, it's a detail row (not a subtotal)
-    is_detail = assigns.level == assigns.num_group_by
+    is_detail = display_level == assigns.num_group_by
 
     # For detail rows, use normal styling unless row is a continuation marker
     {row_class, font_weight} =
@@ -361,7 +388,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end
 
     # Build filter attributes for drill-down (accumulated from all parent levels)
-    filter_attrs = build_filter_attrs(group_cols, assigns.group_by, assigns.level)
+    filter_attrs = build_filter_attrs(group_cols, assigns.group_by, display_level)
 
     assigns =
       assign(assigns,
@@ -371,7 +398,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         font_weight: font_weight,
         indent_px: indent_px,
         filter_attrs: filter_attrs,
-        continued?: continued?
+        continued?: continued?,
+        display_level: display_level,
+        grand_total?: grand_total?
       )
 
     ~H"""
@@ -380,13 +409,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
         <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
           <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
-            <%= if @level == 0 and idx == 0 do %>
+            <%= if @grand_total? and @display_level == 0 and idx == 0 do %>
               <%!-- Grand total row --%>
               <span class="text-gray-400 italic">Total</span>
             <% else %>
               <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
-              <%= if idx == @level - 1 do %>
+              <%= if idx == @display_level - 1 do %>
                 <%= if @continued? do %>
                   <span class="text-amber-900">
                     {format_value(value)} (continued)
@@ -422,11 +451,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp prepend_continued_group_headers(rows, num_group_by, aggregate_count, row_offset)
        when is_list(rows) do
-    rendered_rows = Enum.map(rows, fn {level, row} -> {level, row, false} end)
+    rendered_rows =
+      Enum.map(rows, fn {level, row, grand_total?} -> {level, row, false, grand_total?} end)
 
     if row_offset > 0 do
       case rows do
-        [{level, row} | _] when level > 1 ->
+        [{level, row, _grand_total?} | _] when level > 1 ->
           group_cols = Enum.take(row, num_group_by)
 
           continued_rows =
@@ -438,7 +468,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               parent_agg_cols = List.duplicate(nil, aggregate_count)
 
-              {parent_level, parent_group_cols ++ parent_agg_cols, true}
+              {parent_level, parent_group_cols ++ parent_agg_cols, true, false}
             end)
 
           continued_rows ++ rendered_rows
@@ -1050,10 +1080,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         </thead>
         <tbody class="divide-y divide-gray-200 bg-white">
           <.rollup_row
-            :for={{level, row, continued?} <- @paged_rollup_rows}
+            :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
             level={level}
             row={row}
             continued?={continued?}
+            grand_total?={grand_total?}
             num_group_by={@num_group_by}
             group_by={@group_by}
             aggregate={@aggregate}

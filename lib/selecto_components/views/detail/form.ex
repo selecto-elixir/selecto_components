@@ -74,9 +74,10 @@ defmodule SelectoComponents.Views.Detail.Form do
         selected_items={@selected_items_converted}
       >
         <:item_form :let={{id, item, config, index}}>
-          <input name={"selected[#{id}][field]"} type="hidden" value={item} />
-          <input name={"selected[#{id}][index]"} type="hidden" value={index} />
-          <input name={"selected[#{id}][uuid]"} type="hidden" value={id} />
+          <% param_key = compact_param_key(index) %>
+          <input name={"selected[#{param_key}][field]"} type="hidden" value={item} />
+          <input name={"selected[#{param_key}][index]"} type="hidden" value={index} />
+          <input name={"selected[#{param_key}][uuid]"} type="hidden" value={id} />
           <.live_component
             module={SelectoComponents.Views.Detail.ColumnConfig}
             id={"selected-#{id}"}
@@ -85,7 +86,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             item={item}
             columns={@columns}
             fieldname="selected"
-            prefix={ "selected[#{id}]" }
+            prefix={"selected[#{param_key}]"}
             config={config}
           />
         </:item_form>
@@ -100,9 +101,10 @@ defmodule SelectoComponents.Views.Detail.Form do
         selected_items={@order_by_items_converted}
       >
         <:item_form :let={{id, item, config, index}}>
-          <input name={"order_by[#{id}][field]"} type="hidden" value={item} />
-          <input name={"order_by[#{id}][index]"} type="hidden" value={index} />
-          <input name={"order_by[#{id}][uuid]"} type="hidden" value={id} />
+          <% param_key = compact_param_key(index) %>
+          <input name={"order_by[#{param_key}][field]"} type="hidden" value={item} />
+          <input name={"order_by[#{param_key}][index]"} type="hidden" value={index} />
+          <input name={"order_by[#{param_key}][uuid]"} type="hidden" value={id} />
           <.live_component
             module={SelectoComponents.Views.Detail.OrderByConfig}
             id={"order_by-#{id}-#{:erlang.phash2(config)}"}
@@ -110,7 +112,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             item={item}
             columns={@columns}
             fieldname="order_by"
-            prefix={ "order_by[#{id}]" }
+            prefix={"order_by[#{param_key}]"}
             config={config}
           />
         </:item_form>
@@ -180,4 +182,6 @@ defmodule SelectoComponents.Views.Detail.Form do
     </div>
     """
   end
+
+  defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
 end

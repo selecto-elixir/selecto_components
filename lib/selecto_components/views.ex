@@ -83,7 +83,16 @@ defmodule SelectoComponents.Views do
   ## Agg and Det forms use a common format for their subsections. This function reformats the parameters to use as state for form drawing
   def view_param_process(params, item_name, section) do
     Map.get(params, item_name, %{})
-    |> Enum.reduce([], fn {u, f}, acc -> acc ++ [{u, f[section], f}] end)
+    |> Enum.reduce([], fn {u, f}, acc ->
+      stable_id =
+        case f do
+          %{"uuid" => uuid} when is_binary(uuid) and uuid != "" -> uuid
+          %{uuid: uuid} when is_binary(uuid) and uuid != "" -> uuid
+          _ -> u
+        end
+
+      acc ++ [{stable_id, f[section], Map.put_new(f, "uuid", stable_id)}]
+    end)
     |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
       String.to_integer(index) <= String.to_integer(index2)
     end)

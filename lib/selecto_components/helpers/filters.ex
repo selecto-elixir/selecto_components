@@ -667,7 +667,7 @@ defmodule SelectoComponents.Helpers.Filters do
         end
 
       x when x in [:naive_datetime, :utc_datetime, :date] ->
-        case safe_make_date_filter(f) do
+        case safe_make_date_filter(f, x) do
           {:ok, {:or, conditions}} ->
             or_filters =
               Enum.map(conditions, fn filter_val ->
@@ -742,12 +742,34 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Safe wrapper for date filter creation
-  defp safe_make_date_filter(filter) do
+  defp safe_make_date_filter(filter, field_type) do
     result = _make_date_filter(filter)
+    result = normalize_date_filter_for_type(result, field_type)
     {:ok, result}
   rescue
     e -> {:error, Exception.message(e)}
   end
+
+  defp normalize_date_filter_for_type(result, :utc_datetime),
+    do: map_filter_datetimes(result, &naive_to_utc/1)
+
+  defp normalize_date_filter_for_type(result, _), do: result
+
+  defp map_filter_datetimes({:between, start_val, end_val}, mapper) do
+    {:between, mapper.(start_val), mapper.(end_val)}
+  end
+
+  defp map_filter_datetimes({:not, inner}, mapper),
+    do: {:not, map_filter_datetimes(inner, mapper)}
+
+  defp map_filter_datetimes({:or, conditions}, mapper) when is_list(conditions) do
+    {:or, Enum.map(conditions, &map_filter_datetimes(&1, mapper))}
+  end
+
+  defp map_filter_datetimes(other, _mapper), do: other
+
+  defp naive_to_utc(%NaiveDateTime{} = naive_dt), do: DateTime.from_naive!(naive_dt, "Etc/UTC")
+  defp naive_to_utc(other), do: other
 
   defp _make_array_filter(filter_key, filter) do
     comp_norm = normalize_comp(filter, "LIKE")

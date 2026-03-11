@@ -162,6 +162,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       String.match?(value, ~r/^\d{4}-\d{2}$/) ->
         handle_month_format(value, field_conf)
 
+      # YYYY-Q format (Postgres to_char quarter output, e.g. 2026-1)
+      String.match?(value, ~r/^\d{4}-[1-4]$/) ->
+        handle_quarter_format(value, field_conf)
+
       # YYYY format
       String.match?(value, ~r/^\d{4}$/) ->
         handle_year_format(value, field_conf)
@@ -355,6 +359,29 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       {year, _} = Integer.parse(value)
       start_date = Date.new!(year, 1, 1)
       end_date = Date.new!(year + 1, 1, 1)
+
+      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+    else
+      {"=", value, ""}
+    end
+  end
+
+  defp handle_quarter_format(value, field_conf) do
+    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+      [year_str, quarter_str] = String.split(value, "-")
+      {year, _} = Integer.parse(year_str)
+      {quarter, _} = Integer.parse(quarter_str)
+
+      start_month = (quarter - 1) * 3 + 1
+      start_date = Date.new!(year, start_month, 1)
+
+      {end_year, end_month} =
+        case start_month + 3 do
+          m when m <= 12 -> {year, m}
+          m -> {year + 1, m - 12}
+        end
+
+      end_date = Date.new!(end_year, end_month, 1)
 
       {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
     else

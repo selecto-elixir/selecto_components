@@ -24,6 +24,27 @@ defmodule SelectoComponents.Helpers.FiltersTest do
     Selecto.configure(domain, nil)
   end
 
+  defp datetime_selecto do
+    domain = %{
+      name: "FiltersDateTimeTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :created_at],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          created_at: %{type: :utc_datetime}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   describe "filter_recurse/3 text prefix buckets" do
     test "builds a normalized raw-sql prefix filter" do
       filters = %{
@@ -168,6 +189,29 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       [filter] = Filters.filter_recurse(selecto(), filters, "filters")
 
       assert {{:upper, "title"}, {:like, "THE%"}} = filter
+    end
+  end
+
+  describe "filter_recurse/3 datetime coercion" do
+    test "converts DATE_BETWEEN bounds to DateTime for utc_datetime fields" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "DATE_BETWEEN",
+            "value" => "2017-01-01",
+            "value2" => "2018-01-01"
+          }
+        ]
+      }
+
+      [{"created_at", {:between, start_dt, end_dt}}] =
+        Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert %DateTime{} = start_dt
+      assert %DateTime{} = end_dt
     end
   end
 end

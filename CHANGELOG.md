@@ -5,6 +5,21 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.17
+--------
+
+- Fixed aggregate drill-down date filtering so datetime-backed fields (including
+  year and quarter groupings) produce valid date-range filters without
+  `NaiveDateTime`/`DateTime` encode mismatches.
+- Added quarter (`YYYY-Q`) drill-down parsing and regression coverage for year
+  and quarter date-group filter generation.
+- Fixed aggregate view NULL-group rendering so data buckets display as
+  clickable `[NULL]` values and drill down to `IS_EMPTY` filters instead of
+  being treated as grand totals.
+- Reduced URL bloat by using compact per-row param keys in detail form
+  serialization while preserving stable UUID identity in the payload.
+- Bump package version to `0.3.17`.
+
 V 0.3.16
 --------
 

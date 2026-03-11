@@ -106,6 +106,36 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v2 == "2025-01-01"
     end
 
+    test "handles YYYY year format for utc_datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017",
+          field_conf,
+          %{format: "YYYY"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2017-01-01"
+      assert v2 == "2018-01-01"
+    end
+
+    test "handles YYYY-Q quarter format for datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017-2",
+          field_conf,
+          %{format: "YYYY-Q"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2017-04-01"
+      assert v2 == "2017-07-01"
+    end
+
     test "handles numeric bucket ranges" do
       field_conf = %{type: :integer}
 

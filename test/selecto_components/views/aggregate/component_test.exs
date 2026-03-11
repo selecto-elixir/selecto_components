@@ -143,4 +143,18 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "250"
     assert html =~ "rows"
   end
+
+  test "null group-by value renders as [NULL] and is drill-down clickable" do
+    assigns =
+      aggregate_assigns(%{
+        query_results: {[[nil, 3], [2001, 7], [nil, 10]], [], ["release_year", "film_count"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "[NULL]"
+    assert html =~ ~s(phx-click="agg_add_filters")
+    assert html =~ ~s(phx-value-value0="__NULL__")
+    assert html =~ "Total"
+  end
 end
