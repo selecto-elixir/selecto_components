@@ -145,11 +145,14 @@ defmodule SelectoComponents.Form.FilterRendering do
     is_shortcut = is_date_shortcut(filter_value["value"])
     is_relative = is_relative_date(filter_value["value"])
 
+    current_comp = Map.get(filter_value, "comp", "=")
+
     assigns =
       assigns
       |> Map.put(:is_shortcut, is_shortcut)
       |> Map.put(:is_relative, is_relative)
       |> Map.put(:filter_value, filter_value)
+      |> Map.put(:current_comp, current_comp)
 
     ~H"""
     <div class="space-y-2">
@@ -158,32 +161,37 @@ defmodule SelectoComponents.Form.FilterRendering do
           name={"filters[#{@uuid}][comp]"}
           class="sc-select"
         >
-          <option value="=" selected={@filter_value["comp"] == "="}>On</option>
-          <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
-          <option value="DATE=" selected={@filter_value["comp"] == "DATE="}>Date Equals</option>
-          <option value="DATE!=" selected={@filter_value["comp"] == "DATE!="}>Date Not Equals</option>
-          <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
-          <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
-          <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
-          <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
-          <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
-          <option value="DATE_BETWEEN" selected={@filter_value["comp"] == "DATE_BETWEEN"}>
+          <option value="=" selected={@current_comp == "="}>On</option>
+          <option value="!=" selected={@current_comp == "!="}>Not On</option>
+          <option value="DATE=" selected={@current_comp == "DATE="}>Date Equals</option>
+          <option value="DATE!=" selected={@current_comp == "DATE!="}>Date Not Equals</option>
+          <option value=">" selected={@current_comp == ">"}>After</option>
+          <option value=">=" selected={@current_comp == ">="}>On or After</option>
+          <option value="<" selected={@current_comp == "<"}>Before</option>
+          <option value="<=" selected={@current_comp == "<="}>On or Before</option>
+          <option value="BETWEEN" selected={@current_comp == "BETWEEN"}>Between</option>
+          <option value="DATE_BETWEEN" selected={@current_comp == "DATE_BETWEEN"}>
             Date Between
           </option>
-          <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>
+          <option value="SHORTCUT" selected={@current_comp == "SHORTCUT"}>
             Quick Select
           </option>
-          <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>
+          <option value="RELATIVE" selected={@current_comp == "RELATIVE"}>
             Relative Days
           </option>
-          <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>
+          <option value="WEEKDAY_SUN1" selected={@current_comp == "WEEKDAY_SUN1"}>Day of Week</option>
+          <option value="WEEK_OF_YEAR" selected={@current_comp == "WEEK_OF_YEAR"}>Week of Year</option>
+          <option value="MONTH_OF_YEAR" selected={@current_comp == "MONTH_OF_YEAR"}>Month of Year</option>
+          <option value="DAY_OF_MONTH" selected={@current_comp == "DAY_OF_MONTH"}>Day of Month</option>
+          <option value="HOUR_OF_DAY" selected={@current_comp == "HOUR_OF_DAY"}>Hour of Day</option>
+          <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
+          <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>
             Is Not Empty
           </option>
         </select>
 
         <%= cond do %>
-          <% @filter_value["comp"] in ["BETWEEN", "DATE_BETWEEN"] -> %>
+          <% @current_comp in ["BETWEEN", "DATE_BETWEEN"] -> %>
             <div class="col-span-2 grid grid-cols-2 gap-2">
               <input
                 type="date"
@@ -202,7 +210,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="300"
               />
             </div>
-          <% @filter_value["comp"] == "SHORTCUT" -> %>
+          <% @current_comp == "SHORTCUT" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
               <optgroup label="Days">
                 <option value="today" selected={@filter_value["value"] == "today"}>Today</option>
@@ -326,7 +334,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                 </option>
               </optgroup>
             </select>
-          <% @filter_value["comp"] == "RELATIVE" -> %>
+          <% @current_comp == "RELATIVE" -> %>
             <div class="col-span-2 flex gap-2">
               <input
                 type="text"
@@ -344,14 +352,40 @@ defmodule SelectoComponents.Form.FilterRendering do
                 30- = within 30 days
               </div>
             </div>
-          <% @filter_value["comp"] in ["DATE=", "DATE!="] -> %>
+          <% @current_comp == "WEEKDAY_SUN1" -> %>
+            <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
+              <option value="1" selected={to_string(@filter_value["value"]) == "1"}>Sunday</option>
+              <option value="2" selected={to_string(@filter_value["value"]) == "2"}>Monday</option>
+              <option value="3" selected={to_string(@filter_value["value"]) == "3"}>Tuesday</option>
+              <option value="4" selected={to_string(@filter_value["value"]) == "4"}>Wednesday</option>
+              <option value="5" selected={to_string(@filter_value["value"]) == "5"}>Thursday</option>
+              <option value="6" selected={to_string(@filter_value["value"]) == "6"}>Friday</option>
+              <option value="7" selected={to_string(@filter_value["value"]) == "7"}>Saturday</option>
+            </select>
+          <% @current_comp == "WEEK_OF_YEAR" -> %>
+            <input
+              type="text"
+              name={"filters[#{@uuid}][value]"}
+              value={@filter_value["value"]}
+              class="sc-input col-span-2"
+              placeholder="YYYY-WW (e.g., 2026-10)"
+              pattern="^\d{4}-\d{2}$"
+            />
+          <% @current_comp in ["MONTH_OF_YEAR", "DAY_OF_MONTH", "HOUR_OF_DAY"] -> %>
+            <input
+              type="number"
+              name={"filters[#{@uuid}][value]"}
+              value={@filter_value["value"]}
+              class="sc-input col-span-2"
+            />
+          <% @current_comp in ["DATE=", "DATE!="] -> %>
             <input
               type="date"
               name={"filters[#{@uuid}][value]"}
               value={format_datetime_value(@filter_value["value"], :date)}
               class="sc-input col-span-2"
             />
-          <% @filter_value["comp"] in ["IS NULL", "IS NOT NULL"] -> %>
+          <% @current_comp in ["IS NULL", "IS NOT NULL"] -> %>
             <div class="col-span-2 text-gray-500 text-sm self-center">
               No value needed
             </div>
@@ -361,7 +395,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               name={"filters[#{@uuid}][value]"}
               value={format_datetime_value(@filter_value["value"], @field_type)}
               class="sc-input col-span-2"
-              disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
         <% end %>
       </div>
