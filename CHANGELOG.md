@@ -5,6 +5,17 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.19
+--------
+
+- Fixed URL serialization to compact raw submitted form params before push-patch,
+  so filters and view-item sections use short outer keys (`k0`, `k1`, ...)
+  instead of UUID keys in the browser URL.
+- Preserved UUID identity inside each serialized payload while shortening URL
+  query strings for filters, group-by, aggregate, selected, and graph params.
+- Added regression coverage for compacting raw UUID-keyed form params.
+- Bump package version to `0.3.19`.
+
 V 0.3.18
 --------
 
