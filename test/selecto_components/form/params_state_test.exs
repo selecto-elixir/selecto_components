@@ -46,6 +46,26 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(params, "max_rows")
   end
 
+  test "view_config_to_params includes aggregate grid toggle" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [],
+          aggregate: [],
+          per_page: "100",
+          grid: true
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["view_mode"] == "aggregate"
+    assert params["aggregate_grid"] == "true"
+  end
+
   test "view_config_to_params includes map scalar config" do
     view_config = %{
       view_mode: "map",

@@ -908,6 +908,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     total_pages = if aggregate_total_rows > 0, do: max_page + 1, else: 0
 
+    grid_enabled = truthy?(Map.get(aggregate_meta, :grid_enabled, false))
+    grid_available? = grid_enabled and num_group_by == 2 and length(aggregates_processed) == 1
+
+    grid_data =
+      if grid_available?,
+        do: build_grid_data(paged_rollup_rows, num_group_by, group_by),
+        else: nil
+
     assigns =
       assign(assigns,
         rollup_rows: rollup_rows,
@@ -924,7 +932,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aggregate_max_page: max_page,
         aggregate_total_pages: total_pages,
         aggregate_page_start: page_start,
-        aggregate_page_end: page_end
+        aggregate_page_end: page_end,
+        grid_enabled: grid_enabled,
+        grid_available?: grid_available?,
+        grid_data: grid_data
       )
 
     ~H"""
@@ -1060,40 +1071,115 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         if you need to render more rows at once.
       </div>
 
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
-        <thead class="bg-gray-50">
-          <tr>
-            <%!-- Headers for group by columns --%>
-            <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
-              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                {alias}
-              </th>
-            <% end %>
+      <div
+        :if={@grid_enabled and not @grid_available?}
+        class="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900"
+      >
+        Grid view requires exactly 2 Group By fields and 1 Aggregate.
+      </div>
 
-            <%!-- Headers for aggregate columns --%>
-            <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+      <%= if @grid_available? and @grid_data do %>
+        <div class="mb-2 text-sm font-medium text-gray-700">Aggregate Grid</div>
+        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+          <thead class="bg-gray-50">
+            <tr>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                {alias}
+                {@grid_data.row_alias}
               </th>
-            <% end %>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 bg-white">
-          <.rollup_row
-            :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
-            level={level}
-            row={row}
-            continued?={continued?}
-            grand_total?={grand_total?}
-            num_group_by={@num_group_by}
-            group_by={@group_by}
-            aggregate={@aggregate}
-          />
-        </tbody>
-      </table>
+              <%= for col_value <- @grid_data.col_headers do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {format_value(col_value)}
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            <tr :for={row_value <- @grid_data.row_headers}>
+              <td class="px-3 py-2 text-sm font-semibold text-gray-800">{format_value(row_value)}</td>
+              <td :for={col_value <- @grid_data.col_headers} class="px-3 py-2 text-sm text-gray-900">
+                {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      <% else %>
+        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+          <thead class="bg-gray-50">
+            <tr>
+              <%!-- Headers for group by columns --%>
+              <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {alias}
+                </th>
+              <% end %>
+
+              <%!-- Headers for aggregate columns --%>
+              <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {alias}
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            <.rollup_row
+              :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
+              level={level}
+              row={row}
+              continued?={continued?}
+              grand_total?={grand_total?}
+              num_group_by={@num_group_by}
+              group_by={@group_by}
+              aggregate={@aggregate}
+            />
+          </tbody>
+        </table>
+      <% end %>
     </div>
     """
   end
+
+  defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
+  defp truthy?(_), do: false
+
+  defp build_grid_data(paged_rollup_rows, num_group_by, group_by) do
+    detail_rows =
+      Enum.reduce(paged_rollup_rows, [], fn
+        {level, row, continued?, grand_total?}, acc when level == num_group_by ->
+          if continued? or grand_total? do
+            acc
+          else
+            [row | acc]
+          end
+
+        _other, acc ->
+          acc
+      end)
+      |> Enum.reverse()
+
+    {row_headers, col_headers, cells} =
+      Enum.reduce(detail_rows, {[], [], %{}}, fn row, {row_acc, col_acc, cells_acc} ->
+        row_value = Enum.at(row, 0)
+        col_value = Enum.at(row, 1)
+        agg_value = Enum.at(row, 2)
+
+        row_acc = if row_value in row_acc, do: row_acc, else: row_acc ++ [row_value]
+        col_acc = if col_value in col_acc, do: col_acc, else: col_acc ++ [col_value]
+        cells_acc = Map.put(cells_acc, {row_value, col_value}, agg_value)
+
+        {row_acc, col_acc, cells_acc}
+      end)
+
+    %{
+      row_alias: grid_row_alias(group_by),
+      row_headers: row_headers,
+      col_headers: col_headers,
+      cells: cells
+    }
+  end
+
+  defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
+  defp grid_row_alias(_), do: "Group 1"
 
   defp maybe_set_group_by_filter(coldef, field_name)
        when is_map(coldef) and is_binary(field_name) and field_name != "" do

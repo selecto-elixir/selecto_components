@@ -157,4 +157,56 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ ~s(phx-value-value0="__NULL__")
     assert html =~ "Total"
   end
+
+  test "renders aggregate grid when enabled with 2 group-by and 1 aggregate" do
+    assigns = %{
+      id: "aggregate-grid-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[[2001, "A", 3], [2001, "B", 5], [2002, "A", 2]], [],
+         ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-test-run", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Aggregate Grid"
+    assert html =~ "release_year"
+    assert html =~ "2001"
+    assert html =~ "2002"
+    assert html =~ "3"
+    assert html =~ "5"
+    assert html =~ "2"
+  end
+
+  test "shows grid requirements message when configuration does not match" do
+    html =
+      render_component(
+        Component,
+        aggregate_assigns(%{view_meta: %{exe_id: "aggregate-grid-message", grid_enabled: true}})
+      )
+
+    assert html =~ "Grid view requires exactly 2 Group By fields and 1 Aggregate"
+  end
 end

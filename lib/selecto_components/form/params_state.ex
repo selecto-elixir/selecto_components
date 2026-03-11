@@ -116,6 +116,11 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.put(acc, "aggregate_per_page", AggregateOptions.normalize_per_page_param(value))
   end
 
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid, "grid"] do
+    Map.put(acc, "aggregate_grid", to_string(value))
+  end
+
   defp merge_scalar_view_param(acc, :detail, key, value)
        when key in [:max_rows, "max_rows"] do
     Map.put(acc, "max_rows", DetailOptions.normalize_max_rows_param(value))

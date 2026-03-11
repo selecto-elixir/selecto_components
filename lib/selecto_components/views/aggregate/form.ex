@@ -25,10 +25,12 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
   def render(assigns) do
     aggregate_per_page = get_aggregate_per_page(assigns.view_config)
+    aggregate_grid = get_aggregate_grid(assigns.view_config)
 
     assigns =
       assign(assigns,
         aggregate_per_page: aggregate_per_page,
+        aggregate_grid: aggregate_grid,
         aggregate_per_page_options: Options.per_page_options()
       )
 
@@ -49,6 +51,18 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             </option>
           <% end %>
         </select>
+
+        <label class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700">
+          <input type="hidden" name="aggregate_grid" value="false" />
+          <input
+            type="checkbox"
+            name="aggregate_grid"
+            value="true"
+            checked={@aggregate_grid}
+            class="checkbox checkbox-sm"
+          />
+          Grid view (2 group-by + 1 aggregate)
+        </label>
       </div>
       Group By
       <.live_component
@@ -119,4 +133,17 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     end)
     |> Options.normalize_per_page_param()
   end
+
+  defp get_aggregate_grid(view_config) do
+    view_config
+    |> Map.get(:views, %{})
+    |> Map.get(:aggregate, %{})
+    |> then(fn aggregate_cfg ->
+      Map.get(aggregate_cfg, :grid, Map.get(aggregate_cfg, "grid", false))
+    end)
+    |> normalize_checkbox()
+  end
+
+  defp normalize_checkbox(value) when value in [true, "true", "on", "1", 1], do: true
+  defp normalize_checkbox(_value), do: false
 end

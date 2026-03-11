@@ -5,6 +5,16 @@ CHANGES
 V NEXT
 ------
 
+- Added optional Aggregate Grid mode (toggle in aggregate form) that renders a
+  2D table when exactly 2 group-by fields and 1 aggregate are configured.
+- Wired aggregate grid state through params/view meta so the setting persists
+  across form updates and URL/view-config round-trips.
+- Added aggregate date/filter alignment for grouped datetime formats
+  (`YYYY-WW`, `D`, `MM`, `DD`, `HH24`) plus weekday shortcuts
+  (`weekdays`, `weekends`, `monday`...`sunday`).
+- Added regression tests for aggregate grid rendering/validation and grouped
+  date-drilldown filter mapping.
+
 V 0.3.17
 --------
 
