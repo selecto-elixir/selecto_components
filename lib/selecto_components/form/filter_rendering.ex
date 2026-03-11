@@ -28,7 +28,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def render_filter_form(assigns, uuid, index, section, filter_value) do
     # Get the filter definition from the selecto
-    filter_id = filter_value["filter"]
+    filter_id = value_for(filter_value, "filter")
 
     filter_def =
       case Selecto.filters(assigns.selecto) do
@@ -116,7 +116,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
 
         field_type in [:naive_datetime, :utc_datetime, :date] or
-            datetime_comp?(Map.get(filter_value, "comp")) ->
+            datetime_comp?(value_for(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
         field_type == :tsvector ->
@@ -143,10 +143,10 @@ defmodule SelectoComponents.Form.FilterRendering do
     # Check if value is a shortcut or relative date
     filter_value = assigns[:filter_value] || %{}
 
-    is_shortcut = is_date_shortcut(filter_value["value"])
-    is_relative = is_relative_date(filter_value["value"])
+    is_shortcut = is_date_shortcut(value_for(filter_value, "value"))
+    is_relative = is_relative_date(value_for(filter_value, "value"))
 
-    current_comp = Map.get(filter_value, "comp", "=")
+    current_comp = value_for(filter_value, "comp") || "="
 
     assigns =
       assigns
@@ -355,19 +355,19 @@ defmodule SelectoComponents.Form.FilterRendering do
             </div>
           <% @current_comp == "WEEKDAY_SUN1" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
-              <option value="1" selected={to_string(@filter_value["value"]) == "1"}>Sunday</option>
-              <option value="2" selected={to_string(@filter_value["value"]) == "2"}>Monday</option>
-              <option value="3" selected={to_string(@filter_value["value"]) == "3"}>Tuesday</option>
-              <option value="4" selected={to_string(@filter_value["value"]) == "4"}>Wednesday</option>
-              <option value="5" selected={to_string(@filter_value["value"]) == "5"}>Thursday</option>
-              <option value="6" selected={to_string(@filter_value["value"]) == "6"}>Friday</option>
-              <option value="7" selected={to_string(@filter_value["value"]) == "7"}>Saturday</option>
+              <option value="1" selected={to_string(value_for(@filter_value, "value")) == "1"}>Sunday</option>
+              <option value="2" selected={to_string(value_for(@filter_value, "value")) == "2"}>Monday</option>
+              <option value="3" selected={to_string(value_for(@filter_value, "value")) == "3"}>Tuesday</option>
+              <option value="4" selected={to_string(value_for(@filter_value, "value")) == "4"}>Wednesday</option>
+              <option value="5" selected={to_string(value_for(@filter_value, "value")) == "5"}>Thursday</option>
+              <option value="6" selected={to_string(value_for(@filter_value, "value")) == "6"}>Friday</option>
+              <option value="7" selected={to_string(value_for(@filter_value, "value")) == "7"}>Saturday</option>
             </select>
           <% @current_comp == "WEEK_OF_YEAR" -> %>
             <input
               type="text"
               name={"filters[#{@uuid}][value]"}
-              value={@filter_value["value"]}
+              value={value_for(@filter_value, "value")}
               class="sc-input col-span-2"
               placeholder="YYYY-WW (e.g., 2026-10)"
               pattern="^\d{4}-\d{2}$"
@@ -376,7 +376,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             <input
               type="number"
               name={"filters[#{@uuid}][value]"}
-              value={@filter_value["value"]}
+              value={value_for(@filter_value, "value")}
               class="sc-input col-span-2"
             />
           <% @current_comp in ["DATE=", "DATE!="] -> %>
@@ -768,13 +768,6 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp datetime_comp?(comp) when is_binary(comp) do
     comp in [
-      "=",
-      "!=",
-      ">",
-      ">=",
-      "<",
-      "<=",
-      "BETWEEN",
       "DATE=",
       "DATE!=",
       "DATE_BETWEEN",
@@ -792,6 +785,21 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   defp datetime_comp?(_), do: false
+
+  defp value_for(map, key) when is_map(map) and is_binary(key) do
+    atom_key =
+      try do
+        String.to_existing_atom(key)
+      rescue
+        ArgumentError -> nil
+      end
+
+    if atom_key, do: Map.get(map, key, Map.get(map, atom_key)), else: Map.get(map, key)
+  rescue
+    _ -> Map.get(map, key)
+  end
+
+  defp value_for(_map, _key), do: nil
 
   @doc """
   Hash only the filter structure (IDs and sections), not the values.
