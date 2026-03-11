@@ -1,17 +1,17 @@
 defmodule SelectoComponents.Helpers do
   def aggregate_datetime_format_options() do
     [
-      {"Day", "YYYY-MM-DD"},
-      {"Week", "YYYY-WW"},
-      {"Month", "YYYY-MM"},
-      {"Quarter", "YYYY-Q"},
-      {"Year", "YYYY"},
-      {"Month of Year", "MM"},
-      {"Day of Month", "DD"},
-      {"Day of Week", "D"},
-      {"Hour of Day", "HH24"},
-      {"Age Buckets", "age_buckets"},
-      {"Custom Date Buckets", "custom_buckets"}
+      {"YYYY-MM-DD", "Day"},
+      {"YYYY-WW", "Week"},
+      {"YYYY-MM", "Month"},
+      {"YYYY-Q", "Quarter"},
+      {"YYYY", "Year"},
+      {"MM", "Month of Year"},
+      {"DD", "Day of Month"},
+      {"D", "Day of Week"},
+      {"HH24", "Hour of Day"},
+      {"age_buckets", "Age Buckets"},
+      {"custom_buckets", "Custom Date Buckets"}
     ]
   end
 

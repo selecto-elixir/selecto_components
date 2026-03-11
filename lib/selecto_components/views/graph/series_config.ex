@@ -44,7 +44,7 @@ defmodule SelectoComponents.Views.Graph.SeriesConfig do
             class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>
-            <%= for {label, value} <- SelectoComponents.Helpers.aggregate_datetime_format_options() do %>
+            <%= for {value, label} <- SelectoComponents.Helpers.aggregate_datetime_format_options() do %>
               <option value={value} selected={Map.get(@config, "format") == value}>{label}</option>
             <% end %>
           </select>
