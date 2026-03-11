@@ -215,7 +215,14 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
     filter_key =
       assigns.filters
-      |> Enum.map(fn {{uuid, _, _}, _} -> uuid end)
+      |> Enum.map(fn
+        {{uuid, _section, config}, _idx} when is_map(config) ->
+          comp = Map.get(config, "comp") || Map.get(config, :comp) || ""
+          "#{uuid}:#{comp}"
+
+        {{uuid, _section, _conjunction}, _idx} ->
+          to_string(uuid)
+      end)
       |> Enum.join("-")
       |> then(fn key -> "#{component_id}-#{assigns.section}-#{key}" end)
 

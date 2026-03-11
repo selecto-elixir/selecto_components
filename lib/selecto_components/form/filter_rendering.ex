@@ -820,18 +820,21 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp normalize_string(value), do: to_string(value)
 
   @doc """
-  Hash only the filter structure (IDs and sections), not the values.
+  Hash filter structure and comparator mode, not filter values.
 
-  This ensures the component remounts when filters are added/removed
-  but not when filter values or comparisons change.
+  This ensures the component remounts when filters are added/removed or
+  comparator mode changes, but not when filter values change.
   """
   def hash_filter_structure(filters) do
-    # Only hash UUIDs, sections, and filter field IDs so the component remounts
-    # when filters are added/removed but NOT when values/comparisons change
+    # Hash UUIDs, sections, filter field IDs, and comparator mode so the
+    # component remounts when input shape changes (e.g. BETWEEN -> IS NULL)
     filters
     |> Enum.map(fn
-      {uuid, section, config} when is_map(config) -> {uuid, section, Map.get(config, "filter")}
-      {uuid, section, conj} when is_binary(conj) -> {uuid, section, conj}
+      {uuid, section, config} when is_map(config) ->
+        {uuid, section, Map.get(config, "filter"), Map.get(config, "comp")}
+
+      {uuid, section, conj} when is_binary(conj) ->
+        {uuid, section, conj}
     end)
     |> :erlang.phash2()
   end
