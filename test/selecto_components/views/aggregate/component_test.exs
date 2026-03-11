@@ -209,4 +209,34 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
 
     assert html =~ "Grid view requires exactly 2 Group By fields and 1 Aggregate"
   end
+
+  test "day-of-week group-by displays weekday names" do
+    assigns =
+      aggregate_assigns(%{
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          group_by: %{
+            "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"}
+          }
+        },
+        selecto: %{
+          selecto()
+          | set: %{
+              selected: [
+                {:field, :release_year, "release_year"},
+                {:field, {:count, :film_id}, "film_count"}
+              ],
+              group_by: [{:rollup, [{:literal_position, 1}]}],
+              aggregates: [{:field, {:count, :film_id}, "film_count"}]
+            }
+        },
+        query_results: {[[6, 10]], [], ["release_year", "film_count"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Friday"
+    refute html =~ ">6<"
+  end
 end

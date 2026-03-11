@@ -418,7 +418,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               <%= if idx == @display_level - 1 do %>
                 <%= if @continued? do %>
                   <span class="text-amber-900">
-                    {format_value(value)} (continued)
+                    {format_group_value(value, coldef)} (continued)
                   </span>
                 <% else %>
                   <div
@@ -426,7 +426,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     {@filter_attrs}
                     class="cursor-pointer hover:underline"
                   >
-                    {format_value(value)}
+                    {format_group_value(value, coldef)}
                   </div>
                 <% end %>
               <% end %>
@@ -679,7 +679,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     group_by_config = selecto_group_by_config || view_config_group_by || %{}
 
-    group_by_param_fields =
+    group_by_param_configs =
       group_by_config
       |> Map.values()
       |> Enum.sort(fn a, b ->
@@ -692,7 +692,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
         to_index.(a) <= to_index.(b)
       end)
-      |> Enum.map(fn cfg -> Map.get(cfg, "field") || Map.get(cfg, :field) end)
+
+    group_by_param_fields =
+      Enum.map(group_by_param_configs, fn cfg -> Map.get(cfg, "field") || Map.get(cfg, :field) end)
 
     # Convert to the format expected by the template
     group_by =
@@ -775,6 +777,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           end
 
         coldef = maybe_set_group_by_filter(coldef, Enum.at(group_by_param_fields, idx))
+        coldef = maybe_set_group_by_format(coldef, Enum.at(group_by_param_configs, idx))
         {alias, {:group_by, field, coldef}}
       end)
 
@@ -1088,14 +1091,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               </th>
               <%= for col_value <- @grid_data.col_headers do %>
                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  {format_value(col_value)}
+                  {format_group_value(col_value, @grid_data.col_coldef)}
                 </th>
               <% end %>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 bg-white">
             <tr :for={row_value <- @grid_data.row_headers}>
-              <td class="px-3 py-2 text-sm font-semibold text-gray-800">{format_value(row_value)}</td>
+              <td class="px-3 py-2 text-sm font-semibold text-gray-800">
+                {format_group_value(row_value, @grid_data.row_coldef)}
+              </td>
               <td :for={col_value <- @grid_data.col_headers} class="px-3 py-2 text-sm text-gray-900">
                 {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
               </td>
@@ -1170,16 +1175,59 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         {row_acc, col_acc, cells_acc}
       end)
 
+    row_coldef = grid_coldef(group_by, 0)
+    col_coldef = grid_coldef(group_by, 1)
+
     %{
       row_alias: grid_row_alias(group_by),
       row_headers: row_headers,
       col_headers: col_headers,
-      cells: cells
+      cells: cells,
+      row_coldef: row_coldef,
+      col_coldef: col_coldef
     }
   end
 
   defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
   defp grid_row_alias(_), do: "Group 1"
+
+  defp grid_coldef(group_by, idx) do
+    case Enum.at(group_by, idx) do
+      {_alias, {:group_by, _field, coldef}} -> coldef
+      _ -> %{}
+    end
+  end
+
+  defp format_group_value(value, coldef) do
+    case Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format") do
+      "D" -> weekday_name(value)
+      _ -> format_value(value)
+    end
+  end
+
+  defp weekday_name(value) do
+    case parse_int(value) do
+      1 -> "Sunday"
+      2 -> "Monday"
+      3 -> "Tuesday"
+      4 -> "Wednesday"
+      5 -> "Thursday"
+      6 -> "Friday"
+      7 -> "Saturday"
+      _ -> format_value(value)
+    end
+  end
+
+  defp parse_int(v) when is_integer(v), do: v
+
+  defp parse_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {num, ""} -> num
+      _ -> nil
+    end
+  end
+
+  defp parse_int(_), do: nil
 
   defp maybe_set_group_by_filter(coldef, field_name)
        when is_map(coldef) and is_binary(field_name) and field_name != "" do
@@ -1189,6 +1237,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp maybe_set_group_by_filter(coldef, _), do: coldef
+
+  defp maybe_set_group_by_format(coldef, cfg) when is_map(coldef) and is_map(cfg) do
+    format = Map.get(cfg, "format") || Map.get(cfg, :format)
+
+    if is_binary(format) and format != "" do
+      coldef
+      |> Map.put(:group_format, format)
+      |> Map.put("group_format", format)
+    else
+      coldef
+    end
+  end
+
+  defp maybe_set_group_by_format(coldef, _), do: coldef
 
   @impl true
   def handle_event("set_aggregate_page", %{"page" => page_param}, socket) do

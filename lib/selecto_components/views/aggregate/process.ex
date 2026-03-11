@@ -129,6 +129,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           columns[field_name]
         end
 
+      col =
+        if is_map(col) do
+          col
+          |> Map.put(:group_format, Map.get(e, "format"))
+          |> Map.put("group_format", Map.get(e, "format"))
+        else
+          col
+        end
+
       # ????
       alias =
         case Map.get(e, "alias") do

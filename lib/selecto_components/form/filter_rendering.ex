@@ -115,7 +115,8 @@ defmodule SelectoComponents.Form.FilterRendering do
         join_mode_config ->
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
 
-        field_type in [:naive_datetime, :utc_datetime, :date] ->
+        field_type in [:naive_datetime, :utc_datetime, :date] or
+            datetime_comp?(Map.get(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
         field_type == :tsvector ->
@@ -764,6 +765,33 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   def is_relative_date(_), do: false
+
+  defp datetime_comp?(comp) when is_binary(comp) do
+    comp in [
+      "=",
+      "!=",
+      ">",
+      ">=",
+      "<",
+      "<=",
+      "BETWEEN",
+      "DATE=",
+      "DATE!=",
+      "DATE_BETWEEN",
+      "SHORTCUT",
+      "RELATIVE",
+      "WEEKDAY",
+      "WEEKDAY_SUN1",
+      "WEEK_OF_YEAR",
+      "MONTH_OF_YEAR",
+      "DAY_OF_MONTH",
+      "HOUR_OF_DAY",
+      "IS NULL",
+      "IS NOT NULL"
+    ]
+  end
+
+  defp datetime_comp?(_), do: false
 
   @doc """
   Hash only the filter structure (IDs and sections), not the values.
