@@ -1,4 +1,5 @@
 defmodule SelectoComponents.Views.Detail.Process do
+  alias SelectoComponents.Helpers.BucketParser
   alias SelectoComponents.Views.Detail.Options
 
   def param_to_state(params, _v) do
@@ -268,8 +269,8 @@ defmodule SelectoComponents.Views.Detail.Process do
 
       # move to a validation lib
       case col.type do
-        x when x in [:naive_datetime, :utc_datetime] ->
-          {:field, {:to_char, {col.colid, date_formats[e["format"]]}}, alias}
+        x when x in [:naive_datetime, :utc_datetime, :date] ->
+          datetime_selected(col, e, alias, date_formats)
 
         :custom_column ->
           case Map.get(col, :requires_select) do
@@ -283,5 +284,50 @@ defmodule SelectoComponents.Views.Detail.Process do
       end
     end)
     |> List.flatten()
+  end
+
+  defp datetime_selected(col, config, alias_name, date_formats) do
+    format = Map.get(config, "format")
+    bucket_ranges = Map.get(config, "bucket_ranges")
+
+    case format do
+      "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = detail_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+            bucket_ranges,
+            :integer
+          )
+
+        {:field, {:raw_sql, case_sql}, alias_name}
+
+      "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = detail_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            field_with_alias,
+            bucket_ranges,
+            :date
+          )
+
+        {:field, {:raw_sql, case_sql}, alias_name}
+
+      _ ->
+        to_char_format = Map.get(date_formats, format)
+
+        if is_binary(to_char_format) and to_char_format != "" do
+          {:field, {:to_char, {col.colid, to_char_format}}, alias_name}
+        else
+          {:field, col.colid, alias_name}
+        end
+    end
+  end
+
+  defp detail_field_ref(colid) do
+    colid_str = to_string(colid)
+    if String.contains?(colid_str, "."), do: colid_str, else: "selecto_root." <> colid_str
   end
 end

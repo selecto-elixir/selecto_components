@@ -1,4 +1,5 @@
 defmodule SelectoComponents.Views.Graph.Process do
+  alias SelectoComponents.Helpers.BucketParser
   alias SelectoComponents.SafeAtom
 
   @doc """
@@ -204,15 +205,44 @@ defmodule SelectoComponents.Views.Graph.Process do
 
   # Process datetime fields for grouping (Year, Month, Day, etc.)
   defp datetime_group_by_processor(col, config) do
-    case config["format"] do
-      format when format in ~w(YYYY-MM-DD YYYY-MM YYYY) ->
+    format = config["format"]
+    bucket_ranges = config["bucket_ranges"]
+
+    case format do
+      format when format in ~w(YYYY-MM-DD YYYY-WW YYYY-MM YYYY-Q YYYY MM DD D HH24) ->
         {:to_char, {col.colid, format}}
 
-      format when format in ~w(Year Month Day Hour) ->
-        {:extract, col.colid, String.downcase(format)}
+      "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = graph_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+            bucket_ranges,
+            :integer
+          )
+
+        {:raw_sql, case_sql}
+
+      "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = graph_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            field_with_alias,
+            bucket_ranges,
+            :date
+          )
+
+        {:raw_sql, case_sql}
 
       _ ->
         col.colid
     end
+  end
+
+  defp graph_field_ref(colid) do
+    colid_str = to_string(colid)
+    if String.contains?(colid_str, "."), do: colid_str, else: "selecto_root." <> colid_str
   end
 end

@@ -124,19 +124,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                 <.sc_select
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
-                  options={[
-                    {"YYYY-MM-DD", "Day"},
-                    {"YYYY-WW", "Week"},
-                    {"YYYY-MM", "Month"},
-                    {"YYYY-Q", "Quarter"},
-                    {"YYYY", "Year"},
-                    {"MM", "Month of Year"},
-                    {"DD", "Day of Month"},
-                    {"D", "Day of Week"},
-                    {"HH24", "Hour of Day"},
-                    {"age_buckets", "Age Buckets"},
-                    {"custom_buckets", "Custom Date Buckets"}
-                  ]}
+                  options={SelectoComponents.Helpers.aggregate_datetime_format_options()}
                 />
               </label>
               <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets"] do %>

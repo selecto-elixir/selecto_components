@@ -12,6 +12,9 @@ V NEXT
 - Added aggregate date/filter alignment for grouped datetime formats
   (`YYYY-WW`, `D`, `MM`, `DD`, `HH24`) plus weekday shortcuts
   (`weekdays`, `weekends`, `monday`...`sunday`).
+- Unified datetime formatting options across Aggregate, Detail, and Graph
+  configuration UIs (including week/quarter/day-of-week and bucket formats),
+  and aligned Graph/Detail processing to support the same format set.
 - Added regression tests for aggregate grid rendering/validation and grouped
   date-drilldown filter mapping.
 

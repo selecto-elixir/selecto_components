@@ -49,7 +49,8 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
   defp view_columns do
     %{
       "name" => %{type: :string, colid: "name"},
-      "posts.title" => %{type: :string, colid: "posts.title"}
+      "posts.title" => %{type: :string, colid: "posts.title"},
+      "created_at" => %{type: :utc_datetime, colid: "created_at"}
     }
   end
 
@@ -198,5 +199,21 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     {_view_set, view_meta} = Process.view(nil, params, view_columns(), [], selecto)
 
     assert view_meta.count_mode == "exact"
+  end
+
+  test "detail datetime format supports aggregate day-of-week token" do
+    selecto = test_selecto()
+
+    params = %{
+      "selected" => %{
+        "c1" => %{"field" => "created_at", "index" => "0", "alias" => "", "format" => "D"}
+      },
+      "order_by" => %{},
+      "per_page" => "30"
+    }
+
+    {view_set, _view_meta} = Process.view(nil, params, view_columns(), [], selecto)
+
+    assert [{:field, {:to_char, {"created_at", "D"}}, "created_at"}] = view_set.selected
   end
 end
