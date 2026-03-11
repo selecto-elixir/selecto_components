@@ -459,5 +459,32 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert filter["exclude_articles"] == "true"
       assert filter["ignore_case"] == "true"
     end
+
+    test "uses group index to disambiguate repeated datetime fields with different formats" do
+      socket =
+        %{assigns: %{selecto: selecto(), used_params: %{}}}
+        |> put_in(
+          [:assigns, :used_params, "group_by"],
+          %{
+            "g0" => %{"field" => "order_date", "index" => "0", "format" => "D"},
+            "g1" => %{"field" => "order_date", "index" => "1", "format" => "DD"}
+          }
+        )
+
+      params = %{
+        "field0" => "order_date",
+        "value0" => "6",
+        "gidx0" => "0",
+        "field1" => "order_date",
+        "value1" => "14",
+        "gidx1" => "1"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+      filters = Map.values(view_params["filters"])
+
+      assert Enum.any?(filters, fn f -> f["comp"] == "WEEKDAY_SUN1" and f["value"] == "6" end)
+      assert Enum.any?(filters, fn f -> f["comp"] == "DAY_OF_MONTH" and f["value"] == "14" end)
+    end
   end
 end

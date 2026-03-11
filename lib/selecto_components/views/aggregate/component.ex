@@ -321,6 +321,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       acc
       |> Map.put("phx-value-field#{idx}", filter_field)
       |> Map.put("phx-value-value#{idx}", to_string(filter_value))
+      |> Map.put("phx-value-gidx#{idx}", to_string(idx))
     end)
   end
 

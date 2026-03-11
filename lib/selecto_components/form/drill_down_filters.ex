@@ -44,7 +44,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     Enum.reduce(
       field_value_pairs,
       existing_filters(socket),
-      fn {field_name, v}, acc ->
+      fn {field_name, v, group_idx}, acc ->
         newid = UUID.uuid4()
 
         # Get field configuration
@@ -55,7 +55,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Collect group-by context for bucket-aware drill-down filters
         group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-        field_group_config = find_field_group_config(group_by_config, field_name)
+
+        field_group_config =
+          find_field_group_config(group_by_config, field_name, group_idx)
+
         drill_context = drill_context_from_group_config(field_group_config)
 
         # Determine comparison mode and values based on format
@@ -102,7 +105,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       idx = String.replace_prefix(field_key, "field", "")
       value_key = "value#{idx}"
       value = Map.get(params, value_key, "")
-      {field_name, value}
+      group_idx = Map.get(params, "gidx#{idx}")
+      {field_name, value, group_idx}
     end)
   end
 
@@ -117,15 +121,31 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp find_field_group_config(group_by_config, field_name) do
+  defp find_field_group_config(group_by_config, field_name, group_idx) do
+    by_index = find_field_group_config_by_index(group_by_config, group_idx)
+
+    if by_index do
+      by_index
+    else
+      Enum.find_value(Map.values(group_by_config), fn config ->
+        if Map.get(config, "field") == field_name do
+          config
+        else
+          nil
+        end
+      end)
+    end
+  end
+
+  defp find_field_group_config_by_index(group_by_config, group_idx)
+       when is_binary(group_idx) and group_idx != "" do
     Enum.find_value(Map.values(group_by_config), fn config ->
-      if Map.get(config, "field") == field_name do
-        config
-      else
-        nil
-      end
+      cfg_idx = Map.get(config, "index") || to_string(Map.get(config, :index, ""))
+      if cfg_idx == group_idx, do: config, else: nil
     end)
   end
+
+  defp find_field_group_config_by_index(_group_by_config, _group_idx), do: nil
 
   @doc """
   Determine the appropriate comparison operator and values based on the clicked value format.
@@ -456,7 +476,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   def build_filter_tuples(params, socket) do
     params
     |> extract_indexed_pairs()
-    |> Enum.map(fn {field_name, v} ->
+    |> Enum.map(fn {field_name, v, _group_idx} ->
       conf = Selecto.field(socket.assigns.selecto, field_name)
 
       if conf != nil do
