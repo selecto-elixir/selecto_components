@@ -8,6 +8,9 @@ V NEXT
 - Redesigned the item picker selected-list UI to use compact one-line summaries,
   inline edit panels, outside-click close behavior, and drag/drop reordering
   while keeping available items on the left and selected items on the right.
+- Fixed item-picker drag/drop reordering so drops work consistently in both
+  directions and selected-row editor state remains stable across LiveView
+  updates while editing.
 - Updated Detail, Aggregate, and Graph picker summaries to show
   `alias / field-name` when an alias is present, followed by lighter-weight
   format/status text for faster scanning.

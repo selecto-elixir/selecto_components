@@ -114,10 +114,7 @@ defmodule SelectoComponents.Form.ListPickerOperations do
       true ->
         {dragged_item, remaining_items} = List.pop_at(item_list, dragged_index)
 
-        adjusted_target_index =
-          if dragged_index < target_index, do: target_index - 1, else: target_index
-
-        reordered_items = List.insert_at(remaining_items, adjusted_target_index, dragged_item)
+        reordered_items = List.insert_at(remaining_items, target_index, dragged_item)
         put_in(view_config.views[view][list], reordered_items)
     end
   end

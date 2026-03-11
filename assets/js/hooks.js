@@ -186,7 +186,70 @@ export const ListPickerSortable = {
   }
 };
 
+export const ListPickerEditor = {
+  mounted() {
+    this.open = false;
+
+    this.applyState = () => {
+      const content = this.el.querySelector('[data-editor-content]');
+      const openLabel = this.el.querySelector('[data-editor-open-label]');
+      const closeLabel = this.el.querySelector('[data-editor-close-label]');
+
+      if (content) {
+        content.classList.toggle('hidden', !this.open);
+      }
+
+      if (openLabel) {
+        openLabel.classList.toggle('hidden', this.open);
+      }
+
+      if (closeLabel) {
+        closeLabel.classList.toggle('hidden', !this.open);
+      }
+    };
+
+    this.setOpen = (nextOpen) => {
+      this.open = nextOpen;
+      this.applyState();
+    };
+
+    this.handleClick = (event) => {
+      if (event.target.closest('[data-editor-toggle]')) {
+        event.preventDefault();
+        this.setOpen(!this.open);
+      }
+    };
+
+    this.handleDocumentClick = (event) => {
+      if (!this.open || this.el.contains(event.target)) {
+        return;
+      }
+
+      this.setOpen(false);
+    };
+
+    this.el.addEventListener('click', this.handleClick);
+    document.addEventListener('click', this.handleDocumentClick);
+    this.applyState();
+  },
+
+  updated() {
+    this.applyState();
+  },
+
+  destroyed() {
+    if (this.handleClick) {
+      this.el.removeEventListener('click', this.handleClick);
+    }
+
+    if (this.handleDocumentClick) {
+      document.removeEventListener('click', this.handleDocumentClick);
+    }
+  }
+};
+
 export default {
   ColumnResize,
-  ListPickerSortable
+  ListPickerSortable,
+  ListPickerEditor
 };

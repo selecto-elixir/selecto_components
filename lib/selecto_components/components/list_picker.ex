@@ -80,11 +80,11 @@ defmodule SelectoComponents.Components.ListPicker do
 
           <div
             :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
+            id={"#{@component_dom_id}-item-#{id}"}
+            phx-hook="ListPickerEditor"
             draggable="true"
             data-picker-item-id={id}
             class="w-full rounded-xl border border-base-300 bg-base-200/80 px-3 py-2 text-base-content shadow-sm transition hover:border-base-400 hover:bg-base-300/60"
-            x-data="{ open: false }"
-            x-on:click.outside="open = false"
           >
             <div class="flex items-center gap-3">
               <button type="button" class="cursor-grab text-base-content/45 active:cursor-grabbing" title="Drag to reorder">
@@ -106,14 +106,19 @@ defmodule SelectoComponents.Components.ListPicker do
               </div>
 
               <div class="flex shrink-0 items-center gap-1.5">
-                <button type="button" class="inline-flex h-7 items-center rounded-md border border-base-300 bg-base-100 px-2 text-xs font-medium text-base-content transition hover:border-primary/40 hover:bg-base-200" x-on:click="open = !open">
-                  <span x-text="open ? 'Close' : 'Edit'"></span>
+                <button
+                  type="button"
+                  data-editor-toggle
+                  class="inline-flex h-7 items-center rounded-md border border-base-300 bg-base-100 px-2 text-xs font-medium text-base-content transition hover:border-primary/40 hover:bg-base-200"
+                >
+                  <span data-editor-open-label>Edit</span>
+                  <span data-editor-close-label class="hidden">Close</span>
                 </button>
                 <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
               </div>
             </div>
 
-            <div x-show="open" x-transition class="mt-3 border-t border-base-300 pt-3">
+            <div data-editor-content class="mt-3 hidden border-t border-base-300 pt-3">
               <%= render_slot(@item_form, {id, item, conf, index}) %>
             </div>
           </div>
