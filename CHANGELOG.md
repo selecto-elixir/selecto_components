@@ -5,6 +5,9 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.18
+--------
+
 - Added optional Aggregate Grid mode (toggle in aggregate form) that renders a
   2D table when exactly 2 group-by fields and 1 aggregate are configured.
 - Wired aggregate grid state through params/view meta so the setting persists
@@ -15,8 +18,16 @@ V NEXT
 - Unified datetime formatting options across Aggregate, Detail, and Graph
   configuration UIs (including week/quarter/day-of-week and bucket formats),
   and aligned Graph/Detail processing to support the same format set.
+- Fixed datetime filter comparator switching so filter rows remount when the
+  input shape changes and grouped datetime controls render consistently.
+- Fixed quick-select filter persistence through validate/apply flow so selected
+  shortcuts like `This Week` survive submit and continue to apply correctly.
+- Fixed aggregate grid drill-down to disambiguate repeated datetime fields by
+  group index, sort numeric headers like hour-of-day correctly, and allow cell
+  click-through filtering on both dimensions.
 - Added regression tests for aggregate grid rendering/validation and grouped
   date-drilldown filter mapping.
+- Bump package version to `0.3.18`.
 
 V 0.3.17
 --------
