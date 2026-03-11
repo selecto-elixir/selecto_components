@@ -89,8 +89,9 @@ defmodule SelectoComponents.Form.ParamsState do
       {{id, field, config}, index}, item_acc ->
         Map.put(
           item_acc,
-          id,
+          compact_param_key(index),
           Map.merge(config, %{
+            "uuid" => id,
             "field" => field,
             "index" => to_string(index)
           })
@@ -99,8 +100,9 @@ defmodule SelectoComponents.Form.ParamsState do
       {[id, field, config], index}, item_acc ->
         Map.put(
           item_acc,
-          id,
+          compact_param_key(index),
           Map.merge(config, %{
+            "uuid" => id,
             "field" => field,
             "index" => to_string(index)
           })
@@ -185,15 +187,26 @@ defmodule SelectoComponents.Form.ParamsState do
       filter_params =
         case filter_data do
           conj when is_binary(conj) ->
-            %{"conjunction" => conj, "section" => section, "index" => to_string(index)}
+            %{
+              "uuid" => uuid,
+              "conjunction" => conj,
+              "section" => section,
+              "index" => to_string(index)
+            }
 
           filter_map when is_map(filter_map) ->
-            Map.merge(filter_map, %{"section" => section, "index" => to_string(index)})
+            Map.merge(filter_map, %{
+              "uuid" => uuid,
+              "section" => section,
+              "index" => to_string(index)
+            })
         end
 
-      Map.put(acc, uuid, filter_params)
+      Map.put(acc, compact_param_key(index), filter_params)
     end)
   end
+
+  defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
 
   @doc """
   Process filters from params, extracting and sorting them.

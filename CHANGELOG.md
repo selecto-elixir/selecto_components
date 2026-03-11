@@ -25,6 +25,8 @@ V 0.3.18
 - Fixed aggregate grid drill-down to disambiguate repeated datetime fields by
   group index, sort numeric headers like hour-of-day correctly, and allow cell
   click-through filtering on both dimensions.
+- Shortened serialized URL params for filters and view item lists by using
+  compact outer keys while preserving UUID identity inside each payload.
 - Added regression tests for aggregate grid rendering/validation and grouped
   date-drilldown filter mapping.
 - Bump package version to `0.3.18`.

@@ -46,6 +46,34 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(params, "max_rows")
   end
 
+  test "view_config_to_params uses compact keys for view lists while preserving uuid" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"12b1e264-6359-4f7d-881a-f3c659fd8606", "shipper.co_name",
+             %{"alias" => "", "format" => "default"}}
+          ],
+          aggregate: [
+            {"51a3f4f6-fcce-4530-8b24-d7927bd120d6", "id", %{"alias" => "", "format" => "count"}}
+          ],
+          per_page: "100"
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert Map.has_key?(params["group_by"], "k0")
+    assert params["group_by"]["k0"]["uuid"] == "12b1e264-6359-4f7d-881a-f3c659fd8606"
+    assert params["group_by"]["k0"]["field"] == "shipper.co_name"
+
+    assert Map.has_key?(params["aggregate"], "k0")
+    assert params["aggregate"]["k0"]["uuid"] == "51a3f4f6-fcce-4530-8b24-d7927bd120d6"
+  end
+
   test "view_config_to_params includes aggregate grid toggle" do
     view_config = %{
       view_mode: "aggregate",
@@ -131,6 +159,19 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     [{"f1", "filters", filter}] = updated.assigns.view_config.filters
 
     assert filter["value"] == "last_week"
+  end
+
+  test "filters_to_params uses compact keys while preserving uuid" do
+    params =
+      ParamsState.filters_to_params([
+        {"48b7fb89-2970-41cf-850d-90da95985408", "filters",
+         %{"filter" => "shipper.co_name", "comp" => "=", "value" => "DEMO TRANSPORT"}}
+      ])
+
+    assert Map.has_key?(params, "k0")
+    assert params["k0"]["uuid"] == "48b7fb89-2970-41cf-850d-90da95985408"
+    assert params["k0"]["filter"] == "shipper.co_name"
+    refute Map.has_key?(params, "48b7fb89-2970-41cf-850d-90da95985408")
   end
 
   test "view_config_to_params includes map scalar config" do
