@@ -704,6 +704,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def is_date_shortcut(value) when is_binary(value) do
     value in ~w(today yesterday tomorrow this_week last_week next_week
+                weekdays weekends monday tuesday wednesday thursday friday saturday sunday
                 this_month last_month next_month mtd
                 this_quarter last_quarter next_quarter qtd
                 this_year last_year next_year ytd

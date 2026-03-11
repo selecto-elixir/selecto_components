@@ -402,6 +402,30 @@ defmodule SelectoComponents.Helpers.Filters do
            ")"
          ]}
 
+      "WEEKDAY_SUN1" ->
+        weekday = parse_bounded_integer(Map.get(filter, "value"), 1, 7)
+
+        {:raw_sql_filter,
+         [
+           "(to_char(",
+           date_filter_field_expr(filter),
+           ", 'D')::int = ",
+           Integer.to_string(weekday),
+           ")"
+         ]}
+
+      "WEEK_OF_YEAR" ->
+        week_value = parse_week_of_year_value(Map.get(filter, "value"))
+
+        {:raw_sql_filter,
+         [
+           "(to_char(",
+           date_filter_field_expr(filter),
+           ", 'YYYY-WW') = '",
+           week_value,
+           "')"
+         ]}
+
       "MONTH_OF_YEAR" ->
         month = parse_bounded_integer(Map.get(filter, "value"), 1, 12)
 
@@ -1572,6 +1596,16 @@ defmodule SelectoComponents.Helpers.Filters do
       end
 
     parsed |> max(min_value) |> min(max_value)
+  end
+
+  defp parse_week_of_year_value(value) do
+    value = to_string(value || "")
+
+    if String.match?(value, ~r/^\d{4}-\d{2}$/) do
+      value
+    else
+      "1970-01"
+    end
   end
 
   defp date_filter_field_expr(filter) do

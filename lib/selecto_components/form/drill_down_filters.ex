@@ -199,7 +199,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
     cond do
       format == "YYYY-WW" and String.match?(value, ~r/^\d{4}-\d{2}$/) ->
-        handle_week_format(value, field_conf)
+        handle_week_of_year_format(value, field_conf)
 
       format == "YYYY-Q" and String.match?(value, ~r/^\d{4}-[1-4]$/) ->
         handle_quarter_format(value, field_conf)
@@ -212,7 +212,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         {"DAY_OF_MONTH", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
 
       format == "D" and String.match?(value, ~r/^\d$/) ->
-        {"WEEKDAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+        {"WEEKDAY_SUN1", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
 
       format == "HH24" and String.match?(value, ~r/^\d{1,2}$/) ->
         {"HOUR_OF_DAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
@@ -222,19 +222,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp handle_week_format(value, field_conf) do
+  defp handle_week_of_year_format(value, field_conf) do
     if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-      [year_str, week_str] = String.split(value, "-")
-      {year, _} = Integer.parse(year_str)
-      {week, _} = Integer.parse(week_str)
-
-      week = min(max(week, 1), 53)
-      jan_4 = Date.new!(year, 1, 4)
-      week_1_monday = Date.add(jan_4, -(Date.day_of_week(jan_4, :monday) - 1))
-      start_date = Date.add(week_1_monday, (week - 1) * 7)
-      end_date = Date.add(start_date, 7)
-
-      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+      {"WEEK_OF_YEAR", value, ""}
     else
       {"=", value, ""}
     end

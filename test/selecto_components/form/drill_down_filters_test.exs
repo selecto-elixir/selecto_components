@@ -146,11 +146,9 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
           %{format: "YYYY-WW"}
         )
 
-      assert comp == "DATE_BETWEEN"
-      assert is_binary(v1)
-      assert is_binary(v2)
-      assert String.match?(v1, ~r/^\d{4}-\d{2}-\d{2}$/)
-      assert String.match?(v2, ~r/^\d{4}-\d{2}-\d{2}$/)
+      assert comp == "WEEK_OF_YEAR"
+      assert v1 == "2017-02"
+      assert v2 == ""
     end
 
     test "handles D day-of-week format as weekday filter" do
@@ -163,7 +161,7 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
           %{format: "D"}
         )
 
-      assert comp == "WEEKDAY"
+      assert comp == "WEEKDAY_SUN1"
       assert v1 == "2"
       assert v2 == ""
     end

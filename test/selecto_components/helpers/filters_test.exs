@@ -235,6 +235,46 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert sql =~ "= 1"
     end
 
+    test "supports sunday-based weekday filter for grouped D format" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "WEEKDAY_SUN1",
+            "value" => "1"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "to_char(selecto_root.created_at, 'D')::int = 1"
+    end
+
+    test "supports week-of-year grouped filter" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "WEEK_OF_YEAR",
+            "value" => "2017-02"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "to_char(selecto_root.created_at, 'YYYY-WW') = '2017-02'"
+    end
+
     test "supports weekday shortcut filters" do
       filters = %{
         "filters" => [
@@ -254,6 +294,26 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       sql = IO.iodata_to_binary(iodata)
       assert sql =~ "EXTRACT(ISODOW FROM selecto_root.created_at)"
       assert sql =~ "IN (1,2,3,4,5)"
+    end
+
+    test "supports specific weekday shortcut filters" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "SHORTCUT",
+            "value" => "monday"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "IN (1)"
     end
   end
 end
