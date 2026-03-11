@@ -226,6 +226,8 @@ defmodule SelectoComponents.Form.ParamsState do
           f
         end
 
+      f = normalize_filter_form_state(f)
+
       {uuid, f}
     end)
     |> Enum.sort(fn {_, f1}, {_, f2} ->
@@ -235,6 +237,84 @@ defmodule SelectoComponents.Form.ParamsState do
       {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
       {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
     end)
+  end
+
+  defp normalize_filter_form_state(filter) when is_map(filter) do
+    comp = Map.get(filter, "comp") || Map.get(filter, :comp)
+    value = Map.get(filter, "value") || Map.get(filter, :value)
+
+    case comp do
+      "SHORTCUT" ->
+        shortcut =
+          if SelectoComponents.Form.FilterRendering.is_date_shortcut(value),
+            do: value,
+            else: "today"
+
+        filter
+        |> Map.put("value", shortcut)
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      "RELATIVE" ->
+        filter
+        |> Map.put("value", value || "")
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      comp when comp in ["IS NULL", "IS NOT NULL", "IS_EMPTY", "NOT_EMPTY"] ->
+        filter
+        |> Map.put("value", "")
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      "WEEKDAY_SUN1" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 7, "1"))
+
+      "WEEKDAY" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 7, "1"))
+
+      "MONTH_OF_YEAR" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 12, "1"))
+
+      "DAY_OF_MONTH" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 31, "1"))
+
+      "HOUR_OF_DAY" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 0, 23, "0"))
+
+      "WEEK_OF_YEAR" ->
+        week_value = to_string(value || "")
+
+        if String.match?(week_value, ~r/^\d{4}-\d{2}$/),
+          do: Map.put(filter, "value", week_value),
+          else: filter
+
+      comp when comp in ["BETWEEN", "DATE_BETWEEN"] ->
+        start_value = Map.get(filter, "value_start") || Map.get(filter, "value") || ""
+        end_value = Map.get(filter, "value_end") || Map.get(filter, "value2") || ""
+
+        filter
+        |> Map.put("value_start", start_value)
+        |> Map.put("value_end", end_value)
+
+      _ ->
+        filter
+    end
+  end
+
+  defp normalize_filter_form_state(filter), do: filter
+
+  defp normalize_numeric_choice(value, min_value, max_value, default) do
+    case Integer.parse(to_string(value || "")) do
+      {int_val, ""} when int_val >= min_value and int_val <= max_value ->
+        Integer.to_string(int_val)
+
+      _ ->
+        default
+    end
   end
 
   @doc """

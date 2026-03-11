@@ -66,6 +66,73 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["aggregate_grid"] == "true"
   end
 
+  test "params_to_state normalizes shortcut filters after comparator change" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "created_at",
+          "comp" => "SHORTCUT",
+          "value" => "3",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["comp"] == "SHORTCUT"
+    assert filter["value"] == "today"
+  end
+
+  test "params_to_state preserves valid shortcut filter values" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "created_at",
+          "comp" => "SHORTCUT",
+          "value" => "last_week",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["value"] == "last_week"
+  end
+
   test "view_config_to_params includes map scalar config" do
     view_config = %{
       view_mode: "map",

@@ -296,6 +296,26 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert sql =~ "IN (1,2,3,4,5)"
     end
 
+    test "supports standard date shortcut filters" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "SHORTCUT",
+            "value" => "last_week"
+          }
+        ]
+      }
+
+      [{"created_at", {:between, start_dt, end_dt}}] =
+        Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert %DateTime{} = start_dt
+      assert %DateTime{} = end_dt
+    end
+
     test "supports specific weekday shortcut filters" do
       filters = %{
         "filters" => [
