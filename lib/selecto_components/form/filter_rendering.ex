@@ -157,9 +157,6 @@ defmodule SelectoComponents.Form.FilterRendering do
         <select
           name={"filters[#{@uuid}][comp]"}
           class="sc-select"
-          phx-change="datetime-filter-change"
-          phx-target={@myself}
-          phx-value-uuid={@uuid}
         >
           <option value="=" selected={@filter_value["comp"] == "="}>On</option>
           <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
