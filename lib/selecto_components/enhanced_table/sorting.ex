@@ -51,9 +51,9 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
     order_expressions =
       Enum.map(sort_by, fn {column, direction} ->
         case direction do
-          :asc -> "#{column}"
-          :desc -> "#{column} DESC"
-          _ -> "#{column}"
+          :asc -> column
+          :desc -> {:desc, column}
+          _ -> column
         end
       end)
 

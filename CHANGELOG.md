@@ -5,6 +5,15 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.16
+--------
+
+- Fixed detail-header sorting to emit Selecto-compatible `order_by` terms for
+  descending sorts (`{:desc, field}`) instead of appending `" DESC"` to field
+  names.
+- Added regression coverage for enhanced-table sorting expression generation.
+- Bump package version to `0.3.16`.
+
 V 0.3.15
 --------
 
