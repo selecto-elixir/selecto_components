@@ -146,7 +146,8 @@ defmodule SelectoComponents.Form.FilterRendering do
     is_shortcut = is_date_shortcut(value_for(filter_value, "value"))
     is_relative = is_relative_date(value_for(filter_value, "value"))
 
-    current_comp = value_for(filter_value, "comp") || "="
+    current_comp = normalize_comp(value_for(filter_value, "comp"), "=")
+    current_value = normalize_string(value_for(filter_value, "value"))
 
     assigns =
       assigns
@@ -154,6 +155,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> Map.put(:is_relative, is_relative)
       |> Map.put(:filter_value, filter_value)
       |> Map.put(:current_comp, current_comp)
+      |> Map.put(:current_value, current_value)
 
     ~H"""
     <div class="space-y-2">
@@ -214,47 +216,47 @@ defmodule SelectoComponents.Form.FilterRendering do
           <% @current_comp == "SHORTCUT" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
               <optgroup label="Days">
-                <option value="today" selected={@filter_value["value"] == "today"}>Today</option>
-                <option value="yesterday" selected={@filter_value["value"] == "yesterday"}>
+                <option value="today" selected={@current_value == "today"}>Today</option>
+                <option value="yesterday" selected={@current_value == "yesterday"}>
                   Yesterday
                 </option>
-                <option value="tomorrow" selected={@filter_value["value"] == "tomorrow"}>
+                <option value="tomorrow" selected={@current_value == "tomorrow"}>
                   Tomorrow
                 </option>
               </optgroup>
               <optgroup label="Weeks">
-                <option value="this_week" selected={@filter_value["value"] == "this_week"}>
+                <option value="this_week" selected={@current_value == "this_week"}>
                   This Week
                 </option>
-                <option value="last_week" selected={@filter_value["value"] == "last_week"}>
+                <option value="last_week" selected={@current_value == "last_week"}>
                   Last Week
                 </option>
-                <option value="next_week" selected={@filter_value["value"] == "next_week"}>
+                <option value="next_week" selected={@current_value == "next_week"}>
                   Next Week
                 </option>
-                <option value="weekdays" selected={@filter_value["value"] == "weekdays"}>
+                <option value="weekdays" selected={@current_value == "weekdays"}>
                   Weekdays (Mon-Fri)
                 </option>
-                <option value="weekends" selected={@filter_value["value"] == "weekends"}>
+                <option value="weekends" selected={@current_value == "weekends"}>
                   Weekends (Sat-Sun)
                 </option>
               </optgroup>
               <optgroup label="Specific Weekday">
-                <option value="monday" selected={@filter_value["value"] == "monday"}>Mondays</option>
-                <option value="tuesday" selected={@filter_value["value"] == "tuesday"}>
+                <option value="monday" selected={@current_value == "monday"}>Mondays</option>
+                <option value="tuesday" selected={@current_value == "tuesday"}>
                   Tuesdays
                 </option>
-                <option value="wednesday" selected={@filter_value["value"] == "wednesday"}>
+                <option value="wednesday" selected={@current_value == "wednesday"}>
                   Wednesdays
                 </option>
-                <option value="thursday" selected={@filter_value["value"] == "thursday"}>
+                <option value="thursday" selected={@current_value == "thursday"}>
                   Thursdays
                 </option>
-                <option value="friday" selected={@filter_value["value"] == "friday"}>Fridays</option>
-                <option value="saturday" selected={@filter_value["value"] == "saturday"}>
+                <option value="friday" selected={@current_value == "friday"}>Fridays</option>
+                <option value="saturday" selected={@current_value == "saturday"}>
                   Saturdays
                 </option>
-                <option value="sunday" selected={@filter_value["value"] == "sunday"}>Sundays</option>
+                <option value="sunday" selected={@current_value == "sunday"}>Sundays</option>
               </optgroup>
               <optgroup label="Months">
                 <option value="this_month" selected={@filter_value["value"] == "this_month"}>
@@ -423,13 +425,13 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
-    filter_id = assigns.filter_value["filter"]
+    filter_id = value_for(assigns.filter_value, "filter")
     operator_options = standard_operator_options(assigns.field_type, assigns.selecto, filter_id)
     operator_values = Enum.map(operator_options, &elem(&1, 0))
     default_comp = default_standard_comp(assigns.field_type, filter_id, operator_options)
 
     current_comp =
-      case assigns.filter_value["comp"] do
+      case normalize_comp(value_for(assigns.filter_value, "comp"), default_comp) do
         comp ->
           if comp in operator_values do
             comp
@@ -438,8 +440,13 @@ defmodule SelectoComponents.Form.FilterRendering do
           end
       end
 
-    between_start = assigns.filter_value["value_start"] || assigns.filter_value["value"] || ""
-    between_end = assigns.filter_value["value_end"] || assigns.filter_value["value2"] || ""
+    between_start =
+      value_for(assigns.filter_value, "value_start") || value_for(assigns.filter_value, "value") ||
+        ""
+
+    between_end =
+      value_for(assigns.filter_value, "value_end") || value_for(assigns.filter_value, "value2") ||
+        ""
 
     assigns =
       assigns
@@ -800,6 +807,17 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   defp value_for(_map, _key), do: nil
+
+  defp normalize_comp(value, _fallback) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_comp(value, _fallback) when is_binary(value) and value != "", do: value
+  defp normalize_comp(_value, fallback), do: fallback
+
+  defp normalize_string(value) when is_binary(value), do: value
+  defp normalize_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_string(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_string(value) when is_float(value), do: :erlang.float_to_binary(value)
+  defp normalize_string(nil), do: ""
+  defp normalize_string(value), do: to_string(value)
 
   @doc """
   Hash only the filter structure (IDs and sections), not the values.
