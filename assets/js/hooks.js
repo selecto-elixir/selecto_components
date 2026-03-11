@@ -104,6 +104,89 @@ export const ColumnResize = {
   }
 };
 
+export const ListPickerSortable = {
+  mounted() {
+    this.draggedItemId = null;
+
+    const reorderButtonId = this.el.dataset.reorderButtonId;
+    const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
+
+    const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
+
+    const clearDropIndicators = () => {
+      itemElements().forEach((item) => {
+        item.classList.remove('ring-2', 'ring-primary/40');
+      });
+    };
+
+    const bindItem = (item) => {
+      if (item.dataset.sortableBound === 'true') {
+        return;
+      }
+
+      item.dataset.sortableBound = 'true';
+
+      item.addEventListener('dragstart', (event) => {
+        this.draggedItemId = item.dataset.pickerItemId;
+        item.classList.add('opacity-60');
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', this.draggedItemId || '');
+        }
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('opacity-60');
+        clearDropIndicators();
+      });
+
+      item.addEventListener('dragover', (event) => {
+        if (!this.draggedItemId || this.draggedItemId === item.dataset.pickerItemId) {
+          return;
+        }
+
+        event.preventDefault();
+        clearDropIndicators();
+        item.classList.add('ring-2', 'ring-primary/40');
+      });
+
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('ring-2', 'ring-primary/40');
+      });
+
+      item.addEventListener('drop', (event) => {
+        event.preventDefault();
+
+        const targetItemId = item.dataset.pickerItemId;
+
+        clearDropIndicators();
+
+        if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
+          return;
+        }
+
+        reorderButton.setAttribute('phx-value-item', this.draggedItemId);
+        reorderButton.setAttribute('phx-value-target-item', targetItemId);
+        reorderButton.click();
+      });
+    };
+
+    this.bindItems = () => {
+      itemElements().forEach(bindItem);
+    };
+
+    this.bindItems();
+  },
+
+  updated() {
+    if (this.bindItems) {
+      this.bindItems();
+    }
+  }
+};
+
 export default {
-  ColumnResize
+  ColumnResize,
+  ListPickerSortable
 };

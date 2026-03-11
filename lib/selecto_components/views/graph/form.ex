@@ -7,12 +7,12 @@ defmodule SelectoComponents.Views.Graph.Form do
 
     assigns =
       assigns
-      |> assign(:graph_view_key, graph_view_key)
-      |> assign(:graph_chart_type, map_get(graph_view, :chart_type, "bar"))
-      |> assign(:graph_x_axis, map_get(graph_view, :x_axis, []))
-      |> assign(:graph_y_axis, map_get(graph_view, :y_axis, []))
-      |> assign(:graph_series, map_get(graph_view, :series, []))
-      |> assign(:graph_options, map_get(graph_view, :options, %{}))
+      |> Map.put(:graph_view_key, graph_view_key)
+      |> Map.put(:graph_chart_type, map_get(graph_view, :chart_type, "bar"))
+      |> Map.put(:graph_x_axis, map_get(graph_view, :x_axis, []))
+      |> Map.put(:graph_y_axis, map_get(graph_view, :y_axis, []))
+      |> Map.put(:graph_series, map_get(graph_view, :series, []))
+      |> Map.put(:graph_options, map_get(graph_view, :options, %{}))
 
     ~H"""
     <div class="space-y-6">
@@ -44,6 +44,11 @@ defmodule SelectoComponents.Views.Graph.Form do
           }
           selected_items={@graph_x_axis}
         >
+          <:item_summary :let={{_id, item, config, _index}}>
+            <% col = Selecto.field(@selecto, item) %>
+            <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
+            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_x_axis_summary(col, config) %></span>
+          </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"x_axis[#{id}][field]"} type="hidden" value={item} />
             <input name={"x_axis[#{id}][index]"} type="hidden" value={index} />
@@ -72,6 +77,11 @@ defmodule SelectoComponents.Views.Graph.Form do
           available={@columns}
           selected_items={@graph_y_axis}
         >
+          <:item_summary :let={{_id, item, config, _index}}>
+            <% col = Selecto.field(@selecto, item) %>
+            <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
+            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_y_axis_summary(config) %></span>
+          </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"y_axis[#{id}][field]"} type="hidden" value={item} />
             <input name={"y_axis[#{id}][index]"} type="hidden" value={index} />
@@ -105,6 +115,11 @@ defmodule SelectoComponents.Views.Graph.Form do
           }
           selected_items={@graph_series}
         >
+          <:item_summary :let={{_id, item, config, _index}}>
+            <% col = Selecto.field(@selecto, item) %>
+            <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
+            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_series_summary(col, config) %></span>
+          </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"series[#{id}][field]"} type="hidden" value={item} />
             <input name={"series[#{id}][index]"} type="hidden" value={index} />
@@ -265,6 +280,59 @@ defmodule SelectoComponents.Views.Graph.Form do
       "false" -> false
       nil -> default
       _ -> default
+    end
+  end
+
+  defp graph_column_name(col, item) do
+    cond do
+      is_map(col) and Map.get(col, :name) -> col.name
+      true -> to_string(item || "")
+    end
+  end
+
+  defp summary_title(config, field_name) do
+    case Map.get(config || %{}, "alias", "") do
+      value when value in [nil, ""] -> field_name
+      value -> "#{value} / #{field_name}"
+    end
+  end
+
+  defp graph_x_axis_summary(col, config) do
+    cond do
+      Map.get(config || %{}, "format") not in [nil, ""] ->
+        to_string(Map.get(config, "format"))
+
+      Map.get(config || %{}, "sort") not in [nil, ""] ->
+        "sort #{Map.get(config, "sort")}"
+
+      Map.get(col || %{}, :type, :string) in [:string, :text] and
+          Map.get(config || %{}, "max_length") not in [nil, ""] ->
+        "max #{Map.get(config, "max_length")}"
+
+      true ->
+        "default"
+    end
+  end
+
+  defp graph_y_axis_summary(config) do
+    function = Map.get(config || %{}, "function", "count")
+    axis = Map.get(config || %{}, "axis", "left")
+    "#{function} on #{axis} axis"
+  end
+
+  defp graph_series_summary(col, config) do
+    cond do
+      Map.get(config || %{}, "format") not in [nil, ""] ->
+        to_string(Map.get(config, "format"))
+
+      Map.get(config || %{}, "max_series") not in [nil, "", "10"] ->
+        "max #{Map.get(config, "max_series")}"
+
+      Map.get(col || %{}, :type, :string) in [:naive_datetime, :utc_datetime, :date] ->
+        "date grouping"
+
+      true ->
+        "default grouping"
     end
   end
 end

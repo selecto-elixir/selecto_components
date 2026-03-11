@@ -5,6 +5,15 @@ CHANGES
 V NEXT
 ------
 
+- Redesigned the item picker selected-list UI to use compact one-line summaries,
+  inline edit panels, outside-click close behavior, and drag/drop reordering
+  while keeping available items on the left and selected items on the right.
+- Updated Detail, Aggregate, and Graph picker summaries to show
+  `alias / field-name` when an alias is present, followed by lighter-weight
+  format/status text for faster scanning.
+- Changed Graph view queries to use plain grouped dimensions instead of SQL
+  `ROLLUP`, preventing subtotal/grand-total rows from appearing as chart data.
+
 V 0.3.19
 --------
 

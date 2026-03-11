@@ -17,7 +17,8 @@ defmodule SelectoComponents.Components.ListPicker do
   attr(:fieldname, :string, required: true)
 
   slot(:item_form)
-  # TODO fix the selected items spacing ...
+  slot(:item_summary)
+
   def render(assigns) do
     {view_id, _, _, _} = assigns.view
     # Sort available items alphabetically by display name (second element in tuple)
@@ -28,9 +29,10 @@ defmodule SelectoComponents.Components.ListPicker do
       assigns
       |> assign(view_id: view_id)
       |> assign(available: sorted_available)
+      |> assign(component_dom_id: "list-picker-#{assigns.id}")
 
     ~H"""
-      <div class="grid grid-cols-2 gap-1 " x-data="{ filter: ''}">
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" x-data="{ filter: '' }">
         <div class="text-base-content">Available
           <div class="flex items-center gap-1">
             <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
@@ -44,9 +46,9 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div class="text-base-content">Selected</div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
+        <div class="flex flex-col gap-1 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-72 overflow-auto">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}
-            class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 relative p-1 hover:bg-base-300 h-10 text-base-content cursor-pointer"
+            class="max-w-100 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-base-content transition hover:bg-base-300 cursor-pointer"
             x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
             x-transition
             >
@@ -54,18 +56,65 @@ defmodule SelectoComponents.Components.ListPicker do
           </div>
         </div>
 
-        <div class="flex flex-col gap-1 border rounded-md border-base-300 h-60 overflow-auto p-1 bg-base-100">
-          <div :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            class="w-full rounded-lg border border-base-300 bg-base-200 p-2.5 text-base-content shadow-sm transition hover:border-base-400 hover:bg-base-300/60">
-            <div class="flex items-start gap-2">
+        <div
+          id={@component_dom_id}
+          phx-hook="ListPickerSortable"
+          data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
+          class="flex flex-col gap-2 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-96 overflow-auto"
+        >
+          <button
+            id={"#{@component_dom_id}-reorder-button"}
+            type="button"
+            class="hidden"
+            phx-click="reorder"
+            phx-target={@myself}
+            phx-value-view={@view_id}
+            phx-value-list-id={@fieldname}
+            phx-value-item=""
+            phx-value-target-item=""
+          />
+
+          <div :if={Enum.empty?(@selected_items)} class="rounded-lg border border-dashed border-base-300 px-4 py-6 text-center text-sm text-base-content/60">
+            Pick items from the left to add them here.
+          </div>
+
+          <div
+            :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
+            draggable="true"
+            data-picker-item-id={id}
+            class="w-full rounded-xl border border-base-300 bg-base-200/80 px-3 py-2 text-base-content shadow-sm transition hover:border-base-400 hover:bg-base-300/60"
+            x-data="{ open: false }"
+            x-on:click.outside="open = false"
+          >
+            <div class="flex items-center gap-3">
+              <button type="button" class="cursor-grab text-base-content/45 active:cursor-grabbing" title="Drag to reorder">
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                </svg>
+              </button>
+
               <div class="min-w-0 flex-1">
-                <%= render_slot(@item_form, {id, item, conf, index}) %>
+                <div class="flex min-w-0 items-center gap-2 text-sm">
+                  <div class="min-w-0 flex-1 truncate font-medium">
+                    <%= if @item_summary != [] do %>
+                      <%= render_slot(@item_summary, {id, item, conf, index}) %>
+                    <% else %>
+                      <span class="truncate"><%= item %></span>
+                    <% end %>
+                  </div>
+                </div>
               </div>
-              <div class="flex shrink-0 items-center gap-1.5 pt-0.5">
-                <.sc_up_button :if={index > 0} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="up"/>
-                <.sc_down_button :if={index < Enum.count(@selected_items) -1} phx-click="move" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id} phx-value-direction="down"/>
+
+              <div class="flex shrink-0 items-center gap-1.5">
+                <button type="button" class="inline-flex h-7 items-center rounded-md border border-base-300 bg-base-100 px-2 text-xs font-medium text-base-content transition hover:border-primary/40 hover:bg-base-200" x-on:click="open = !open">
+                  <span x-text="open ? 'Close' : 'Edit'"></span>
+                </button>
                 <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
               </div>
+            </div>
+
+            <div x-show="open" x-transition class="mt-3 border-t border-base-300 pt-3">
+              <%= render_slot(@item_form, {id, item, conf, index}) %>
             </div>
           </div>
         </div>
@@ -87,6 +136,16 @@ defmodule SelectoComponents.Components.ListPicker do
     send(
       self(),
       {:list_picker_move, params["view"], params["list-id"], params["item"], params["direction"]}
+    )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("reorder", params, socket) do
+    send(
+      self(),
+      {:list_picker_reorder, params["view"], params["list-id"], params["item"],
+       params["target-item"]}
     )
 
     {:noreply, socket}

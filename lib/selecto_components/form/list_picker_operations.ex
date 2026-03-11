@@ -78,6 +78,51 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   end
 
   @doc """
+  Reorder an item in a picker list by dropping it onto another item.
+
+  Returns the updated view_config with the dragged item inserted at the
+  target item's position.
+  """
+  def reorder_item_in_list(view_config, view, list, dragged_uuid, target_uuid) do
+    view = SafeAtom.to_view_mode(view)
+    list = SafeAtom.to_list_name(list)
+
+    item_list = view_config.views[view][list]
+
+    dragged_index =
+      Enum.find_index(item_list, fn
+        {id, _, _} when is_binary(id) -> id == dragged_uuid
+        [id, _, _] when is_binary(id) -> id == dragged_uuid
+        {id, _, _} -> to_string(id) == dragged_uuid
+        [id, _, _] -> to_string(id) == dragged_uuid
+        _ -> false
+      end)
+
+    target_index =
+      Enum.find_index(item_list, fn
+        {id, _, _} when is_binary(id) -> id == target_uuid
+        [id, _, _] when is_binary(id) -> id == target_uuid
+        {id, _, _} -> to_string(id) == target_uuid
+        [id, _, _] -> to_string(id) == target_uuid
+        _ -> false
+      end)
+
+    cond do
+      is_nil(dragged_index) or is_nil(target_index) or dragged_index == target_index ->
+        view_config
+
+      true ->
+        {dragged_item, remaining_items} = List.pop_at(item_list, dragged_index)
+
+        adjusted_target_index =
+          if dragged_index < target_index, do: target_index - 1, else: target_index
+
+        reordered_items = List.insert_at(remaining_items, adjusted_target_index, dragged_item)
+        put_in(view_config.views[view][list], reordered_items)
+    end
+  end
+
+  @doc """
   Add an item to a picker list in the view configuration.
 
   Returns the updated view_config with the item appended to the specified list.
