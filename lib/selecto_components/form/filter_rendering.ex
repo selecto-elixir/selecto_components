@@ -226,6 +226,29 @@ defmodule SelectoComponents.Form.FilterRendering do
                 <option value="next_week" selected={@filter_value["value"] == "next_week"}>
                   Next Week
                 </option>
+                <option value="weekdays" selected={@filter_value["value"] == "weekdays"}>
+                  Weekdays (Mon-Fri)
+                </option>
+                <option value="weekends" selected={@filter_value["value"] == "weekends"}>
+                  Weekends (Sat-Sun)
+                </option>
+              </optgroup>
+              <optgroup label="Specific Weekday">
+                <option value="monday" selected={@filter_value["value"] == "monday"}>Mondays</option>
+                <option value="tuesday" selected={@filter_value["value"] == "tuesday"}>
+                  Tuesdays
+                </option>
+                <option value="wednesday" selected={@filter_value["value"] == "wednesday"}>
+                  Wednesdays
+                </option>
+                <option value="thursday" selected={@filter_value["value"] == "thursday"}>
+                  Thursdays
+                </option>
+                <option value="friday" selected={@filter_value["value"] == "friday"}>Fridays</option>
+                <option value="saturday" selected={@filter_value["value"] == "saturday"}>
+                  Saturdays
+                </option>
+                <option value="sunday" selected={@filter_value["value"] == "sunday"}>Sundays</option>
               </optgroup>
               <optgroup label="Months">
                 <option value="this_month" selected={@filter_value["value"] == "this_month"}>

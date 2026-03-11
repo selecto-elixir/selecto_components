@@ -305,7 +305,7 @@ defmodule SelectoComponents.Helpers.Filters do
       "SHORTCUT" ->
         # Handle date shortcuts like "this_month", "last_week", etc.
         shortcut = Map.get(filter, "value", "")
-        process_date_shortcut_filter(shortcut)
+        process_date_shortcut_filter(shortcut, filter)
 
       "DATE=" ->
         # For DATE=, we want to match the entire day
@@ -389,6 +389,54 @@ defmodule SelectoComponents.Helpers.Filters do
           {start, stop} = Selecto.Helpers.Date.val_to_dates(filter)
           {:between, start, stop}
         end
+
+      "WEEKDAY" ->
+        weekday = parse_bounded_integer(Map.get(filter, "value"), 1, 7)
+
+        {:raw_sql_filter,
+         [
+           "(EXTRACT(ISODOW FROM ",
+           date_filter_field_expr(filter),
+           ")::int = ",
+           Integer.to_string(weekday),
+           ")"
+         ]}
+
+      "MONTH_OF_YEAR" ->
+        month = parse_bounded_integer(Map.get(filter, "value"), 1, 12)
+
+        {:raw_sql_filter,
+         [
+           "(EXTRACT(MONTH FROM ",
+           date_filter_field_expr(filter),
+           ")::int = ",
+           Integer.to_string(month),
+           ")"
+         ]}
+
+      "DAY_OF_MONTH" ->
+        day = parse_bounded_integer(Map.get(filter, "value"), 1, 31)
+
+        {:raw_sql_filter,
+         [
+           "(EXTRACT(DAY FROM ",
+           date_filter_field_expr(filter),
+           ")::int = ",
+           Integer.to_string(day),
+           ")"
+         ]}
+
+      "HOUR_OF_DAY" ->
+        hour = parse_bounded_integer(Map.get(filter, "value"), 0, 23)
+
+        {:raw_sql_filter,
+         [
+           "(EXTRACT(HOUR FROM ",
+           date_filter_field_expr(filter),
+           ")::int = ",
+           Integer.to_string(hour),
+           ")"
+         ]}
 
       _ ->
         # Default behavior for other comparison operators
@@ -675,6 +723,12 @@ defmodule SelectoComponents.Helpers.Filters do
               end)
 
             {:ok, [{:or, or_filters}]}
+
+          {:ok, {:raw_sql_filter, _iodata} = filter_val} ->
+            {:ok, [filter_val]}
+
+          {:ok, {{:raw_sql, _expr}, _rhs} = filter_val} ->
+            {:ok, [filter_val]}
 
           {:ok, filter_val} ->
             {:ok, [{filter_key, filter_val}]}
@@ -1136,7 +1190,7 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Process date shortcuts like "this_month", "last_week", etc.
-  defp process_date_shortcut_filter(shortcut) do
+  defp process_date_shortcut_filter(shortcut, filter) do
     today = get_local_today()
 
     case shortcut do
@@ -1444,6 +1498,33 @@ defmodule SelectoComponents.Helpers.Filters do
         {:between, NaiveDateTime.new!(today, ~T[00:00:00]),
          NaiveDateTime.new!(end_date, ~T[00:00:00])}
 
+      "weekdays" ->
+        weekday_set_filter(filter, [1, 2, 3, 4, 5])
+
+      "weekends" ->
+        weekday_set_filter(filter, [6, 7])
+
+      "monday" ->
+        weekday_set_filter(filter, [1])
+
+      "tuesday" ->
+        weekday_set_filter(filter, [2])
+
+      "wednesday" ->
+        weekday_set_filter(filter, [3])
+
+      "thursday" ->
+        weekday_set_filter(filter, [4])
+
+      "friday" ->
+        weekday_set_filter(filter, [5])
+
+      "saturday" ->
+        weekday_set_filter(filter, [6])
+
+      "sunday" ->
+        weekday_set_filter(filter, [7])
+
       _ ->
         # Default to today if shortcut doesn't match
         start_dt = NaiveDateTime.new!(today, ~T[00:00:00])
@@ -1469,6 +1550,38 @@ defmodule SelectoComponents.Helpers.Filters do
     # Use the server's local date from Erlang calendar functions
     {{year, month, day}, _time} = :calendar.local_time()
     Date.new!(year, month, day)
+  end
+
+  defp weekday_set_filter(filter, weekdays) when is_list(weekdays) do
+    weekday_list =
+      weekdays
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&Integer.to_string/1)
+      |> Enum.join(",")
+
+    {:raw_sql_filter,
+     ["(EXTRACT(ISODOW FROM ", date_filter_field_expr(filter), ")::int IN (", weekday_list, "))"]}
+  end
+
+  defp parse_bounded_integer(value, min_value, max_value) do
+    parsed =
+      case Integer.parse(to_string(value || "")) do
+        {int_val, ""} -> int_val
+        _ -> min_value
+      end
+
+    parsed |> max(min_value) |> min(max_value)
+  end
+
+  defp date_filter_field_expr(filter) do
+    case Map.get(filter, "filter") do
+      field when is_binary(field) and field != "" ->
+        if String.contains?(field, "."), do: field, else: "selecto_root." <> field
+
+      _ ->
+        "selecto_root.id"
+    end
   end
 
   defp parse_datetime_preserving_time(datetime_str) do

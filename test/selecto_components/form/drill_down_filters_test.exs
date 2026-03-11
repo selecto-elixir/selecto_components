@@ -136,6 +136,53 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v2 == "2017-07-01"
     end
 
+    test "handles YYYY-WW week format for datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017-02",
+          field_conf,
+          %{format: "YYYY-WW"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert is_binary(v1)
+      assert is_binary(v2)
+      assert String.match?(v1, ~r/^\d{4}-\d{2}-\d{2}$/)
+      assert String.match?(v2, ~r/^\d{4}-\d{2}-\d{2}$/)
+    end
+
+    test "handles D day-of-week format as weekday filter" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2",
+          field_conf,
+          %{format: "D"}
+        )
+
+      assert comp == "WEEKDAY"
+      assert v1 == "2"
+      assert v2 == ""
+    end
+
+    test "handles MM/DD/HH24 grouped date formats" do
+      field_conf = %{type: :utc_datetime}
+
+      assert {"MONTH_OF_YEAR", "3", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("03", field_conf, %{format: "MM"})
+
+      assert {"DAY_OF_MONTH", "14", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("14", field_conf, %{format: "DD"})
+
+      assert {"HOUR_OF_DAY", "9", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("09", field_conf, %{
+                 format: "HH24"
+               })
+    end
+
     test "handles numeric bucket ranges" do
       field_conf = %{type: :integer}
 

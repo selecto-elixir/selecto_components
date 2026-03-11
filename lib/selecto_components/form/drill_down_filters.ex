@@ -141,6 +141,16 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   def determine_filter_comp_and_values(value, field_conf, drill_context) do
     context = normalize_drill_context(drill_context)
 
+    case determine_grouped_date_filter(value, field_conf, context) do
+      {comp, v1, v2} ->
+        {comp, v1, v2}
+
+      nil ->
+        determine_filter_comp_and_values_default(value, field_conf, context)
+    end
+  end
+
+  defp determine_filter_comp_and_values_default(value, field_conf, context) do
     cond do
       # Special marker for NULL values - create IS_EMPTY filter
       value == "__NULL__" ->
@@ -181,6 +191,52 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       # No field configuration
       true ->
         {"=", value, ""}
+    end
+  end
+
+  defp determine_grouped_date_filter(value, field_conf, context) do
+    format = context.format |> to_string()
+
+    cond do
+      format == "YYYY-WW" and String.match?(value, ~r/^\d{4}-\d{2}$/) ->
+        handle_week_format(value, field_conf)
+
+      format == "YYYY-Q" and String.match?(value, ~r/^\d{4}-[1-4]$/) ->
+        handle_quarter_format(value, field_conf)
+
+      format == "MM" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"MONTH_OF_YEAR", value |> String.trim() |> String.to_integer() |> Integer.to_string(),
+         ""}
+
+      format == "DD" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"DAY_OF_MONTH", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      format == "D" and String.match?(value, ~r/^\d$/) ->
+        {"WEEKDAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      format == "HH24" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"HOUR_OF_DAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      true ->
+        nil
+    end
+  end
+
+  defp handle_week_format(value, field_conf) do
+    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+      [year_str, week_str] = String.split(value, "-")
+      {year, _} = Integer.parse(year_str)
+      {week, _} = Integer.parse(week_str)
+
+      week = min(max(week, 1), 53)
+      jan_4 = Date.new!(year, 1, 4)
+      week_1_monday = Date.add(jan_4, -(Date.day_of_week(jan_4, :monday) - 1))
+      start_date = Date.add(week_1_monday, (week - 1) * 7)
+      end_date = Date.add(start_date, 7)
+
+      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+    else
+      {"=", value, ""}
     end
   end
 

@@ -213,5 +213,47 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert %DateTime{} = start_dt
       assert %DateTime{} = end_dt
     end
+
+    test "supports weekday extraction filter for datetime fields" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "WEEKDAY",
+            "value" => "1"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "EXTRACT(ISODOW FROM selecto_root.created_at)"
+      assert sql =~ "= 1"
+    end
+
+    test "supports weekday shortcut filters" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "created_at",
+            "comp" => "SHORTCUT",
+            "value" => "weekdays"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "EXTRACT(ISODOW FROM selecto_root.created_at)"
+      assert sql =~ "IN (1,2,3,4,5)"
+    end
   end
 end
