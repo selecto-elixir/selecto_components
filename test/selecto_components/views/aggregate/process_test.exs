@@ -45,4 +45,12 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert sql =~ "UPPER(LEFT("
     assert sql =~ ", 2))"
   end
+
+  test "param_to_state reads aggregate grid toggle" do
+    state = Process.param_to_state(%{"aggregate_grid" => "true"}, %{})
+    assert state.grid == true
+
+    state = Process.param_to_state(%{"aggregate_grid" => "false"}, %{})
+    assert state.grid == false
+  end
 end

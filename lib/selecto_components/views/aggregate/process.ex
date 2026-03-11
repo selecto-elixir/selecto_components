@@ -7,7 +7,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     %{
       group_by: SelectoComponents.Views.view_param_process(params, "group_by", "field"),
       aggregate: SelectoComponents.Views.view_param_process(params, "aggregate", "field"),
-      per_page: Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
+      per_page: Options.normalize_per_page_param(Map.get(params, "aggregate_per_page")),
+      grid: truthy_param?(Map.get(params, "aggregate_grid"))
     }
   end
 
@@ -19,13 +20,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       group_by:
         Map.get(Selecto.domain(selecto), :default_group_by, [])
         |> SelectoComponents.Helpers.build_initial_state(),
-      per_page: Options.default_per_page()
+      per_page: Options.default_per_page(),
+      grid: false
     }
   end
 
   def view(_opt, params, columns, filtered, selecto) do
     group_by_params = Map.get(params, "group_by", %{})
     per_page = Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
+    grid = truthy_param?(Map.get(params, "aggregate_grid"))
 
     aggregate =
       Map.get(params, "aggregate", %{})
@@ -76,8 +79,11 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal_position, g} end)
     }
 
-    {view_set, %{per_page: per_page}}
+    {view_set, %{per_page: per_page, grid_enabled: grid}}
   end
+
+  defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
+  defp truthy_param?(_), do: false
 
   def group_by(group_by, columns, selecto) do
     group_by
@@ -121,6 +127,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         else
           # Source table field or no selecto - use columns map
           columns[field_name]
+        end
+
+      col =
+        if is_map(col) do
+          col
+          |> Map.put(:group_format, Map.get(e, "format"))
+          |> Map.put("group_format", Map.get(e, "format"))
+        else
+          col
         end
 
       # ????

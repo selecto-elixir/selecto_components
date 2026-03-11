@@ -206,6 +206,66 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert elem(field_selector, 2) == "Month"
     end
 
+    test "supports aggregate datetime format tokens in graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "created_at", %{colid: :created_at, type: :utc_datetime})
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "created_at",
+            "index" => "0",
+            "alias" => "Quarter",
+            "format" => "YYYY-Q"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:to_char, {:created_at, "YYYY-Q"}}, "Quarter"} = field_selector
+    end
+
+    test "supports graph age bucket datetime grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "created_at", %{colid: :created_at, type: :utc_datetime})
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "created_at",
+            "index" => "0",
+            "alias" => "Age",
+            "format" => "age_buckets",
+            "bucket_ranges" => "0,1-7,8+"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:raw_sql, sql}, "Age"} = field_selector
+      assert sql =~ "EXTRACT(DAY FROM AGE(CURRENT_DATE, selecto_root.created_at))"
+    end
+
     test "generates proper order_by and group_by clauses", %{columns: columns} do
       params = %{
         "x_axis" => %{

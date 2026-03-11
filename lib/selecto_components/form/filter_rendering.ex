@@ -28,7 +28,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def render_filter_form(assigns, uuid, index, section, filter_value) do
     # Get the filter definition from the selecto
-    filter_id = filter_value["filter"]
+    filter_id = value_for(filter_value, "filter")
 
     filter_def =
       case Selecto.filters(assigns.selecto) do
@@ -115,7 +115,8 @@ defmodule SelectoComponents.Form.FilterRendering do
         join_mode_config ->
           render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
 
-        field_type in [:naive_datetime, :utc_datetime, :date] ->
+        field_type in [:naive_datetime, :utc_datetime, :date] or
+            datetime_comp?(value_for(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
         field_type == :tsvector ->
@@ -142,14 +143,19 @@ defmodule SelectoComponents.Form.FilterRendering do
     # Check if value is a shortcut or relative date
     filter_value = assigns[:filter_value] || %{}
 
-    is_shortcut = is_date_shortcut(filter_value["value"])
-    is_relative = is_relative_date(filter_value["value"])
+    is_shortcut = is_date_shortcut(value_for(filter_value, "value"))
+    is_relative = is_relative_date(value_for(filter_value, "value"))
+
+    current_comp = normalize_comp(value_for(filter_value, "comp"), "=")
+    current_value = normalize_string(value_for(filter_value, "value"))
 
     assigns =
       assigns
       |> Map.put(:is_shortcut, is_shortcut)
       |> Map.put(:is_relative, is_relative)
       |> Map.put(:filter_value, filter_value)
+      |> Map.put(:current_comp, current_comp)
+      |> Map.put(:current_value, current_value)
 
     ~H"""
     <div class="space-y-2">
@@ -157,36 +163,38 @@ defmodule SelectoComponents.Form.FilterRendering do
         <select
           name={"filters[#{@uuid}][comp]"}
           class="sc-select"
-          phx-change="datetime-filter-change"
-          phx-target={@myself}
-          phx-value-uuid={@uuid}
         >
-          <option value="=" selected={@filter_value["comp"] == "="}>On</option>
-          <option value="!=" selected={@filter_value["comp"] == "!="}>Not On</option>
-          <option value="DATE=" selected={@filter_value["comp"] == "DATE="}>Date Equals</option>
-          <option value="DATE!=" selected={@filter_value["comp"] == "DATE!="}>Date Not Equals</option>
-          <option value=">" selected={@filter_value["comp"] == ">"}>After</option>
-          <option value=">=" selected={@filter_value["comp"] == ">="}>On or After</option>
-          <option value="<" selected={@filter_value["comp"] == "<"}>Before</option>
-          <option value="<=" selected={@filter_value["comp"] == "<="}>On or Before</option>
-          <option value="BETWEEN" selected={@filter_value["comp"] == "BETWEEN"}>Between</option>
-          <option value="DATE_BETWEEN" selected={@filter_value["comp"] == "DATE_BETWEEN"}>
+          <option value="=" selected={@current_comp == "="}>On</option>
+          <option value="!=" selected={@current_comp == "!="}>Not On</option>
+          <option value="DATE=" selected={@current_comp == "DATE="}>Date Equals</option>
+          <option value="DATE!=" selected={@current_comp == "DATE!="}>Date Not Equals</option>
+          <option value=">" selected={@current_comp == ">"}>After</option>
+          <option value=">=" selected={@current_comp == ">="}>On or After</option>
+          <option value="<" selected={@current_comp == "<"}>Before</option>
+          <option value="<=" selected={@current_comp == "<="}>On or Before</option>
+          <option value="BETWEEN" selected={@current_comp == "BETWEEN"}>Between</option>
+          <option value="DATE_BETWEEN" selected={@current_comp == "DATE_BETWEEN"}>
             Date Between
           </option>
-          <option value="SHORTCUT" selected={@filter_value["comp"] == "SHORTCUT"}>
+          <option value="SHORTCUT" selected={@current_comp == "SHORTCUT"}>
             Quick Select
           </option>
-          <option value="RELATIVE" selected={@filter_value["comp"] == "RELATIVE"}>
+          <option value="RELATIVE" selected={@current_comp == "RELATIVE"}>
             Relative Days
           </option>
-          <option value="IS NULL" selected={@filter_value["comp"] == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@filter_value["comp"] == "IS NOT NULL"}>
+          <option value="WEEKDAY_SUN1" selected={@current_comp == "WEEKDAY_SUN1"}>Day of Week</option>
+          <option value="WEEK_OF_YEAR" selected={@current_comp == "WEEK_OF_YEAR"}>Week of Year</option>
+          <option value="MONTH_OF_YEAR" selected={@current_comp == "MONTH_OF_YEAR"}>Month of Year</option>
+          <option value="DAY_OF_MONTH" selected={@current_comp == "DAY_OF_MONTH"}>Day of Month</option>
+          <option value="HOUR_OF_DAY" selected={@current_comp == "HOUR_OF_DAY"}>Hour of Day</option>
+          <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
+          <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>
             Is Not Empty
           </option>
         </select>
 
         <%= cond do %>
-          <% @filter_value["comp"] in ["BETWEEN", "DATE_BETWEEN"] -> %>
+          <% @current_comp in ["BETWEEN", "DATE_BETWEEN"] -> %>
             <div class="col-span-2 grid grid-cols-2 gap-2">
               <input
                 type="date"
@@ -205,27 +213,50 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="300"
               />
             </div>
-          <% @filter_value["comp"] == "SHORTCUT" -> %>
+          <% @current_comp == "SHORTCUT" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
               <optgroup label="Days">
-                <option value="today" selected={@filter_value["value"] == "today"}>Today</option>
-                <option value="yesterday" selected={@filter_value["value"] == "yesterday"}>
+                <option value="today" selected={@current_value == "today"}>Today</option>
+                <option value="yesterday" selected={@current_value == "yesterday"}>
                   Yesterday
                 </option>
-                <option value="tomorrow" selected={@filter_value["value"] == "tomorrow"}>
+                <option value="tomorrow" selected={@current_value == "tomorrow"}>
                   Tomorrow
                 </option>
               </optgroup>
               <optgroup label="Weeks">
-                <option value="this_week" selected={@filter_value["value"] == "this_week"}>
+                <option value="this_week" selected={@current_value == "this_week"}>
                   This Week
                 </option>
-                <option value="last_week" selected={@filter_value["value"] == "last_week"}>
+                <option value="last_week" selected={@current_value == "last_week"}>
                   Last Week
                 </option>
-                <option value="next_week" selected={@filter_value["value"] == "next_week"}>
+                <option value="next_week" selected={@current_value == "next_week"}>
                   Next Week
                 </option>
+                <option value="weekdays" selected={@current_value == "weekdays"}>
+                  Weekdays (Mon-Fri)
+                </option>
+                <option value="weekends" selected={@current_value == "weekends"}>
+                  Weekends (Sat-Sun)
+                </option>
+              </optgroup>
+              <optgroup label="Specific Weekday">
+                <option value="monday" selected={@current_value == "monday"}>Mondays</option>
+                <option value="tuesday" selected={@current_value == "tuesday"}>
+                  Tuesdays
+                </option>
+                <option value="wednesday" selected={@current_value == "wednesday"}>
+                  Wednesdays
+                </option>
+                <option value="thursday" selected={@current_value == "thursday"}>
+                  Thursdays
+                </option>
+                <option value="friday" selected={@current_value == "friday"}>Fridays</option>
+                <option value="saturday" selected={@current_value == "saturday"}>
+                  Saturdays
+                </option>
+                <option value="sunday" selected={@current_value == "sunday"}>Sundays</option>
               </optgroup>
               <optgroup label="Months">
                 <option value="this_month" selected={@filter_value["value"] == "this_month"}>
@@ -306,7 +337,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                 </option>
               </optgroup>
             </select>
-          <% @filter_value["comp"] == "RELATIVE" -> %>
+          <% @current_comp == "RELATIVE" -> %>
             <div class="col-span-2 flex gap-2">
               <input
                 type="text"
@@ -324,14 +355,40 @@ defmodule SelectoComponents.Form.FilterRendering do
                 30- = within 30 days
               </div>
             </div>
-          <% @filter_value["comp"] in ["DATE=", "DATE!="] -> %>
+          <% @current_comp == "WEEKDAY_SUN1" -> %>
+            <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
+              <option value="1" selected={to_string(value_for(@filter_value, "value")) == "1"}>Sunday</option>
+              <option value="2" selected={to_string(value_for(@filter_value, "value")) == "2"}>Monday</option>
+              <option value="3" selected={to_string(value_for(@filter_value, "value")) == "3"}>Tuesday</option>
+              <option value="4" selected={to_string(value_for(@filter_value, "value")) == "4"}>Wednesday</option>
+              <option value="5" selected={to_string(value_for(@filter_value, "value")) == "5"}>Thursday</option>
+              <option value="6" selected={to_string(value_for(@filter_value, "value")) == "6"}>Friday</option>
+              <option value="7" selected={to_string(value_for(@filter_value, "value")) == "7"}>Saturday</option>
+            </select>
+          <% @current_comp == "WEEK_OF_YEAR" -> %>
+            <input
+              type="text"
+              name={"filters[#{@uuid}][value]"}
+              value={value_for(@filter_value, "value")}
+              class="sc-input col-span-2"
+              placeholder="YYYY-WW (e.g., 2026-10)"
+              pattern="^\d{4}-\d{2}$"
+            />
+          <% @current_comp in ["MONTH_OF_YEAR", "DAY_OF_MONTH", "HOUR_OF_DAY"] -> %>
+            <input
+              type="number"
+              name={"filters[#{@uuid}][value]"}
+              value={value_for(@filter_value, "value")}
+              class="sc-input col-span-2"
+            />
+          <% @current_comp in ["DATE=", "DATE!="] -> %>
             <input
               type="date"
               name={"filters[#{@uuid}][value]"}
               value={format_datetime_value(@filter_value["value"], :date)}
               class="sc-input col-span-2"
             />
-          <% @filter_value["comp"] in ["IS NULL", "IS NOT NULL"] -> %>
+          <% @current_comp in ["IS NULL", "IS NOT NULL"] -> %>
             <div class="col-span-2 text-gray-500 text-sm self-center">
               No value needed
             </div>
@@ -341,7 +398,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               name={"filters[#{@uuid}][value]"}
               value={format_datetime_value(@filter_value["value"], @field_type)}
               class="sc-input col-span-2"
-              disabled={@filter_value["comp"] in ["IS NULL", "IS NOT NULL"]}
+              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
         <% end %>
       </div>
@@ -368,13 +425,13 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
-    filter_id = assigns.filter_value["filter"]
+    filter_id = value_for(assigns.filter_value, "filter")
     operator_options = standard_operator_options(assigns.field_type, assigns.selecto, filter_id)
     operator_values = Enum.map(operator_options, &elem(&1, 0))
     default_comp = default_standard_comp(assigns.field_type, filter_id, operator_options)
 
     current_comp =
-      case assigns.filter_value["comp"] do
+      case normalize_comp(value_for(assigns.filter_value, "comp"), default_comp) do
         comp ->
           if comp in operator_values do
             comp
@@ -383,8 +440,13 @@ defmodule SelectoComponents.Form.FilterRendering do
           end
       end
 
-    between_start = assigns.filter_value["value_start"] || assigns.filter_value["value"] || ""
-    between_end = assigns.filter_value["value_end"] || assigns.filter_value["value2"] || ""
+    between_start =
+      value_for(assigns.filter_value, "value_start") || value_for(assigns.filter_value, "value") ||
+        ""
+
+    between_end =
+      value_for(assigns.filter_value, "value_end") || value_for(assigns.filter_value, "value2") ||
+        ""
 
     assigns =
       assigns
@@ -684,6 +746,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def is_date_shortcut(value) when is_binary(value) do
     value in ~w(today yesterday tomorrow this_week last_week next_week
+                weekdays weekends monday tuesday wednesday thursday friday saturday sunday
                 this_month last_month next_month mtd
                 this_quarter last_quarter next_quarter qtd
                 this_year last_year next_year ytd
@@ -710,19 +773,68 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   def is_relative_date(_), do: false
 
-  @doc """
-  Hash only the filter structure (IDs and sections), not the values.
+  defp datetime_comp?(comp) when is_binary(comp) do
+    comp in [
+      "DATE=",
+      "DATE!=",
+      "DATE_BETWEEN",
+      "SHORTCUT",
+      "RELATIVE",
+      "WEEKDAY",
+      "WEEKDAY_SUN1",
+      "WEEK_OF_YEAR",
+      "MONTH_OF_YEAR",
+      "DAY_OF_MONTH",
+      "HOUR_OF_DAY",
+      "IS NULL",
+      "IS NOT NULL"
+    ]
+  end
 
-  This ensures the component remounts when filters are added/removed
-  but not when filter values or comparisons change.
+  defp datetime_comp?(_), do: false
+
+  defp value_for(map, key) when is_map(map) and is_binary(key) do
+    atom_key =
+      try do
+        String.to_existing_atom(key)
+      rescue
+        ArgumentError -> nil
+      end
+
+    if atom_key, do: Map.get(map, key, Map.get(map, atom_key)), else: Map.get(map, key)
+  rescue
+    _ -> Map.get(map, key)
+  end
+
+  defp value_for(_map, _key), do: nil
+
+  defp normalize_comp(value, _fallback) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_comp(value, _fallback) when is_binary(value) and value != "", do: value
+  defp normalize_comp(_value, fallback), do: fallback
+
+  defp normalize_string(value) when is_binary(value), do: value
+  defp normalize_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_string(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_string(value) when is_float(value), do: :erlang.float_to_binary(value)
+  defp normalize_string(nil), do: ""
+  defp normalize_string(value), do: to_string(value)
+
+  @doc """
+  Hash filter structure and comparator mode, not filter values.
+
+  This ensures the component remounts when filters are added/removed or
+  comparator mode changes, but not when filter values change.
   """
   def hash_filter_structure(filters) do
-    # Only hash UUIDs, sections, and filter field IDs so the component remounts
-    # when filters are added/removed but NOT when values/comparisons change
+    # Hash UUIDs, sections, filter field IDs, and comparator mode so the
+    # component remounts when input shape changes (e.g. BETWEEN -> IS NULL)
     filters
     |> Enum.map(fn
-      {uuid, section, config} when is_map(config) -> {uuid, section, Map.get(config, "filter")}
-      {uuid, section, conj} when is_binary(conj) -> {uuid, section, conj}
+      {uuid, section, config} when is_map(config) ->
+        {uuid, section, Map.get(config, "filter"), Map.get(config, "comp")}
+
+      {uuid, section, conj} when is_binary(conj) ->
+        {uuid, section, conj}
     end)
     |> :erlang.phash2()
   end

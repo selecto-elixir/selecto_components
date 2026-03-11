@@ -40,15 +40,30 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         <!-- Datetime Formatting (if applicable) -->
         <div :if={Map.get(@col, :type, :string) in [:naive_datetime, :utc_datetime, :date]}>
           <label class="block text-xs font-medium text-gray-600 mb-1">Date Format</label>
-          <select name={"#{@prefix}[format]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <select
+            name={"#{@prefix}[format]"}
+            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>
-            <option value="YYYY" selected={Map.get(@config, "format") == "YYYY"}>Year (2023)</option>
-            <option value="YYYY-MM" selected={Map.get(@config, "format") == "YYYY-MM"}>Year-Month (2023-12)</option>
-            <option value="YYYY-MM-DD" selected={Map.get(@config, "format") == "YYYY-MM-DD"}>Full Date (2023-12-31)</option>
-            <option value="Month" selected={Map.get(@config, "format") == "Month"}>Month Name</option>
-            <option value="Day" selected={Map.get(@config, "format") == "Day"}>Day</option>
-            <option value="Hour" selected={Map.get(@config, "format") == "Hour"}>Hour</option>
+            <%= for {value, label} <- SelectoComponents.Helpers.aggregate_datetime_format_options() do %>
+              <option value={value} selected={Map.get(@config, "format") == value}>{label}</option>
+            <% end %>
           </select>
+        </div>
+
+        <div :if={Map.get(@config, "format") in ["age_buckets", "custom_buckets"]}>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Bucket Ranges</label>
+          <input
+            name={"#{@prefix}[bucket_ranges]"}
+            type="text"
+            value={Map.get(@config, "bucket_ranges", "")}
+            placeholder={
+              if Map.get(@config, "format") == "age_buckets",
+                do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
+                else: "e.g., today, yesterday, 2-7, 8+"
+            }
+            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
         </div>
 
         <!-- String truncation (if applicable) -->

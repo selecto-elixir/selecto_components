@@ -106,6 +106,81 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v2 == "2025-01-01"
     end
 
+    test "handles YYYY year format for utc_datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017",
+          field_conf,
+          %{format: "YYYY"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2017-01-01"
+      assert v2 == "2018-01-01"
+    end
+
+    test "handles YYYY-Q quarter format for datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017-2",
+          field_conf,
+          %{format: "YYYY-Q"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2017-04-01"
+      assert v2 == "2017-07-01"
+    end
+
+    test "handles YYYY-WW week format for datetime fields" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017-02",
+          field_conf,
+          %{format: "YYYY-WW"}
+        )
+
+      assert comp == "WEEK_OF_YEAR"
+      assert v1 == "2017-02"
+      assert v2 == ""
+    end
+
+    test "handles D day-of-week format as weekday filter" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2",
+          field_conf,
+          %{format: "D"}
+        )
+
+      assert comp == "WEEKDAY_SUN1"
+      assert v1 == "2"
+      assert v2 == ""
+    end
+
+    test "handles MM/DD/HH24 grouped date formats" do
+      field_conf = %{type: :utc_datetime}
+
+      assert {"MONTH_OF_YEAR", "3", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("03", field_conf, %{format: "MM"})
+
+      assert {"DAY_OF_MONTH", "14", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("14", field_conf, %{format: "DD"})
+
+      assert {"HOUR_OF_DAY", "9", ""} =
+               DrillDownFilters.determine_filter_comp_and_values("09", field_conf, %{
+                 format: "HH24"
+               })
+    end
+
     test "handles numeric bucket ranges" do
       field_conf = %{type: :integer}
 
@@ -383,6 +458,33 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert filter["value"] == "of"
       assert filter["exclude_articles"] == "true"
       assert filter["ignore_case"] == "true"
+    end
+
+    test "uses group index to disambiguate repeated datetime fields with different formats" do
+      socket =
+        %{assigns: %{selecto: selecto(), used_params: %{}}}
+        |> put_in(
+          [:assigns, :used_params, "group_by"],
+          %{
+            "g0" => %{"field" => "order_date", "index" => "0", "format" => "D"},
+            "g1" => %{"field" => "order_date", "index" => "1", "format" => "DD"}
+          }
+        )
+
+      params = %{
+        "field0" => "order_date",
+        "value0" => "6",
+        "gidx0" => "0",
+        "field1" => "order_date",
+        "value1" => "14",
+        "gidx1" => "1"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+      filters = Map.values(view_params["filters"])
+
+      assert Enum.any?(filters, fn f -> f["comp"] == "WEEKDAY_SUN1" and f["value"] == "6" end)
+      assert Enum.any?(filters, fn f -> f["comp"] == "DAY_OF_MONTH" and f["value"] == "14" end)
     end
   end
 end

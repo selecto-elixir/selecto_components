@@ -143,4 +143,186 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "250"
     assert html =~ "rows"
   end
+
+  test "null group-by value renders as [NULL] and is drill-down clickable" do
+    assigns =
+      aggregate_assigns(%{
+        query_results: {[[nil, 3], [2001, 7], [nil, 10]], [], ["release_year", "film_count"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "[NULL]"
+    assert html =~ ~s(phx-click="agg_add_filters")
+    assert html =~ ~s(phx-value-value0="__NULL__")
+    assert html =~ "Total"
+  end
+
+  test "renders aggregate grid when enabled with 2 group-by and 1 aggregate" do
+    assigns = %{
+      id: "aggregate-grid-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[[2001, "A", 3], [2001, "B", 5], [2002, "A", 2]], [],
+         ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-test-run", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Aggregate Grid"
+    assert html =~ "release_year"
+    assert html =~ "2001"
+    assert html =~ "2002"
+    assert html =~ "3"
+    assert html =~ "5"
+    assert html =~ "2"
+  end
+
+  test "shows grid requirements message when configuration does not match" do
+    html =
+      render_component(
+        Component,
+        aggregate_assigns(%{view_meta: %{exe_id: "aggregate-grid-message", grid_enabled: true}})
+      )
+
+    assert html =~ "Grid view requires exactly 2 Group By fields and 1 Aggregate"
+  end
+
+  test "grid view sorts hour-of-day columns numerically" do
+    assigns = %{
+      id: "aggregate-grid-hour-sort-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"},
+          "g1" => %{"field" => "title", "index" => "1", "format" => "HH24"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}],
+            gb_params: %{
+              "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"},
+              "g1" => %{"field" => "title", "index" => "1", "format" => "HH24"}
+            }
+          }
+      },
+      # First seen hour is 10, then 02; grid should still render 02 before 10
+      query_results: {[[1, 10, 3], [1, 2, 5]], [], ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-hour-sort", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    normalized = String.replace(html, ~r/\s+/, " ")
+
+    {idx_2, _} = :binary.match(normalized, "> 2 <")
+    {idx_10, _} = :binary.match(normalized, "> 10 <")
+
+    assert idx_2 < idx_10
+  end
+
+  test "grid cells are clickable and pass both group filters" do
+    assigns = %{
+      id: "aggregate-grid-cell-click-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"},
+          "g1" => %{"field" => "title", "index" => "1", "format" => "HH24"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}],
+            gb_params: %{
+              "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"},
+              "g1" => %{"field" => "title", "index" => "1", "format" => "HH24"}
+            }
+          }
+      },
+      query_results: {[[6, 10, 3]], [], ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-cell-click", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ ~s(phx-click="agg_add_filters")
+    assert html =~ ~s(phx-value-field0="release_year")
+    assert html =~ ~s(phx-value-value0="6")
+    assert html =~ ~s(phx-value-field1="title")
+    assert html =~ ~s(phx-value-value1="10")
+  end
+
+  test "day-of-week group-by displays weekday names" do
+    assigns =
+      aggregate_assigns(%{
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          group_by: %{
+            "g0" => %{"field" => "release_year", "index" => "0", "format" => "D"}
+          }
+        },
+        selecto: %{
+          selecto()
+          | set: %{
+              selected: [
+                {:field, :release_year, "release_year"},
+                {:field, {:count, :film_id}, "film_count"}
+              ],
+              group_by: [{:rollup, [{:literal_position, 1}]}],
+              aggregates: [{:field, {:count, :film_id}, "film_count"}]
+            }
+        },
+        query_results: {[[6, 10]], [], ["release_year", "film_count"]}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Friday"
+    refute html =~ ">6<"
+  end
 end

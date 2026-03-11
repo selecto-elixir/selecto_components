@@ -341,72 +341,81 @@ defmodule SelectoComponents.Form do
     Logger.debug("Datetime filter change event received")
 
     # Extract UUID from _target or params
+    nested_params = Map.get(params, "view_config", params)
+
     uuid =
       params["uuid"] ||
         case get_in(params, ["_target"]) do
           ["filters", uuid_val, "comp"] -> uuid_val
+          ["view_config", "filters", uuid_val, "comp"] -> uuid_val
           _ -> nil
         end
 
     # Get the new comparison value directly from filters
-    new_comp = get_in(params, ["filters", uuid, "comp"])
+    new_comp = get_in(nested_params, ["filters", uuid, "comp"])
 
     Logger.debug("UUID: #{uuid}, New comparison: #{new_comp}")
 
     # Update the view_config in the socket assigns
+    current_filters = Map.get(socket.assigns.view_config, :filters, [])
+
     updated_filters =
-      socket.assigns.view_config.filters
+      current_filters
       |> Enum.map(fn
-        {u, section, filter} when u == uuid ->
-          # Update the comparison operator and reset value when changing modes
-          updated_filter =
-            case new_comp do
-              "BETWEEN" ->
-                # Reset to empty values for between mode
-                Map.merge(filter, %{
-                  "comp" => new_comp,
-                  "value" => nil,
-                  "value_start" => nil,
-                  "value_end" => nil
-                })
+        {u, section, filter} ->
+          if to_string(u) == to_string(uuid) do
+            # Update the comparison operator and reset value when changing modes
+            updated_filter =
+              case new_comp do
+                "BETWEEN" ->
+                  # Reset to empty values for between mode
+                  Map.merge(filter, %{
+                    "comp" => new_comp,
+                    "value" => nil,
+                    "value_start" => nil,
+                    "value_end" => nil
+                  })
 
-              "DATE_BETWEEN" ->
-                # Reset to empty values for date between mode
-                Map.merge(filter, %{
-                  "comp" => new_comp,
-                  "value" => nil,
-                  "value_start" => nil,
-                  "value_end" => nil
-                })
+                "DATE_BETWEEN" ->
+                  # Reset to empty values for date between mode
+                  Map.merge(filter, %{
+                    "comp" => new_comp,
+                    "value" => nil,
+                    "value_start" => nil,
+                    "value_end" => nil
+                  })
 
-              "DATE=" ->
-                # Keep existing value or set to today's date
-                Map.merge(filter, %{
-                  "comp" => new_comp,
-                  "value" => filter["value"] || Date.utc_today()
-                })
+                "DATE=" ->
+                  # Keep existing value or set to today's date
+                  Map.merge(filter, %{
+                    "comp" => new_comp,
+                    "value" => filter["value"] || Date.utc_today()
+                  })
 
-              "DATE!=" ->
-                # Keep existing value or set to today's date
-                Map.merge(filter, %{
-                  "comp" => new_comp,
-                  "value" => filter["value"] || Date.utc_today()
-                })
+                "DATE!=" ->
+                  # Keep existing value or set to today's date
+                  Map.merge(filter, %{
+                    "comp" => new_comp,
+                    "value" => filter["value"] || Date.utc_today()
+                  })
 
-              "SHORTCUT" ->
-                # Default to "today" for shortcuts
-                Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
+                "SHORTCUT" ->
+                  # Default to "today" for shortcuts
+                  Map.merge(filter, %{"comp" => new_comp, "value" => "today"})
 
-              "RELATIVE" ->
-                # Default to empty for relative
-                Map.merge(filter, %{"comp" => new_comp, "value" => ""})
+                "RELATIVE" ->
+                  # Default to empty for relative
+                  Map.merge(filter, %{"comp" => new_comp, "value" => ""})
 
-              _ ->
-                # Keep existing value for standard operators
-                Map.put(filter, "comp", new_comp)
-            end
+                _ ->
+                  # Keep existing value for standard operators
+                  Map.put(filter, "comp", new_comp)
+              end
 
-          {u, section, updated_filter}
+            {u, section, updated_filter}
+          else
+            {u, section, filter}
+          end
 
         other ->
           other

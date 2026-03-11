@@ -120,4 +120,62 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "100"
     assert html =~ "101"
   end
+
+  test "maps row values by alias when DB columns collide" do
+    domain = %{
+      name: "DetailAliasCollisionTest",
+      source: %{
+        source_table: "orders",
+        primary_key: :id,
+        fields: [:id],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    collision_selecto =
+      Selecto.configure(domain, nil)
+      |> Map.put(:set, %{
+        columns: [
+          %{"field" => "supplier.co_name", "alias" => "supplier_name", "uuid" => "c1"},
+          %{"field" => "customer.co_name", "alias" => "customer_name", "uuid" => "c2"}
+        ]
+      })
+
+    assigns = %{
+      id: "detail-component-alias-collision",
+      executed: true,
+      execution_error: nil,
+      selecto: collision_selecto,
+      query_results:
+        {[["Supplier A", "Customer B"]], ["co_name", "co_name"],
+         ["supplier_name", "customer_name"]},
+      view_meta: %{page: 0, per_page: 10, total_rows: 1, subselect_configs: []}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Supplier A"
+    assert html =~ "Customer B"
+  end
+
+  test "show_row_details dedupes duplicate modal keys" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        processed_results: {[["Supplier A", "Customer B"]], ["co_name", "co_name"]},
+        query_results:
+          {[["Supplier A", "Customer B"]], ["co_name", "co_name"], ["co_name", "co_name"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.record["co_name"] == "Supplier A"
+    assert detail_data.record["co_name_2"] == "Customer B"
+  end
 end

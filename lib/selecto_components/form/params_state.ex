@@ -89,8 +89,9 @@ defmodule SelectoComponents.Form.ParamsState do
       {{id, field, config}, index}, item_acc ->
         Map.put(
           item_acc,
-          id,
+          compact_param_key(index),
           Map.merge(config, %{
+            "uuid" => id,
             "field" => field,
             "index" => to_string(index)
           })
@@ -99,8 +100,9 @@ defmodule SelectoComponents.Form.ParamsState do
       {[id, field, config], index}, item_acc ->
         Map.put(
           item_acc,
-          id,
+          compact_param_key(index),
           Map.merge(config, %{
+            "uuid" => id,
             "field" => field,
             "index" => to_string(index)
           })
@@ -114,6 +116,11 @@ defmodule SelectoComponents.Form.ParamsState do
   defp merge_scalar_view_param(acc, :aggregate, key, value)
        when key in [:per_page, "per_page"] do
     Map.put(acc, "aggregate_per_page", AggregateOptions.normalize_per_page_param(value))
+  end
+
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid, "grid"] do
+    Map.put(acc, "aggregate_grid", to_string(value))
   end
 
   defp merge_scalar_view_param(acc, :detail, key, value)
@@ -180,15 +187,26 @@ defmodule SelectoComponents.Form.ParamsState do
       filter_params =
         case filter_data do
           conj when is_binary(conj) ->
-            %{"conjunction" => conj, "section" => section, "index" => to_string(index)}
+            %{
+              "uuid" => uuid,
+              "conjunction" => conj,
+              "section" => section,
+              "index" => to_string(index)
+            }
 
           filter_map when is_map(filter_map) ->
-            Map.merge(filter_map, %{"section" => section, "index" => to_string(index)})
+            Map.merge(filter_map, %{
+              "uuid" => uuid,
+              "section" => section,
+              "index" => to_string(index)
+            })
         end
 
-      Map.put(acc, uuid, filter_params)
+      Map.put(acc, compact_param_key(index), filter_params)
     end)
   end
+
+  defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
 
   @doc """
   Process filters from params, extracting and sorting them.
@@ -221,6 +239,8 @@ defmodule SelectoComponents.Form.ParamsState do
           f
         end
 
+      f = normalize_filter_form_state(f)
+
       {uuid, f}
     end)
     |> Enum.sort(fn {_, f1}, {_, f2} ->
@@ -230,6 +250,84 @@ defmodule SelectoComponents.Form.ParamsState do
       {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
       {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
     end)
+  end
+
+  defp normalize_filter_form_state(filter) when is_map(filter) do
+    comp = Map.get(filter, "comp") || Map.get(filter, :comp)
+    value = Map.get(filter, "value") || Map.get(filter, :value)
+
+    case comp do
+      "SHORTCUT" ->
+        shortcut =
+          if SelectoComponents.Form.FilterRendering.is_date_shortcut(value),
+            do: value,
+            else: "today"
+
+        filter
+        |> Map.put("value", shortcut)
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      "RELATIVE" ->
+        filter
+        |> Map.put("value", value || "")
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      comp when comp in ["IS NULL", "IS NOT NULL", "IS_EMPTY", "NOT_EMPTY"] ->
+        filter
+        |> Map.put("value", "")
+        |> Map.delete("value_start")
+        |> Map.delete("value_end")
+        |> Map.delete("value2")
+
+      "WEEKDAY_SUN1" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 7, "1"))
+
+      "WEEKDAY" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 7, "1"))
+
+      "MONTH_OF_YEAR" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 12, "1"))
+
+      "DAY_OF_MONTH" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 1, 31, "1"))
+
+      "HOUR_OF_DAY" ->
+        Map.put(filter, "value", normalize_numeric_choice(value, 0, 23, "0"))
+
+      "WEEK_OF_YEAR" ->
+        week_value = to_string(value || "")
+
+        if String.match?(week_value, ~r/^\d{4}-\d{2}$/),
+          do: Map.put(filter, "value", week_value),
+          else: filter
+
+      comp when comp in ["BETWEEN", "DATE_BETWEEN"] ->
+        start_value = Map.get(filter, "value_start") || Map.get(filter, "value") || ""
+        end_value = Map.get(filter, "value_end") || Map.get(filter, "value2") || ""
+
+        filter
+        |> Map.put("value_start", start_value)
+        |> Map.put("value_end", end_value)
+
+      _ ->
+        filter
+    end
+  end
+
+  defp normalize_filter_form_state(filter), do: filter
+
+  defp normalize_numeric_choice(value, min_value, max_value, default) do
+    case Integer.parse(to_string(value || "")) do
+      {int_val, ""} when int_val >= min_value and int_val <= max_value ->
+        Integer.to_string(int_val)
+
+      _ ->
+        default
+    end
   end
 
   @doc """
@@ -1027,11 +1125,10 @@ defmodule SelectoComponents.Form.ParamsState do
     _ -> 0
   end
 
-  defp normalize_rows_for_view(rows, columns, "detail")
+  defp normalize_rows_for_view(rows, _columns, "detail")
        when is_list(rows) and rows != [] and (is_list(hd(rows)) or is_tuple(hd(rows))) do
     Enum.map(rows, fn row ->
-      row_values = if is_tuple(row), do: Tuple.to_list(row), else: row
-      Enum.zip(columns, row_values) |> Map.new()
+      if is_tuple(row), do: Tuple.to_list(row), else: row
     end)
   end
 
@@ -1493,7 +1590,11 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket) do
-    params = merge_special_debug_params(params, socket)
+    params =
+      params
+      |> compact_url_params()
+      |> merge_special_debug_params(socket)
+
     params_encoded = Plug.Conn.Query.encode(params)
     my_path = socket.assigns.my_path
     full_path = "#{my_path}?#{params_encoded}"
@@ -1523,4 +1624,53 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp get_map_value(_map, _key, default), do: default
+
+  @doc false
+  def compact_url_params(params) when is_map(params) do
+    Enum.reduce(url_compactable_keys(), params, fn key, acc ->
+      case Map.get(acc, key) do
+        section when is_map(section) -> Map.put(acc, key, compact_param_section(section))
+        _ -> acc
+      end
+    end)
+  end
+
+  def compact_url_params(params), do: params
+
+  defp compact_param_section(section) when is_map(section) do
+    section
+    |> Enum.sort_by(fn {_k, v} -> sort_index_for_compaction(v) end)
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {{original_key, value}, index}, acc ->
+      compacted_value =
+        case value do
+          map when is_map(map) -> Map.put_new(map, "uuid", original_key)
+          other -> other
+        end
+
+      Map.put(acc, compact_param_key(index), compacted_value)
+    end)
+  end
+
+  defp url_compactable_keys do
+    ["filters", "selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
+  end
+
+  defp sort_index_for_compaction(value) when is_map(value) do
+    case Map.get(value, "index") do
+      idx when is_binary(idx) ->
+        case Integer.parse(idx) do
+          {num, ""} -> num
+          _ -> 0
+        end
+
+      idx when is_integer(idx) ->
+        idx
+
+      _ ->
+        0
+    end
+  end
+
+  defp sort_index_for_compaction(_value), do: 0
 end

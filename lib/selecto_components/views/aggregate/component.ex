@@ -69,7 +69,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   # Prepare ROLLUP results with hierarchy metadata
   # With COALESCE, data NULLs show as "[NULL]", ROLLUP NULLs show as nil/empty
-  # Filter out redundant [NULL] rows that are identical to their rollup subtotal
+  # Filter out redundant [NULL] rows that are identical to their rollup subtotal.
+  # Also mark which level-0 row is the true grand total so data NULL groups
+  # can still render as clickable [NULL] buckets.
   defp prepare_rollup_rows(results, num_group_by_cols) do
     rows_with_metadata =
       results
@@ -87,44 +89,61 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end)
 
     # Filter out [NULL] rows if the next row (rollup subtotal) has identical aggregates
-    rows_with_metadata
-    |> Enum.with_index()
-    |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
-      if has_null_at_level do
-        # This is a row ending with [NULL] - check if next row is its rollup with same values
-        next_row = Enum.at(rows_with_metadata, current_idx + 1)
-        group_cols = Enum.take(row, num_group_by_cols)
+    filtered_rows =
+      rows_with_metadata
+      |> Enum.with_index()
+      |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
+        if has_null_at_level do
+          # This is a row ending with [NULL] - check if next row is its rollup with same values
+          next_row = Enum.at(rows_with_metadata, current_idx + 1)
+          group_cols = Enum.take(row, num_group_by_cols)
 
-        case next_row do
-          {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
-            # Next row is at the right level - verify it's OUR rollup by checking group columns
-            current_group_prefix = Enum.take(group_cols, level - 1)
-            next_group_cols = Enum.take(next_row_data, num_group_by_cols)
-            next_group_prefix = Enum.take(next_group_cols, level - 1)
+          case next_row do
+            {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
+              # Next row is at the right level - verify it's OUR rollup by checking group columns
+              current_group_prefix = Enum.take(group_cols, level - 1)
+              next_group_cols = Enum.take(next_row_data, num_group_by_cols)
+              next_group_prefix = Enum.take(next_group_cols, level - 1)
 
-            if current_group_prefix == next_group_prefix do
-              # Same group - this is our rollup subtotal, compare aggregates
-              current_aggs = Enum.drop(row, num_group_by_cols)
-              next_aggs = Enum.drop(next_row_data, num_group_by_cols)
+              if current_group_prefix == next_group_prefix do
+                # Same group - this is our rollup subtotal, compare aggregates
+                current_aggs = Enum.drop(row, num_group_by_cols)
+                next_aggs = Enum.drop(next_row_data, num_group_by_cols)
 
-              # If aggregates are identical, skip this [NULL] row (redundant)
-              not (current_aggs == next_aggs)
-            else
-              # Different group - this must be end of our group, skip [NULL] row (redundant)
+                # If aggregates are identical, skip this [NULL] row (redundant)
+                not (current_aggs == next_aggs)
+              else
+                # Different group - this must be end of our group, skip [NULL] row (redundant)
+                false
+              end
+
+            _ ->
+              # Next row is not at the right level or doesn't exist - skip [NULL] row
               false
-            end
-
-          _ ->
-            # Next row is not at the right level or doesn't exist - skip [NULL] row
-            false
+          end
+        else
+          # Not a [NULL] row, always keep
+          true
         end
-      else
-        # Not a [NULL] row, always keep
-        true
-      end
-    end)
-    |> Enum.map(fn {{level, row, _has_null, _orig_idx}, _current_idx} ->
-      {level, row}
+      end)
+
+    last_level0_idx =
+      filtered_rows
+      |> Enum.with_index()
+      |> Enum.reduce(nil, fn
+        {{{0, row, _has_null, _orig_idx}, _current_idx}, idx}, acc ->
+          group_cols = Enum.take(row, num_group_by_cols)
+          if Enum.all?(group_cols, &(&1 in [nil, ""])), do: idx, else: acc
+
+        _other, acc ->
+          acc
+      end)
+
+    filtered_rows
+    |> Enum.with_index()
+    |> Enum.map(fn {{{level, row, _has_null, _orig_idx}, _current_idx}, idx} ->
+      grand_total? = idx == last_level0_idx
+      {level, row, grand_total?}
     end)
   end
 
@@ -302,6 +321,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       acc
       |> Map.put("phx-value-field#{idx}", filter_field)
       |> Map.put("phx-value-value#{idx}", to_string(filter_value))
+      |> Map.put("phx-value-gidx#{idx}", to_string(idx))
     end)
   end
 
@@ -323,6 +343,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # Render a single row with hierarchy styling
   defp rollup_row(assigns) do
     continued? = Map.get(assigns, :continued?, false)
+    grand_total? = Map.get(assigns, :grand_total?, false)
+
+    display_level =
+      if assigns.level == 0 and not grand_total? and assigns.num_group_by > 0 do
+        1
+      else
+        assigns.level
+      end
 
     # Extract group columns and aggregate columns from the row
     group_cols = Enum.take(assigns.row, assigns.num_group_by)
@@ -330,7 +358,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     # Determine styling based on hierarchy level
     {row_class, font_weight, indent_px} =
-      case assigns.level do
+      case display_level do
         # Grand total
         0 -> {"bg-blue-50 border-t-2 border-blue-300", "font-bold", 0}
         # Level 1 subtotal
@@ -345,7 +373,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     # The maximum level is the number of group-by columns
     # If we're at max level, it's a detail row (not a subtotal)
-    is_detail = assigns.level == assigns.num_group_by
+    is_detail = display_level == assigns.num_group_by
 
     # For detail rows, use normal styling unless row is a continuation marker
     {row_class, font_weight} =
@@ -361,7 +389,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end
 
     # Build filter attributes for drill-down (accumulated from all parent levels)
-    filter_attrs = build_filter_attrs(group_cols, assigns.group_by, assigns.level)
+    filter_attrs = build_filter_attrs(group_cols, assigns.group_by, display_level)
 
     assigns =
       assign(assigns,
@@ -371,7 +399,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         font_weight: font_weight,
         indent_px: indent_px,
         filter_attrs: filter_attrs,
-        continued?: continued?
+        continued?: continued?,
+        display_level: display_level,
+        grand_total?: grand_total?
       )
 
     ~H"""
@@ -380,16 +410,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
         <td class={"px-3 py-2 text-sm text-gray-900 #{@font_weight}"}>
           <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
-            <%= if @level == 0 and idx == 0 do %>
+            <%= if @grand_total? and @display_level == 0 and idx == 0 do %>
               <%!-- Grand total row --%>
               <span class="text-gray-400 italic">Total</span>
             <% else %>
               <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
-              <%= if idx == @level - 1 do %>
+              <%= if idx == @display_level - 1 do %>
                 <%= if @continued? do %>
                   <span class="text-amber-900">
-                    {format_value(value)} (continued)
+                    {format_group_value(value, coldef)} (continued)
                   </span>
                 <% else %>
                   <div
@@ -397,7 +427,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     {@filter_attrs}
                     class="cursor-pointer hover:underline"
                   >
-                    {format_value(value)}
+                    {format_group_value(value, coldef)}
                   </div>
                 <% end %>
               <% end %>
@@ -422,11 +452,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp prepend_continued_group_headers(rows, num_group_by, aggregate_count, row_offset)
        when is_list(rows) do
-    rendered_rows = Enum.map(rows, fn {level, row} -> {level, row, false} end)
+    rendered_rows =
+      Enum.map(rows, fn {level, row, grand_total?} -> {level, row, false, grand_total?} end)
 
     if row_offset > 0 do
       case rows do
-        [{level, row} | _] when level > 1 ->
+        [{level, row, _grand_total?} | _] when level > 1 ->
           group_cols = Enum.take(row, num_group_by)
 
           continued_rows =
@@ -438,7 +469,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               parent_agg_cols = List.duplicate(nil, aggregate_count)
 
-              {parent_level, parent_group_cols ++ parent_agg_cols, true}
+              {parent_level, parent_group_cols ++ parent_agg_cols, true, false}
             end)
 
           continued_rows ++ rendered_rows
@@ -649,7 +680,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     group_by_config = selecto_group_by_config || view_config_group_by || %{}
 
-    group_by_param_fields =
+    group_by_param_configs =
       group_by_config
       |> Map.values()
       |> Enum.sort(fn a, b ->
@@ -662,7 +693,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
         to_index.(a) <= to_index.(b)
       end)
-      |> Enum.map(fn cfg -> Map.get(cfg, "field") || Map.get(cfg, :field) end)
+
+    group_by_param_fields =
+      Enum.map(group_by_param_configs, fn cfg -> Map.get(cfg, "field") || Map.get(cfg, :field) end)
 
     # Convert to the format expected by the template
     group_by =
@@ -745,6 +778,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           end
 
         coldef = maybe_set_group_by_filter(coldef, Enum.at(group_by_param_fields, idx))
+        coldef = maybe_set_group_by_format(coldef, Enum.at(group_by_param_configs, idx))
         {alias, {:group_by, field, coldef}}
       end)
 
@@ -878,6 +912,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     total_pages = if aggregate_total_rows > 0, do: max_page + 1, else: 0
 
+    grid_enabled = truthy?(Map.get(aggregate_meta, :grid_enabled, false))
+    grid_available? = grid_enabled and num_group_by == 2 and length(aggregates_processed) == 1
+
+    grid_data =
+      if grid_available?,
+        do: build_grid_data(paged_rollup_rows, num_group_by, group_by),
+        else: nil
+
     assigns =
       assign(assigns,
         rollup_rows: rollup_rows,
@@ -894,7 +936,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aggregate_max_page: max_page,
         aggregate_total_pages: total_pages,
         aggregate_page_start: page_start,
-        aggregate_page_end: page_end
+        aggregate_page_end: page_end,
+        grid_enabled: grid_enabled,
+        grid_available?: grid_available?,
+        grid_data: grid_data
       )
 
     ~H"""
@@ -1030,38 +1075,194 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         if you need to render more rows at once.
       </div>
 
-      <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
-        <thead class="bg-gray-50">
-          <tr>
-            <%!-- Headers for group by columns --%>
-            <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
-              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                {alias}
-              </th>
-            <% end %>
+      <div
+        :if={@grid_enabled and not @grid_available?}
+        class="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900"
+      >
+        Grid view requires exactly 2 Group By fields and 1 Aggregate.
+      </div>
 
-            <%!-- Headers for aggregate columns --%>
-            <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+      <%= if @grid_available? and @grid_data do %>
+        <div class="mb-2 text-sm font-medium text-gray-700">Aggregate Grid</div>
+        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+          <thead class="bg-gray-50">
+            <tr>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                {alias}
+                {@grid_data.row_alias}
               </th>
-            <% end %>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 bg-white">
-          <.rollup_row
-            :for={{level, row, continued?} <- @paged_rollup_rows}
-            level={level}
-            row={row}
-            continued?={continued?}
-            num_group_by={@num_group_by}
-            group_by={@group_by}
-            aggregate={@aggregate}
-          />
-        </tbody>
-      </table>
+              <%= for col_value <- @grid_data.col_headers do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {format_group_value(col_value, @grid_data.col_coldef)}
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            <tr :for={row_value <- @grid_data.row_headers}>
+              <td class="px-3 py-2 text-sm font-semibold text-gray-800">
+                {format_group_value(row_value, @grid_data.row_coldef)}
+              </td>
+              <td :for={col_value <- @grid_data.col_headers} class="px-3 py-2 text-sm text-gray-900">
+                <div
+                  phx-click="agg_add_filters"
+                  {build_filter_attrs([row_value, col_value], @group_by, 2)}
+                  class="cursor-pointer hover:underline"
+                >
+                  {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      <% else %>
+        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200 divide-gray-200 rounded-sm table-auto sm:rounded">
+          <thead class="bg-gray-50">
+            <tr>
+              <%!-- Headers for group by columns --%>
+              <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {alias}
+                </th>
+              <% end %>
+
+              <%!-- Headers for aggregate columns --%>
+              <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  {alias}
+                </th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            <.rollup_row
+              :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
+              level={level}
+              row={row}
+              continued?={continued?}
+              grand_total?={grand_total?}
+              num_group_by={@num_group_by}
+              group_by={@group_by}
+              aggregate={@aggregate}
+            />
+          </tbody>
+        </table>
+      <% end %>
     </div>
     """
+  end
+
+  defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
+  defp truthy?(_), do: false
+
+  defp build_grid_data(paged_rollup_rows, num_group_by, group_by) do
+    detail_rows =
+      Enum.reduce(paged_rollup_rows, [], fn
+        {level, row, continued?, grand_total?}, acc when level == num_group_by ->
+          if continued? or grand_total? do
+            acc
+          else
+            [row | acc]
+          end
+
+        _other, acc ->
+          acc
+      end)
+      |> Enum.reverse()
+
+    {row_headers, col_headers, cells} =
+      Enum.reduce(detail_rows, {[], [], %{}}, fn row, {row_acc, col_acc, cells_acc} ->
+        row_value = Enum.at(row, 0)
+        col_value = Enum.at(row, 1)
+        agg_value = Enum.at(row, 2)
+
+        row_acc = if row_value in row_acc, do: row_acc, else: row_acc ++ [row_value]
+        col_acc = if col_value in col_acc, do: col_acc, else: col_acc ++ [col_value]
+        cells_acc = Map.put(cells_acc, {row_value, col_value}, agg_value)
+
+        {row_acc, col_acc, cells_acc}
+      end)
+
+    row_coldef = grid_coldef(group_by, 0)
+    col_coldef = grid_coldef(group_by, 1)
+
+    row_headers = sort_group_values(row_headers, row_coldef)
+    col_headers = sort_group_values(col_headers, col_coldef)
+
+    %{
+      row_alias: grid_row_alias(group_by),
+      row_headers: row_headers,
+      col_headers: col_headers,
+      cells: cells,
+      row_coldef: row_coldef,
+      col_coldef: col_coldef
+    }
+  end
+
+  defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
+  defp grid_row_alias(_), do: "Group 1"
+
+  defp grid_coldef(group_by, idx) do
+    case Enum.at(group_by, idx) do
+      {_alias, {:group_by, _field, coldef}} -> coldef
+      _ -> %{}
+    end
+  end
+
+  defp format_group_value(value, coldef) do
+    case Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format") do
+      "D" -> weekday_name(value)
+      _ -> format_value(value)
+    end
+  end
+
+  defp weekday_name(value) do
+    case parse_int(value) do
+      1 -> "Sunday"
+      2 -> "Monday"
+      3 -> "Tuesday"
+      4 -> "Wednesday"
+      5 -> "Thursday"
+      6 -> "Friday"
+      7 -> "Saturday"
+      _ -> format_value(value)
+    end
+  end
+
+  defp parse_int(v) when is_integer(v), do: v
+
+  defp parse_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {num, ""} -> num
+      _ -> nil
+    end
+  end
+
+  defp parse_int(_), do: nil
+
+  defp sort_group_values(values, coldef) when is_list(values) do
+    format = Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format")
+
+    case format do
+      "D" -> Enum.sort_by(values, &weekday_sort_key/1)
+      "HH24" -> Enum.sort_by(values, &int_sort_key/1)
+      "MM" -> Enum.sort_by(values, &int_sort_key/1)
+      "DD" -> Enum.sort_by(values, &int_sort_key/1)
+      _ -> values
+    end
+  end
+
+  defp weekday_sort_key(value) do
+    case parse_int(value) do
+      int when is_integer(int) and int >= 1 and int <= 7 -> {0, int}
+      _ -> {1, to_string(value)}
+    end
+  end
+
+  defp int_sort_key(value) do
+    case parse_int(value) do
+      int when is_integer(int) -> {0, int}
+      _ -> {1, to_string(value)}
+    end
   end
 
   defp maybe_set_group_by_filter(coldef, field_name)
@@ -1072,6 +1273,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp maybe_set_group_by_filter(coldef, _), do: coldef
+
+  defp maybe_set_group_by_format(coldef, cfg) when is_map(coldef) and is_map(cfg) do
+    format = Map.get(cfg, "format") || Map.get(cfg, :format)
+
+    if is_binary(format) and format != "" do
+      coldef
+      |> Map.put(:group_format, format)
+      |> Map.put("group_format", format)
+    else
+      coldef
+    end
+  end
+
+  defp maybe_set_group_by_format(coldef, _), do: coldef
 
   @impl true
   def handle_event("set_aggregate_page", %{"page" => page_param}, socket) do

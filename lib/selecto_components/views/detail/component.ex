@@ -112,13 +112,11 @@ defmodule SelectoComponents.Views.Detail.Component do
   defp render_detail_view(assigns) do
     {results, aliases} = assigns.processed_results
 
-    # Ensure results are normalized to maps if they're lists
+    # Keep detail rows positional to avoid duplicate-name map collisions.
     normalized_results =
-      if length(results) > 0 and is_list(hd(results)) do
-        {_results, columns, _aliases} = assigns.query_results
-
+      if length(results) > 0 and (is_list(hd(results)) or is_tuple(hd(results))) do
         Enum.map(results, fn row ->
-          Enum.zip(columns, row) |> Map.new()
+          if is_tuple(row), do: Tuple.to_list(row), else: row
         end)
       else
         results
@@ -341,9 +339,17 @@ defmodule SelectoComponents.Views.Detail.Component do
                     resrow
 
                   is_map(resrow) ->
-                    # If it's already a map, extract values in column order
-                    {_results, columns_from_query, _aliases} = @query_results
-                    Enum.map(columns_from_query, fn col -> map_get_flexible(resrow, col) end)
+                    # If it's already a map, extract values in column order.
+                    # Fall back to alias at the same position to avoid collisions
+                    # from duplicate DB column names.
+                    {_results, columns_from_query, aliases_from_query} = @query_results
+
+                    columns_from_query
+                    |> Enum.with_index()
+                    |> Enum.map(fn {col, idx} ->
+                      map_get_flexible(resrow, Enum.at(aliases_from_query, idx)) ||
+                        map_get_flexible(resrow, col)
+                    end)
 
                   true ->
                     [resrow]
@@ -415,7 +421,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                           <table class="min-w-full border border-gray-300 rounded">
                             <thead>
                               <tr class="bg-gray-100">
-                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
                                   <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
                                     {SelectoComponents.Components.NestedTable.humanize_key(key)}
                                   </th>
@@ -425,7 +431,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                             <tbody>
                               <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
                                 <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
-                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data) do %>
+                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
                                     <td class="px-2 py-1 text-xs text-gray-700">
                                       {SelectoComponents.Components.NestedTable.format_value(
                                         Map.get(item, key, "")
@@ -554,13 +560,11 @@ defmodule SelectoComponents.Views.Detail.Component do
         end
       end
 
-    # Normalize results to maps if needed
+    # Keep detail rows positional for rendering, but build modal records as maps.
     normalized_results =
-      if length(results) > 0 and is_list(hd(results)) do
-        {_results, columns, _aliases} = socket.assigns.query_results
-
+      if length(results) > 0 and (is_list(hd(results)) or is_tuple(hd(results))) do
         Enum.map(results, fn row ->
-          Enum.zip(columns, row) |> Map.new()
+          if is_tuple(row), do: Tuple.to_list(row), else: row
         end)
       else
         results
@@ -572,7 +576,43 @@ defmodule SelectoComponents.Views.Detail.Component do
       {:noreply, socket}
     else
       index = min(requested_index, total_records - 1)
-      record = Enum.at(normalized_results, index)
+      row = Enum.at(normalized_results, index)
+
+      {_results, columns, aliases_from_query} = socket.assigns.query_results
+
+      record =
+        case row do
+          row_values when is_list(row_values) ->
+            build_modal_record(row_values, columns, aliases_from_query)
+
+          %{} = row_map ->
+            row_map
+
+          row_tuple when is_tuple(row_tuple) ->
+            row_tuple
+            |> Tuple.to_list()
+            |> build_modal_record(columns, aliases_from_query)
+
+          _ ->
+            %{}
+        end
+
+      modal_records =
+        Enum.map(normalized_results, fn
+          row_values when is_list(row_values) ->
+            build_modal_record(row_values, columns, aliases_from_query)
+
+          %{} = row_map ->
+            row_map
+
+          row_tuple when is_tuple(row_tuple) ->
+            row_tuple
+            |> Tuple.to_list()
+            |> build_modal_record(columns, aliases_from_query)
+
+          _ ->
+            %{}
+        end)
 
       # Send event to parent to show modal
       send(
@@ -582,7 +622,7 @@ defmodule SelectoComponents.Views.Detail.Component do
            record: record,
            current_index: index,
            total_records: total_records,
-           records: normalized_results,
+           records: modal_records,
            fields: aliases,
            related_data: build_related_data(record, socket)
          }}
@@ -640,6 +680,33 @@ defmodule SelectoComponents.Views.Detail.Component do
     # This would be configured based on the domain/schema relationships
     # For now, return empty map - parent component can override
     %{}
+  end
+
+  defp build_modal_record(row, columns, aliases) when is_list(row) do
+    row
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {value, idx}, acc ->
+      alias_key = Enum.at(aliases, idx)
+      column_key = Enum.at(columns, idx)
+      base_key = if is_binary(alias_key) and alias_key != "", do: alias_key, else: column_key
+      key = dedupe_modal_key(base_key, acc, idx)
+      Map.put(acc, key, value)
+    end)
+  end
+
+  defp dedupe_modal_key(base_key, acc, _idx) when is_binary(base_key) and base_key != "" do
+    if Map.has_key?(acc, base_key), do: next_dedup_key(base_key, acc, 2), else: base_key
+  end
+
+  defp dedupe_modal_key(base_key, _acc, _idx) when is_atom(base_key), do: Atom.to_string(base_key)
+  defp dedupe_modal_key(_base_key, _acc, idx), do: "field_#{idx}"
+
+  defp next_dedup_key(base_key, acc, suffix) do
+    candidate = "#{base_key}_#{suffix}"
+
+    if Map.has_key?(acc, candidate),
+      do: next_dedup_key(base_key, acc, suffix + 1),
+      else: candidate
   end
 
   defp map_get_flexible(map, key) when is_map(map) do

@@ -44,7 +44,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     Enum.reduce(
       field_value_pairs,
       existing_filters(socket),
-      fn {field_name, v}, acc ->
+      fn {field_name, v, group_idx}, acc ->
         newid = UUID.uuid4()
 
         # Get field configuration
@@ -55,7 +55,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
         # Collect group-by context for bucket-aware drill-down filters
         group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-        field_group_config = find_field_group_config(group_by_config, field_name)
+
+        field_group_config =
+          find_field_group_config(group_by_config, field_name, group_idx)
+
         drill_context = drill_context_from_group_config(field_group_config)
 
         # Determine comparison mode and values based on format
@@ -102,7 +105,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       idx = String.replace_prefix(field_key, "field", "")
       value_key = "value#{idx}"
       value = Map.get(params, value_key, "")
-      {field_name, value}
+      group_idx = Map.get(params, "gidx#{idx}")
+      {field_name, value, group_idx}
     end)
   end
 
@@ -117,15 +121,31 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp find_field_group_config(group_by_config, field_name) do
+  defp find_field_group_config(group_by_config, field_name, group_idx) do
+    by_index = find_field_group_config_by_index(group_by_config, group_idx)
+
+    if by_index do
+      by_index
+    else
+      Enum.find_value(Map.values(group_by_config), fn config ->
+        if Map.get(config, "field") == field_name do
+          config
+        else
+          nil
+        end
+      end)
+    end
+  end
+
+  defp find_field_group_config_by_index(group_by_config, group_idx)
+       when is_binary(group_idx) and group_idx != "" do
     Enum.find_value(Map.values(group_by_config), fn config ->
-      if Map.get(config, "field") == field_name do
-        config
-      else
-        nil
-      end
+      cfg_idx = Map.get(config, "index") || to_string(Map.get(config, :index, ""))
+      if cfg_idx == group_idx, do: config, else: nil
     end)
   end
+
+  defp find_field_group_config_by_index(_group_by_config, _group_idx), do: nil
 
   @doc """
   Determine the appropriate comparison operator and values based on the clicked value format.
@@ -141,6 +161,16 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   def determine_filter_comp_and_values(value, field_conf, drill_context) do
     context = normalize_drill_context(drill_context)
 
+    case determine_grouped_date_filter(value, field_conf, context) do
+      {comp, v1, v2} ->
+        {comp, v1, v2}
+
+      nil ->
+        determine_filter_comp_and_values_default(value, field_conf, context)
+    end
+  end
+
+  defp determine_filter_comp_and_values_default(value, field_conf, context) do
     cond do
       # Special marker for NULL values - create IS_EMPTY filter
       value == "__NULL__" ->
@@ -162,6 +192,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       String.match?(value, ~r/^\d{4}-\d{2}$/) ->
         handle_month_format(value, field_conf)
 
+      # YYYY-Q format (Postgres to_char quarter output, e.g. 2026-1)
+      String.match?(value, ~r/^\d{4}-[1-4]$/) ->
+        handle_quarter_format(value, field_conf)
+
       # YYYY format
       String.match?(value, ~r/^\d{4}$/) ->
         handle_year_format(value, field_conf)
@@ -177,6 +211,42 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       # No field configuration
       true ->
         {"=", value, ""}
+    end
+  end
+
+  defp determine_grouped_date_filter(value, field_conf, context) do
+    format = context.format |> to_string()
+
+    cond do
+      format == "YYYY-WW" and String.match?(value, ~r/^\d{4}-\d{2}$/) ->
+        handle_week_of_year_format(value, field_conf)
+
+      format == "YYYY-Q" and String.match?(value, ~r/^\d{4}-[1-4]$/) ->
+        handle_quarter_format(value, field_conf)
+
+      format == "MM" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"MONTH_OF_YEAR", value |> String.trim() |> String.to_integer() |> Integer.to_string(),
+         ""}
+
+      format == "DD" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"DAY_OF_MONTH", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      format == "D" and String.match?(value, ~r/^\d$/) ->
+        {"WEEKDAY_SUN1", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      format == "HH24" and String.match?(value, ~r/^\d{1,2}$/) ->
+        {"HOUR_OF_DAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+
+      true ->
+        nil
+    end
+  end
+
+  defp handle_week_of_year_format(value, field_conf) do
+    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+      {"WEEK_OF_YEAR", value, ""}
+    else
+      {"=", value, ""}
     end
   end
 
@@ -362,6 +432,29 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
+  defp handle_quarter_format(value, field_conf) do
+    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+      [year_str, quarter_str] = String.split(value, "-")
+      {year, _} = Integer.parse(year_str)
+      {quarter, _} = Integer.parse(quarter_str)
+
+      start_month = (quarter - 1) * 3 + 1
+      start_date = Date.new!(year, start_month, 1)
+
+      {end_year, end_month} =
+        case start_month + 3 do
+          m when m <= 12 -> {year, m}
+          m -> {year + 1, m - 12}
+        end
+
+      end_date = Date.new!(end_year, end_month, 1)
+
+      {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+    else
+      {"=", value, ""}
+    end
+  end
+
   defp handle_datetime_field(value, field_conf) do
     field_type = Map.get(field_conf, :type, :string)
 
@@ -383,7 +476,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   def build_filter_tuples(params, socket) do
     params
     |> extract_indexed_pairs()
-    |> Enum.map(fn {field_name, v} ->
+    |> Enum.map(fn {field_name, v, _group_idx} ->
       conf = Selecto.field(socket.assigns.selecto, field_name)
 
       if conf != nil do

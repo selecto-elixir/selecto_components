@@ -5,6 +5,99 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.19
+--------
+
+- Fixed URL serialization to compact raw submitted form params before push-patch,
+  so filters and view-item sections use short outer keys (`k0`, `k1`, ...)
+  instead of UUID keys in the browser URL.
+- Preserved UUID identity inside each serialized payload while shortening URL
+  query strings for filters, group-by, aggregate, selected, and graph params.
+- Added regression coverage for compacting raw UUID-keyed form params.
+- Bump package version to `0.3.19`.
+
+V 0.3.18
+--------
+
+- Added optional Aggregate Grid mode (toggle in aggregate form) that renders a
+  2D table when exactly 2 group-by fields and 1 aggregate are configured.
+- Wired aggregate grid state through params/view meta so the setting persists
+  across form updates and URL/view-config round-trips.
+- Added aggregate date/filter alignment for grouped datetime formats
+  (`YYYY-WW`, `D`, `MM`, `DD`, `HH24`) plus weekday shortcuts
+  (`weekdays`, `weekends`, `monday`...`sunday`).
+- Unified datetime formatting options across Aggregate, Detail, and Graph
+  configuration UIs (including week/quarter/day-of-week and bucket formats),
+  and aligned Graph/Detail processing to support the same format set.
+- Fixed datetime filter comparator switching so filter rows remount when the
+  input shape changes and grouped datetime controls render consistently.
+- Fixed quick-select filter persistence through validate/apply flow so selected
+  shortcuts like `This Week` survive submit and continue to apply correctly.
+- Fixed aggregate grid drill-down to disambiguate repeated datetime fields by
+  group index, sort numeric headers like hour-of-day correctly, and allow cell
+  click-through filtering on both dimensions.
+- Shortened serialized URL params for filters and view item lists by using
+  compact outer keys while preserving UUID identity inside each payload.
+- Added regression tests for aggregate grid rendering/validation and grouped
+  date-drilldown filter mapping.
+- Bump package version to `0.3.18`.
+
+V 0.3.17
+--------
+
+- Fixed aggregate drill-down date filtering so datetime-backed fields (including
+  year and quarter groupings) produce valid date-range filters without
+  `NaiveDateTime`/`DateTime` encode mismatches.
+- Added quarter (`YYYY-Q`) drill-down parsing and regression coverage for year
+  and quarter date-group filter generation.
+- Fixed aggregate view NULL-group rendering so data buckets display as
+  clickable `[NULL]` values and drill down to `IS_EMPTY` filters instead of
+  being treated as grand totals.
+- Reduced URL bloat by using compact per-row param keys in detail form
+  serialization while preserving stable UUID identity in the payload.
+- Bump package version to `0.3.17`.
+
+V 0.3.16
+--------
+
+- Fixed detail-header sorting to emit Selecto-compatible `order_by` terms for
+  descending sorts (`{:desc, field}`) instead of appending `" DESC"` to field
+  names.
+- Added regression coverage for enhanced-table sorting expression generation.
+- Bump package version to `0.3.16`.
+
+V 0.3.15
+--------
+
+- Kept detail-mode rows positional through params-state normalization and detail
+  rendering to prevent value loss when duplicate DB column names are returned.
+- Updated detail modal row mapping to build collision-safe record maps with
+  deterministic deduped keys (`field`, `field_2`, `field_3`, ...).
+- Added regression coverage for duplicate-key modal mapping behavior.
+- Bump package version to `0.3.15`.
+
+V 0.3.14
+--------
+
+- Fixed detail-mode row mapping to preserve Selecto alias semantics when
+  database-returned column names collide (for example, selecting multiple
+  `co_name` fields from different joins).
+- Fixed denormalization nested-table column ordering so subselect fields render
+  in view-config selection order instead of map-key/alphabetical order.
+- Added regression tests for detail alias-collision mapping and nested subselect
+  key ordering.
+- Bump package version to `0.3.14`.
+
+V 0.3.13
+--------
+
+- Updated package metadata description to better communicate the LiveView query
+  builder and data exploration focus.
+- Added package links for SQL pattern references and the hosted demo
+  (`https://seeken.github.io/selecto-sql-patterns`,
+  `https://testselecto.fly.dev`).
+- Bump package version to `0.3.13`.
+
 V 0.3.12
 --------
 

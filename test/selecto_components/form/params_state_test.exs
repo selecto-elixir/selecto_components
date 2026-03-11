@@ -46,6 +46,163 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(params, "max_rows")
   end
 
+  test "view_config_to_params uses compact keys for view lists while preserving uuid" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"12b1e264-6359-4f7d-881a-f3c659fd8606", "shipper.co_name",
+             %{"alias" => "", "format" => "default"}}
+          ],
+          aggregate: [
+            {"51a3f4f6-fcce-4530-8b24-d7927bd120d6", "id", %{"alias" => "", "format" => "count"}}
+          ],
+          per_page: "100"
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert Map.has_key?(params["group_by"], "k0")
+    assert params["group_by"]["k0"]["uuid"] == "12b1e264-6359-4f7d-881a-f3c659fd8606"
+    assert params["group_by"]["k0"]["field"] == "shipper.co_name"
+
+    assert Map.has_key?(params["aggregate"], "k0")
+    assert params["aggregate"]["k0"]["uuid"] == "51a3f4f6-fcce-4530-8b24-d7927bd120d6"
+  end
+
+  test "view_config_to_params includes aggregate grid toggle" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [],
+          aggregate: [],
+          per_page: "100",
+          grid: true
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["view_mode"] == "aggregate"
+    assert params["aggregate_grid"] == "true"
+  end
+
+  test "params_to_state normalizes shortcut filters after comparator change" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "created_at",
+          "comp" => "SHORTCUT",
+          "value" => "3",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["comp"] == "SHORTCUT"
+    assert filter["value"] == "today"
+  end
+
+  test "params_to_state preserves valid shortcut filter values" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "created_at",
+          "comp" => "SHORTCUT",
+          "value" => "last_week",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["value"] == "last_week"
+  end
+
+  test "filters_to_params uses compact keys while preserving uuid" do
+    params =
+      ParamsState.filters_to_params([
+        {"48b7fb89-2970-41cf-850d-90da95985408", "filters",
+         %{"filter" => "shipper.co_name", "comp" => "=", "value" => "DEMO TRANSPORT"}}
+      ])
+
+    assert Map.has_key?(params, "k0")
+    assert params["k0"]["uuid"] == "48b7fb89-2970-41cf-850d-90da95985408"
+    assert params["k0"]["filter"] == "shipper.co_name"
+    refute Map.has_key?(params, "48b7fb89-2970-41cf-850d-90da95985408")
+  end
+
+  test "compact_url_params rewrites raw form UUID keys to compact keys" do
+    params = %{
+      "filters" => %{
+        "48b7fb89-2970-41cf-850d-90da95985408" => %{
+          "filter" => "shipper.co_name",
+          "comp" => "=",
+          "value" => "DEMO TRANSPORT",
+          "index" => "0"
+        }
+      },
+      "group_by" => %{
+        "12b1e264-6359-4f7d-881a-f3c659fd8606" => %{
+          "field" => "shipper.co_name",
+          "format" => "default",
+          "index" => "0"
+        }
+      }
+    }
+
+    compacted = ParamsState.compact_url_params(params)
+
+    assert Map.has_key?(compacted["filters"], "k0")
+    assert compacted["filters"]["k0"]["uuid"] == "48b7fb89-2970-41cf-850d-90da95985408"
+    refute Map.has_key?(compacted["filters"], "48b7fb89-2970-41cf-850d-90da95985408")
+
+    assert Map.has_key?(compacted["group_by"], "k0")
+    assert compacted["group_by"]["k0"]["uuid"] == "12b1e264-6359-4f7d-881a-f3c659fd8606"
+  end
+
   test "view_config_to_params includes map scalar config" do
     view_config = %{
       view_mode: "map",

@@ -135,6 +135,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         with_error_handling(socket, "view-apply", fn ->
           socket =
             socket
+            |> then(&ParamsState.params_to_state(params, &1))
             |> assign(:current_detail_page, 0)
             |> ParamsState.clear_query_caches()
 

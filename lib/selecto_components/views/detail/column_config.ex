@@ -59,7 +59,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
     configure_component = Map.get(assigns[:col] || %{}, :configure_component)
 
     show_options =
-      col_type in [:int, :id, :float, :decimal, :naive_datetime, :utc_datetime] or
+      col_type in [:int, :id, :float, :decimal, :naive_datetime, :utc_datetime, :date] or
         is_function(configure_component)
 
     assigns =
@@ -95,10 +95,29 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
 
-              <% x when x in [:naive_datetime, :utc_datetime] -> %>
+              <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
                 <label>Format
-                  <.sc_select name={"#{@prefix}[format]"} value={Map.get(@config, "format")} options={ SelectoComponents.Helpers.date_formats() }/>
+                  <.sc_select
+                    name={"#{@prefix}[format]"}
+                    value={Map.get(@config, "format")}
+                    options={SelectoComponents.Helpers.aggregate_datetime_format_options()}
+                  />
                 </label>
+
+                <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets"] do %>
+                  <label>
+                    Bucket Ranges
+                    <.sc_input
+                      name={"#{@prefix}[bucket_ranges]"}
+                      value={Map.get(@config, "bucket_ranges", "")}
+                      placeholder={
+                        if Map.get(@config, "format") == "age_buckets",
+                          do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
+                          else: "e.g., today, yesterday, 2-7, 8+"
+                      }
+                    />
+                  </label>
+                <% end %>
 
               <% _ -> %>
                 <%= case Map.get(@col, :configure_component) do %>
