@@ -1590,7 +1590,11 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket) do
-    params = merge_special_debug_params(params, socket)
+    params =
+      params
+      |> compact_url_params()
+      |> merge_special_debug_params(socket)
+
     params_encoded = Plug.Conn.Query.encode(params)
     my_path = socket.assigns.my_path
     full_path = "#{my_path}?#{params_encoded}"
@@ -1620,4 +1624,53 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp get_map_value(_map, _key, default), do: default
+
+  @doc false
+  def compact_url_params(params) when is_map(params) do
+    Enum.reduce(url_compactable_keys(), params, fn key, acc ->
+      case Map.get(acc, key) do
+        section when is_map(section) -> Map.put(acc, key, compact_param_section(section))
+        _ -> acc
+      end
+    end)
+  end
+
+  def compact_url_params(params), do: params
+
+  defp compact_param_section(section) when is_map(section) do
+    section
+    |> Enum.sort_by(fn {_k, v} -> sort_index_for_compaction(v) end)
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {{original_key, value}, index}, acc ->
+      compacted_value =
+        case value do
+          map when is_map(map) -> Map.put_new(map, "uuid", original_key)
+          other -> other
+        end
+
+      Map.put(acc, compact_param_key(index), compacted_value)
+    end)
+  end
+
+  defp url_compactable_keys do
+    ["filters", "selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
+  end
+
+  defp sort_index_for_compaction(value) when is_map(value) do
+    case Map.get(value, "index") do
+      idx when is_binary(idx) ->
+        case Integer.parse(idx) do
+          {num, ""} -> num
+          _ -> 0
+        end
+
+      idx when is_integer(idx) ->
+        idx
+
+      _ ->
+        0
+    end
+  end
+
+  defp sort_index_for_compaction(_value), do: 0
 end

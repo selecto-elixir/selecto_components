@@ -174,6 +174,35 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(params, "48b7fb89-2970-41cf-850d-90da95985408")
   end
 
+  test "compact_url_params rewrites raw form UUID keys to compact keys" do
+    params = %{
+      "filters" => %{
+        "48b7fb89-2970-41cf-850d-90da95985408" => %{
+          "filter" => "shipper.co_name",
+          "comp" => "=",
+          "value" => "DEMO TRANSPORT",
+          "index" => "0"
+        }
+      },
+      "group_by" => %{
+        "12b1e264-6359-4f7d-881a-f3c659fd8606" => %{
+          "field" => "shipper.co_name",
+          "format" => "default",
+          "index" => "0"
+        }
+      }
+    }
+
+    compacted = ParamsState.compact_url_params(params)
+
+    assert Map.has_key?(compacted["filters"], "k0")
+    assert compacted["filters"]["k0"]["uuid"] == "48b7fb89-2970-41cf-850d-90da95985408"
+    refute Map.has_key?(compacted["filters"], "48b7fb89-2970-41cf-850d-90da95985408")
+
+    assert Map.has_key?(compacted["group_by"], "k0")
+    assert compacted["group_by"]["k0"]["uuid"] == "12b1e264-6359-4f7d-881a-f3c659fd8606"
+  end
+
   test "view_config_to_params includes map scalar config" do
     view_config = %{
       view_mode: "map",
