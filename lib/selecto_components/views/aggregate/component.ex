@@ -1102,7 +1102,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 {format_group_value(row_value, @grid_data.row_coldef)}
               </td>
               <td :for={col_value <- @grid_data.col_headers} class="px-3 py-2 text-sm text-gray-900">
-                {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                <div
+                  phx-click="agg_add_filters"
+                  {build_filter_attrs([row_value, col_value], @group_by, 2)}
+                  class="cursor-pointer hover:underline"
+                >
+                  {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                </div>
               </td>
             </tr>
           </tbody>
@@ -1178,6 +1184,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     row_coldef = grid_coldef(group_by, 0)
     col_coldef = grid_coldef(group_by, 1)
 
+    row_headers = sort_group_values(row_headers, row_coldef)
+    col_headers = sort_group_values(col_headers, col_coldef)
+
     %{
       row_alias: grid_row_alias(group_by),
       row_headers: row_headers,
@@ -1228,6 +1237,32 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp parse_int(_), do: nil
+
+  defp sort_group_values(values, coldef) when is_list(values) do
+    format = Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format")
+
+    case format do
+      "D" -> Enum.sort_by(values, &weekday_sort_key/1)
+      "HH24" -> Enum.sort_by(values, &int_sort_key/1)
+      "MM" -> Enum.sort_by(values, &int_sort_key/1)
+      "DD" -> Enum.sort_by(values, &int_sort_key/1)
+      _ -> values
+    end
+  end
+
+  defp weekday_sort_key(value) do
+    case parse_int(value) do
+      int when is_integer(int) and int >= 1 and int <= 7 -> {0, int}
+      _ -> {1, to_string(value)}
+    end
+  end
+
+  defp int_sort_key(value) do
+    case parse_int(value) do
+      int when is_integer(int) -> {0, int}
+      _ -> {1, to_string(value)}
+    end
+  end
 
   defp maybe_set_group_by_filter(coldef, field_name)
        when is_map(coldef) and is_binary(field_name) and field_name != "" do
