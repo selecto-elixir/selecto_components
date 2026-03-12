@@ -156,7 +156,7 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
           phx-target={@target}
           title={"Click to sort by #{@label}#{if @multi, do: " (Shift+Click for multi-column sort)", else: ""}"}
           draggable={if Map.get(assigns, :reorderable, false), do: "true", else: "false"}
-          phx-hook={if Map.get(assigns, :reorderable, false), do: "ColumnReorder", else: nil}
+          phx-hook={if Map.get(assigns, :reorderable, false), do: ".ColumnReorder", else: nil}
           id={"col-header-#{@column}"}
           data-column-id={@column}
         >
@@ -168,13 +168,205 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
         <%= if Map.get(assigns, :resizable, false) do %>
           <div
             class="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors"
-            phx-hook="ColumnResize"
+            phx-hook=".ColumnResize"
             id={"resize-#{@column}"}
             data-column-id={@column}
           >
             <div class="absolute inset-y-0 -left-1 -right-1 z-10"></div>
           </div>
         <% end %>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ColumnResize">
+          export default {
+            mounted() {
+              const columnId = this.el.dataset.columnId;
+              let startX = 0;
+              let startWidth = 0;
+              let currentTable = null;
+              let currentColumn = null;
+
+              const handleMouseDown = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                currentTable = this.el.closest('table');
+                if (!currentTable) return;
+
+                currentColumn = currentTable.querySelector(`th[data-column-id="${columnId}"]`) || this.el.closest('th');
+                if (!currentColumn) return;
+
+                startX = event.pageX;
+                startWidth = currentColumn.offsetWidth;
+
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                this.el.classList.add('bg-blue-500');
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              };
+
+              const handleMouseMove = (event) => {
+                if (!currentColumn) return;
+
+                const diff = event.pageX - startX;
+                const newWidth = Math.max(50, Math.min(500, startWidth + diff));
+
+                currentColumn.style.width = `${newWidth}px`;
+                currentColumn.style.minWidth = `${newWidth}px`;
+                currentColumn.style.maxWidth = `${newWidth}px`;
+
+                const columnIndex = Array.from(currentColumn.parentElement.children).indexOf(currentColumn);
+                const rows = currentTable.querySelectorAll('tbody tr');
+
+                rows.forEach((row) => {
+                  const cell = row.children[columnIndex];
+
+                  if (cell) {
+                    cell.style.width = `${newWidth}px`;
+                    cell.style.minWidth = `${newWidth}px`;
+                    cell.style.maxWidth = `${newWidth}px`;
+                  }
+                });
+              };
+
+              const handleMouseUp = () => {
+                if (currentColumn) {
+                  this.pushEvent('column_resized', {
+                    column_id: columnId,
+                    width: currentColumn.offsetWidth
+                  });
+                }
+
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                this.el.classList.remove('bg-blue-500');
+
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+
+                currentColumn = null;
+                currentTable = null;
+              };
+
+              this.el.addEventListener('mousedown', handleMouseDown);
+              this.handleMouseDown = handleMouseDown;
+              this.handleMouseMove = handleMouseMove;
+              this.handleMouseUp = handleMouseUp;
+            },
+
+            destroyed() {
+              if (this.handleMouseMove) {
+                document.removeEventListener('mousemove', this.handleMouseMove);
+              }
+
+              if (this.handleMouseUp) {
+                document.removeEventListener('mouseup', this.handleMouseUp);
+              }
+
+              if (this.handleMouseDown) {
+                this.el.removeEventListener('mousedown', this.handleMouseDown);
+              }
+
+              document.body.style.cursor = '';
+              document.body.style.userSelect = '';
+            }
+          };
+        </script>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ColumnReorder">
+          export default {
+            mounted() {
+              this.handleDragStart = (event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', this.el.dataset.columnId || '');
+                this.el.classList.add('opacity-60');
+              };
+
+              this.handleDragOver = (event) => {
+                event.preventDefault();
+                this.el.classList.add('bg-blue-50');
+              };
+
+              this.handleDragLeave = () => {
+                this.el.classList.remove('bg-blue-50');
+              };
+
+              this.handleDragEnd = () => {
+                this.el.classList.remove('opacity-60');
+                this.el.classList.remove('bg-blue-50');
+              };
+
+              this.handleDrop = (event) => {
+                event.preventDefault();
+                this.el.classList.remove('bg-blue-50');
+
+                const sourceColumnId = event.dataTransfer.getData('text/plain');
+                const targetColumnId = this.el.dataset.columnId;
+
+                if (!sourceColumnId || !targetColumnId || sourceColumnId === targetColumnId) {
+                  return;
+                }
+
+                const table = this.el.closest('table');
+                const headerRow = this.el.closest('tr');
+                const sourceHeader = table?.querySelector(`th[data-column-id="${sourceColumnId}"]`);
+                const targetHeader = this.el.closest('th');
+
+                if (!table || !headerRow || !sourceHeader || !targetHeader) {
+                  return;
+                }
+
+                const headerCells = Array.from(headerRow.children);
+                const sourceIndex = headerCells.indexOf(sourceHeader);
+                const targetIndex = headerCells.indexOf(targetHeader);
+
+                if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+                  return;
+                }
+
+                if (sourceIndex < targetIndex) {
+                  targetHeader.after(sourceHeader);
+                } else {
+                  targetHeader.before(sourceHeader);
+                }
+
+                table.querySelectorAll('tbody tr').forEach((row) => {
+                  const cells = Array.from(row.children);
+                  const sourceCell = cells[sourceIndex];
+                  const targetCell = cells[targetIndex];
+
+                  if (!sourceCell || !targetCell) {
+                    return;
+                  }
+
+                  if (sourceIndex < targetIndex) {
+                    targetCell.after(sourceCell);
+                  } else {
+                    targetCell.before(sourceCell);
+                  }
+                });
+
+                const orderedColumns = Array.from(headerRow.querySelectorAll('th[data-column-id]')).map((cell) => cell.dataset.columnId);
+                this.pushEvent('reorder_columns', {columns: orderedColumns});
+              };
+
+              this.el.addEventListener('dragstart', this.handleDragStart);
+              this.el.addEventListener('dragover', this.handleDragOver);
+              this.el.addEventListener('dragleave', this.handleDragLeave);
+              this.el.addEventListener('dragend', this.handleDragEnd);
+              this.el.addEventListener('drop', this.handleDrop);
+            },
+
+            destroyed() {
+              this.el.removeEventListener('dragstart', this.handleDragStart);
+              this.el.removeEventListener('dragover', this.handleDragOver);
+              this.el.removeEventListener('dragleave', this.handleDragLeave);
+              this.el.removeEventListener('dragend', this.handleDragEnd);
+              this.el.removeEventListener('drop', this.handleDrop);
+            }
+          };
+        </script>
       </th>
       """
     else

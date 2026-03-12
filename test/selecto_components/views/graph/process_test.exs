@@ -286,8 +286,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
 
       {view_set, _} = Process.view(nil, params, columns, [], nil)
 
-      # Should have rollup grouping for OLAP-style queries
-      assert view_set.group_by == [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}]
+      assert view_set.group_by == [{:literal_position, 1}, {:literal_position, 2}]
       assert view_set.order_by == [{:literal_position, 1}, {:literal_position, 2}]
     end
 

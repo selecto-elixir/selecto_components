@@ -77,10 +77,7 @@ defmodule SelectoComponents.Views.Graph.Process do
              []
 
            group_fields ->
-             [
-               {:rollup,
-                Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)}
-             ]
+             Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)
          end,
        order_by:
          case all_group_by do

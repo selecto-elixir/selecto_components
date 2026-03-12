@@ -44,7 +44,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id={@id} class="bulk-actions-container" phx-hook="BulkActions">
+    <div id={@id} class="bulk-actions-container" phx-hook=".BulkActions" data-selected-count={@selection_count}>
       <%!-- Bulk Actions Toolbar --%>
       <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
         <div class="flex items-center space-x-4">
@@ -200,7 +200,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         <div
           id="confirmation-dialog"
           class="fixed inset-0 z-50 overflow-y-auto"
-          phx-hook="ConfirmationDialog"
+          phx-hook=".ConfirmationDialog"
         >
           <div class="flex items-center justify-center min-h-screen px-4">
             <div
@@ -264,6 +264,51 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
           </div>
         </div>
       <% end %>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".BulkActions">
+        export default {
+          mounted() {
+            this.handleKeydown = (event) => {
+              if (event.key === 'Delete' && !event.target.matches('input, textarea')) {
+                const selectedCount = parseInt(this.el.dataset.selectedCount || '0', 10);
+                if (selectedCount > 0) {
+                  event.preventDefault();
+                  this.pushEventTo(this.el, 'execute_action', {action: 'delete'});
+                }
+              }
+            };
+
+            document.addEventListener('keydown', this.handleKeydown);
+          },
+
+          destroyed() {
+            document.removeEventListener('keydown', this.handleKeydown);
+          }
+        };
+      </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ConfirmationDialog">
+        export default {
+          mounted() {
+            const confirmBtn = this.el.querySelector('button[phx-click="confirm_action"]');
+            if (confirmBtn) {
+              confirmBtn.focus();
+            }
+
+            this.handleKeydown = (event) => {
+              if (event.key === 'Escape') {
+                this.pushEventTo(this.el, 'cancel_action', {});
+              }
+            };
+
+            document.addEventListener('keydown', this.handleKeydown);
+          },
+
+          destroyed() {
+            document.removeEventListener('keydown', this.handleKeydown);
+          }
+        };
+      </script>
     </div>
     """
   end
@@ -652,54 +697,5 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       in: {"ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100"},
       out: {"ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
-  end
-
-  @doc """
-  JavaScript hooks for bulk actions.
-  """
-  def __hooks__() do
-    %{
-      "BulkActions" => %{
-        mounted: """
-        // Handle keyboard shortcuts
-        this.handleKeydown = (e) => {
-          // Delete key for delete action
-          if (e.key === 'Delete' && !e.target.matches('input, textarea')) {
-            const selectedCount = parseInt(this.el.dataset.selectedCount || '0');
-            if (selectedCount > 0) {
-              e.preventDefault();
-              this.pushEventTo(this.el, 'execute_action', {action: 'delete'});
-            }
-          }
-        };
-
-        document.addEventListener('keydown', this.handleKeydown);
-        """,
-        destroyed: """
-        document.removeEventListener('keydown', this.handleKeydown);
-        """
-      },
-      "ConfirmationDialog" => %{
-        mounted: """
-        // Focus on confirm button
-        const confirmBtn = this.el.querySelector('button[phx-click="confirm_action"]');
-        if (confirmBtn) {
-          confirmBtn.focus();
-        }
-
-        // Handle ESC key
-        this.handleKeydown = (e) => {
-          if (e.key === 'Escape') {
-            this.pushEventTo(this.el, 'cancel_action', {});
-          }
-        };
-
-        document.addEventListener('keydown', this.handleKeydown);
-        """,
-        destroyed: """
-        document.removeEventListener('keydown', this.handleKeydown);
-        """
-      }
-    }
   end
 end

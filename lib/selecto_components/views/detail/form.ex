@@ -73,6 +73,11 @@ defmodule SelectoComponents.Views.Detail.Form do
         view={@view}
         selected_items={@selected_items_converted}
       >
+        <:item_summary :let={{_id, item, config, _index}}>
+          <% col = Selecto.field(@selecto, item) %>
+          <span class="truncate"><%= summary_title(config, column_display_name(@columns, item, col)) %></span>
+          <span class="truncate text-sm font-normal text-base-content/60"><%= detail_format_summary(col, config) %></span>
+        </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <% param_key = compact_param_key(index) %>
           <input name={"selected[#{param_key}][field]"} type="hidden" value={item} />
@@ -100,6 +105,10 @@ defmodule SelectoComponents.Views.Detail.Form do
         view={@view}
         selected_items={@order_by_items_converted}
       >
+        <:item_summary :let={{_id, item, config, _index}}>
+          <span class="truncate"><%= summary_title(config, column_display_name(@columns, item, Selecto.field(@selecto, item))) %></span>
+          <span class="truncate text-sm font-normal text-base-content/60"><%= order_direction_summary(config) %></span>
+        </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <% param_key = compact_param_key(index) %>
           <input name={"order_by[#{param_key}][field]"} type="hidden" value={item} />
@@ -184,4 +193,65 @@ defmodule SelectoComponents.Views.Detail.Form do
   end
 
   defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
+
+  defp column_display_name(columns, item, col) do
+    item_str = to_string(item || "")
+
+    case Enum.find(columns || [], fn
+           {id, _name, _type} -> to_string(id) == item_str
+           {id, _name, _type, _metadata} -> to_string(id) == item_str
+           _ -> false
+         end) do
+      {_id, name, _type} -> name
+      {_id, name, _type, _metadata} -> name
+      _ -> if(col && Map.get(col, :name), do: col.name, else: item_str)
+    end
+  end
+
+  defp summary_title(config, field_name) do
+    case Map.get(config || %{}, "alias", "") do
+      value when value in [nil, ""] -> field_name
+      value -> "#{value} / #{field_name}"
+    end
+  end
+
+  defp detail_format_summary(col, config) do
+    type = Map.get(col || %{}, :type, :string)
+
+    case type do
+      x when x in [:int, :id] ->
+        if Map.get(config, "commas"), do: "commas", else: "default"
+
+      x when x in [:float, :decimal] ->
+        commas = if(Map.get(config, "commas"), do: "commas, ", else: "")
+        decimals = Map.get(config, "decimal_places", "default decimals")
+        commas <> to_string(decimals)
+
+      x when x in [:naive_datetime, :utc_datetime, :date] ->
+        case Map.get(config, "format") do
+          value when value in [nil, ""] -> "default"
+          value -> format_summary_label(value)
+        end
+
+      _ ->
+        if is_function(Map.get(col || %{}, :configure_component)) do
+          "custom options"
+        else
+          "default"
+        end
+    end
+  end
+
+  defp order_direction_summary(config) do
+    case Map.get(config || %{}, "dir", "asc") do
+      "desc" -> "descending"
+      _ -> "ascending"
+    end
+  end
+
+  defp format_summary_label(value) do
+    value
+    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
+    |> String.downcase()
+  end
 end

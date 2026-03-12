@@ -16,7 +16,7 @@ defmodule SelectoComponents.Modal.ModalWrapper do
     ~H"""
     <div
       id={@id}
-      phx-hook="ModalControl"
+      phx-hook=".ModalControl"
       data-cancel={JS.exec("data-cancel", to: "##{@id}")}
       class="relative z-50"
     >
@@ -95,6 +95,45 @@ defmodule SelectoComponents.Modal.ModalWrapper do
           </div>
         </div>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ModalControl">
+        export default {
+          mounted() {
+            this.handleKeyPress = (event) => {
+              if (event.key === 'Escape') {
+                this.pushEvent('close_modal', {});
+              } else if (event.key === 'ArrowLeft') {
+                this.pushEvent('navigate_record', {direction: 'prev'});
+              } else if (event.key === 'ArrowRight') {
+                this.pushEvent('navigate_record', {direction: 'next'});
+              }
+            };
+
+            this.handleClickOutside = (event) => {
+              const modalContent = this.el.querySelector('[id$="-content"]');
+              if (!modalContent || modalContent.contains(event.target)) {
+                return;
+              }
+
+              const backdrop = this.el.querySelector('[id$="-bg"]');
+              if (backdrop && backdrop.contains(event.target)) {
+                this.pushEvent('close_modal', {});
+              }
+            };
+
+            document.addEventListener('keydown', this.handleKeyPress);
+
+            if (this.el.querySelector('[id$="-content"]')) {
+              document.addEventListener('click', this.handleClickOutside);
+            }
+          },
+
+          destroyed() {
+            document.removeEventListener('keydown', this.handleKeyPress);
+            document.removeEventListener('click', this.handleClickOutside);
+          }
+        };
+      </script>
     </div>
     """
   end
@@ -171,57 +210,4 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   defp icon_bg_class(:warning), do: "bg-yellow-100"
   defp icon_bg_class(:error), do: "bg-red-100"
   defp icon_bg_class(_), do: "bg-gray-100"
-
-  @doc """
-  JavaScript hooks for modal functionality.
-  """
-  def __hooks__() do
-    %{
-      "ModalControl" => %{
-        mounted: """
-        this.handleKeyPress = this.handleKeyPress.bind(this);
-        this.handleClickOutside = this.handleClickOutside.bind(this);
-
-        // Add keyboard event listener
-        document.addEventListener('keydown', this.handleKeyPress);
-
-        // Setup click outside handler
-        const modalContent = this.el.querySelector('[id$="-content"]');
-        if (modalContent) {
-          document.addEventListener('click', this.handleClickOutside);
-        }
-        """,
-        destroyed: """
-        document.removeEventListener('keydown', this.handleKeyPress);
-        document.removeEventListener('click', this.handleClickOutside);
-        """,
-        handleKeyPress: """
-        function(e) {
-          // Close on ESC
-          if (e.key === 'Escape') {
-            this.pushEvent('close_modal', {});
-          }
-          // Navigate with arrow keys
-          else if (e.key === 'ArrowLeft') {
-            this.pushEvent('navigate_record', {direction: 'prev'});
-          }
-          else if (e.key === 'ArrowRight') {
-            this.pushEvent('navigate_record', {direction: 'next'});
-          }
-        }
-        """,
-        handleClickOutside: """
-        function(e) {
-          const modalContent = this.el.querySelector('[id$="-content"]');
-          if (modalContent && !modalContent.contains(e.target)) {
-            const backdrop = this.el.querySelector('[id$="-bg"]');
-            if (backdrop && backdrop.contains(e.target)) {
-              this.pushEvent('close_modal', {});
-            }
-          }
-        }
-        """
-      }
-    }
-  end
 end

@@ -133,8 +133,10 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
           indeterminate={@selection_count > 0 && @selection_count < @total_rows}
           phx-click="toggle_select_all"
           phx-target={@target}
-          phx-hook="SelectAllCheckbox"
+          phx-hook=".SelectAllCheckbox"
           id="select-all-checkbox"
+          data-total={@total_rows}
+          data-selected={@selection_count}
         />
         <div class="ml-2 relative">
           <button
@@ -193,6 +195,61 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
           </div>
         </div>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SelectAllCheckbox">
+        export default {
+          mounted() {
+            this.updateIndeterminate = () => {
+              const total = parseInt(this.el.dataset.total || '0', 10);
+              const selected = parseInt(this.el.dataset.selected || '0', 10);
+              this.el.indeterminate = selected > 0 && selected < total;
+            };
+
+            this.updateIndeterminate();
+          },
+
+          updated() {
+            this.updateIndeterminate();
+          }
+        };
+      </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".RowCheckbox">
+        export default {
+          mounted() {
+            this.lastChecked = null;
+
+            this.handleClick = (event) => {
+              const rowId = this.el.dataset.rowId;
+
+              if (event.shiftKey && this.lastChecked) {
+                event.preventDefault();
+                this.pushEventTo(this.el, 'select_range', {
+                  from: this.lastChecked,
+                  to: rowId
+                });
+              }
+
+              this.lastChecked = rowId;
+            };
+
+            this.handleKeydown = (event) => {
+              if (event.key === ' ' && event.target === this.el) {
+                event.preventDefault();
+                this.el.click();
+              }
+            };
+
+            this.el.addEventListener('click', this.handleClick);
+            this.el.addEventListener('keydown', this.handleKeydown);
+          },
+
+          destroyed() {
+            this.el.removeEventListener('click', this.handleClick);
+            this.el.removeEventListener('keydown', this.handleKeydown);
+          }
+        };
+      </script>
     </th>
     """
   end
@@ -210,7 +267,7 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
         phx-click="toggle_row_selection"
         phx-value-id={@row_id}
         phx-target={@target}
-        phx-hook="RowCheckbox"
+        phx-hook=".RowCheckbox"
         data-row-id={@row_id}
         id={"row-checkbox-#{@row_id}"}
       />
@@ -285,92 +342,5 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
       in: {"ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100"},
       out: {"ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
-  end
-
-  @doc """
-  JavaScript hooks for row selection.
-  """
-  def __hooks__() do
-    %{
-      "SelectAllCheckbox" => %{
-        mounted: """
-        // Handle indeterminate state
-        this.updateIndeterminate = () => {
-          const total = parseInt(this.el.dataset.total || '0');
-          const selected = parseInt(this.el.dataset.selected || '0');
-          this.el.indeterminate = selected > 0 && selected < total;
-        };
-
-        this.updateIndeterminate();
-        """,
-        updated: """
-        this.updateIndeterminate();
-        """
-      },
-      "RowCheckbox" => %{
-        mounted: """
-        this.lastChecked = null;
-
-        // Handle shift-click for range selection
-        this.handleClick = (e) => {
-          const rowId = this.el.dataset.rowId;
-          
-          if (e.shiftKey && this.lastChecked) {
-            e.preventDefault();
-            this.pushEventTo(this.el, 'select_range', {
-              from: this.lastChecked,
-              to: rowId
-            });
-          }
-          
-          this.lastChecked = rowId;
-        };
-
-        this.el.addEventListener('click', this.handleClick);
-
-        // Handle keyboard shortcuts
-        this.handleKeydown = (e) => {
-          if (e.key === ' ' && e.target === this.el) {
-            e.preventDefault();
-            this.el.click();
-          }
-        };
-
-        this.el.addEventListener('keydown', this.handleKeydown);
-        """,
-        destroyed: """
-        this.el.removeEventListener('click', this.handleClick);
-        this.el.removeEventListener('keydown', this.handleKeydown);
-        """
-      },
-      "SelectionKeyboardShortcuts" => %{
-        mounted: """
-        this.handleKeydown = (e) => {
-          // Ctrl/Cmd + A: Select all
-          if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-            e.preventDefault();
-            this.pushEvent('select_all', {});
-          }
-          
-          // Ctrl/Cmd + Shift + A: Deselect all
-          if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'a') {
-            e.preventDefault();
-            this.pushEvent('select_none', {});
-          }
-          
-          // Ctrl/Cmd + I: Invert selection
-          if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
-            e.preventDefault();
-            this.pushEvent('invert_selection', {});
-          }
-        };
-
-        document.addEventListener('keydown', this.handleKeydown);
-        """,
-        destroyed: """
-        document.removeEventListener('keydown', this.handleKeydown);
-        """
-      }
-    }
   end
 end

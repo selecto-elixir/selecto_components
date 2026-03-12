@@ -75,6 +75,11 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         }
         selected_items={@view_config.views.aggregate.group_by}
       >
+        <:item_summary :let={{_id, item, config, _index}}>
+          <% col = get_field_for_item(@selecto, item) %>
+          <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
+          <span class="truncate text-sm font-normal text-base-content/60">{group_by_format_summary(col, config)}</span>
+        </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"group_by[#{id}][field]"} type="hidden" value={item} />
           <input name={"group_by[#{id}][index]"} type="hidden" value={index} />
@@ -100,6 +105,11 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         available={@columns}
         selected_items={@view_config.views.aggregate.aggregate}
       >
+        <:item_summary :let={{_id, item, config, _index}}>
+          <% col = get_field_for_item(@selecto, item) %>
+          <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
+          <span class="truncate text-sm font-normal text-base-content/60">{aggregate_format_summary(config)}</span>
+        </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"aggregate[#{id}][field]"} type="hidden" value={item} />
           <input name={"aggregate[#{id}][index]"} type="hidden" value={index} />
@@ -146,4 +156,81 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
   defp normalize_checkbox(value) when value in [true, "true", "on", "1", 1], do: true
   defp normalize_checkbox(_value), do: false
+
+  defp column_display_name(columns, item, col) do
+    item_str =
+      case item do
+        {:to_char, {field, _format}} -> to_string(field)
+        {_func, field} when is_binary(field) -> field
+        value -> to_string(value || "")
+      end
+
+    case Enum.find(columns || [], fn
+           {id, _name, _type} -> to_string(id) == item_str
+           {id, _name, _type, _metadata} -> to_string(id) == item_str
+           _ -> false
+         end) do
+      {_id, name, _type} -> name
+      {_id, name, _type, _metadata} -> name
+      _ -> if(col && Map.get(col, :name), do: col.name, else: item_str)
+    end
+  end
+
+  defp summary_title(config, field_name) do
+    case Map.get(config || %{}, "alias", "") do
+      value when value in [nil, ""] -> field_name
+      value -> "#{value} / #{field_name}"
+    end
+  end
+
+  defp group_by_format_summary(col, config) do
+    case Map.get(config || %{}, "format") do
+      value when value in [nil, ""] ->
+        case Map.get(col || %{}, :type, :string) do
+          x
+          when x in [
+                 :string,
+                 :text,
+                 :citext,
+                 :int,
+                 :id,
+                 :decimal,
+                 :float,
+                 :integer,
+                 :naive_datetime,
+                 :utc_datetime,
+                 :date
+               ] ->
+            "default"
+
+          _ ->
+            "standard"
+        end
+
+      "text_prefix" ->
+        "text prefix"
+
+      "age_buckets" ->
+        "age buckets"
+
+      "custom_buckets" ->
+        "custom buckets"
+
+      value ->
+        format_summary_label(value)
+    end
+  end
+
+  defp aggregate_format_summary(config) do
+    case Map.get(config || %{}, "format") do
+      value when value in [nil, ""] -> "default"
+      value -> format_summary_label(value)
+    end
+  end
+
+  defp format_summary_label(value) do
+    value
+    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
+    |> String.downcase()
+  end
 end

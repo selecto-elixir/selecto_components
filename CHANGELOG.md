@@ -5,6 +5,27 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.20
+--------
+
+- Redesigned the item picker selected-list UI to use compact one-line summaries,
+  inline edit panels, outside-click close behavior, and drag/drop reordering
+  while keeping available items on the left and selected items on the right.
+- Fixed item-picker drag/drop reordering so drops work consistently in both
+  directions and selected-row editor state remains stable across LiveView
+  updates while editing.
+- Updated Detail, Aggregate, and Graph picker summaries to show
+  `alias / field-name` when an alias is present, followed by lighter-weight
+  format/status text for faster scanning.
+- Changed Graph view queries to use plain grouped dimensions instead of SQL
+  `ROLLUP`, preventing subtotal/grand-total rows from appearing as chart data.
+- Moved active SelectoComponents runtime hooks to Phoenix LiveView colocated
+  hooks, including picker, modal, theme, table, and dashboard interactions, so
+  host apps no longer need copied SelectoComponents hook bundles.
+- Updated compact picker summaries to show human-readable datetime format labels
+  like `day of week` instead of raw format tokens such as `D`.
+- Bump package version to `0.3.20`.
+
 V 0.3.19
 --------
 

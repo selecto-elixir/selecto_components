@@ -11,7 +11,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
     <div
       class="selecto-debug-panel"
       id={"debug-panel-#{@id}"}
-      phx-hook="SelectoComponents.Debug.DebugDisplay.DebugClipboard"
+      phx-hook=".DebugClipboard"
     >
       <div :if={@show_debug} class="bg-gray-100 border border-gray-300 rounded-md p-3 mt-2 text-xs">
         <div class="flex items-center justify-between mb-2">

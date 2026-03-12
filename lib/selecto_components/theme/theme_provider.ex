@@ -218,9 +218,60 @@ defmodule SelectoComponents.Theme.ThemeProvider do
       class="selecto-theme-provider"
       style={@theme_vars}
       data-theme={@current_theme}
-      phx-hook="ThemeProvider"
+      phx-hook=".ThemeProvider"
     >
       <%= render_slot(@inner_block) %>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ThemeProvider">
+        export default {
+          mounted() {
+            const savedTheme = localStorage.getItem('selecto-theme');
+            if (savedTheme && savedTheme !== this.el.dataset.theme) {
+              this.pushEvent('change_theme', {theme: savedTheme});
+            }
+
+            if (window.matchMedia) {
+              this.darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+              this.handleSystemThemeChange = (event) => {
+                if (!localStorage.getItem('selecto-theme')) {
+                  this.pushEvent('change_theme', {theme: event.matches ? 'dark' : 'light'});
+                }
+              };
+              this.darkModeQuery.addEventListener('change', this.handleSystemThemeChange);
+
+              this.highContrastQuery = window.matchMedia('(prefers-contrast: high)');
+              this.handleContrastChange = (event) => {
+                if (event.matches && !localStorage.getItem('selecto-theme')) {
+                  this.pushEvent('change_theme', {theme: 'high_contrast'});
+                }
+              };
+              this.highContrastQuery.addEventListener('change', this.handleContrastChange);
+            }
+          },
+
+          updated() {
+            const currentTheme = this.el.dataset.theme;
+            if (!currentTheme) {
+              return;
+            }
+
+            localStorage.setItem('selecto-theme', currentTheme);
+            window.dispatchEvent(new CustomEvent('selecto-theme-changed', {
+              detail: {theme: currentTheme}
+            }));
+          },
+
+          destroyed() {
+            if (this.darkModeQuery && this.handleSystemThemeChange) {
+              this.darkModeQuery.removeEventListener('change', this.handleSystemThemeChange);
+            }
+
+            if (this.highContrastQuery && this.handleContrastChange) {
+              this.highContrastQuery.removeEventListener('change', this.handleContrastChange);
+            }
+          }
+        };
+      </script>
     </div>
     """
   end
@@ -453,64 +504,5 @@ defmodule SelectoComponents.Theme.ThemeProvider do
   defp atomize_keys(map) when is_map(map) do
     # Use SafeAtom to prevent atom table exhaustion from untrusted JSON keys
     SafeAtom.atomize_keys(map, SafeAtom.valid_theme_properties())
-  end
-
-  @doc """
-  JavaScript hooks for theme management.
-  """
-  def __hooks__() do
-    %{
-      "ThemeProvider" => %{
-        mounted: """
-        // Load saved theme preference
-        const savedTheme = localStorage.getItem('selecto-theme');
-        if (savedTheme && savedTheme !== this.el.dataset.theme) {
-          this.pushEvent('change_theme', {theme: savedTheme});
-        }
-
-        // Watch for system theme changes
-        if (window.matchMedia) {
-          const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-          this.handleSystemThemeChange = (e) => {
-            if (!localStorage.getItem('selecto-theme')) {
-              this.pushEvent('change_theme', {theme: e.matches ? 'dark' : 'light'});
-            }
-          };
-          darkModeQuery.addEventListener('change', this.handleSystemThemeChange);
-        }
-
-        // Watch for high contrast mode
-        if (window.matchMedia) {
-          const highContrastQuery = window.matchMedia('(prefers-contrast: high)');
-          this.handleContrastChange = (e) => {
-            if (e.matches && !localStorage.getItem('selecto-theme')) {
-              this.pushEvent('change_theme', {theme: 'high_contrast'});
-            }
-          };
-          highContrastQuery.addEventListener('change', this.handleContrastChange);
-        }
-        """,
-        updated: """
-        // Save theme preference when changed
-        const currentTheme = this.el.dataset.theme;
-        if (currentTheme) {
-          localStorage.setItem('selecto-theme', currentTheme);
-          
-          // Dispatch custom event for other components
-          window.dispatchEvent(new CustomEvent('selecto-theme-changed', {
-            detail: {theme: currentTheme}
-          }));
-        }
-        """,
-        destroyed: """
-        if (this.darkModeQuery) {
-          this.darkModeQuery.removeEventListener('change', this.handleSystemThemeChange);
-        }
-        if (this.highContrastQuery) {
-          this.highContrastQuery.removeEventListener('change', this.handleContrastChange);
-        }
-        """
-      }
-    }
   end
 end

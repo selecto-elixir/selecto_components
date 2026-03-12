@@ -18,7 +18,8 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
 
   - `{:list_picker_add, view, list, item}` - Add item to list
   - `{:list_picker_remove, view, list, item}` - Remove item from list
-  - `{:list_picker_move, view, list, uuid, direction}` - Reorder item in list
+   - `{:list_picker_move, view, list, uuid, direction}` - Reorder item in list
+   - `{:list_picker_reorder, view, list, dragged_uuid, target_uuid}` - Drag/drop reorder
 
   ## Design Pattern
 
@@ -150,6 +151,43 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         socket = assign(socket, view_config: updated_view_config)
 
         # Find and update the view module
+        view_module =
+          Enum.find(socket.assigns.views, fn {id, _, _, _} ->
+            id == SafeAtom.to_view_mode(view)
+          end)
+
+        if view_module do
+          ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
+        end
+
+        {:noreply, socket}
+      end
+
+      @doc """
+      Handles drag/drop reordering for a picker list.
+
+      ## Parameters
+      - view: The view identifier (e.g., "aggregate", "graph")
+      - list: The list name (e.g., "group_by", "aggregate", "x_axis")
+      - dragged_uuid: The UUID of the dragged item
+      - target_uuid: The UUID of the drop target item
+      - socket: LiveView socket
+
+      ## Returns
+      `{:noreply, socket}` with updated view configuration
+      """
+      def handle_info({:list_picker_reorder, view, list, dragged_uuid, target_uuid}, socket) do
+        updated_view_config =
+          ListPickerOperations.reorder_item_in_list(
+            socket.assigns.view_config,
+            view,
+            list,
+            dragged_uuid,
+            target_uuid
+          )
+
+        socket = assign(socket, view_config: updated_view_config)
+
         view_module =
           Enum.find(socket.assigns.views, fn {id, _, _, _} ->
             id == SafeAtom.to_view_mode(view)
