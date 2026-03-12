@@ -16,6 +16,9 @@ V NEXT
   format/status text for faster scanning.
 - Changed Graph view queries to use plain grouped dimensions instead of SQL
   `ROLLUP`, preventing subtotal/grand-total rows from appearing as chart data.
+- Moved active SelectoComponents runtime hooks to Phoenix LiveView colocated
+  hooks, including picker, modal, theme, table, and dashboard interactions, so
+  host apps no longer need copied SelectoComponents hook bundles.
 
 V 0.3.19
 --------

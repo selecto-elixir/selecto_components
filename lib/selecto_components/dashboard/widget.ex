@@ -46,7 +46,7 @@ defmodule SelectoComponents.Dashboard.Widget do
       data-grid-y={@config[:y]}
       data-grid-w={@config[:width] || 4}
       data-grid-h={@config[:height] || 3}
-      phx-hook="DashboardWidget"
+      phx-hook=".DashboardWidget"
     >
       <div class="widget-header">
         <div class="widget-title">
@@ -126,6 +126,162 @@ defmodule SelectoComponents.Dashboard.Widget do
       <%= if @config[:resizable] do %>
         <div class="widget-resize-handle" />
       <% end %>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".DashboardWidget">
+        export default {
+          mounted() {
+            this.initWidget();
+            this.setupDragDrop();
+            this.setupResize();
+          },
+
+          updated() {
+            this.updateWidgetPosition();
+          },
+
+          destroyed() {
+            this.cleanup();
+          },
+
+          initWidget() {
+            this.widgetId = this.el.dataset.widgetId;
+            this.widgetType = this.el.dataset.widgetType;
+            this.gridX = parseInt(this.el.dataset.gridX || '0', 10);
+            this.gridY = parseInt(this.el.dataset.gridY || '0', 10);
+            this.gridW = parseInt(this.el.dataset.gridW || '4', 10);
+            this.gridH = parseInt(this.el.dataset.gridH || '3', 10);
+          },
+
+          setupDragDrop() {
+            const header = this.el.querySelector('.widget-header');
+            if (!header) return;
+
+            let isDragging = false;
+            let startX;
+            let startY;
+            let initialX;
+            let initialY;
+
+            header.addEventListener('mousedown', (event) => {
+              if (event.target.closest('.widget-controls')) return;
+
+              isDragging = true;
+              startX = event.clientX;
+              startY = event.clientY;
+              initialX = this.el.offsetLeft;
+              initialY = this.el.offsetTop;
+
+              this.el.classList.add('dragging');
+              document.body.style.cursor = 'move';
+            });
+
+            document.addEventListener('mousemove', (event) => {
+              if (!isDragging) return;
+
+              const dx = event.clientX - startX;
+              const dy = event.clientY - startY;
+
+              this.el.style.left = `${initialX + dx}px`;
+              this.el.style.top = `${initialY + dy}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+              if (!isDragging) return;
+
+              isDragging = false;
+              this.el.classList.remove('dragging');
+              document.body.style.cursor = '';
+
+              this.updateGridPosition();
+            });
+          },
+
+          setupResize() {
+            const handle = this.el.querySelector('.widget-resize-handle');
+            if (!handle) return;
+
+            let isResizing = false;
+            let startX;
+            let startY;
+            let startWidth;
+            let startHeight;
+
+            handle.addEventListener('mousedown', (event) => {
+              isResizing = true;
+              startX = event.clientX;
+              startY = event.clientY;
+              startWidth = this.el.offsetWidth;
+              startHeight = this.el.offsetHeight;
+
+              this.el.classList.add('resizing');
+              event.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (event) => {
+              if (!isResizing) return;
+
+              const newWidth = startWidth + (event.clientX - startX);
+              const newHeight = startHeight + (event.clientY - startY);
+
+              this.el.style.width = `${Math.max(200, newWidth)}px`;
+              this.el.style.height = `${Math.max(150, newHeight)}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+              if (!isResizing) return;
+
+              isResizing = false;
+              this.el.classList.remove('resizing');
+
+              this.updateGridSize();
+            });
+          },
+
+          updateGridPosition() {
+            const gridSize = 100;
+            const newGridX = Math.round(this.el.offsetLeft / gridSize);
+            const newGridY = Math.round(this.el.offsetTop / gridSize);
+
+            if (newGridX !== this.gridX || newGridY !== this.gridY) {
+              this.gridX = newGridX;
+              this.gridY = newGridY;
+
+              this.pushEvent('update_widget_position', {
+                widget_id: this.widgetId,
+                x: this.gridX,
+                y: this.gridY
+              });
+            }
+          },
+
+          updateGridSize() {
+            const gridSize = 100;
+            const newGridW = Math.round(this.el.offsetWidth / gridSize);
+            const newGridH = Math.round(this.el.offsetHeight / gridSize);
+
+            if (newGridW !== this.gridW || newGridH !== this.gridH) {
+              this.gridW = newGridW;
+              this.gridH = newGridH;
+
+              this.pushEvent('update_widget_size', {
+                widget_id: this.widgetId,
+                width: this.gridW,
+                height: this.gridH
+              });
+            }
+          },
+
+          updateWidgetPosition() {
+            const gridSize = 100;
+            this.el.style.left = `${this.gridX * gridSize}px`;
+            this.el.style.top = `${this.gridY * gridSize}px`;
+            this.el.style.width = `${this.gridW * gridSize}px`;
+            this.el.style.height = `${this.gridH * gridSize}px`;
+          },
+
+          cleanup() {}
+        };
+      </script>
     </div>
     """
   end
@@ -366,159 +522,5 @@ defmodule SelectoComponents.Dashboard.Widget do
 
   defp show_widget_config(widget_id) do
     JS.push("show_widget_config", value: %{widget_id: widget_id})
-  end
-
-  def __hooks__ do
-    """
-    export const DashboardWidget = {
-      mounted() {
-        this.initWidget();
-        this.setupDragDrop();
-        this.setupResize();
-      },
-      
-      updated() {
-        this.updateWidgetPosition();
-      },
-      
-      destroyed() {
-        this.cleanup();
-      },
-      
-      initWidget() {
-        this.widgetId = this.el.dataset.widgetId;
-        this.widgetType = this.el.dataset.widgetType;
-        this.gridX = parseInt(this.el.dataset.gridX || '0');
-        this.gridY = parseInt(this.el.dataset.gridY || '0');
-        this.gridW = parseInt(this.el.dataset.gridW || '4');
-        this.gridH = parseInt(this.el.dataset.gridH || '3');
-      },
-      
-      setupDragDrop() {
-        const header = this.el.querySelector('.widget-header');
-        if (!header) return;
-        
-        let isDragging = false;
-        let startX, startY, initialX, initialY;
-        
-        header.addEventListener('mousedown', (e) => {
-          if (e.target.closest('.widget-controls')) return;
-          
-          isDragging = true;
-          startX = e.clientX;
-          startY = e.clientY;
-          initialX = this.el.offsetLeft;
-          initialY = this.el.offsetTop;
-          
-          this.el.classList.add('dragging');
-          document.body.style.cursor = 'move';
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-          if (!isDragging) return;
-          
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          
-          this.el.style.left = (initialX + dx) + 'px';
-          this.el.style.top = (initialY + dy) + 'px';
-        });
-        
-        document.addEventListener('mouseup', () => {
-          if (!isDragging) return;
-          
-          isDragging = false;
-          this.el.classList.remove('dragging');
-          document.body.style.cursor = '';
-          
-          this.updateGridPosition();
-        });
-      },
-      
-      setupResize() {
-        const handle = this.el.querySelector('.widget-resize-handle');
-        if (!handle) return;
-        
-        let isResizing = false;
-        let startX, startY, startWidth, startHeight;
-        
-        handle.addEventListener('mousedown', (e) => {
-          isResizing = true;
-          startX = e.clientX;
-          startY = e.clientY;
-          startWidth = this.el.offsetWidth;
-          startHeight = this.el.offsetHeight;
-          
-          this.el.classList.add('resizing');
-          e.preventDefault();
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-          if (!isResizing) return;
-          
-          const newWidth = startWidth + (e.clientX - startX);
-          const newHeight = startHeight + (e.clientY - startY);
-          
-          this.el.style.width = Math.max(200, newWidth) + 'px';
-          this.el.style.height = Math.max(150, newHeight) + 'px';
-        });
-        
-        document.addEventListener('mouseup', () => {
-          if (!isResizing) return;
-          
-          isResizing = false;
-          this.el.classList.remove('resizing');
-          
-          this.updateGridSize();
-        });
-      },
-      
-      updateGridPosition() {
-        const gridSize = 100; // pixels per grid unit
-        const newGridX = Math.round(this.el.offsetLeft / gridSize);
-        const newGridY = Math.round(this.el.offsetTop / gridSize);
-        
-        if (newGridX !== this.gridX || newGridY !== this.gridY) {
-          this.gridX = newGridX;
-          this.gridY = newGridY;
-          
-          this.pushEvent('update_widget_position', {
-            widget_id: this.widgetId,
-            x: this.gridX,
-            y: this.gridY
-          });
-        }
-      },
-      
-      updateGridSize() {
-        const gridSize = 100; // pixels per grid unit
-        const newGridW = Math.round(this.el.offsetWidth / gridSize);
-        const newGridH = Math.round(this.el.offsetHeight / gridSize);
-        
-        if (newGridW !== this.gridW || newGridH !== this.gridH) {
-          this.gridW = newGridW;
-          this.gridH = newGridH;
-          
-          this.pushEvent('update_widget_size', {
-            widget_id: this.widgetId,
-            width: this.gridW,
-            height: this.gridH
-          });
-        }
-      },
-      
-      updateWidgetPosition() {
-        const gridSize = 100;
-        this.el.style.left = (this.gridX * gridSize) + 'px';
-        this.el.style.top = (this.gridY * gridSize) + 'px';
-        this.el.style.width = (this.gridW * gridSize) + 'px';
-        this.el.style.height = (this.gridH * gridSize) + 'px';
-      },
-      
-      cleanup() {
-        // Clean up event listeners
-      }
-    };
-    """
   end
 end

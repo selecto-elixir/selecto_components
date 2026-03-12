@@ -795,40 +795,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     end
   end
 
-  @doc """
-  JavaScript hooks for row click handling.
-  """
-  def __hooks__() do
-    %{
-      "RowClickable" => %{
-        mounted: """
-        // Add click handlers to all table rows
-        this.el.querySelectorAll('tr[phx-click="show_row_details"]').forEach(row => {
-          row.style.cursor = 'pointer';
-          
-          row.addEventListener('mouseenter', () => {
-            if (!row.classList.contains('bg-blue-50')) {
-              row.dataset.originalBg = row.className;
-              row.classList.add('bg-blue-50');
-            }
-          });
-          
-          row.addEventListener('mouseleave', () => {
-            row.classList.remove('bg-blue-50');
-            if (row.dataset.originalBg) {
-              row.className = row.dataset.originalBg;
-            }
-          });
-        });
-        """,
-        updated: """
-        // Re-apply handlers after LiveView updates
-        this.mounted();
-        """
-      }
-    }
-  end
-
   defp safe_render_component(component_fn, params) do
     try do
       component_fn.(params)

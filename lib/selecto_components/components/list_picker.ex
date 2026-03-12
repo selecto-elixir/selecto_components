@@ -32,11 +32,15 @@ defmodule SelectoComponents.Components.ListPicker do
       |> assign(component_dom_id: "list-picker-#{assigns.id}")
 
     ~H"""
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" x-data="{ filter: '' }">
+      <div
+        id={"#{@component_dom_id}-filter"}
+        phx-hook=".ListPickerFilter"
+        class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]"
+      >
         <div class="text-base-content">Available
           <div class="flex items-center gap-1">
-            <input x-model="filter" x-on:keydown.escape="filter = ''" placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
-            <button x-on:click="filter = ''" x-show="filter != ''" class="btn btn-sm btn-square btn-outline" type="button">
+            <input data-filter-input placeholder="Filter Available Items" class="input input-bordered input-sm flex-1"/>
+            <button data-filter-clear class="btn btn-sm btn-square btn-outline hidden" type="button">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -48,9 +52,8 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div class="flex flex-col gap-1 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-72 overflow-auto">
           <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}
+            data-available-item
             class="max-w-100 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-base-content transition hover:bg-base-300 cursor-pointer"
-            x-show="filter == '' || $el.innerHTML.toUpperCase().includes(filter.toUpperCase())"
-            x-transition
             >
             <%= name %>
           </div>
@@ -58,7 +61,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div
           id={@component_dom_id}
-          phx-hook="ListPickerSortable"
+          phx-hook=".ListPickerSortable"
           data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
           class="flex flex-col gap-2 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-96 overflow-auto"
         >
@@ -81,7 +84,7 @@ defmodule SelectoComponents.Components.ListPicker do
           <div
             :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
             id={"#{@component_dom_id}-item-#{id}"}
-            phx-hook="ListPickerEditor"
+            phx-hook=".ListPickerEditor"
             draggable="true"
             data-picker-item-id={id}
             class="w-full rounded-xl border border-base-300 bg-base-200/80 px-3 py-2 text-base-content shadow-sm transition hover:border-base-400 hover:bg-base-300/60"
@@ -123,6 +126,242 @@ defmodule SelectoComponents.Components.ListPicker do
             </div>
           </div>
         </div>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerSortable">
+          export default {
+            mounted() {
+              this.draggedItemId = null;
+
+              const reorderButtonId = this.el.dataset.reorderButtonId;
+              const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
+
+              const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
+
+              const clearDropIndicators = () => {
+                itemElements().forEach((item) => {
+                  item.classList.remove('ring-2', 'ring-primary/40');
+                });
+              };
+
+              const bindItem = (item) => {
+                if (item.dataset.sortableBound === 'true') {
+                  return;
+                }
+
+                item.dataset.sortableBound = 'true';
+
+                item.addEventListener('dragstart', (event) => {
+                  this.draggedItemId = item.dataset.pickerItemId;
+                  item.classList.add('opacity-60');
+
+                  if (event.dataTransfer) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', this.draggedItemId || '');
+                  }
+                });
+
+                item.addEventListener('dragend', () => {
+                  item.classList.remove('opacity-60');
+                  clearDropIndicators();
+                });
+
+                item.addEventListener('dragover', (event) => {
+                  if (!this.draggedItemId || this.draggedItemId === item.dataset.pickerItemId) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  clearDropIndicators();
+                  item.classList.add('ring-2', 'ring-primary/40');
+                });
+
+                item.addEventListener('dragleave', () => {
+                  item.classList.remove('ring-2', 'ring-primary/40');
+                });
+
+                item.addEventListener('drop', (event) => {
+                  event.preventDefault();
+
+                  const targetItemId = item.dataset.pickerItemId;
+
+                  clearDropIndicators();
+
+                  if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
+                    return;
+                  }
+
+                  reorderButton.setAttribute('phx-value-item', this.draggedItemId);
+                  reorderButton.setAttribute('phx-value-target-item', targetItemId);
+                  reorderButton.click();
+                });
+              };
+
+              this.bindItems = () => {
+                itemElements().forEach(bindItem);
+              };
+
+              this.bindItems();
+            },
+
+            updated() {
+              if (this.bindItems) {
+                this.bindItems();
+              }
+            }
+          };
+        </script>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerFilter">
+          export default {
+            mounted() {
+              this.bindFilter();
+              this.applyFilter();
+            },
+
+            updated() {
+              this.bindFilter();
+              this.applyFilter();
+            },
+
+            destroyed() {
+              if (this.filterInput && this.handleFilterInput) {
+                this.filterInput.removeEventListener('input', this.handleFilterInput);
+                this.filterInput.removeEventListener('keydown', this.handleFilterKeydown);
+              }
+
+              if (this.clearButton && this.handleClearClick) {
+                this.clearButton.removeEventListener('click', this.handleClearClick);
+              }
+            },
+
+            bindFilter() {
+              const filterInput = this.el.querySelector('[data-filter-input]');
+              const clearButton = this.el.querySelector('[data-filter-clear]');
+
+              if (this.filterInput !== filterInput) {
+                if (this.filterInput && this.handleFilterInput) {
+                  this.filterInput.removeEventListener('input', this.handleFilterInput);
+                  this.filterInput.removeEventListener('keydown', this.handleFilterKeydown);
+                }
+
+                this.filterInput = filterInput;
+
+                if (this.filterInput) {
+                  this.handleFilterInput = () => this.applyFilter();
+                  this.handleFilterKeydown = (event) => {
+                    if (event.key === 'Escape') {
+                      this.filterInput.value = '';
+                      this.applyFilter();
+                    }
+                  };
+
+                  this.filterInput.addEventListener('input', this.handleFilterInput);
+                  this.filterInput.addEventListener('keydown', this.handleFilterKeydown);
+                }
+              }
+
+              if (this.clearButton !== clearButton) {
+                if (this.clearButton && this.handleClearClick) {
+                  this.clearButton.removeEventListener('click', this.handleClearClick);
+                }
+
+                this.clearButton = clearButton;
+
+                if (this.clearButton) {
+                  this.handleClearClick = () => {
+                    if (!this.filterInput) {
+                      return;
+                    }
+
+                    this.filterInput.value = '';
+                    this.applyFilter();
+                    this.filterInput.focus();
+                  };
+
+                  this.clearButton.addEventListener('click', this.handleClearClick);
+                }
+              }
+            },
+
+            applyFilter() {
+              const filterValue = (this.filterInput?.value || '').trim().toUpperCase();
+              const items = this.el.querySelectorAll('[data-available-item]');
+
+              items.forEach((item) => {
+                const text = item.textContent.toUpperCase();
+                item.style.display = !filterValue || text.includes(filterValue) ? '' : 'none';
+              });
+
+              if (this.clearButton) {
+                this.clearButton.classList.toggle('hidden', filterValue === '');
+              }
+            }
+          };
+        </script>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerEditor">
+          export default {
+            mounted() {
+              this.open = false;
+
+              this.applyState = () => {
+                const content = this.el.querySelector('[data-editor-content]');
+                const openLabel = this.el.querySelector('[data-editor-open-label]');
+                const closeLabel = this.el.querySelector('[data-editor-close-label]');
+
+                if (content) {
+                  content.classList.toggle('hidden', !this.open);
+                }
+
+                if (openLabel) {
+                  openLabel.classList.toggle('hidden', this.open);
+                }
+
+                if (closeLabel) {
+                  closeLabel.classList.toggle('hidden', !this.open);
+                }
+              };
+
+              this.setOpen = (nextOpen) => {
+                this.open = nextOpen;
+                this.applyState();
+              };
+
+              this.handleClick = (event) => {
+                if (event.target.closest('[data-editor-toggle]')) {
+                  event.preventDefault();
+                  this.setOpen(!this.open);
+                }
+              };
+
+              this.handleDocumentClick = (event) => {
+                if (!this.open || this.el.contains(event.target)) {
+                  return;
+                }
+
+                this.setOpen(false);
+              };
+
+              this.el.addEventListener('click', this.handleClick);
+              document.addEventListener('click', this.handleDocumentClick);
+              this.applyState();
+            },
+
+            updated() {
+              this.applyState();
+            },
+
+            destroyed() {
+              if (this.handleClick) {
+                this.el.removeEventListener('click', this.handleClick);
+              }
+
+              if (this.handleDocumentClick) {
+                document.removeEventListener('click', this.handleDocumentClick);
+              }
+            }
+          };
+        </script>
       </div>
     """
   end
