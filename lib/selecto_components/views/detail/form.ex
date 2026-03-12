@@ -230,9 +230,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       x when x in [:naive_datetime, :utc_datetime, :date] ->
         case Map.get(config, "format") do
           value when value in [nil, ""] -> "default"
-          "age_buckets" -> "age buckets"
-          "custom_buckets" -> "custom buckets"
-          value -> to_string(value)
+          value -> format_summary_label(value)
         end
 
       _ ->
@@ -249,5 +247,11 @@ defmodule SelectoComponents.Views.Detail.Form do
       "desc" -> "descending"
       _ -> "ascending"
     end
+  end
+
+  defp format_summary_label(value) do
+    value
+    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
+    |> String.downcase()
   end
 end

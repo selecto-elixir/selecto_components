@@ -300,7 +300,7 @@ defmodule SelectoComponents.Views.Graph.Form do
   defp graph_x_axis_summary(col, config) do
     cond do
       Map.get(config || %{}, "format") not in [nil, ""] ->
-        to_string(Map.get(config, "format"))
+        format_summary_label(Map.get(config, "format"))
 
       Map.get(config || %{}, "sort") not in [nil, ""] ->
         "sort #{Map.get(config, "sort")}"
@@ -323,7 +323,7 @@ defmodule SelectoComponents.Views.Graph.Form do
   defp graph_series_summary(col, config) do
     cond do
       Map.get(config || %{}, "format") not in [nil, ""] ->
-        to_string(Map.get(config, "format"))
+        format_summary_label(Map.get(config, "format"))
 
       Map.get(config || %{}, "max_series") not in [nil, "", "10"] ->
         "max #{Map.get(config, "max_series")}"
@@ -334,5 +334,11 @@ defmodule SelectoComponents.Views.Graph.Form do
       true ->
         "default grouping"
     end
+  end
+
+  defp format_summary_label(value) do
+    value
+    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
+    |> String.downcase()
   end
 end

@@ -19,6 +19,8 @@ V NEXT
 - Moved active SelectoComponents runtime hooks to Phoenix LiveView colocated
   hooks, including picker, modal, theme, table, and dashboard interactions, so
   host apps no longer need copied SelectoComponents hook bundles.
+- Updated compact picker summaries to show human-readable datetime format labels
+  like `day of week` instead of raw format tokens such as `D`.
 
 V 0.3.19
 --------

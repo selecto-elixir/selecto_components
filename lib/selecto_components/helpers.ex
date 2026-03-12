@@ -31,6 +31,21 @@ defmodule SelectoComponents.Helpers do
     }
   end
 
+  def aggregate_datetime_format_label(format) when is_atom(format) do
+    format
+    |> Atom.to_string()
+    |> aggregate_datetime_format_label()
+  end
+
+  def aggregate_datetime_format_label(format) when is_binary(format) do
+    Enum.find_value(aggregate_datetime_format_options(), format, fn
+      {^format, label} -> label
+      _ -> nil
+    end)
+  end
+
+  def aggregate_datetime_format_label(format), do: to_string(format)
+
   def build_initial_state(list) do
     list
     |> Enum.map(fn

@@ -217,14 +217,20 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         "custom buckets"
 
       value ->
-        to_string(value)
+        format_summary_label(value)
     end
   end
 
   defp aggregate_format_summary(config) do
     case Map.get(config || %{}, "format") do
       value when value in [nil, ""] -> "default"
-      value -> to_string(value)
+      value -> format_summary_label(value)
     end
+  end
+
+  defp format_summary_label(value) do
+    value
+    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
+    |> String.downcase()
   end
 end
