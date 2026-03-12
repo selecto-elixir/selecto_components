@@ -95,6 +95,7 @@ defmodule SelectoComponents.Results do
           query_results={@query_results}
           view_meta={@view_meta}
           view_opts={@view_opts}
+          enable_modal_detail={Map.get(assigns, :enable_modal_detail, false)}
           executed={@executed}
           execution_error={assigns[:execution_error]}
         />

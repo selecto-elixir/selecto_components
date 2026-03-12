@@ -281,7 +281,7 @@ defmodule SelectoComponents.Form do
       </.form>
 
       <%!-- Render modal if enabled and triggered --%>
-      <%= if Map.get(assigns, :enable_modal_detail) && Map.get(assigns, :show_detail_modal) do %>
+      <%= if detail_modal_visible?(assigns) do %>
         <%= if custom_modal_component = Map.get(assigns, :detail_modal_component) do %>
           <.live_component
             module={custom_modal_component}
@@ -298,10 +298,12 @@ defmodule SelectoComponents.Form do
             records={@modal_detail_data.records}
             fields={@modal_detail_data.fields}
             related_data={@modal_detail_data.related_data}
-            title="Record Details"
-            size={:lg}
-            navigation_enabled={true}
-            edit_enabled={false}
+            title={Map.get(@modal_detail_data, :title, "Record Details")}
+            title_template={Map.get(@modal_detail_data, :title_template)}
+            subtitle_field={Map.get(@modal_detail_data, :subtitle_field)}
+            size={Map.get(@modal_detail_data, :size, :lg)}
+            navigation_enabled={Map.get(@modal_detail_data, :navigation_enabled, true)}
+            edit_enabled={Map.get(@modal_detail_data, :edit_enabled, false)}
           />
         <% end %>
       <% end %>
@@ -500,6 +502,12 @@ defmodule SelectoComponents.Form do
       _ ->
         []
     end
+  end
+
+  defp detail_modal_visible?(assigns) do
+    Map.get(assigns, :show_detail_modal) &&
+      (Map.get(assigns, :enable_modal_detail, false) ||
+         Map.get(Map.get(assigns, :modal_detail_data, %{}), :action_source) == :configured)
   end
 
   # Environment detection helpers

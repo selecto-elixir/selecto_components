@@ -133,6 +133,11 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.put(acc, "count_mode", DetailOptions.normalize_count_mode_param(value))
   end
 
+  defp merge_scalar_view_param(acc, :detail, key, value)
+       when key in [:row_click_action, "row_click_action"] do
+    maybe_put_param(acc, "row_click_action", normalize_optional_scalar(value))
+  end
+
   defp merge_scalar_view_param(acc, :map, key, value)
        when key in [:center, "center"] do
     maybe_put_center_params(acc, value)
@@ -176,6 +181,20 @@ defmodule SelectoComponents.Form.ParamsState do
   defp normalize_per_page_param(value, _default) when is_atom(value), do: Atom.to_string(value)
 
   defp normalize_per_page_param(_value, default), do: default
+
+  defp normalize_optional_scalar(nil), do: nil
+
+  defp normalize_optional_scalar(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_optional_scalar(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_optional_scalar()
+
+  defp normalize_optional_scalar(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_optional_scalar(value) when is_float(value), do: to_string(value)
+  defp normalize_optional_scalar(_value), do: nil
 
   @doc """
   Convert filters back to params format.
@@ -1305,6 +1324,10 @@ defmodule SelectoComponents.Form.ParamsState do
           DetailOptions.normalize_count_mode_param(
             get_map_value(view_config, :count_mode, DetailOptions.default_count_mode())
           )
+        )
+        |> maybe_put_param(
+          "row_click_action",
+          normalize_optional_scalar(get_map_value(view_config, :row_click_action))
         )
       else
         params

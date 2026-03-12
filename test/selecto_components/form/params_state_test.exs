@@ -13,6 +13,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           order_by: [],
           per_page: "60",
           max_rows: "10000",
+          row_click_action: "customer_profile",
           prevent_denormalization: true
         }
       }
@@ -23,6 +24,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["view_mode"] == "detail"
     assert params["per_page"] == "60"
     assert params["max_rows"] == "10000"
+    assert params["row_click_action"] == "customer_profile"
     assert params["prevent_denormalization"] == "true"
   end
 
@@ -355,6 +357,25 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["image_overlay_bounds"] == "33.7,-123.5,49.5,-117.0"
     assert params["image_overlay_opacity"] == "0.6"
     assert params["image_overlay_rotation"] == "-12"
+  end
+
+  test "convert_saved_config_to_full_params restores detail row click action" do
+    saved = %{
+      "detail" => %{
+        "selected" => [],
+        "order_by" => [],
+        "per_page" => "30",
+        "max_rows" => "1000",
+        "count_mode" => "bounded",
+        "row_click_action" => "customer_profile",
+        "prevent_denormalization" => true
+      }
+    }
+
+    params = ParamsState.convert_saved_config_to_full_params(saved, "detail")
+
+    assert params["view_mode"] == "detail"
+    assert params["row_click_action"] == "customer_profile"
   end
 
   test "convert_saved_config_to_full_params restores map layer settings" do

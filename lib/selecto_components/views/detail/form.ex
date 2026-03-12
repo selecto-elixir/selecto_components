@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Views.Detail.Form do
   use Phoenix.LiveComponent
   alias SelectoComponents.Views.Detail.Options
+  alias SelectoComponents.Views.Detail.RowActions
 
   @detail_per_page_options [30, 60, 100]
 
@@ -43,12 +44,22 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.get(:count_mode, Map.get(detail_config, "count_mode", Options.default_count_mode()))
       |> to_string()
 
+    row_click_action =
+      detail_config
+      |> Map.get(:row_click_action, Map.get(detail_config, "row_click_action", ""))
+      |> to_string()
+
     prevent_denormalization =
       Map.get(
         detail_config,
         :prevent_denormalization,
         Map.get(detail_config, "prevent_denormalization", true)
       )
+
+    row_action_options = RowActions.available_actions(assigns.selecto)
+
+    selected_row_action =
+      Enum.find(row_action_options, fn action -> action.id == row_click_action end)
 
     assigns =
       assigns
@@ -57,10 +68,13 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.put(:detail_per_page, per_page)
       |> Map.put(:detail_max_rows, max_rows)
       |> Map.put(:detail_count_mode, count_mode)
+      |> Map.put(:detail_row_click_action, row_click_action)
       |> Map.put(:detail_prevent_denormalization, prevent_denormalization)
       |> Map.put(:detail_per_page_options, @detail_per_page_options)
       |> Map.put(:detail_max_rows_options, Options.max_rows_options())
       |> Map.put(:detail_count_mode_options, Options.count_mode_options())
+      |> Map.put(:row_action_options, row_action_options)
+      |> Map.put(:selected_row_action, selected_row_action)
 
     ~H"""
     <div>
@@ -177,6 +191,40 @@ defmodule SelectoComponents.Views.Detail.Form do
         </div>
       </div>
 
+      <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+        <label class="block text-sm">
+          <span class="text-xs font-medium text-gray-700">Row Click Action</span>
+          <select
+            name="row_click_action"
+            class="mt-1 select select-bordered select-sm w-full bg-white"
+          >
+            <option value="" selected={@detail_row_click_action == ""}>None</option>
+            <option
+              :for={action <- @row_action_options}
+              value={action.id}
+              selected={@detail_row_click_action == action.id}
+            >
+              {action.name}
+            </option>
+          </select>
+        </label>
+
+        <div :if={@selected_row_action} class="mt-3 space-y-1 text-xs text-gray-600">
+          <div>
+            <span class="font-medium text-gray-700">Type:</span>
+            {row_action_type_label(@selected_row_action.type)}
+          </div>
+          <div :if={@selected_row_action.description}>
+            <span class="font-medium text-gray-700">Description:</span>
+            {@selected_row_action.description}
+          </div>
+          <div>
+            <span class="font-medium text-gray-700">Required fields:</span>
+            {required_fields_label(@selected_row_action.required_fields)}
+          </div>
+        </div>
+      </div>
+
       <div class="mt-4">
         <label class="flex items-center space-x-2">
           <input
@@ -254,4 +302,11 @@ defmodule SelectoComponents.Views.Detail.Form do
     |> SelectoComponents.Helpers.aggregate_datetime_format_label()
     |> String.downcase()
   end
+
+  defp row_action_type_label(:modal), do: "Modal"
+  defp row_action_type_label(:external_link), do: "Open link"
+  defp row_action_type_label(_type), do: "Unknown"
+
+  defp required_fields_label([]), do: "None"
+  defp required_fields_label(fields), do: Enum.join(fields, ", ")
 end

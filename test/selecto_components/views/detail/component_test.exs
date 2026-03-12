@@ -165,6 +165,17 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
   test "show_row_details dedupes duplicate modal keys" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
+        selecto: %{
+          selecto()
+          | set: %{
+              columns: [
+                %{"field" => "supplier.co_name", "alias" => "supplier_name", "uuid" => "c1"},
+                %{"field" => "customer.co_name", "alias" => "customer_name", "uuid" => "c2"}
+              ]
+            }
+        },
+        enable_modal_detail: true,
+        view_meta: %{},
         processed_results: {[["Supplier A", "Customer B"]], ["co_name", "co_name"]},
         query_results:
           {[["Supplier A", "Customer B"]], ["co_name", "co_name"], ["co_name", "co_name"]}
@@ -177,5 +188,166 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert_receive {:show_detail_modal, detail_data}
     assert detail_data.record["co_name"] == "Supplier A"
     assert detail_data.record["co_name_2"] == "Customer B"
+  end
+
+  test "show_row_details includes title template for configured modal actions" do
+    domain = %{
+      name: "DetailModalTitleTemplateTest",
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, name: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        workspace_snapshot: %{
+          name: "Workspace Snapshot",
+          type: :modal,
+          required_fields: [:id, :name],
+          payload: %{title: ~S(Workspace #{{id}} - {{name}})}
+        }
+      }
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        selecto:
+          Selecto.configure(domain, nil)
+          |> Map.put(:set, %{
+            columns: [
+              %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+              %{"field" => "name", "alias" => "name", "uuid" => "name-col"}
+            ]
+          }),
+        enable_modal_detail: false,
+        view_meta: %{row_click_action: "workspace_snapshot"},
+        processed_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"]},
+        query_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"], ["id", "name"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.title == "Workspace #117 - Austin Workspace 2-1"
+    assert detail_data.title_template == ~S(Workspace #{{id}} - {{name}})
+  end
+
+  test "renders external link row action data attributes" do
+    domain = %{
+      name: "DetailExternalLinkTest",
+      source: %{
+        source_table: "customers",
+        primary_key: :id,
+        fields: [:customer_id],
+        redact_fields: [],
+        columns: %{customer_id: %{type: :integer}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        customer_profile: %{
+          name: "Customer Profile",
+          type: :external_link,
+          required_fields: [:customer_id],
+          payload: %{url_template: "https://example.test/customers/{{customer_id}}"}
+        }
+      }
+    }
+
+    external_link_selecto =
+      Selecto.configure(domain, nil)
+      |> Map.put(:set, %{
+        columns: [
+          %{"field" => "customer_id", "alias" => "customer_id", "uuid" => "customer-id-col"}
+        ]
+      })
+
+    html =
+      render_component(Component, %{
+        id: "detail-component-external-link",
+        executed: true,
+        execution_error: nil,
+        selecto: external_link_selecto,
+        query_results: {[[100]], ["customer_id"], ["customer_id"]},
+        view_meta: %{
+          page: 0,
+          per_page: 10,
+          total_rows: 1,
+          subselect_configs: [],
+          row_click_action: "customer_profile"
+        }
+      })
+
+    assert html =~ ~s(data-row-action-type="external_link")
+    assert html =~ ~s(data-row-link="https://example.test/customers/100")
+  end
+
+  test "resolves external links with hidden row action fields" do
+    domain = %{
+      name: "DetailExternalLinkHiddenFieldTest",
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name, :purpose],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          name: %{type: :string},
+          purpose: %{type: :string}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        workspace_link: %{
+          name: "Workspace Link",
+          type: :external_link,
+          required_fields: [:id, :purpose],
+          payload: %{url_template: "https://example.test/workspaces/{{id}}?purpose={{purpose}}"}
+        }
+      }
+    }
+
+    selecto_with_hidden_field =
+      Selecto.configure(domain, nil)
+      |> Map.put(:set, %{
+        columns: [
+          %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+          %{"field" => "name", "alias" => "name", "uuid" => "name-col"}
+        ],
+        row_action_query_columns: [
+          %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+          %{"field" => "name", "alias" => "name", "uuid" => "name-col"},
+          %{"field" => "purpose", "alias" => "purpose", "uuid" => "purpose-col", "hidden" => true}
+        ]
+      })
+
+    html =
+      render_component(Component, %{
+        id: "detail-component-external-link-hidden-field",
+        executed: true,
+        execution_error: nil,
+        selecto: selecto_with_hidden_field,
+        query_results:
+          {[[100, "HQ", "planning"]], ["id", "name", "purpose"], ["id", "name", "purpose"]},
+        view_meta: %{
+          page: 0,
+          per_page: 10,
+          total_rows: 1,
+          subselect_configs: [],
+          row_click_action: "workspace_link"
+        }
+      })
+
+    assert html =~ ~s(data-row-action-type="external_link")
+    assert html =~ ~s(data-row-link="https://example.test/workspaces/100?purpose=planning")
   end
 end

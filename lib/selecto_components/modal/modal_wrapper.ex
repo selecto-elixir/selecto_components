@@ -12,18 +12,15 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   def modal(assigns) do
     assigns = assign_new(assigns, :icon_type, fn -> :info end)
     assigns = assign_new(assigns, :show, fn -> true end)
+    assigns = assign_new(assigns, :on_prev, fn -> nil end)
+    assigns = assign_new(assigns, :on_next, fn -> nil end)
 
     ~H"""
-    <div
-      id={@id}
-      phx-hook=".ModalControl"
-      data-cancel={JS.exec("data-cancel", to: "##{@id}")}
-      class="relative z-50"
-    >
+    <div id={@id} class="relative z-50">
       <%!-- Backdrop --%>
       <div
         id={"#{@id}-bg"}
-        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        class="fixed inset-0 bg-gray-900/35 transition-opacity"
         aria-hidden="true"
         phx-click={@on_cancel}
       />
@@ -41,9 +38,6 @@ defmodule SelectoComponents.Modal.ModalWrapper do
           <div
             id={"#{@id}-content"}
             class={"relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 #{size_classes(@size)}"}
-            phx-click-away={@on_cancel}
-            phx-window-keydown={@on_cancel}
-            phx-key="escape"
           >
             <%!-- Modal header --%>
             <%= if @show_header do %>
@@ -96,44 +90,9 @@ defmodule SelectoComponents.Modal.ModalWrapper do
         </div>
       </div>
 
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".ModalControl">
-        export default {
-          mounted() {
-            this.handleKeyPress = (event) => {
-              if (event.key === 'Escape') {
-                this.pushEvent('close_modal', {});
-              } else if (event.key === 'ArrowLeft') {
-                this.pushEvent('navigate_record', {direction: 'prev'});
-              } else if (event.key === 'ArrowRight') {
-                this.pushEvent('navigate_record', {direction: 'next'});
-              }
-            };
-
-            this.handleClickOutside = (event) => {
-              const modalContent = this.el.querySelector('[id$="-content"]');
-              if (!modalContent || modalContent.contains(event.target)) {
-                return;
-              }
-
-              const backdrop = this.el.querySelector('[id$="-bg"]');
-              if (backdrop && backdrop.contains(event.target)) {
-                this.pushEvent('close_modal', {});
-              }
-            };
-
-            document.addEventListener('keydown', this.handleKeyPress);
-
-            if (this.el.querySelector('[id$="-content"]')) {
-              document.addEventListener('click', this.handleClickOutside);
-            }
-          },
-
-          destroyed() {
-            document.removeEventListener('keydown', this.handleKeyPress);
-            document.removeEventListener('click', this.handleClickOutside);
-          }
-        };
-      </script>
+      <button type="button" class="hidden" phx-window-keydown={@on_cancel} phx-key="escape" />
+      <button :if={@on_prev} type="button" class="hidden" phx-window-keydown={@on_prev} phx-key="ArrowLeft" />
+      <button :if={@on_next} type="button" class="hidden" phx-window-keydown={@on_next} phx-key="ArrowRight" />
     </div>
     """
   end

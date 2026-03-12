@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Views.Detail.Process do
   alias SelectoComponents.Helpers.BucketParser
   alias SelectoComponents.Views.Detail.Options
+  alias SelectoComponents.Views.Detail.RowActions
 
   def param_to_state(params, _v) do
     ## state is used to draw the form
@@ -10,6 +11,8 @@ defmodule SelectoComponents.Views.Detail.Process do
       per_page: normalize_per_page_param(Map.get(params, "per_page")),
       max_rows: Options.normalize_max_rows_param(Map.get(params, "max_rows")),
       count_mode: Options.normalize_count_mode_param(Map.get(params, "count_mode")),
+      row_click_action:
+        Options.normalize_row_click_action_param(Map.get(params, "row_click_action")),
       prevent_denormalization:
         params["prevent_denormalization"] in ["on", "true"] ||
           (params["prevent_denormalization"] == nil && params["selected"] == nil)
@@ -27,6 +30,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       per_page: "30",
       max_rows: Options.default_max_rows(),
       count_mode: Options.default_count_mode(),
+      row_click_action: "",
       prevent_denormalization: true
     }
   end
@@ -37,10 +41,21 @@ defmodule SelectoComponents.Views.Detail.Process do
     max_rows = Options.normalize_max_rows_param(Map.get(params, "max_rows"))
     count_mode = Options.normalize_count_mode_param(Map.get(params, "count_mode"))
 
+    row_click_action =
+      Options.normalize_row_click_action_param(Map.get(params, "row_click_action"))
+
     detail_columns =
       params
       |> Map.get("selected", %{})
       |> normalize_selected_entries()
+
+    row_action = RowActions.current_action(selecto, row_click_action)
+
+    query_detail_columns =
+      detail_columns
+      |> append_required_row_action_fields(
+        RowActions.additional_required_fields(row_action, detail_columns)
+      )
 
     # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
     prevent_denorm =
@@ -48,9 +63,9 @@ defmodule SelectoComponents.Views.Detail.Process do
         (params["prevent_denormalization"] == nil && params["selected"] == nil)
 
     # Process columns for denormalization if enabled
-    {selected_columns, subselect_configs, denorm_groups} =
+    {selected_columns, visible_columns, subselect_configs, denorm_groups} =
       if prevent_denorm do
-        column_names = Enum.map(detail_columns, & &1["field"])
+        column_names = Enum.map(query_detail_columns, & &1["field"])
 
         {normal_cols, denorm_groups} =
           SelectoComponents.DenormalizationDetector.detect_and_group_columns(
@@ -58,20 +73,29 @@ defmodule SelectoComponents.Views.Detail.Process do
             column_names
           )
 
-        if normal_cols == [] and detail_columns != [] do
+        if normal_cols == [] and query_detail_columns != [] do
           # If every selected column denormalizes, keep the original selection
           # so we don't build an empty SELECT list.
-          {detail_columns, [], %{}}
+          {query_detail_columns, detail_columns, [], %{}}
         else
-          # Filter detail_columns to only include normal columns
+          # Filter query columns to only include normal columns
+          normal_query_detail_columns =
+            Enum.filter(query_detail_columns, fn col ->
+              col["field"] in normal_cols
+            end)
+
+          # Keep only visible columns in the rendered table
           normal_detail_columns =
             Enum.filter(detail_columns, fn col ->
               col["field"] in normal_cols
             end)
 
+          visible_denorm_groups =
+            filter_visible_denorm_groups(denorm_groups, detail_columns)
+
           # Generate subselect configurations for UI display
           subselect_configs =
-            Enum.map(denorm_groups, fn {path, cols} ->
+            Enum.map(visible_denorm_groups, fn {path, cols} ->
               config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
               # Add the actual columns to the config for later use
               config =
@@ -86,15 +110,16 @@ defmodule SelectoComponents.Views.Detail.Process do
               config
             end)
 
-          {normal_detail_columns, subselect_configs, denorm_groups}
+          {normal_query_detail_columns, normal_detail_columns, subselect_configs, denorm_groups}
         end
       else
-        {detail_columns, [], %{}}
+        {query_detail_columns, detail_columns, [], %{}}
       end
 
     ### Selecto Set for Detail View, view_meta for view data
     {%{
-       columns: selected_columns,
+       columns: visible_columns,
+       row_action_query_columns: selected_columns,
        selected: selected_columns |> selected(columns),
        order_by:
          Map.get(params, "order_by", %{})
@@ -105,13 +130,14 @@ defmodule SelectoComponents.Views.Detail.Process do
        subselects: subselect_configs,
        # Store the groups for building actual subselects
        denorm_groups: denorm_groups,
-       denormalizing_columns: if(prevent_denorm, do: detail_columns -- selected_columns, else: [])
+       denormalizing_columns: if(prevent_denorm, do: detail_columns -- visible_columns, else: [])
      },
      %{
        page: String.to_integer(Map.get(params, "detail_page", "0")),
        per_page: per_page,
        max_rows: max_rows,
        count_mode: count_mode,
+       row_click_action: row_click_action,
        prevent_denormalization: prevent_denorm,
        subselect_configs: subselect_configs
      }}
@@ -223,6 +249,49 @@ defmodule SelectoComponents.Views.Detail.Process do
   defp sort_selected_entries(entries) do
     Enum.sort(entries, fn a, b ->
       selected_entry_index(a) <= selected_entry_index(b)
+    end)
+  end
+
+  defp append_required_row_action_fields(detail_columns, []), do: detail_columns
+
+  defp append_required_row_action_fields(detail_columns, required_fields) do
+    existing_fields =
+      detail_columns
+      |> Enum.map(&Map.get(&1, "field"))
+      |> MapSet.new()
+
+    next_index =
+      detail_columns
+      |> Enum.map(&selected_entry_index/1)
+      |> Enum.max(fn -> -1 end)
+      |> Kernel.+(1)
+
+    hidden_columns =
+      required_fields
+      |> Enum.reject(&MapSet.member?(existing_fields, &1))
+      |> Enum.with_index(next_index)
+      |> Enum.map(fn {field, index} ->
+        %{
+          "uuid" => UUID.uuid4(),
+          "field" => field,
+          "index" => to_string(index),
+          "alias" => field,
+          "hidden" => true,
+          "row_action_required" => true
+        }
+      end)
+
+    detail_columns ++ hidden_columns
+  end
+
+  defp filter_visible_denorm_groups(denorm_groups, detail_columns) do
+    visible_fields =
+      detail_columns
+      |> Enum.map(&Map.get(&1, "field"))
+      |> MapSet.new()
+
+    Enum.filter(denorm_groups, fn {_path, cols} ->
+      Enum.any?(cols, &MapSet.member?(visible_fields, &1))
     end)
   end
 
