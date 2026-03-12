@@ -235,34 +235,33 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
   end
 
-  test "params_to_state accepts row_click_action from generic value param" do
-    socket = %Phoenix.LiveView.Socket{
-      assigns: %{
-        __changed__: %{},
-        views: [
-          {:detail, SelectoComponents.Views.Detail, "Detail", []},
-          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
-          {:graph, SelectoComponents.Views.Graph, "Graph", []}
-        ],
-        view_config: %{view_mode: "detail", filters: [], views: %{}}
+  test "submitted_form_params drops LiveView noise and preserves submitted row_click_action" do
+    params = %{
+      "_target" => ["row_click_action"],
+      "_unused_per_page" => "",
+      "row_click_action" => "work_item_api_preview",
+      "prevent_denormalization" => "on",
+      "selected" => %{
+        "k0" => %{
+          "_unused_alias" => "",
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "123"
+        }
       }
     }
 
-    params = %{
-      "view_mode" => "detail",
-      "row_click_action" => "work_item_quick_view",
-      "value" => "work_item_api_preview",
-      "selected" => %{},
-      "order_by" => %{},
-      "per_page" => "30",
-      "max_rows" => "1000",
-      "count_mode" => "bounded",
-      "prevent_denormalization" => "true"
-    }
-
-    updated = ParamsState.params_to_state(params, socket)
-
-    assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
+    assert ParamsState.submitted_form_params(params) == %{
+             "row_click_action" => "work_item_api_preview",
+             "prevent_denormalization" => "true",
+             "selected" => %{
+               "k0" => %{
+                 "field" => "id",
+                 "index" => "0",
+                 "uuid" => "123"
+               }
+             }
+           }
   end
 
   test "filters_to_params uses compact keys while preserving uuid" do

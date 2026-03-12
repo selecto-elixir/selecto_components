@@ -58,7 +58,7 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ ~s(<option value="work_item_api_json" selected>)
   end
 
-  test "prefers row_click_action from params when present" do
+  test "uses detail config as the only row click action source while editing" do
     domain = %{
       name: "DetailFormParamsTest",
       source: %{
@@ -90,20 +90,18 @@ defmodule SelectoComponents.Views.Detail.FormTest do
         columns: [{:id, "ID", :integer}, {:title, "Title", :string}],
         view: {:detail, SelectoComponents.Views.Detail, "Detail", %{}},
         selecto: Selecto.configure(domain, nil),
-        params: %{"row_click_action" => "work_item_api_preview"},
         view_config: %{
           views: %{
             detail: %{
               selected: [],
-              order_by: [],
-              row_click_action: "work_item_quick_view"
+              order_by: []
             }
           }
         }
       })
 
-    assert html =~ ~s(id="detail-row-click-action-work_item_api_preview")
-    assert html =~ ~s(<option value="work_item_api_preview" selected>)
+    assert html =~ ~s(id="detail-row-click-action-none")
+    refute html =~ ~s(<option value="work_item_api_preview" selected>)
   end
 
   test "set_row_click_action updates detail view config" do
@@ -121,7 +119,11 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     }
 
     assert {:noreply, updated_socket} =
-             Form.handle_event("set_row_click_action", %{"value" => "work_item_api_json"}, socket)
+             Form.handle_event(
+               "set_row_click_action",
+               %{"row_click_action" => "work_item_api_json"},
+               socket
+             )
 
     assert updated_socket.assigns.view_config.views.detail.row_click_action ==
              "work_item_api_json"
@@ -130,37 +132,24 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert updated_config.views.detail.row_click_action == "work_item_api_json"
   end
 
-  test "set_row_click_action handles nested value payload" do
+  test "set_row_click_action accepts the direct select value payload" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
         __changed__: %{},
-        view_config: %{views: %{detail: %{row_click_action: "work_item_quick_view"}}}
+        view_config: %{
+          views: %{
+            detail: %{
+              row_click_action: "work_item_quick_view"
+            }
+          }
+        }
       }
     }
 
     assert {:noreply, updated_socket} =
              Form.handle_event(
                "set_row_click_action",
-               %{"value" => %{"value" => "work_item_api_preview"}},
-               socket
-             )
-
-    assert updated_socket.assigns.view_config.views.detail.row_click_action ==
-             "work_item_api_preview"
-  end
-
-  test "set_row_click_action handles row_click_action payload" do
-    socket = %Phoenix.LiveView.Socket{
-      assigns: %{
-        __changed__: %{},
-        view_config: %{views: %{detail: %{row_click_action: "work_item_quick_view"}}}
-      }
-    }
-
-    assert {:noreply, updated_socket} =
-             Form.handle_event(
-               "set_row_click_action",
-               %{"row_click_action" => "work_item_api_json"},
+               %{"value" => "work_item_api_json"},
                socket
              )
 

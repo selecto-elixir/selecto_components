@@ -52,7 +52,6 @@ defmodule SelectoComponents.Form.EventHandlers.ModalOperations do
           # Set modal data in assigns to trigger rendering
           socket =
             socket
-            |> sync_detail_row_click_action(detail_data)
             |> assign(
               show_detail_modal: true,
               modal_detail_data: detail_data
@@ -91,18 +90,6 @@ defmodule SelectoComponents.Form.EventHandlers.ModalOperations do
       defp detail_modal_enabled?(assigns, detail_data) do
         Map.get(assigns, :enable_modal_detail, false) ||
           Map.get(detail_data || %{}, :action_source) == :configured
-      end
-
-      defp sync_detail_row_click_action(socket, detail_data) do
-        action_id = Map.get(detail_data || %{}, :action_id)
-
-        if is_binary(action_id) and action_id != "" do
-          update(socket, :view_config, fn view_config ->
-            put_in(view_config, [:views, :detail, :row_click_action], action_id)
-          end)
-        else
-          socket
-        end
       end
     end
   end

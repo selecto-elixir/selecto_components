@@ -248,8 +248,8 @@ defmodule SelectoComponents.Views.Detail.Form do
     action_id =
       case params do
         %{"row_click_action" => action_id} -> action_id
-        %{"value" => %{"value" => action_id}} -> action_id
-        %{"value" => action_id} -> action_id
+        %{"value" => %{"row_click_action" => action_id}} -> action_id
+        %{"value" => action_id} when is_binary(action_id) -> action_id
         _ -> ""
       end
 
@@ -341,20 +341,10 @@ defmodule SelectoComponents.Views.Detail.Form do
   defp required_fields_label([]), do: "None"
   defp required_fields_label(fields), do: Enum.join(fields, ", ")
 
-  defp current_row_click_action(assigns, detail_config) do
-    param_action =
-      assigns
-      |> Map.get(:params, %{})
-      |> Map.get("row_click_action")
-
-    action =
-      if is_binary(param_action) and String.trim(param_action) != "" do
-        param_action
-      else
-        Map.get(detail_config, :row_click_action, Map.get(detail_config, "row_click_action", ""))
-      end
-
-    to_string(action || "")
+  defp current_row_click_action(_assigns, detail_config) do
+    detail_config
+    |> Map.get(:row_click_action, Map.get(detail_config, "row_click_action"))
+    |> Options.normalize_row_click_action_param()
   end
 
   defp row_click_action_dom_id(""), do: "detail-row-click-action-none"

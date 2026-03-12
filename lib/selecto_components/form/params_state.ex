@@ -1239,7 +1239,6 @@ defmodule SelectoComponents.Form.ParamsState do
   def canonicalize_form_params(params) when is_map(params) do
     row_click_action =
       normalize_optional_scalar(get_map_value(params, "row_click_action_ui")) ||
-        normalize_optional_scalar(get_map_value(params, "value")) ||
         normalize_optional_scalar(get_map_value(params, "row_click_action"))
 
     if is_nil(row_click_action) do
@@ -1250,6 +1249,18 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def canonicalize_form_params(params), do: params
+
+  @doc """
+  Normalize submitted form params so submit uses the browser form state as truth.
+  """
+  def submitted_form_params(params) when is_map(params) do
+    params
+    |> canonicalize_form_params()
+    |> drop_unused_form_params()
+    |> normalize_submitted_boolean_param("prevent_denormalization")
+  end
+
+  def submitted_form_params(params), do: params
 
   @doc """
   Convert saved view configuration to full params format.
@@ -1754,4 +1765,35 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp sort_index_for_compaction(_value), do: 0
+
+  defp drop_unused_form_params(params) when is_map(params) do
+    params
+    |> Enum.reject(fn {key, _value} ->
+      key_str = to_string(key)
+      String.starts_with?(key_str, "_unused_") or key_str in ["_target", "save_as"]
+    end)
+    |> Enum.into(%{}, fn {key, value} -> {key, drop_unused_form_params(value)} end)
+  end
+
+  defp drop_unused_form_params(params) when is_list(params) do
+    Enum.map(params, &drop_unused_form_params/1)
+  end
+
+  defp drop_unused_form_params(params), do: params
+
+  defp normalize_submitted_boolean_param(params, key) when is_map(params) do
+    case Map.get(params, key) do
+      value when value in ["on", "true", true] ->
+        Map.put(params, key, "true")
+
+      value when value in ["false", false] ->
+        Map.put(params, key, "false")
+
+      nil ->
+        Map.delete(params, key)
+
+      _other ->
+        params
+    end
+  end
 end
