@@ -5,6 +5,9 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.20
+--------
+
 - Redesigned the item picker selected-list UI to use compact one-line summaries,
   inline edit panels, outside-click close behavior, and drag/drop reordering
   while keeping available items on the left and selected items on the right.
@@ -21,6 +24,7 @@ V NEXT
   host apps no longer need copied SelectoComponents hook bundles.
 - Updated compact picker summaries to show human-readable datetime format labels
   like `day of week` instead of raw format tokens such as `D`.
+- Bump package version to `0.3.20`.
 
 V 0.3.19
 --------
