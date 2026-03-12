@@ -383,6 +383,8 @@ defmodule SelectoComponents.Form.ParamsState do
   """
   def view_from_params(params, socket) do
     try do
+      params = canonicalize_form_params(params)
+
       # First, clear any existing query results to prevent stale data display
       socket =
         Phoenix.Component.assign(socket,
@@ -1171,7 +1173,9 @@ defmodule SelectoComponents.Form.ParamsState do
   Build view_config from URL params, updating full state including view-specific configs.
   """
   def params_to_state(params, socket) do
+    params = canonicalize_form_params(params)
     filters = view_filter_process(params, "filters")
+    existing_config = socket.assigns[:view_config] || %{}
 
     view_configs =
       Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
@@ -1179,10 +1183,9 @@ defmodule SelectoComponents.Form.ParamsState do
           view => ViewRuntime.param_to_state(view_tuple, params)
         })
       end)
+      |> preserve_missing_detail_view_params(existing_config, params)
 
     # Preserve existing view_config and only update what's in params
-    existing_config = socket.assigns[:view_config] || %{}
-
     Phoenix.Component.assign(socket,
       view_config:
         Map.merge(existing_config, %{
@@ -1192,6 +1195,61 @@ defmodule SelectoComponents.Form.ParamsState do
         })
     )
   end
+
+  defp preserve_missing_detail_view_params(view_configs, existing_config, params) do
+    existing_detail = get_in(existing_config, [:views, :detail]) || %{}
+    detail_config = Map.get(view_configs, :detail, %{})
+
+    detail_config =
+      detail_config
+      |> preserve_scalar_when_missing(existing_detail, params, "row_click_action")
+      |> preserve_scalar_when_missing(existing_detail, params, "per_page")
+      |> preserve_scalar_when_missing(existing_detail, params, "max_rows")
+      |> preserve_scalar_when_missing(existing_detail, params, "count_mode")
+      |> preserve_scalar_when_missing(existing_detail, params, "prevent_denormalization")
+
+    Map.put(view_configs, :detail, detail_config)
+  end
+
+  defp preserve_scalar_when_missing(detail_config, existing_detail, params, param_key) do
+    if is_map(params) and Map.has_key?(params, param_key) do
+      detail_config
+    else
+      preserve_scalar_from_existing(detail_config, existing_detail, param_key)
+    end
+  end
+
+  defp preserve_scalar_from_existing(detail_config, existing_detail, param_key) do
+    param_atom = detail_param_atom(param_key)
+    existing_value = Map.get(existing_detail, param_atom, Map.get(existing_detail, param_key))
+
+    if is_nil(existing_value) do
+      detail_config
+    else
+      Map.put(detail_config, param_atom, existing_value)
+    end
+  end
+
+  defp detail_param_atom("row_click_action"), do: :row_click_action
+  defp detail_param_atom("per_page"), do: :per_page
+  defp detail_param_atom("max_rows"), do: :max_rows
+  defp detail_param_atom("count_mode"), do: :count_mode
+  defp detail_param_atom("prevent_denormalization"), do: :prevent_denormalization
+
+  def canonicalize_form_params(params) when is_map(params) do
+    row_click_action =
+      normalize_optional_scalar(get_map_value(params, "row_click_action_ui")) ||
+        normalize_optional_scalar(get_map_value(params, "value")) ||
+        normalize_optional_scalar(get_map_value(params, "row_click_action"))
+
+    if is_nil(row_click_action) do
+      params
+    else
+      Map.put(params, "row_click_action", row_click_action)
+    end
+  end
+
+  def canonicalize_form_params(params), do: params
 
   @doc """
   Convert saved view configuration to full params format.

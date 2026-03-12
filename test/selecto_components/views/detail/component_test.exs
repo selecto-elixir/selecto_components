@@ -238,6 +238,117 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert detail_data.title_template == ~S(Workspace #{{id}} - {{name}})
   end
 
+  test "show_row_details includes iframe modal payload" do
+    domain = %{
+      name: "DetailIframeActionTest",
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, name: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        workspace_preview: %{
+          name: "Workspace Preview",
+          type: :iframe_modal,
+          required_fields: [:id],
+          payload: %{
+            title: ~S(Preview #{{id}}),
+            url_template: "/workspaces/{{id}}/preview",
+            sandbox: "allow-scripts"
+          }
+        }
+      }
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        selecto:
+          Selecto.configure(domain, nil)
+          |> Map.put(:set, %{
+            columns: [
+              %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+              %{"field" => "name", "alias" => "name", "uuid" => "name-col"}
+            ]
+          }),
+        enable_modal_detail: false,
+        view_meta: %{row_click_action: "workspace_preview"},
+        processed_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"]},
+        query_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"], ["id", "name"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.action_type == :iframe_modal
+    assert detail_data.iframe_url == "/workspaces/117/preview"
+    assert detail_data.url_template == "/workspaces/{{id}}/preview"
+    assert detail_data.iframe_sandbox == "allow-scripts"
+  end
+
+  test "show_row_details includes live component payload" do
+    domain = %{
+      name: "DetailLiveComponentActionTest",
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, name: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        workspace_component: %{
+          name: "Workspace Component",
+          type: :live_component,
+          required_fields: [:id, :name],
+          payload: %{
+            title: ~S(Component #{{id}}),
+            module: SelectoComponents.Modal.DetailModal,
+            assigns: %{
+              workspace_id: {:field, "id"},
+              workspace_name: {:field, "name"}
+            }
+          }
+        }
+      }
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        selecto:
+          Selecto.configure(domain, nil)
+          |> Map.put(:set, %{
+            columns: [
+              %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+              %{"field" => "name", "alias" => "name", "uuid" => "name-col"}
+            ]
+          }),
+        enable_modal_detail: false,
+        view_meta: %{row_click_action: "workspace_component"},
+        processed_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"]},
+        query_results: {[[117, "Austin Workspace 2-1"]], ["id", "name"], ["id", "name"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.action_type == :live_component
+    assert detail_data.component_module == SelectoComponents.Modal.DetailModal
+    assert detail_data.component_assigns.workspace_id == 117
+    assert detail_data.component_assigns.workspace_name == "Austin Workspace 2-1"
+  end
+
   test "renders external link row action data attributes" do
     domain = %{
       name: "DetailExternalLinkTest",

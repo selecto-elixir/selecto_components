@@ -404,7 +404,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                   @row_action_missing_fields != [] ->
                     "none"
 
-                  @row_action && @row_action.type == :modal ->
+                  @row_action && modal_row_action?(@row_action.type) ->
                     "modal"
 
                   resolved_row_link ->
@@ -669,7 +669,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         )
       )
 
-    if total_records == 0 or is_nil(row_action) or row_action.type != :modal or
+    if total_records == 0 or is_nil(row_action) or not modal_row_action?(row_action.type) or
          row_action_missing_fields != [] do
       {:noreply, socket}
     else
@@ -698,27 +698,37 @@ defmodule SelectoComponents.Views.Detail.Component do
 
       modal_options = RowActions.resolve_modal_options(row_action, row_context)
 
+      action_specific_data =
+        case row_action.type do
+          :iframe_modal -> RowActions.resolve_iframe_modal(row_action, row_context) || %{}
+          :live_component -> RowActions.resolve_live_component(row_action, row_context) || %{}
+          _ -> %{}
+        end
+
       # Send event to parent to show modal
       send(
         self(),
         {:show_detail_modal,
-         %{
-           action_id: row_action.id,
-           action_source: Map.get(row_action, :source, :configured),
-           action_type: row_action.type,
-           record: display_record,
-           current_index: index,
-           total_records: total_records,
-           records: modal_records,
-           fields: aliases,
-           related_data: build_related_data(display_record, socket),
-           title: Map.get(modal_options, :title, row_action.name || "Record Details"),
-           title_template: row_action.payload |> config_get("title"),
-           subtitle_field: Map.get(modal_options, :subtitle_field),
-           size: Map.get(modal_options, :size, :lg),
-           navigation_enabled: Map.get(modal_options, :navigation_enabled, true),
-           edit_enabled: Map.get(modal_options, :edit_enabled, false)
-         }}
+         Map.merge(
+           %{
+             action_id: row_action.id,
+             action_source: Map.get(row_action, :source, :configured),
+             action_type: row_action.type,
+             record: display_record,
+             current_index: index,
+             total_records: total_records,
+             records: modal_records,
+             fields: aliases,
+             related_data: build_related_data(display_record, socket),
+             title: Map.get(modal_options, :title, row_action.name || "Record Details"),
+             title_template: row_action.payload |> config_get("title"),
+             subtitle_field: Map.get(modal_options, :subtitle_field),
+             size: Map.get(modal_options, :size, :lg),
+             navigation_enabled: Map.get(modal_options, :navigation_enabled, true),
+             edit_enabled: Map.get(modal_options, :edit_enabled, false)
+           },
+           action_specific_data
+         )}
       )
 
       {:noreply, socket}
@@ -788,6 +798,12 @@ defmodule SelectoComponents.Views.Detail.Component do
       config_get(column, "alias") || config_get(column, "field") || ""
     end)
   end
+
+  defp modal_row_action?(action_type)
+       when action_type in [:modal, :iframe_modal, :live_component],
+       do: true
+
+  defp modal_row_action?(_action_type), do: false
 
   defp build_display_record(row, columns, aliases) when is_list(row) do
     build_modal_record(row, columns, aliases)

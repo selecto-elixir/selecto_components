@@ -70,6 +70,44 @@ defmodule SelectoComponents.Views.Detail.RowActions do
 
   def resolve_external_link(_action, _row_context), do: nil
 
+  def resolve_iframe_modal(%{type: :iframe_modal, payload: payload}, row_context)
+      when is_map(payload) do
+    url_template = map_get(payload, :url_template)
+    iframe_url = resolve_template(url_template, row_context)
+
+    if is_binary(iframe_url) and String.trim(iframe_url) != "" do
+      %{
+        iframe_url: iframe_url,
+        url_template: url_template,
+        iframe_allow: normalize_optional_string(map_get(payload, :allow)),
+        iframe_referrer_policy: normalize_optional_string(map_get(payload, :referrer_policy)),
+        iframe_sandbox: normalize_optional_string(map_get(payload, :sandbox))
+      }
+    else
+      nil
+    end
+  end
+
+  def resolve_iframe_modal(_action, _row_context), do: nil
+
+  def resolve_live_component(%{type: :live_component, payload: payload}, row_context)
+      when is_map(payload) do
+    component_module = map_get(payload, :module)
+    component_assigns_template = map_get(payload, :assigns, %{})
+
+    if is_atom(component_module) do
+      %{
+        component_module: component_module,
+        component_assigns_template: component_assigns_template,
+        component_assigns: resolve_component_assigns(component_assigns_template, row_context)
+      }
+    else
+      nil
+    end
+  end
+
+  def resolve_live_component(_action, _row_context), do: nil
+
   def resolve_modal_options(action, row_context) when is_map(action) and is_map(row_context) do
     payload = Map.get(action, :payload, %{})
 
@@ -83,6 +121,16 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     )
     |> Map.put(:edit_enabled, normalize_boolean(map_get(payload, :edit_enabled), false))
   end
+
+  def resolve_component_assigns(assigns_template, source) when is_map(assigns_template) do
+    context = template_context(source)
+
+    Map.new(assigns_template, fn {key, value} ->
+      {normalize_assign_key(key), resolve_component_assign_value(value, context, source)}
+    end)
+  end
+
+  def resolve_component_assigns(_assigns_template, _source), do: %{}
 
   defp registered_actions(selecto) do
     selecto
@@ -157,12 +205,16 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   defp normalize_payload(payload) when is_map(payload), do: payload
   defp normalize_payload(_payload), do: %{}
 
-  defp normalize_action_type(value) when value in [:modal, :external_link], do: value
+  defp normalize_action_type(value)
+       when value in [:modal, :iframe_modal, :external_link, :live_component],
+       do: value
 
   defp normalize_action_type(value) when is_binary(value) do
     case String.trim(value) do
       "modal" -> :modal
+      "iframe_modal" -> :iframe_modal
       "external_link" -> :external_link
+      "live_component" -> :live_component
       _ -> nil
     end
   end
@@ -184,7 +236,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
 
   defp normalize_modal_size(_size), do: nil
 
-  defp resolve_template(template, row_context) when is_binary(template) do
+  def resolve_template(template, row_context) when is_binary(template) do
     context = template_context(row_context)
 
     Regex.replace(~r/\{\{\s*([^}]+?)\s*\}\}/, template, fn _, key ->
@@ -195,15 +247,16 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     end)
   end
 
-  defp resolve_template(nil, _row_context), do: nil
-  defp resolve_template(template, _row_context), do: template
+  def resolve_template(nil, _row_context), do: nil
+  def resolve_template(template, _row_context), do: template
 
-  defp template_context(row_context) do
-    row_context
-    |> Map.get(:display_record, %{})
+  defp template_context(%{display_record: display_record, field_values: field_values}) do
+    display_record
     |> stringify_keys()
-    |> Map.merge(row_context |> Map.get(:field_values, %{}) |> stringify_keys())
+    |> Map.merge(stringify_keys(field_values))
   end
+
+  defp template_context(record) when is_map(record), do: stringify_keys(record)
 
   defp stringify_keys(map) when is_map(map) do
     Map.new(map, fn
@@ -260,6 +313,52 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   defp normalize_optional_string(value) when is_integer(value), do: Integer.to_string(value)
   defp normalize_optional_string(value) when is_float(value), do: to_string(value)
   defp normalize_optional_string(_value), do: nil
+
+  defp normalize_assign_key(key) when is_atom(key), do: key
+
+  defp normalize_assign_key(key) when is_binary(key) do
+    try do
+      String.to_existing_atom(key)
+    rescue
+      ArgumentError -> String.to_atom(key)
+    end
+  end
+
+  defp normalize_assign_key(key), do: key
+
+  defp resolve_component_assign_value({:field, field_name}, context, _source) do
+    field_name
+    |> normalize_optional_string()
+    |> then(&Map.get(context, &1))
+  end
+
+  defp resolve_component_assign_value(%{field: field_name}, context, _source) do
+    resolve_component_assign_value({:field, field_name}, context, %{})
+  end
+
+  defp resolve_component_assign_value(%{"field" => field_name}, context, _source) do
+    resolve_component_assign_value({:field, field_name}, context, %{})
+  end
+
+  defp resolve_component_assign_value(value, _context, source) when is_binary(value) do
+    if String.contains?(value, "{{") do
+      resolve_template(value, source)
+    else
+      value
+    end
+  end
+
+  defp resolve_component_assign_value(value, context, source) when is_list(value) do
+    Enum.map(value, &resolve_component_assign_value(&1, context, source))
+  end
+
+  defp resolve_component_assign_value(value, context, source) when is_map(value) do
+    Map.new(value, fn {key, nested_value} ->
+      {normalize_assign_key(key), resolve_component_assign_value(nested_value, context, source)}
+    end)
+  end
+
+  defp resolve_component_assign_value(value, _context, _source), do: value
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

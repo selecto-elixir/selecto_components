@@ -10,6 +10,7 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   Modal wrapper component with backdrop and animations.
   """
   def modal(assigns) do
+    assigns = assign_new(assigns, :icon, fn -> nil end)
     assigns = assign_new(assigns, :icon_type, fn -> :info end)
     assigns = assign_new(assigns, :show, fn -> true end)
     assigns = assign_new(assigns, :on_prev, fn -> nil end)

@@ -5,6 +5,7 @@ defmodule SelectoComponents.Views.Detail.Form do
 
   @detail_per_page_options [30, 60, 100]
 
+  @impl true
   def render(assigns) do
     detail_config =
       assigns.view_config
@@ -44,10 +45,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.get(:count_mode, Map.get(detail_config, "count_mode", Options.default_count_mode()))
       |> to_string()
 
-    row_click_action =
-      detail_config
-      |> Map.get(:row_click_action, Map.get(detail_config, "row_click_action", ""))
-      |> to_string()
+    row_click_action = current_row_click_action(assigns, detail_config)
 
     prevent_denormalization =
       Map.get(
@@ -75,6 +73,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       |> Map.put(:detail_count_mode_options, Options.count_mode_options())
       |> Map.put(:row_action_options, row_action_options)
       |> Map.put(:selected_row_action, selected_row_action)
+      |> Map.put(:detail_row_click_action_dom_id, row_click_action_dom_id(row_click_action))
 
     ~H"""
     <div>
@@ -195,7 +194,11 @@ defmodule SelectoComponents.Views.Detail.Form do
         <label class="block text-sm">
           <span class="text-xs font-medium text-gray-700">Row Click Action</span>
           <select
+            id={@detail_row_click_action_dom_id}
             name="row_click_action"
+            value={@detail_row_click_action}
+            phx-change="set_row_click_action"
+            phx-target={@myself}
             class="mt-1 select select-bordered select-sm w-full bg-white"
           >
             <option value="" selected={@detail_row_click_action == ""}>None</option>
@@ -238,6 +241,32 @@ defmodule SelectoComponents.Views.Detail.Form do
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("set_row_click_action", params, socket) do
+    action_id =
+      case params do
+        %{"row_click_action" => action_id} -> action_id
+        %{"value" => %{"value" => action_id}} -> action_id
+        %{"value" => action_id} -> action_id
+        _ -> ""
+      end
+
+    normalized_action_id = Options.normalize_row_click_action_param(action_id)
+
+    updated_view_config =
+      update_in(
+        socket.assigns.view_config,
+        [Access.key(:views, %{}), Access.key(:detail, %{})],
+        fn detail_config ->
+          Map.put(detail_config, :row_click_action, normalized_action_id)
+        end
+      )
+
+    send(self(), {:update_view_config, updated_view_config})
+
+    {:noreply, assign(socket, view_config: updated_view_config)}
   end
 
   defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
@@ -304,9 +333,31 @@ defmodule SelectoComponents.Views.Detail.Form do
   end
 
   defp row_action_type_label(:modal), do: "Modal"
+  defp row_action_type_label(:iframe_modal), do: "Iframe modal"
   defp row_action_type_label(:external_link), do: "Open link"
+  defp row_action_type_label(:live_component), do: "Live component"
   defp row_action_type_label(_type), do: "Unknown"
 
   defp required_fields_label([]), do: "None"
   defp required_fields_label(fields), do: Enum.join(fields, ", ")
+
+  defp current_row_click_action(assigns, detail_config) do
+    param_action =
+      assigns
+      |> Map.get(:params, %{})
+      |> Map.get("row_click_action")
+
+    action =
+      if is_binary(param_action) and String.trim(param_action) != "" do
+        param_action
+      else
+        Map.get(detail_config, :row_click_action, Map.get(detail_config, "row_click_action", ""))
+      end
+
+    to_string(action || "")
+  end
+
+  defp row_click_action_dom_id(""), do: "detail-row-click-action-none"
+  defp row_click_action_dom_id(nil), do: "detail-row-click-action-none"
+  defp row_click_action_dom_id(action_id), do: "detail-row-click-action-#{action_id}"
 end

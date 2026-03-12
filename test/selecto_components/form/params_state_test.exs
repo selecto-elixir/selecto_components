@@ -163,6 +163,108 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert filter["value"] == "last_week"
   end
 
+  test "params_to_state preserves detail row click action when params omit it" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              per_page: "30",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "workspace_spotlight",
+              prevent_denormalization: true
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "30",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.row_click_action == "workspace_spotlight"
+  end
+
+  test "params_to_state prefers row_click_action_ui over stale hidden value" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "row_click_action" => "work_item_api_json",
+      "row_click_action_ui" => "work_item_api_preview",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "30",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
+  end
+
+  test "params_to_state accepts row_click_action from generic value param" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "row_click_action" => "work_item_quick_view",
+      "value" => "work_item_api_preview",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "30",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
+  end
+
   test "filters_to_params uses compact keys while preserving uuid" do
     params =
       ParamsState.filters_to_params([
