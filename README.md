@@ -22,13 +22,13 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 - [seeken/selecto_northwind](https://github.com/seeken/selecto_northwind) contains tutorials for building Selecto queries and workflows.
 - [testselecto.fly.dev](https://testselecto.fly.dev) runs the `selecto_test` app as a hosted Selecto demo.
 
-## Release Status (0.3.x)
+## Release Status (0.4.x)
 
 - **Alpha**: Core query UI flows (`SelectoComponents.Form`, result rendering,
   built-in views) are usable but not yet stable.
 - **High Risk / Experimental**: Graph/dashboard and advanced integration paths
   may change significantly and can require project-specific hardening.
-- **Maintenance Note**: Unwired experimental modules were pruned in 0.3.x to
+- **Maintenance Note**: Unwired experimental modules were pruned in 0.4.x to
   reduce surface area; only documented core flows are kept.
 - **Not Included**: Turnkey production analytics/data-backend integration is
   outside current package scope.
@@ -37,8 +37,9 @@ SelectoComponents provides a suite of Phoenix LiveView components that enable us
 
 - Phoenix 1.7+ (includes Phoenix LiveView compiler and esbuild with NODE_PATH)
 - Elixir ~> 1.18
-- Selecto ~> 0.3.16 (core library)
-- selecto_mix ~> 0.3.16 (for code generation and integration tasks)
+- Selecto ~> 0.4.0 (core library)
+- A Selecto adapter package such as `selecto_db_postgresql ~> 0.4.0`
+- selecto_mix ~> 0.4.0 (for code generation and integration tasks)
 
 ## Installation
 
@@ -49,14 +50,17 @@ In your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.3.21"},
-    {:selecto, "~> 0.3.16"},
+    {:selecto_components, "~> 0.4.0"},
+    {:selecto, "~> 0.4.0"},
+    {:selecto_db_postgresql, "~> 0.4.0"},
     # Optional extension package for map/spatial views
     {:selecto_postgis, "~> 0.1"},
-    {:selecto_mix, "~> 0.3.16"}  # For generators and integration
+    {:selecto_mix, "~> 0.4.0"}  # For generators and integration
   ]
 end
 ```
+
+Replace `selecto_db_postgresql` with the adapter package your application uses.
 
 Then install:
 ```bash
