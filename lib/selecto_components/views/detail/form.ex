@@ -139,11 +139,14 @@ defmodule SelectoComponents.Views.Detail.Form do
           />
         </:item_form>
       </.live_component>
-      <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+      <div class="mt-4 rounded-md border border-base-300 bg-base-200 px-3 py-2">
         <div class="grid gap-3 md:grid-cols-3">
           <label class="block text-sm">
-            <span class="text-xs font-medium text-gray-700">Rows Per Page</span>
-            <select name="per_page" class="mt-1 select select-bordered select-sm w-full bg-white">
+            <span class="text-xs font-medium text-base-content/80">Rows Per Page</span>
+            <select
+              name="per_page"
+              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
+            >
               <option
                 :for={i <- @detail_per_page_options}
                 selected={@detail_per_page == to_string(i)}
@@ -155,10 +158,10 @@ defmodule SelectoComponents.Views.Detail.Form do
           </label>
 
           <label class="block text-sm">
-            <span class="text-xs font-medium text-gray-700">Max Rows Returned</span>
+            <span class="text-xs font-medium text-base-content/80">Max Rows Returned</span>
             <select
               name="max_rows"
-              class="mt-1 select select-bordered select-sm w-full bg-white"
+              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
             >
               <option
                 :for={option <- @detail_max_rows_options}
@@ -171,8 +174,11 @@ defmodule SelectoComponents.Views.Detail.Form do
           </label>
 
           <label class="block text-sm">
-            <span class="text-xs font-medium text-gray-700">Count Strategy</span>
-            <select name="count_mode" class="mt-1 select select-bordered select-sm w-full bg-white">
+            <span class="text-xs font-medium text-base-content/80">Count Strategy</span>
+            <select
+              name="count_mode"
+              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
+            >
               <option
                 :for={option <- @detail_count_mode_options}
                 selected={@detail_count_mode == to_string(option)}
@@ -190,16 +196,16 @@ defmodule SelectoComponents.Views.Detail.Form do
         </div>
       </div>
 
-      <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+      <div class="mt-4 rounded-md border border-base-300 bg-base-200 px-3 py-2">
         <label class="block text-sm">
-          <span class="text-xs font-medium text-gray-700">Row Click Action</span>
+          <span class="text-xs font-medium text-base-content/80">Row Click Action</span>
           <select
             id={@detail_row_click_action_dom_id}
             name="row_click_action"
             value={@detail_row_click_action}
             phx-change="set_row_click_action"
             phx-target={@myself}
-            class="mt-1 select select-bordered select-sm w-full bg-white"
+            class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
           >
             <option value="" selected={@detail_row_click_action == ""}>None</option>
             <option
@@ -212,17 +218,17 @@ defmodule SelectoComponents.Views.Detail.Form do
           </select>
         </label>
 
-        <div :if={@selected_row_action} class="mt-3 space-y-1 text-xs text-gray-600">
+        <div :if={@selected_row_action} class="mt-3 space-y-1 text-xs text-base-content/70">
           <div>
-            <span class="font-medium text-gray-700">Type:</span>
+            <span class="font-medium text-base-content/80">Type:</span>
             {row_action_type_label(@selected_row_action.type)}
           </div>
           <div :if={@selected_row_action.description}>
-            <span class="font-medium text-gray-700">Description:</span>
+            <span class="font-medium text-base-content/80">Description:</span>
             {@selected_row_action.description}
           </div>
           <div>
-            <span class="font-medium text-gray-700">Required fields:</span>
+            <span class="font-medium text-base-content/80">Required fields:</span>
             {required_fields_label(@selected_row_action.required_fields)}
           </div>
         </div>
@@ -234,9 +240,11 @@ defmodule SelectoComponents.Views.Detail.Form do
             type="checkbox"
             name="prevent_denormalization"
             checked={@detail_prevent_denormalization}
-            class="rounded border-gray-300"
+            class="rounded border-base-300 bg-base-100 text-primary"
           />
-          <span class="text-sm">Prevent Denormalization (show related data in nested tables)</span>
+          <span class="text-sm text-base-content/80">
+            Prevent Denormalization (show related data in nested tables)
+          </span>
         </label>
       </div>
     </div>

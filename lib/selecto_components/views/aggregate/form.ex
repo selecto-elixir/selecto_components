@@ -36,14 +36,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
     ~H"""
     <div>
-      <div class="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-        <label for="aggregate_per_page" class="text-xs font-medium text-gray-700">
+      <div class="mb-3 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+        <label for="aggregate_per_page" class="text-xs font-medium text-base-content/80">
           Aggregate Rows/Page
         </label>
         <select
           id="aggregate_per_page"
           name="aggregate_per_page"
-          class="mt-1 select select-bordered select-sm w-36 bg-white"
+          class="mt-1 select select-bordered select-sm w-36 border-base-300 bg-base-100 text-base-content"
         >
           <%= for option <- @aggregate_per_page_options do %>
             <option value={to_string(option)} selected={@aggregate_per_page == to_string(option)}>
@@ -52,14 +52,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           <% end %>
         </select>
 
-        <label class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700">
+        <label class="mt-3 inline-flex items-center gap-2 text-sm text-base-content/80">
           <input type="hidden" name="aggregate_grid" value="false" />
           <input
             type="checkbox"
             name="aggregate_grid"
             value="true"
             checked={@aggregate_grid}
-            class="checkbox checkbox-sm"
+            class="checkbox checkbox-sm border-base-300 bg-base-100 text-primary"
           />
           Grid view (2 group-by + 1 aggregate)
         </label>

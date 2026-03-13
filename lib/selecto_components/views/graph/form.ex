@@ -18,10 +18,10 @@ defmodule SelectoComponents.Views.Graph.Form do
     <div class="space-y-6">
       <!-- Chart Type Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Chart Type</label>
+        <label class="block text-sm font-medium text-base-content/80 mb-2">Chart Type</label>
         <select
           name="chart_type"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="bar" selected={@graph_chart_type == "bar"}>Bar Chart</option>
           <option value="line" selected={@graph_chart_type == "line"}>Line Chart</option>
@@ -33,7 +33,7 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- X-Axis Configuration -->
       <div>
-        <h3 class="text-lg font-medium text-gray-900 mb-3">X-Axis (Categories)</h3>
+        <h3 class="text-lg font-medium text-base-content mb-3">X-Axis (Categories)</h3>
         <.live_component
           module={SelectoComponents.Components.ListPicker}
           id={"#{@graph_view_key}_x_axis"}
@@ -68,7 +68,7 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Y-Axis Configuration -->
       <div>
-        <h3 class="text-lg font-medium text-gray-900 mb-3">Y-Axis (Values)</h3>
+        <h3 class="text-lg font-medium text-base-content mb-3">Y-Axis (Values)</h3>
         <.live_component
           module={SelectoComponents.Components.ListPicker}
           id={"#{@graph_view_key}_y_axis"}
@@ -101,8 +101,8 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Series Configuration (Optional) -->
       <div>
-        <h3 class="text-lg font-medium text-gray-900 mb-3">Series Grouping (Optional)</h3>
-        <p class="text-sm text-gray-600 mb-3">
+        <h3 class="text-lg font-medium text-base-content mb-3">Series Grouping (Optional)</h3>
+        <p class="text-sm text-base-content/70 mb-3">
           Add a secondary grouping to create multiple data series in your chart.
         </p>
         <.live_component
@@ -139,53 +139,53 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Chart Options -->
       <div>
-        <h3 class="text-lg font-medium text-gray-900 mb-3">Chart Options</h3>
+        <h3 class="text-lg font-medium text-base-content mb-3">Chart Options</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Chart Title</label>
+            <label class="block text-sm font-medium text-base-content/80 mb-1">Chart Title</label>
             <input
               name="options[title]"
               type="text"
               value={option_value(@graph_options, :title, "")}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Enter chart title"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">X-Axis Label</label>
+            <label class="block text-sm font-medium text-base-content/80 mb-1">X-Axis Label</label>
             <input
               name="options[x_axis_label]"
               type="text"
               value={option_value(@graph_options, :x_axis_label, "")}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="X-axis label"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Y-Axis Label</label>
+            <label class="block text-sm font-medium text-base-content/80 mb-1">Y-Axis Label</label>
             <input
               name="options[y_axis_label]"
               type="text"
               value={option_value(@graph_options, :y_axis_label, "")}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Y-axis label"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Y2-Axis Label</label>
+            <label class="block text-sm font-medium text-base-content/80 mb-1">Y2-Axis Label</label>
             <input
               name="options[y2_axis_label]"
               type="text"
               value={option_value(@graph_options, :y2_axis_label, "")}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Secondary Y-axis label"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Legend Position</label>
+            <label class="block text-sm font-medium text-base-content/80 mb-1">Legend Position</label>
             <select
               name="options[legend_position]"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="top" selected={option_value(@graph_options, :legend_position) == "top"}>
                 Top
@@ -219,9 +219,9 @@ defmodule SelectoComponents.Views.Graph.Form do
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :show_grid, false)}
-              class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
             />
-            <span class="text-sm text-gray-700">Show Grid Lines</span>
+            <span class="text-sm text-base-content/80">Show Grid Lines</span>
           </label>
           <label class="flex items-center">
             <input
@@ -229,9 +229,9 @@ defmodule SelectoComponents.Views.Graph.Form do
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :enable_animations, true)}
-              class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
             />
-            <span class="text-sm text-gray-700">Enable Animations</span>
+            <span class="text-sm text-base-content/80">Enable Animations</span>
           </label>
           <label class="flex items-center">
             <input
@@ -239,9 +239,9 @@ defmodule SelectoComponents.Views.Graph.Form do
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :responsive, true)}
-              class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
             />
-            <span class="text-sm text-gray-700">Responsive</span>
+            <span class="text-sm text-base-content/80">Responsive</span>
           </label>
         </div>
       </div>
