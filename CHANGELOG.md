@@ -5,6 +5,18 @@ CHANGES
 V NEXT
 ------
 
+V 0.3.21
+--------
+
+- Added configurable detail row actions with support for overlay-defined
+  `iframe_modal` and `live_component` behaviors.
+- Fixed row-click action state handling and stabilized popup/detail interactions
+  across LiveView updates.
+- Improved item picker configuration and editor stability for compact selected
+  item workflows.
+- Raised the minimum supported Elixir version to `1.18`.
+- Bump package version to `0.3.21`.
+
 V 0.3.20
 --------
 
