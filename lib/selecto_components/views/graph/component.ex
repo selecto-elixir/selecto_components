@@ -39,38 +39,38 @@ defmodule SelectoComponents.Views.Graph.Component do
     assigns = assign(assigns, :error, assigns[:execution_error])
 
     ~H"""
-    <div class="flex items-center justify-center min-h-64 bg-red-50 rounded-lg border border-red-300 p-6">
+    <div class="flex items-center justify-center min-h-64 bg-error/15 rounded-lg border border-error/40 p-6">
       <div class="text-center max-w-2xl">
-        <div class="text-4xl mb-3 text-red-500">⚠️</div>
-        <div class="font-semibold text-red-700 text-lg mb-2">Query Execution Error</div>
+        <div class="text-4xl mb-3 text-error">⚠️</div>
+        <div class="font-semibold text-error text-lg mb-2">Query Execution Error</div>
 
         <%= if is_struct(@error, Selecto.Error) do %>
           <%= if @error.message do %>
-            <div class="text-red-600 mb-2">{@error.message}</div>
+            <div class="text-error mb-2">{@error.message}</div>
           <% end %>
 
           <%= if @error.details[:exception] do %>
             <%= case @error.details.exception do %>
               <% %{__struct__: module, postgres: postgres}
                  when module == Postgrex.Error and is_map(postgres) -> %>
-                <div class="bg-red-100 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-red-700">
+                <div class="bg-error/20 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-error">
                     {Map.get(postgres, :message, "Database error occurred")}
                   </div>
                   <%= if Map.get(postgres, :position) do %>
-                    <div class="text-xs text-red-600 mt-1">
+                    <div class="text-xs text-error/90 mt-1">
                       Position: {postgres.position}
                     </div>
                   <% end %>
                   <%= if Map.get(postgres, :code) do %>
-                    <div class="text-xs text-red-600 mt-1">
+                    <div class="text-xs text-error/90 mt-1">
                       Error Code: {postgres.code}
                     </div>
                   <% end %>
                 </div>
               <% _ -> %>
-                <div class="bg-red-100 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-red-700">
+                <div class="bg-error/20 rounded p-3 mt-3 text-left">
+                  <div class="font-mono text-sm text-error">
                     {inspect(@error.details.exception)}
                   </div>
                 </div>
@@ -79,19 +79,19 @@ defmodule SelectoComponents.Views.Graph.Component do
 
           <%= if @error.query do %>
             <details class="mt-3 text-left">
-              <summary class="cursor-pointer text-sm text-red-600 hover:text-red-700">
+              <summary class="cursor-pointer text-sm text-error hover:text-error">
                 Show Query
               </summary>
-              <pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-x-auto"><%= @error.query %></pre>
+              <pre class="bg-base-200 p-2 rounded mt-2 text-xs overflow-x-auto text-base-content"><%= @error.query %></pre>
             </details>
           <% end %>
         <% else %>
-          <div class="text-red-600">
+          <div class="text-error">
             {inspect(@error)}
           </div>
         <% end %>
 
-        <div class="mt-4 text-sm text-gray-600">
+        <div class="mt-4 text-sm text-base-content/70">
           Please check your query configuration and try again.
         </div>
       </div>
@@ -101,10 +101,10 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_loading_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
+    <div class="flex items-center justify-center h-64 bg-base-200 rounded-lg border border-base-300">
       <div class="text-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <div class="text-blue-500 italic">Loading chart...</div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <div class="text-primary italic">Loading chart...</div>
       </div>
     </div>
     """
@@ -112,8 +112,8 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_no_results_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-red-50 rounded-lg border border-red-200">
-      <div class="text-center text-red-500">
+    <div class="flex items-center justify-center h-64 bg-error/15 rounded-lg border border-error/40">
+      <div class="text-center text-error">
         <div class="text-4xl mb-2">📊</div>
         <div class="font-semibold">No Data Available</div>
         <div class="text-sm mt-1">Query executed but returned no results for the chart.</div>
@@ -124,8 +124,8 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_unknown_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-yellow-50 rounded-lg border border-yellow-200">
-      <div class="text-center text-yellow-600">
+    <div class="flex items-center justify-center h-64 bg-warning/15 rounded-lg border border-warning/40">
+      <div class="text-center text-warning">
         <div class="font-semibold">Unknown Chart State</div>
         <div class="text-sm mt-1">
           Executed: {inspect(assigns[:executed])}<br />
@@ -154,18 +154,18 @@ defmodule SelectoComponents.Views.Graph.Component do
       )
 
     ~H"""
-    <div class="bg-white rounded-lg border border-gray-200 p-6">
+    <div class="bg-base-100 rounded-lg border border-base-300 p-6">
       <!-- Chart Header with Title and Controls -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-gray-800">
+          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-base-content">
             {get_in(@chart_options, [:title])}
           </h3>
         </div>
         <div class="flex items-center gap-2">
           <button
             data-export
-            class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs leading-4 font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            class="inline-flex items-center rounded border border-base-300 bg-base-100 px-3 py-1 text-xs leading-4 font-medium text-base-content/80 shadow-sm hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
           >
             📥 Export
           </button>
@@ -273,12 +273,12 @@ defmodule SelectoComponents.Views.Graph.Component do
       </script>
       
     <!-- Chart Legend/Summary -->
-      <div class="mt-4 text-sm text-gray-600">
+      <div class="mt-4 text-sm text-base-content/70">
         <div class="flex items-center justify-between">
           <span>
             {chart_summary(@chart_data, @chart_type)}
           </span>
-          <span class="text-xs text-gray-400">
+          <span class="text-xs text-base-content/60">
             Click data points to drill down
           </span>
         </div>

@@ -13,6 +13,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           order_by: [],
           per_page: "60",
           max_rows: "10000",
+          row_click_action: "customer_profile",
           prevent_denormalization: true
         }
       }
@@ -23,6 +24,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["view_mode"] == "detail"
     assert params["per_page"] == "60"
     assert params["max_rows"] == "10000"
+    assert params["row_click_action"] == "customer_profile"
     assert params["prevent_denormalization"] == "true"
   end
 
@@ -159,6 +161,107 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     [{"f1", "filters", filter}] = updated.assigns.view_config.filters
 
     assert filter["value"] == "last_week"
+  end
+
+  test "params_to_state preserves detail row click action when params omit it" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              per_page: "30",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "workspace_spotlight",
+              prevent_denormalization: true
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "30",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.row_click_action == "workspace_spotlight"
+  end
+
+  test "params_to_state prefers row_click_action_ui over stale hidden value" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "row_click_action" => "work_item_api_json",
+      "row_click_action_ui" => "work_item_api_preview",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "30",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
+  end
+
+  test "submitted_form_params drops LiveView noise and preserves submitted row_click_action" do
+    params = %{
+      "_target" => ["row_click_action"],
+      "_unused_per_page" => "",
+      "row_click_action" => "work_item_api_preview",
+      "prevent_denormalization" => "on",
+      "selected" => %{
+        "k0" => %{
+          "_unused_alias" => "",
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "123"
+        }
+      }
+    }
+
+    assert ParamsState.submitted_form_params(params) == %{
+             "row_click_action" => "work_item_api_preview",
+             "prevent_denormalization" => "true",
+             "selected" => %{
+               "k0" => %{
+                 "field" => "id",
+                 "index" => "0",
+                 "uuid" => "123"
+               }
+             }
+           }
   end
 
   test "filters_to_params uses compact keys while preserving uuid" do
@@ -355,6 +458,25 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["image_overlay_bounds"] == "33.7,-123.5,49.5,-117.0"
     assert params["image_overlay_opacity"] == "0.6"
     assert params["image_overlay_rotation"] == "-12"
+  end
+
+  test "convert_saved_config_to_full_params restores detail row click action" do
+    saved = %{
+      "detail" => %{
+        "selected" => [],
+        "order_by" => [],
+        "per_page" => "30",
+        "max_rows" => "1000",
+        "count_mode" => "bounded",
+        "row_click_action" => "customer_profile",
+        "prevent_denormalization" => true
+      }
+    }
+
+    params = ParamsState.convert_saved_config_to_full_params(saved, "detail")
+
+    assert params["view_mode"] == "detail"
+    assert params["row_click_action"] == "customer_profile"
   end
 
   test "convert_saved_config_to_full_params restores map layer settings" do

@@ -5,6 +5,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   """
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.EnhancedTable.Sorting
+  alias SelectoComponents.Views.Detail.RowActions
   use Phoenix.LiveComponent
 
   def mount(socket) do
@@ -52,10 +53,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       ~H"""
       <div>
         <%= if @execution_error do %>
-          <div
-            class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
-            role="alert"
-          >
+          <div class="bg-error/15 border border-error/40 text-error px-4 py-3 rounded relative mb-4" role="alert">
             <strong class="font-bold">Query Error:</strong>
             <span class="block sm:inline">
               <%= case @execution_error do %>
@@ -70,12 +68,12 @@ defmodule SelectoComponents.Views.Detail.Component do
             <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) do %>
               <details class="mt-2">
                 <summary class="cursor-pointer text-sm">Debug Details</summary>
-                <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+                <pre class="text-xs mt-2 bg-error/20 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
               </details>
             <% end %>
           </div>
         <% end %>
-        <div class="text-gray-500 italic p-4">
+        <div class="text-base-content/70 italic p-4">
           View cannot be displayed due to the query error shown above.
         </div>
       </div>
@@ -87,7 +85,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Query is being executed or hasn't been executed yet
           ~H"""
           <div>
-            <div class="text-blue-500 italic p-4">Loading view...</div>
+            <div class="text-info italic p-4">Loading view...</div>
           </div>
           """
 
@@ -95,7 +93,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Executed but no results - this is an error state
           ~H"""
           <div>
-            <div class="text-red-500 p-4">
+            <div class="text-error p-4">
               <div class="font-semibold">No Results</div>
               <div class="text-sm mt-1">Query executed but returned no results.</div>
             </div>
@@ -157,6 +155,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     assigns =
       assign(assigns,
         aliases: aliases,
+        visible_aliases: visible_aliases(Map.get(assigns.selecto.set, :columns, [])),
         results: normalized_results,
         total_rows: total_rows,
         row_offset: row_offset,
@@ -165,9 +164,31 @@ defmodule SelectoComponents.Views.Detail.Component do
         page_end: page_end,
         total_pages: total_pages,
         columns: Map.get(assigns.selecto.set, :columns, []),
+        row_action_query_columns:
+          Map.get(
+            assigns.selecto.set,
+            :row_action_query_columns,
+            Map.get(assigns.selecto.set, :columns, [])
+          ),
         column_uuids:
           Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
         max_page: max_page
+      )
+
+    row_action =
+      resolve_current_row_action(
+        assigns.selecto,
+        assigns.view_meta,
+        assigns[:enable_modal_detail]
+      )
+
+    row_action_missing_fields =
+      RowActions.missing_required_fields(row_action, assigns.row_action_query_columns)
+
+    assigns =
+      assign(assigns,
+        row_action: row_action,
+        row_action_missing_fields: row_action_missing_fields
       )
 
     ~H"""
@@ -179,14 +200,14 @@ defmodule SelectoComponents.Views.Detail.Component do
         execution_time={Map.get(assigns, :execution_time)}
       />
 
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2">
-        <div class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200 px-3 py-2">
+        <div class="inline-flex items-center gap-1 rounded-md border border-base-300 bg-base-100 p-1 shadow-sm">
           <button
             type="button"
             phx-click="set_page"
             phx-value-page={0}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-base-300 text-base-content/70 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
             title="First page"
             aria-label="First page"
             disabled={@current_page <= 0}
@@ -212,7 +233,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page - 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            class="inline-flex h-8 items-center gap-1 rounded border border-base-300 px-2 text-sm font-medium text-base-content/80 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
             title="Previous page"
             aria-label="Previous page"
             disabled={@current_page <= 0}
@@ -235,7 +256,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page + 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            class="inline-flex h-8 items-center gap-1 rounded border border-base-300 px-2 text-sm font-medium text-base-content/80 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
             title="Next page"
             aria-label="Next page"
             disabled={@current_page >= @max_page}
@@ -258,7 +279,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@max_page}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+            class="inline-flex h-8 w-8 items-center justify-center rounded border border-base-300 text-base-content/70 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
             title="Last page"
             aria-label="Last page"
             disabled={@current_page >= @max_page}
@@ -280,13 +301,13 @@ defmodule SelectoComponents.Views.Detail.Component do
           </button>
         </div>
 
-        <div class="text-sm font-medium text-gray-700">
+        <div class="text-sm font-medium text-base-content/80">
           <span class="font-semibold tabular-nums">{@page_start}-{@page_end}</span>
           of <span class="font-semibold tabular-nums">{@total_rows}</span>
           rows
         </div>
 
-        <div class="text-xs text-gray-500 tabular-nums">
+        <div class="text-xs text-base-content/70 tabular-nums">
           Page
           <span class="font-semibold">{if @total_pages > 0, do: @current_page + 1, else: 0}</span>
           of <span class="font-semibold">{@total_pages}</span>
@@ -298,13 +319,13 @@ defmodule SelectoComponents.Views.Detail.Component do
         id={"detail-table-wrapper-#{@myself}"}
         phx-hook=".RowClickable"
       >
-        <table class="min-w-full overflow-hidden divide-y ring-1 ring-gray-200  divide-gray-200 rounded-sm table-auto   sm:rounded">
+        <table class="min-w-full overflow-hidden divide-y divide-base-300 ring-1 ring-base-300 rounded-sm table-auto sm:rounded">
           <thead>
             <tr>
-              <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-gray-700 uppercase bg-gray-50 w-12 max-w-12 min-w-12">
+              <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-base-content/80 uppercase bg-base-200 w-12 max-w-12 min-w-12">
                 #
               </th>
-              <%= for {alias, idx} <- Enum.with_index(@aliases) do %>
+              <%= for {alias, idx} <- Enum.with_index(@visible_aliases) do %>
                 <% column_field = Enum.at(@columns, idx)["field"] %>
                 <Sorting.sortable_header
                   column={column_field}
@@ -319,7 +340,7 @@ defmodule SelectoComponents.Views.Detail.Component do
               <%!-- Add headers for subselect columns --%>
               <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
                 <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-                  <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50">
+                  <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-base-content/80 uppercase bg-base-200">
                     {Map.get(config, :title, config.key)}
                   </th>
                 <% end %>
@@ -356,15 +377,52 @@ defmodule SelectoComponents.Views.Detail.Component do
                 end %>
               <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
               <% # Also create a map by column name for subselects %>
-              <% {_results, columns_from_query, _aliases} = @query_results %>
+              <% {_results, columns_from_query, aliases_from_query} = @query_results %>
               <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
               <% absolute_idx = @row_offset + display_idx %>
+              <% row_action_context =
+                build_row_action_context(
+                  resrow,
+                  resrow_list,
+                  @row_action_query_columns,
+                  columns_from_query,
+                  aliases_from_query
+                ) %>
+              <% resolved_row_link =
+                if @row_action && @row_action.type == :external_link && @row_action_missing_fields == [] do
+                  @row_action
+                  |> RowActions.resolve_external_link(row_action_context)
+                  |> sanitize_row_link()
+                else
+                  nil
+                end %>
+              <% row_action_type =
+                cond do
+                  @row_action_missing_fields != [] ->
+                    "none"
+
+                  @row_action && modal_row_action?(@row_action.type) ->
+                    "modal"
+
+                  resolved_row_link ->
+                    "external_link"
+
+                  true ->
+                    "none"
+                end %>
+              <% row_clickable = row_action_type != "none" %>
 
               <tr
-                class="border-b  bg-white even:bg-gray-100   last:border-none text-sm text-gray-500  align-top hover:bg-blue-50 cursor-pointer"
-                phx-click="show_row_details"
-                phx-value-row-index={display_idx}
-                phx-target={@myself}
+                class={[
+                  "border-b border-base-300 bg-base-100 even:bg-base-200/70 last:border-none text-sm text-base-content/80 align-top",
+                  if(row_clickable, do: "hover:bg-primary/10 cursor-pointer", else: "cursor-default")
+                ]}
+                data-row-action-type={row_action_type}
+                data-row-link={resolved_row_link && resolved_row_link.url}
+                data-row-link-target={resolved_row_link && resolved_row_link.target}
+                phx-click={if row_action_type == "modal", do: "show_row_details"}
+                phx-value-row-index={if row_action_type == "modal", do: display_idx}
+                phx-target={if row_action_type == "modal", do: @myself}
               >
                 <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
                   {absolute_idx + 1}
@@ -418,11 +476,11 @@ defmodule SelectoComponents.Views.Detail.Component do
                         SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
                       <div id={"nested_#{unique_id}"}>
                         <%= if length(parsed_data) > 0 do %>
-                          <table class="min-w-full border border-gray-300 rounded">
+                          <table class="min-w-full border border-base-300 rounded">
                             <thead>
-                              <tr class="bg-gray-100">
+                              <tr class="bg-base-200">
                                 <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                  <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                                  <th class="px-2 py-1 text-xs font-medium text-base-content/80 border-b border-base-300">
                                     {SelectoComponents.Components.NestedTable.humanize_key(key)}
                                   </th>
                                 <% end %>
@@ -430,9 +488,9 @@ defmodule SelectoComponents.Views.Detail.Component do
                             </thead>
                             <tbody>
                               <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
-                                <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+                                <tr class="border-b border-base-300 last:border-b-0 hover:bg-base-200">
                                   <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                    <td class="px-2 py-1 text-xs text-gray-700">
+                                    <td class="px-2 py-1 text-xs text-base-content/80">
                                       {SelectoComponents.Components.NestedTable.format_value(
                                         Map.get(item, key, "")
                                       )}
@@ -443,7 +501,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                             </tbody>
                           </table>
                         <% else %>
-                          <div class="text-xs text-gray-500 italic">No data</div>
+                          <div class="text-xs text-base-content/70 italic">No data</div>
                         <% end %>
                       </div>
                     </td>
@@ -459,12 +517,30 @@ defmodule SelectoComponents.Views.Detail.Component do
         export default {
           mounted() {
             this.handleRowClick = (e) => {
-              const row = e.target.closest('tr[data-row-id]');
-              if (row && !e.target.closest('a, button, input, select, textarea')) {
-                const rowId = row.dataset.rowId;
-                const action = row.dataset.clickAction || 'row_clicked';
+              if (e.target.closest('a, button, input, select, textarea')) {
+                return;
+              }
 
-                this.pushEvent(action, { row_id: rowId });
+              const row = e.target.closest('tr[data-row-action-type="external_link"]');
+
+              if (row) {
+                const url = row.dataset.rowLink;
+                const target = row.dataset.rowLinkTarget || '_blank';
+
+                if (!url) {
+                  return;
+                }
+
+                if (target === '_self') {
+                  window.location.assign(url);
+                  return;
+                }
+
+                const opened = window.open(url, target);
+
+                if (opened) {
+                  opened.opener = null;
+                }
               }
             };
 
@@ -546,7 +622,8 @@ defmodule SelectoComponents.Views.Detail.Component do
     {:noreply, socket}
   end
 
-  def handle_event("show_row_details", %{"row-index" => row_index}, socket) do
+  def handle_event("show_row_details", params, socket) do
+    row_index = Map.get(params, "row-index", Map.get(params, "row_index", "0"))
     requested_index = row_index |> parse_page_param() |> max(0)
 
     # Get results from processed_results if available, otherwise extract from query_results
@@ -572,7 +649,25 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     total_records = length(normalized_results)
 
-    if total_records == 0 do
+    row_action =
+      resolve_current_row_action(
+        socket.assigns.selecto,
+        socket.assigns[:view_meta],
+        socket.assigns[:enable_modal_detail]
+      )
+
+    row_action_missing_fields =
+      RowActions.missing_required_fields(
+        row_action,
+        Map.get(
+          socket.assigns.selecto.set,
+          :row_action_query_columns,
+          Map.get(socket.assigns.selecto.set, :columns, [])
+        )
+      )
+
+    if total_records == 0 or is_nil(row_action) or not modal_row_action?(row_action.type) or
+         row_action_missing_fields != [] do
       {:noreply, socket}
     else
       index = min(requested_index, total_records - 1)
@@ -580,52 +675,57 @@ defmodule SelectoComponents.Views.Detail.Component do
 
       {_results, columns, aliases_from_query} = socket.assigns.query_results
 
-      record =
-        case row do
-          row_values when is_list(row_values) ->
-            build_modal_record(row_values, columns, aliases_from_query)
+      display_record = build_display_record(row, columns, aliases_from_query)
 
-          %{} = row_map ->
-            row_map
-
-          row_tuple when is_tuple(row_tuple) ->
-            row_tuple
-            |> Tuple.to_list()
-            |> build_modal_record(columns, aliases_from_query)
-
-          _ ->
-            %{}
-        end
+      row_context =
+        build_row_action_context(
+          row,
+          normalize_row_values(row, columns, aliases_from_query),
+          Map.get(
+            socket.assigns.selecto.set,
+            :row_action_query_columns,
+            Map.get(socket.assigns.selecto.set, :columns, [])
+          ),
+          columns,
+          aliases_from_query
+        )
 
       modal_records =
-        Enum.map(normalized_results, fn
-          row_values when is_list(row_values) ->
-            build_modal_record(row_values, columns, aliases_from_query)
+        Enum.map(normalized_results, &build_display_record(&1, columns, aliases_from_query))
 
-          %{} = row_map ->
-            row_map
+      modal_options = RowActions.resolve_modal_options(row_action, row_context)
 
-          row_tuple when is_tuple(row_tuple) ->
-            row_tuple
-            |> Tuple.to_list()
-            |> build_modal_record(columns, aliases_from_query)
-
-          _ ->
-            %{}
-        end)
+      action_specific_data =
+        case row_action.type do
+          :iframe_modal -> RowActions.resolve_iframe_modal(row_action, row_context) || %{}
+          :live_component -> RowActions.resolve_live_component(row_action, row_context) || %{}
+          _ -> %{}
+        end
 
       # Send event to parent to show modal
       send(
         self(),
         {:show_detail_modal,
-         %{
-           record: record,
-           current_index: index,
-           total_records: total_records,
-           records: modal_records,
-           fields: aliases,
-           related_data: build_related_data(record, socket)
-         }}
+         Map.merge(
+           %{
+             action_id: row_action.id,
+             action_source: Map.get(row_action, :source, :configured),
+             action_type: row_action.type,
+             record: display_record,
+             current_index: index,
+             total_records: total_records,
+             records: modal_records,
+             fields: aliases,
+             related_data: build_related_data(display_record, socket),
+             title: Map.get(modal_options, :title, row_action.name || "Record Details"),
+             title_template: row_action.payload |> config_get("title"),
+             subtitle_field: Map.get(modal_options, :subtitle_field),
+             size: Map.get(modal_options, :size, :lg),
+             navigation_enabled: Map.get(modal_options, :navigation_enabled, true),
+             edit_enabled: Map.get(modal_options, :edit_enabled, false)
+           },
+           action_specific_data
+         )}
       )
 
       {:noreply, socket}
@@ -680,6 +780,126 @@ defmodule SelectoComponents.Views.Detail.Component do
     # This would be configured based on the domain/schema relationships
     # For now, return empty map - parent component can override
     %{}
+  end
+
+  defp resolve_current_row_action(selecto, view_meta, enable_modal_detail) do
+    row_click_action = Map.get(view_meta || %{}, :row_click_action)
+
+    RowActions.current_action(selecto, row_click_action,
+      legacy_modal_enabled: enable_modal_detail == true
+    )
+  end
+
+  defp visible_aliases(columns) do
+    Enum.map(columns, fn column ->
+      config_get(column, "alias") || config_get(column, "field") || ""
+    end)
+  end
+
+  defp modal_row_action?(action_type)
+       when action_type in [:modal, :iframe_modal, :live_component],
+       do: true
+
+  defp modal_row_action?(_action_type), do: false
+
+  defp build_display_record(row, columns, aliases) when is_list(row) do
+    build_modal_record(row, columns, aliases)
+  end
+
+  defp build_display_record(%{} = row_map, _columns, _aliases), do: row_map
+
+  defp build_display_record(row_tuple, columns, aliases) when is_tuple(row_tuple) do
+    row_tuple
+    |> Tuple.to_list()
+    |> build_modal_record(columns, aliases)
+  end
+
+  defp build_display_record(_row, _columns, _aliases), do: %{}
+
+  defp normalize_row_values(row, _columns, _aliases) when is_list(row), do: row
+
+  defp normalize_row_values(row_tuple, columns, aliases) when is_tuple(row_tuple) do
+    normalize_row_values(Tuple.to_list(row_tuple), columns, aliases)
+  end
+
+  defp normalize_row_values(%{} = row_map, columns, aliases) do
+    columns
+    |> Enum.with_index()
+    |> Enum.map(fn {column, idx} ->
+      map_get_flexible(row_map, Enum.at(aliases, idx)) || map_get_flexible(row_map, column)
+    end)
+  end
+
+  defp normalize_row_values(_row, _columns, _aliases), do: []
+
+  defp build_row_action_context(
+         row,
+         row_values,
+         selected_columns,
+         columns_from_query,
+         aliases_from_query
+       ) do
+    %{
+      display_record: build_display_record(row, columns_from_query, aliases_from_query),
+      field_values:
+        build_row_field_values(
+          row,
+          row_values,
+          selected_columns,
+          columns_from_query,
+          aliases_from_query
+        )
+    }
+  end
+
+  defp build_row_field_values(
+         row,
+         row_values,
+         selected_columns,
+         columns_from_query,
+         aliases_from_query
+       ) do
+    selected_columns
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {column_config, idx}, acc ->
+      case config_get(column_config, "field") do
+        field when is_binary(field) and field != "" ->
+          value =
+            resolve_field_value(
+              row,
+              row_values,
+              idx,
+              field,
+              Enum.at(columns_from_query, idx),
+              Enum.at(aliases_from_query, idx)
+            )
+
+          Map.put(acc, field, value)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp resolve_field_value(%{} = row_map, row_values, idx, field, column_name, alias_name) do
+    map_get_flexible(row_map, field) ||
+      map_get_flexible(row_map, alias_name) ||
+      map_get_flexible(row_map, column_name) ||
+      Enum.at(row_values, idx)
+  end
+
+  defp resolve_field_value(_row, row_values, idx, _field, _column_name, _alias_name) do
+    Enum.at(row_values, idx)
+  end
+
+  defp sanitize_row_link(nil), do: nil
+
+  defp sanitize_row_link(%{url: url, target: target}) do
+    case sanitize_href(url) do
+      nil -> nil
+      safe_url -> %{url: safe_url, target: target}
+    end
   end
 
   defp build_modal_record(row, columns, aliases) when is_list(row) do
@@ -756,13 +976,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   defp fallback_value(_map, _key), do: nil
 
   defp config_get(config, key) when is_map(config) and is_binary(key) do
-    Map.get(config, key) ||
-      case key do
-        "uuid" -> Map.get(config, :uuid)
-        "field" -> Map.get(config, :field)
-        "alias" -> Map.get(config, :alias)
-        _ -> nil
-      end
+    Map.get(config, key) || fallback_value(config, key)
   end
 
   defp config_get(config, key) when is_list(config) and is_binary(key) do

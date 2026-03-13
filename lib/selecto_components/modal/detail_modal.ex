@@ -16,7 +16,18 @@ defmodule SelectoComponents.Modal.DetailModal do
        loading: false,
        current_tab: "details",
        navigation_enabled: true,
-       edit_mode: false
+       edit_mode: false,
+       icon: nil,
+       related_data: %{},
+       fields: [],
+       records: [],
+       current_index: 0,
+       total_records: 0,
+       subtitle_field: nil,
+       edit_enabled: false,
+       title: nil,
+       title_template: nil,
+       size: :lg
      )}
   end
 
@@ -36,11 +47,13 @@ defmodule SelectoComponents.Modal.DetailModal do
     <div>
       <.modal
         id={@id}
-        title={@title || "Record Details"}
+        title={build_title(assigns)}
         subtitle={build_subtitle(assigns)}
         size={@size || :lg}
         show_header={true}
         on_cancel={JS.push("close_modal", target: @myself)}
+        on_prev={modal_navigation_event(assigns, "prev", @myself)}
+        on_next={modal_navigation_event(assigns, "next", @myself)}
       >
         <:icon :if={@icon}>
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -336,7 +349,14 @@ defmodule SelectoComponents.Modal.DetailModal do
   defp load_record_at_index(socket, index) do
     if socket.assigns[:records] do
       record = Enum.at(socket.assigns.records, index)
-      assign(socket, record: record, loading: false)
+
+      socket = assign(socket, record: record, loading: false)
+
+      if is_binary(socket.assigns[:title_template]) do
+        assign(socket, title: resolve_title_template(socket.assigns.title_template, record))
+      else
+        socket
+      end
     else
       socket
     end
@@ -349,6 +369,48 @@ defmodule SelectoComponents.Modal.DetailModal do
       nil
     end
   end
+
+  defp build_title(assigns) do
+    cond do
+      is_binary(assigns[:title_template]) and assigns[:record] ->
+        resolve_title_template(assigns.title_template, assigns.record)
+
+      is_binary(assigns[:title]) and assigns.title != "" ->
+        assigns.title
+
+      true ->
+        "Record Details"
+    end
+  end
+
+  defp modal_navigation_event(assigns, direction, target) do
+    if assigns[:navigation_enabled] do
+      JS.push("navigate_record", target: target, value: %{direction: direction})
+    else
+      nil
+    end
+  end
+
+  defp resolve_title_template(template, record) when is_binary(template) and is_map(record) do
+    Regex.replace(~r/\{\{\s*([^}]+?)\s*\}\}/, template, fn _, key ->
+      key
+      |> String.trim()
+      |> then(&(Map.get(record, &1) || Map.get(record, SafeAtom.to_existing(&1))))
+      |> format_template_value()
+    end)
+  end
+
+  defp resolve_title_template(template, _record), do: template
+
+  defp format_template_value(nil), do: ""
+  defp format_template_value(value) when is_binary(value), do: value
+  defp format_template_value(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp format_template_value(value) when is_integer(value) or is_float(value),
+    do: to_string(value)
+
+  defp format_template_value(value) when is_boolean(value), do: to_string(value)
+  defp format_template_value(value), do: inspect(value)
 
   defp has_prev_record?(assigns) do
     assigns[:current_index] && assigns.current_index > 0

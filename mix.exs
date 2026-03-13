@@ -4,8 +4,8 @@ defmodule SelectoComponents.MixProject do
   def project do
     [
       app: :selecto_components,
-      version: "0.3.20",
-      elixir: "~> 1.14",
+      version: "0.3.21",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       description:
         "Alpha: Phoenix LiveView components for interactive Selecto query building and data exploration",

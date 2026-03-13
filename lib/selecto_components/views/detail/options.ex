@@ -44,6 +44,19 @@ defmodule SelectoComponents.Views.Detail.Options do
 
   def normalize_count_mode_param(_value), do: @default_count_mode
 
+  def normalize_row_click_action_param(nil), do: ""
+
+  def normalize_row_click_action_param(value) when is_binary(value) do
+    value
+    |> String.trim()
+  end
+
+  def normalize_row_click_action_param(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_row_click_action_param()
+
+  def normalize_row_click_action_param(value) when is_integer(value), do: Integer.to_string(value)
+  def normalize_row_click_action_param(_value), do: ""
+
   def normalize_max_rows_limit(value) do
     case normalize_max_rows_param(value) do
       "all" ->

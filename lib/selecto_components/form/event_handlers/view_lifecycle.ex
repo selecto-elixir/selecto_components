@@ -102,6 +102,10 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
             true ->
               Selecto.Helpers.check_safe_phrase(save_as)
 
+              params =
+                socket.assigns.view_config
+                |> ParamsState.view_config_to_params()
+
               view =
                 socket.assigns.saved_view_module.save_view(
                   save_as,
@@ -135,13 +139,14 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         with_error_handling(socket, "view-apply", fn ->
           socket =
             socket
-            |> then(&ParamsState.params_to_state(params, &1))
             |> assign(:current_detail_page, 0)
             |> ParamsState.clear_query_caches()
 
-          # Execute query first, THEN update URL to prevent race condition
-          socket = ParamsState.view_from_params(params, socket)
-          {:noreply, ParamsState.state_to_url(params, socket)}
+          committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
+
+          # Commit the current validated form state; URL is updated only after submit.
+          socket = ParamsState.view_from_params(committed_params, socket)
+          {:noreply, ParamsState.state_to_url(committed_params, socket)}
         end)
       end
 
