@@ -2,7 +2,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   @moduledoc false
 
   @default_modal_action_id "__default_modal__"
-  @modal_sizes [:sm, :md, :lg, :xl, :full]
+  @modal_sizes [:sm, :md, :lg, :xl, :full, :third, :fullscreen]
 
   def default_modal_action_id, do: @default_modal_action_id
 
@@ -230,6 +230,13 @@ defmodule SelectoComponents.Views.Detail.RowActions do
       "lg" -> :lg
       "xl" -> :xl
       "full" -> :full
+      "third" -> :third
+      "fullscreen" -> :fullscreen
+      "full_screen" -> :fullscreen
+      "full screen" -> :fullscreen
+      "1/3 screen" -> :third
+      "1/3_screen" -> :third
+      "one_third" -> :third
       _ -> nil
     end
   end

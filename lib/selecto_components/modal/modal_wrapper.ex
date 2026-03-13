@@ -163,6 +163,8 @@ defmodule SelectoComponents.Modal.ModalWrapper do
   defp size_classes(:lg), do: "sm:w-full sm:max-w-xl"
   defp size_classes(:xl), do: "sm:w-full sm:max-w-2xl"
   defp size_classes(:full), do: "sm:w-full sm:max-w-4xl"
+  defp size_classes(:third), do: "w-full sm:w-[33vw] sm:max-w-[33vw]"
+  defp size_classes(:fullscreen), do: "w-[96vw] max-w-[96vw]"
   defp size_classes(_), do: "sm:w-full sm:max-w-lg"
 
   defp icon_bg_class(:info), do: "bg-blue-100"

@@ -28,6 +28,52 @@ defmodule SelectoComponents.Modal.ActionModalTest do
     assert html =~ ~s(sandbox="allow-scripts")
   end
 
+  test "renders iframe modal with fullscreen size class" do
+    html =
+      render_component(IframeModal, %{
+        id: "iframe-modal-fullscreen-test",
+        record: %{"id" => 7},
+        current_index: 0,
+        total_records: 1,
+        records: [%{"id" => 7}],
+        title: "Preview #7",
+        iframe_url: "/workspaces/7/preview",
+        size: :fullscreen,
+        navigation_enabled: false
+      })
+
+    assert html =~ "w-[96vw] max-w-[96vw]"
+  end
+
+  test "renders iframe modal with third-width size class" do
+    html =
+      render_component(IframeModal, %{
+        id: "iframe-modal-third-test",
+        record: %{"id" => 7},
+        current_index: 0,
+        total_records: 1,
+        records: [%{"id" => 7}],
+        title: "Preview #7",
+        iframe_url: "/workspaces/7/preview",
+        size: :third,
+        navigation_enabled: false
+      })
+
+    assert html =~ "sm:w-[33vw] sm:max-w-[33vw]"
+  end
+
+  test "normalizes human-readable iframe modal size aliases" do
+    assert SelectoComponents.Views.Detail.RowActions.resolve_modal_options(
+             %{type: :iframe_modal, payload: %{"size" => "full screen"}},
+             %{}
+           ).size == :fullscreen
+
+    assert SelectoComponents.Views.Detail.RowActions.resolve_modal_options(
+             %{type: :iframe_modal, payload: %{"size" => "1/3 screen"}},
+             %{}
+           ).size == :third
+  end
+
   test "renders live component modal content" do
     html =
       render_component(LiveComponentModal, %{
