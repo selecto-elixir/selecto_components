@@ -1111,7 +1111,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp execute_raw_query(selecto, query, params) do
     cond do
-      selecto.adapter && selecto.adapter != Selecto.DB.PostgreSQL ->
+      selecto.adapter && not postgres_adapter?(selecto.adapter) ->
         Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
 
       ecto_repo?(selecto.postgrex_opts) ->
@@ -1127,6 +1127,13 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp ecto_repo?(_repo), do: false
+
+  defp postgres_adapter?(adapter) do
+    adapter in [
+      Module.concat(["Selecto", "DB", "PostgreSQL"]),
+      Module.concat(["SelectoDBPostgreSQL", "Adapter"])
+    ]
+  end
 
   defp normalize_count(value) when is_integer(value), do: value
   defp normalize_count(value) when is_float(value), do: trunc(value)

@@ -5,6 +5,18 @@ CHANGES
 V NEXT
 ------
 
+V 0.4.0
+--------
+
+- Updated SelectoComponents compatibility for the external adapter architecture
+  introduced in `selecto 0.4.0`.
+- Fixed PostgreSQL adapter detection so repo-backed execution paths treat
+  `SelectoDBPostgreSQL.Adapter` as the PostgreSQL path instead of the generic
+  adapter path.
+- Fixed aggregate rollup view generation to avoid empty `1..0` range warnings
+  when no group-by fields are selected.
+- Bump package version to `0.4.0`.
+
 V 0.3.21
 --------
 

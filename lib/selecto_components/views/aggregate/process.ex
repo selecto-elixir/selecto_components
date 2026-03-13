@@ -66,17 +66,27 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
     selected = Enum.map(group_by_with_coalesce, fn {_c, sel} -> sel end) ++ aggregate
 
+    literal_positions =
+      case Enum.count(group_by) do
+        0 -> []
+        count -> Enum.map(1..count, fn g -> {:literal_position, g} end)
+      end
+
+    rollup_group_by =
+      case literal_positions do
+        [] -> []
+        positions -> [{:rollup, positions}]
+      end
+
     view_set = %{
       groups: group_by_with_coalesce,
       gb_params: group_by_params,
       aggregates: aggregate,
       selected: selected,
       filtered: filtered,
-      group_by: [
-        {:rollup, Enum.map(1..Enum.count(group_by), fn g -> {:literal_position, g} end)}
-      ],
+      group_by: rollup_group_by,
       ### when using rollup, we need to workaround postgres bug. Currently implemented in Selecto builder
-      order_by: Enum.map(1..Enum.count(group_by), fn g -> {:literal_position, g} end)
+      order_by: literal_positions
     }
 
     {view_set, %{per_page: per_page, grid_enabled: grid}}
