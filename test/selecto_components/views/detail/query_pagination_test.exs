@@ -26,6 +26,14 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
     end
   end
 
+  defmodule CaptureMSSQLAdapter do
+    def name, do: :mssql
+
+    def execute(parent, query, params, opts) do
+      CaptureAdapter.execute(parent, query, params, opts)
+    end
+  end
+
   def handle_telemetry(_event, measurements, metadata, parent) do
     send(parent, {:detail_query_telemetry, measurements, metadata})
   end
@@ -110,6 +118,23 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
       |> Enum.find(&String.contains?(String.downcase(&1), "count(*) as total_rows"))
 
     assert is_binary(count_sql)
+    refute count_sql =~ ~r/limit\s+1000/i
+  end
+
+  test "bounded count query uses MSSQL TOP syntax for mssql adapters" do
+    selecto =
+      detail_selecto(["name"])
+      |> Map.put(:adapter, CaptureMSSQLAdapter)
+
+    {{:ok, {_rows, _columns, _aliases}, _metadata}, _updated_view_meta, _cache} =
+      QueryPagination.execute(selecto, params(), view_meta(%{count_mode: "bounded"}), socket())
+
+    count_sql =
+      collect_sql_messages()
+      |> Enum.find(&String.contains?(String.downcase(&1), "count(*) as total_rows"))
+
+    assert is_binary(count_sql)
+    assert count_sql =~ ~r/top\s*\(1000\)/i
     refute count_sql =~ ~r/limit\s+1000/i
   end
 

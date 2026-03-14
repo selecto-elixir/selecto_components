@@ -161,7 +161,7 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
 
     {base_sql, base_params} = Selecto.to_sql(count_selecto)
 
-    count_sql = build_count_sql(base_sql, max_rows_limit, count_mode)
+    count_sql = build_count_sql(base_sql, max_rows_limit, count_mode, selecto)
 
     started_at = System.monotonic_time(:millisecond)
 
@@ -189,13 +189,25 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
     end
   end
 
-  defp build_count_sql(base_sql, max_rows_limit, "bounded")
+  defp build_count_sql(base_sql, max_rows_limit, "bounded", selecto)
        when is_integer(max_rows_limit) and max_rows_limit > 0 do
-    "SELECT count(*) AS total_rows FROM (#{base_sql} LIMIT #{max_rows_limit}) AS selecto_detail_count"
+    case adapter_name(selecto) do
+      :mssql ->
+        "SELECT count(*) AS total_rows FROM (SELECT TOP (#{max_rows_limit}) * FROM (#{base_sql}) AS bounded_selecto_detail_count) AS selecto_detail_count"
+
+      _ ->
+        "SELECT count(*) AS total_rows FROM (#{base_sql} LIMIT #{max_rows_limit}) AS selecto_detail_count"
+    end
   end
 
-  defp build_count_sql(base_sql, _max_rows_limit, _count_mode) do
+  defp build_count_sql(base_sql, _max_rows_limit, _count_mode, _selecto) do
     "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
+  end
+
+  defp adapter_name(selecto) do
+    selecto
+    |> Map.get(:adapter)
+    |> Selecto.AdapterSupport.adapter_name()
   end
 
   defp build_lightweight_count_selecto(selecto) do
