@@ -71,14 +71,7 @@ defmodule SelectoComponents.Views.Graph.Process do
        filtered: filtered,
        chart_type: chart_type,
        graph_options: Map.get(params, "options", %{}),
-       group_by:
-         case all_group_by do
-           [] ->
-             []
-
-           group_fields ->
-             Enum.map(1..Enum.count(group_fields), fn g -> {:literal_position, g} end)
-         end,
+       group_by: Enum.map(all_group_by, fn {_col, sel} -> sel end),
        order_by:
          case all_group_by do
            [] ->

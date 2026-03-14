@@ -8,7 +8,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       group_by: SelectoComponents.Views.view_param_process(params, "group_by", "field"),
       aggregate: SelectoComponents.Views.view_param_process(params, "aggregate", "field"),
       per_page: Options.normalize_per_page_param(Map.get(params, "aggregate_per_page")),
-      grid: truthy_param?(Map.get(params, "aggregate_grid"))
+      grid: truthy_param?(Map.get(params, "aggregate_grid")),
+      grid_colorize: truthy_param?(Map.get(params, "aggregate_grid_colorize")),
+      grid_color_scale:
+        Options.normalize_grid_color_scale_mode(Map.get(params, "aggregate_grid_color_scale"))
     }
   end
 
@@ -21,7 +24,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         Map.get(Selecto.domain(selecto), :default_group_by, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: Options.default_per_page(),
-      grid: false
+      grid: false,
+      grid_colorize: false,
+      grid_color_scale: Options.default_grid_color_scale_mode()
     }
   end
 
@@ -29,6 +34,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     group_by_params = Map.get(params, "group_by", %{})
     per_page = Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
     grid = truthy_param?(Map.get(params, "aggregate_grid"))
+    grid_colorize = truthy_param?(Map.get(params, "aggregate_grid_colorize"))
+
+    grid_color_scale =
+      Options.normalize_grid_color_scale_mode(Map.get(params, "aggregate_grid_color_scale"))
 
     aggregate =
       Map.get(params, "aggregate", %{})
@@ -73,9 +82,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       end
 
     rollup_group_by =
-      case literal_positions do
+      case Enum.map(group_by_with_coalesce, fn {_col, sel} -> sel end) do
         [] -> []
-        positions -> [{:rollup, positions}]
+        selectors -> [{:rollup, selectors}]
       end
 
     view_set = %{
@@ -89,7 +98,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       order_by: literal_positions
     }
 
-    {view_set, %{per_page: per_page, grid_enabled: grid}}
+    {view_set,
+     %{
+       per_page: per_page,
+       grid_enabled: grid,
+       grid_colorize: grid_colorize,
+       grid_color_scale: grid_color_scale
+     }}
   end
 
   defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
@@ -489,7 +504,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           end
 
         # Handle special formats like buckets and age_buckets
-        format = Map.get(e, "format", "count")
+        format = Map.get(e, "format")
         field = Map.get(e, "field")
         bucket_ranges = Map.get(e, "bucket_ranges")
 
@@ -657,10 +672,17 @@ defmodule SelectoComponents.Views.Aggregate.Process do
             # Remove any nil entries
             |> Enum.reject(&is_nil/1)
 
-          format_str ->
+          _other ->
             # Standard aggregates - return as single item list for consistency
             # Use SafeAtom to prevent atom table exhaustion from user input
-            [{:field, {SafeAtom.to_aggregate_function(format_str), field}, alias}]
+            function_name =
+              case Map.get(e, "function") do
+                nil -> "count"
+                "" -> "count"
+                function -> function
+              end
+
+            [{:field, {SafeAtom.to_aggregate_function(function_name), field}, alias}]
         end
       end)
 
