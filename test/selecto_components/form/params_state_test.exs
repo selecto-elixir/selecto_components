@@ -96,6 +96,49 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["aggregate_grid"] == "true"
   end
 
+  test "view_config_to_params includes aggregate grid color settings" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [],
+          aggregate: [],
+          per_page: "100",
+          grid: true,
+          grid_colorize: true,
+          grid_color_scale: "log"
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["aggregate_grid"] == "true"
+    assert params["aggregate_grid_colorize"] == "true"
+    assert params["aggregate_grid_color_scale"] == "log"
+  end
+
+  test "convert_saved_config_to_full_params restores aggregate grid color settings" do
+    saved = %{
+      "aggregate" => %{
+        "group_by" => [],
+        "aggregate" => [],
+        "per_page" => "100",
+        "grid" => true,
+        "grid_colorize" => true,
+        "grid_color_scale" => "log"
+      }
+    }
+
+    params = ParamsState.convert_saved_config_to_full_params(saved, "aggregate")
+
+    assert params["view_mode"] == "aggregate"
+    assert params["aggregate_grid"] == "true"
+    assert params["aggregate_grid_colorize"] == "true"
+    assert params["aggregate_grid_color_scale"] == "log"
+  end
+
   test "params_to_state normalizes shortcut filters after comparator change" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{

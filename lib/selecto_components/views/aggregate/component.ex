@@ -5,6 +5,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   use Phoenix.LiveComponent
   alias SelectoComponents.Views.Aggregate.Options
 
+  @grid_palette [
+    "#eafcff",
+    "#d7f8fc",
+    "#c6f2f8",
+    "#bdeff0",
+    "#f8efe9",
+    "#f8e2d8",
+    "#f8d3c4",
+    "#f6c1b1",
+    "#f4ab9a",
+    "#f1988b"
+  ]
+
   @impl true
   def mount(socket) do
     {:ok,
@@ -925,10 +938,23 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     grid_enabled = truthy?(Map.get(aggregate_meta, :grid_enabled, false))
     grid_available? = grid_enabled and num_group_by == 2 and length(aggregates_processed) == 1
+    grid_colorize = truthy?(Map.get(aggregate_meta, :grid_colorize, false))
+
+    grid_color_scale =
+      aggregate_meta
+      |> Map.get(:grid_color_scale, Options.default_grid_color_scale_mode())
+      |> Options.normalize_grid_color_scale_mode()
 
     grid_data =
       if grid_available?,
-        do: build_grid_data(paged_rollup_rows, num_group_by, group_by),
+        do:
+          build_grid_data(
+            paged_rollup_rows,
+            num_group_by,
+            group_by,
+            grid_colorize,
+            grid_color_scale
+          ),
         else: nil
 
     assigns =
@@ -949,6 +975,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aggregate_page_start: page_start,
         aggregate_page_end: page_end,
         grid_enabled: grid_enabled,
+        grid_colorize: grid_colorize,
+        grid_color_scale: grid_color_scale,
         grid_available?: grid_available?,
         grid_data: grid_data
       )
@@ -1098,7 +1126,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       </div>
 
       <%= if @grid_available? and @grid_data do %>
-        <div class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Aggregate Grid</div>
+        <div class="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <span class="font-medium">Aggregate Grid</span>
+          <span
+            :if={@grid_colorize}
+            class="rounded-full border border-cyan-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-cyan-900 dark:bg-gray-900 dark:text-gray-300"
+          >
+            {String.capitalize(@grid_color_scale)} color scale
+          </span>
+        </div>
         <table class="min-w-full overflow-hidden divide-y divide-gray-200 rounded-sm table-auto ring-1 ring-gray-200 dark:divide-gray-700 dark:ring-gray-700 sm:rounded">
           <thead class="bg-gray-50 dark:bg-gray-800/80">
             <tr>
@@ -1120,6 +1156,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               <td
                 :for={col_value <- @grid_data.col_headers}
                 class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background-color: #ffffff; color: #111827;")}
               >
                 <div
                   phx-click="agg_add_filters"
@@ -1172,7 +1209,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy?(_), do: false
 
-  defp build_grid_data(paged_rollup_rows, num_group_by, group_by) do
+  defp build_grid_data(paged_rollup_rows, num_group_by, group_by, colorize?, scale_mode) do
     detail_rows =
       Enum.reduce(paged_rollup_rows, [], fn
         {level, row, continued?, grand_total?}, acc when level == num_group_by ->
@@ -1205,16 +1242,85 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     row_headers = sort_group_values(row_headers, row_coldef)
     col_headers = sort_group_values(col_headers, col_coldef)
+    cell_styles = build_grid_cell_styles(cells, colorize?, scale_mode)
 
     %{
       row_alias: grid_row_alias(group_by),
       row_headers: row_headers,
       col_headers: col_headers,
       cells: cells,
+      cell_styles: cell_styles,
       row_coldef: row_coldef,
       col_coldef: col_coldef
     }
   end
+
+  defp build_grid_cell_styles(cells, false, _scale_mode) when is_map(cells) do
+    Enum.into(cells, %{}, fn {key, _value} ->
+      {key, "background-color: #ffffff; color: #111827;"}
+    end)
+  end
+
+  defp build_grid_cell_styles(cells, true, scale_mode) when is_map(cells) do
+    max_positive_value =
+      cells
+      |> Map.values()
+      |> Enum.reduce(nil, fn value, acc ->
+        case numeric_value(value) do
+          num when is_number(num) and num > 0 -> if(is_nil(acc), do: num, else: max(acc, num))
+          _ -> acc
+        end
+      end)
+
+    Enum.into(cells, %{}, fn {key, value} ->
+      {key, grid_cell_style(value, max_positive_value, scale_mode)}
+    end)
+  end
+
+  defp grid_cell_style(value, max_positive_value, scale_mode) do
+    case grid_palette_color(value, max_positive_value, scale_mode) do
+      nil -> "background-color: #ffffff; color: #111827;"
+      color -> "background-color: #{color}; color: #111827;"
+    end
+  end
+
+  defp grid_palette_color(_value, nil, _scale_mode), do: nil
+
+  defp grid_palette_color(value, max_positive_value, scale_mode) do
+    with num when is_number(num) <- numeric_value(value),
+         true <- num > 0,
+         true <- max_positive_value > 0 do
+      ratio =
+        case Options.normalize_grid_color_scale_mode(scale_mode) do
+          "log" -> :math.log(num + 1) / :math.log(max_positive_value + 1)
+          _ -> num / max_positive_value
+        end
+
+      palette_index =
+        ratio
+        |> Kernel.*(length(@grid_palette))
+        |> Float.ceil()
+        |> trunc()
+        |> min(length(@grid_palette))
+        |> max(1)
+
+      Enum.at(@grid_palette, palette_index - 1)
+    else
+      _ -> nil
+    end
+  end
+
+  defp numeric_value(value) when is_integer(value), do: value
+  defp numeric_value(value) when is_float(value), do: value
+
+  defp numeric_value(value) when is_binary(value) do
+    case Float.parse(value) do
+      {parsed, ""} -> parsed
+      _ -> nil
+    end
+  end
+
+  defp numeric_value(_value), do: nil
 
   defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
   defp grid_row_alias(_), do: "Group 1"

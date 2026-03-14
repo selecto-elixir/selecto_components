@@ -26,11 +26,16 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   def render(assigns) do
     aggregate_per_page = get_aggregate_per_page(assigns.view_config)
     aggregate_grid = get_aggregate_grid(assigns.view_config)
+    aggregate_grid_colorize = get_aggregate_grid_colorize(assigns.view_config)
+    aggregate_grid_color_scale = get_aggregate_grid_color_scale(assigns.view_config)
 
     assigns =
       assign(assigns,
         aggregate_per_page: aggregate_per_page,
         aggregate_grid: aggregate_grid,
+        aggregate_grid_colorize: aggregate_grid_colorize,
+        aggregate_grid_color_scale: aggregate_grid_color_scale,
+        aggregate_grid_color_scale_options: Options.grid_color_scale_modes(),
         aggregate_per_page_options: Options.per_page_options()
       )
 
@@ -63,6 +68,35 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           />
           Grid view (2 group-by + 1 aggregate)
         </label>
+
+        <label class="mt-3 inline-flex items-center gap-2 text-sm text-base-content/80">
+          <input type="hidden" name="aggregate_grid_colorize" value="false" />
+          <input
+            type="checkbox"
+            name="aggregate_grid_colorize"
+            value="true"
+            checked={@aggregate_grid_colorize}
+            class="checkbox checkbox-sm border-base-300 bg-base-100 text-primary"
+          />
+          Colorize grid cells
+        </label>
+
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <label for="aggregate_grid_color_scale" class="text-xs font-medium text-base-content/80">
+            Grid Color Scale
+          </label>
+          <select
+            id="aggregate_grid_color_scale"
+            name="aggregate_grid_color_scale"
+            class="select select-bordered select-sm w-32 border-base-300 bg-base-100 text-base-content"
+          >
+            <%= for option <- @aggregate_grid_color_scale_options do %>
+              <option value={option} selected={@aggregate_grid_color_scale == option}>
+                {String.capitalize(option)}
+              </option>
+            <% end %>
+          </select>
+        </div>
       </div>
       Group By
       <.live_component
@@ -152,6 +186,30 @@ defmodule SelectoComponents.Views.Aggregate.Form do
       Map.get(aggregate_cfg, :grid, Map.get(aggregate_cfg, "grid", false))
     end)
     |> normalize_checkbox()
+  end
+
+  defp get_aggregate_grid_colorize(view_config) do
+    view_config
+    |> Map.get(:views, %{})
+    |> Map.get(:aggregate, %{})
+    |> then(fn aggregate_cfg ->
+      Map.get(aggregate_cfg, :grid_colorize, Map.get(aggregate_cfg, "grid_colorize", false))
+    end)
+    |> normalize_checkbox()
+  end
+
+  defp get_aggregate_grid_color_scale(view_config) do
+    view_config
+    |> Map.get(:views, %{})
+    |> Map.get(:aggregate, %{})
+    |> then(fn aggregate_cfg ->
+      Map.get(
+        aggregate_cfg,
+        :grid_color_scale,
+        Map.get(aggregate_cfg, "grid_color_scale", Options.default_grid_color_scale_mode())
+      )
+    end)
+    |> Options.normalize_grid_color_scale_mode()
   end
 
   defp normalize_checkbox(value) when value in [true, "true", "on", "1", 1], do: true

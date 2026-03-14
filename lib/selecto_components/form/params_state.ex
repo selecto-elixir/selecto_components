@@ -123,6 +123,20 @@ defmodule SelectoComponents.Form.ParamsState do
     Map.put(acc, "aggregate_grid", to_string(value))
   end
 
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid_colorize, "grid_colorize"] do
+    Map.put(acc, "aggregate_grid_colorize", to_string(value))
+  end
+
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid_color_scale, "grid_color_scale"] do
+    Map.put(
+      acc,
+      "aggregate_grid_color_scale",
+      AggregateOptions.normalize_grid_color_scale_mode(value)
+    )
+  end
+
   defp merge_scalar_view_param(acc, :detail, key, value)
        when key in [:max_rows, "max_rows"] do
     Map.put(acc, "max_rows", DetailOptions.normalize_max_rows_param(value))
@@ -952,8 +966,8 @@ defmodule SelectoComponents.Form.ParamsState do
         |> Map.put(:order_by, [])
       end)
 
-    {base_sql, base_params} = Selecto.to_sql(count_selecto)
-    count_sql = "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+    {base_sql, aliases, base_params} = Selecto.gen_sql(count_selecto, [])
+    count_sql = build_aggregate_count_sql(base_sql, aliases, selecto)
     started_at = System.monotonic_time(:millisecond)
 
     case execute_raw_query(selecto, count_sql, base_params) do
@@ -981,6 +995,35 @@ defmodule SelectoComponents.Form.ParamsState do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  defp build_aggregate_count_sql(base_sql, aliases, selecto) do
+    case adapter_name(selecto) do
+      :mssql ->
+        column_list =
+          aliases
+          |> aggregate_count_column_aliases()
+          |> Enum.join(", ")
+
+        "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count (#{column_list})"
+
+      _ ->
+        "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+    end
+  end
+
+  defp aggregate_count_column_aliases(aliases) when is_list(aliases) and aliases != [] do
+    aliases
+    |> Enum.with_index(1)
+    |> Enum.map(fn {_alias, index} -> "agg_col_#{index}" end)
+  end
+
+  defp aggregate_count_column_aliases(_aliases), do: ["agg_col_1"]
+
+  defp adapter_name(selecto) do
+    selecto
+    |> Map.get(:adapter)
+    |> Selecto.AdapterSupport.adapter_name()
   end
 
   defp clear_limit_offset(selecto) do
@@ -1387,10 +1430,25 @@ defmodule SelectoComponents.Form.ParamsState do
 
     params =
       if view_type_str == "aggregate" do
-        Map.put(
-          params,
+        params
+        |> Map.put(
           "aggregate_per_page",
           AggregateOptions.normalize_per_page_param(get_map_value(view_config, :per_page, "100"))
+        )
+        |> Map.put("aggregate_grid", to_string(get_map_value(view_config, :grid, false)))
+        |> Map.put(
+          "aggregate_grid_colorize",
+          to_string(get_map_value(view_config, :grid_colorize, false))
+        )
+        |> Map.put(
+          "aggregate_grid_color_scale",
+          AggregateOptions.normalize_grid_color_scale_mode(
+            get_map_value(
+              view_config,
+              :grid_color_scale,
+              AggregateOptions.default_grid_color_scale_mode()
+            )
+          )
         )
       else
         Map.put(params, "per_page", to_string(get_map_value(view_config, :per_page, "30")))

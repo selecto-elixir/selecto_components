@@ -296,6 +296,94 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ ~s(phx-value-value1="10")
   end
 
+  test "grid can colorize cells with a linear scale" do
+    assigns = %{
+      id: "aggregate-grid-colorize-linear-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[[2001, "A", 0], [2001, "B", 3], [2002, "A", 9]], [],
+         ["release_year", "title", "film_count"]},
+      view_meta: %{
+        exe_id: "aggregate-grid-colorize-linear",
+        grid_enabled: true,
+        grid_colorize: true,
+        grid_color_scale: "linear"
+      }
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Linear color scale"
+    assert html =~ ~s(style="background-color: #ffffff; color: #111827;")
+    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
+    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+  end
+
+  test "grid can colorize cells with a log scale" do
+    assigns = %{
+      id: "aggregate-grid-colorize-log-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[[2001, "A", 1], [2001, "B", 10], [2002, "A", 1000]], [],
+         ["release_year", "title", "film_count"]},
+      view_meta: %{
+        exe_id: "aggregate-grid-colorize-log",
+        grid_enabled: true,
+        grid_colorize: true,
+        grid_color_scale: "log"
+      }
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Log color scale"
+    assert html =~ ~s(style="background-color: #d7f8fc; color: #111827;")
+    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
+    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+  end
+
   test "day-of-week group-by displays weekday names" do
     assigns =
       aggregate_assigns(%{
