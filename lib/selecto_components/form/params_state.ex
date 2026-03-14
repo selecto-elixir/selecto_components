@@ -396,7 +396,15 @@ defmodule SelectoComponents.Form.ParamsState do
       # Create a fresh Selecto structure instead of reusing the cached one
       # This ensures any internal state is properly reset for the new view
       old_selecto = socket.assigns.selecto
-      selecto = Selecto.configure(old_selecto.domain, old_selecto.postgrex_opts)
+
+      selecto =
+        Selecto.configure(
+          old_selecto.domain,
+          old_selecto.postgrex_opts,
+          adapter: old_selecto.adapter,
+          validate: false
+        )
+
       raw_columns = Selecto.columns(selecto)
 
       # Convert columns to the format expected by ListPicker components
