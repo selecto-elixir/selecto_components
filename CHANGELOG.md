@@ -5,6 +5,15 @@ CHANGES
 V NEXT
 ------
 
+- Fixed detail-cell rendering safety for tuple-backed values (for example raw
+  datetime tuples) so detail views render inspected tuple text instead of
+  raising `Phoenix.HTML.Safe` protocol errors.
+- Added regression coverage for tuple-backed detail values to prevent detail
+  modal/table crashes when adapter results include tuple types.
+- Added MSSQL aggregate pagination regression coverage for count-query aliasing
+  (`selecto_aggregate_count(...)`) to keep SQL Server aggregate pagination
+  generation stable.
+
 V 0.4.0
 --------
 
