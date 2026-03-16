@@ -172,6 +172,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       "" ->
         "[NULL]"
 
+      {coefficient, scale} when is_integer(coefficient) and is_integer(scale) and scale >= 0 ->
+        format_decimal_tuple(coefficient, scale)
+
       {display_value, _id} when is_nil(display_value) or display_value == "" ->
         "[NULL]"
 
@@ -189,14 +192,26 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp safe_cell_value(value) do
-    if Phoenix.HTML.Safe.impl_for(value) do
-      value
-    else
-      case value do
-        nil -> ""
-        value when is_atom(value) -> Atom.to_string(value)
-        _ -> inspect(value)
-      end
+    case value do
+      nil ->
+        ""
+
+      {coefficient, scale}
+      when is_integer(coefficient) and is_integer(scale) and scale >= 0 ->
+        format_decimal_tuple(coefficient, scale)
+
+      value when is_tuple(value) ->
+        inspect(value)
+
+      value when is_atom(value) ->
+        Atom.to_string(value)
+
+      _ ->
+        if Phoenix.HTML.Safe.impl_for(value) do
+          value
+        else
+          inspect(value)
+        end
     end
   end
 
@@ -209,6 +224,24 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end
 
     format_value(formatted)
+  end
+
+  defp format_decimal_tuple(coefficient, 0), do: Integer.to_string(coefficient)
+
+  defp format_decimal_tuple(coefficient, scale) when coefficient < 0 do
+    "-" <> format_decimal_tuple(abs(coefficient), scale)
+  end
+
+  defp format_decimal_tuple(coefficient, scale) do
+    digits = Integer.to_string(coefficient)
+
+    if String.length(digits) <= scale do
+      "0." <> String.duplicate("0", scale - String.length(digits)) <> digits
+    else
+      split_at = String.length(digits) - scale
+      {whole, fractional} = String.split_at(digits, split_at)
+      whole <> "." <> fractional
+    end
   end
 
   # Build filter attributes for drill-down from group column values
