@@ -201,6 +201,68 @@ end
 
 ## Recent 0.3.4+ Updates
 
+### Exported Views (Iframe Embeds)
+
+`SelectoComponents.Form` can optionally manage signed exported views for
+dashboard-style iframe embeds.
+
+Add these assigns to the LiveView that already uses `SelectoComponents.Form`:
+
+```elixir
+assign(socket,
+  exported_view_module: MyApp.ExportedViews,
+  exported_view_context: scoped_context,
+  exported_view_endpoint: MyAppWeb.Endpoint,
+  exported_view_base_url: "/selecto/exported"
+)
+```
+
+Your persistence module should implement `SelectoComponents.ExportedViews`.
+SelectoComponents will then:
+
+- snapshot the current detail, aggregate, or graph view
+- cache rendered payloads for 3, 6, or 12 hours
+- allow manual cache regeneration
+- verify iframe requests with signed tokens
+- enforce optional IP allowlists
+- generate copy/paste HTML, JS, Vue, and React iframe snippets
+
+To serve the iframe, add a wrapper LiveView in the host app:
+
+```elixir
+defmodule MyAppWeb.ExportedViewLive do
+  use MyAppWeb, :live_view
+
+  def mount(params, session, socket) do
+    SelectoComponents.ExportedViews.EmbedLive.mount(
+      params,
+      session,
+      socket,
+      adapter: MyApp.ExportedViews,
+      endpoint: MyAppWeb.Endpoint
+    )
+  end
+
+  def handle_info(msg, socket) do
+    SelectoComponents.ExportedViews.EmbedLive.handle_info(msg, socket)
+  end
+
+  def handle_event(event, params, socket) do
+    SelectoComponents.ExportedViews.EmbedLive.handle_event(event, params, socket)
+  end
+
+  def render(assigns) do
+    SelectoComponents.ExportedViews.EmbedLive.render(assigns)
+  end
+end
+```
+
+Then wire a single public route:
+
+```elixir
+live "/selecto/exported/:public_id", ExportedViewLive
+```
+
 ### Filter Processing and Rendering
 
 Filter processing has been expanded for more consistent operator support across
