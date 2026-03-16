@@ -11,8 +11,8 @@ defmodule SelectoComponents.Form.ParamsState do
   """
 
   import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
-  alias Selecto.Executor
   alias SelectoComponents.Performance.MetricsCollector
+  alias SelectoComponents.DBSupport
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Views.Detail.QueryPagination
@@ -998,17 +998,15 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp build_aggregate_count_sql(base_sql, aliases, selecto) do
-    case adapter_name(selecto) do
-      :mssql ->
-        column_list =
-          aliases
-          |> aggregate_count_column_aliases()
-          |> Enum.join(", ")
+    if DBSupport.requires_derived_table_column_aliases?(selecto) do
+      column_list =
+        aliases
+        |> aggregate_count_column_aliases()
+        |> Enum.join(", ")
 
-        "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count (#{column_list})"
-
-      _ ->
-        "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count (#{column_list})"
+    else
+      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
     end
   end
 
@@ -1019,12 +1017,6 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp aggregate_count_column_aliases(_aliases), do: ["agg_col_1"]
-
-  defp adapter_name(selecto) do
-    selecto
-    |> Map.get(:adapter)
-    |> Selecto.AdapterSupport.adapter_name()
-  end
 
   defp clear_limit_offset(selecto) do
     update_in(selecto.set, fn set ->
@@ -1161,29 +1153,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp execute_raw_query(selecto, query, params) do
-    cond do
-      selecto.adapter && not postgres_adapter?(selecto.adapter) ->
-        Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
-
-      ecto_repo?(selecto.postgrex_opts) ->
-        Executor.execute_with_ecto_repo(selecto.postgrex_opts, query, params, [])
-
-      true ->
-        Executor.execute_with_postgrex(selecto.postgrex_opts, query, params, [])
-    end
-  end
-
-  defp ecto_repo?(repo) when is_atom(repo) do
-    Code.ensure_loaded?(repo) and function_exported?(repo, :__adapter__, 0)
-  end
-
-  defp ecto_repo?(_repo), do: false
-
-  defp postgres_adapter?(adapter) do
-    adapter in [
-      Module.concat(["Selecto", "DB", "PostgreSQL"]),
-      Module.concat(["SelectoDBPostgreSQL", "Adapter"])
-    ]
+    DBSupport.execute_raw_query(selecto, query, params)
   end
 
   defp normalize_count(value) when is_integer(value), do: value

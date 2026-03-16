@@ -1,7 +1,7 @@
 defmodule SelectoComponents.Views.Detail.QueryPagination do
   @moduledoc false
 
-  alias Selecto.Executor
+  alias SelectoComponents.DBSupport
   alias SelectoComponents.Views.Detail.Options
 
   @initial_cached_pages 3
@@ -191,23 +191,15 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
 
   defp build_count_sql(base_sql, max_rows_limit, "bounded", selecto)
        when is_integer(max_rows_limit) and max_rows_limit > 0 do
-    case adapter_name(selecto) do
-      :mssql ->
-        "SELECT count(*) AS total_rows FROM (SELECT TOP (#{max_rows_limit}) * FROM (#{base_sql}) AS bounded_selecto_detail_count) AS selecto_detail_count"
-
-      _ ->
-        "SELECT count(*) AS total_rows FROM (#{base_sql} LIMIT #{max_rows_limit}) AS selecto_detail_count"
+    if DBSupport.bounded_count_uses_top?(selecto) do
+      "SELECT count(*) AS total_rows FROM (SELECT TOP (#{max_rows_limit}) * FROM (#{base_sql}) AS bounded_selecto_detail_count) AS selecto_detail_count"
+    else
+      "SELECT count(*) AS total_rows FROM (#{base_sql} LIMIT #{max_rows_limit}) AS selecto_detail_count"
     end
   end
 
   defp build_count_sql(base_sql, _max_rows_limit, _count_mode, _selecto) do
     "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
-  end
-
-  defp adapter_name(selecto) do
-    selecto
-    |> Map.get(:adapter)
-    |> Selecto.AdapterSupport.adapter_name()
   end
 
   defp build_lightweight_count_selecto(selecto) do
@@ -654,16 +646,7 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
   defp bool_to_int(false), do: 0
 
   defp execute_raw_query(selecto, query, params) do
-    cond do
-      selecto.adapter && not postgres_adapter?(selecto.adapter) ->
-        Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
-
-      ecto_repo?(selecto.postgrex_opts) ->
-        Executor.execute_with_ecto_repo(selecto.postgrex_opts, query, params, [])
-
-      true ->
-        Executor.execute_with_postgrex(selecto.postgrex_opts, query, params, [])
-    end
+    DBSupport.execute_raw_query(selecto, query, params)
   end
 
   defp execute_query_with_metadata(selecto) do
@@ -677,19 +660,6 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
         {:error,
          Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
     end
-  end
-
-  defp ecto_repo?(repo) when is_atom(repo) do
-    Code.ensure_loaded?(repo) and function_exported?(repo, :__adapter__, 0)
-  end
-
-  defp ecto_repo?(_repo), do: false
-
-  defp postgres_adapter?(adapter) do
-    adapter in [
-      Module.concat(["Selecto", "DB", "PostgreSQL"]),
-      Module.concat(["SelectoDBPostgreSQL", "Adapter"])
-    ]
   end
 
   defp normalize_count(value) when is_integer(value), do: value

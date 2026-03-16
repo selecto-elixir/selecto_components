@@ -41,8 +41,11 @@ defmodule SelectoComponents.Views.Graph.FormTest do
 
   defp list_picker(rendered, id) do
     Enum.find(dynamic_chunks(rendered), fn
-      %Phoenix.LiveView.Component{id: ^id, component: ListPicker} -> true
-      _ -> false
+      %Phoenix.LiveView.Component{component: ListPicker, assigns: assigns} ->
+        Map.get(assigns, :fieldname) == id
+
+      _ ->
+        false
     end)
   end
 
