@@ -142,7 +142,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>
           <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
-          <span class="truncate text-sm font-normal text-base-content/60">{aggregate_format_summary(config)}</span>
+          <span class="truncate text-sm font-normal text-base-content/60">{aggregate_format_summary(col, config)}</span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"aggregate[#{id}][field]"} type="hidden" value={item} />
@@ -242,7 +242,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   end
 
   defp group_by_format_summary(col, config) do
-    case Map.get(config || %{}, "format") do
+    case config_value(config, :format) do
       value when value in [nil, ""] ->
         case Map.get(col || %{}, :type, :string) do
           x
@@ -279,10 +279,28 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     end
   end
 
-  defp aggregate_format_summary(config) do
-    case Map.get(config || %{}, "format") do
-      value when value in [nil, ""] -> "default"
-      value -> format_summary_label(value)
+  defp aggregate_format_summary(col, config) do
+    case config_value(config, :format) do
+      value when value in [nil, ""] ->
+        col
+        |> aggregate_default_format()
+        |> format_summary_label()
+
+      value ->
+        format_summary_label(value)
+    end
+  end
+
+  defp config_value(config, key) when is_map(config) and is_atom(key) do
+    Map.get(config, Atom.to_string(key), Map.get(config, key))
+  end
+
+  defp config_value(_config, _key), do: nil
+
+  defp aggregate_default_format(col) do
+    case Map.get(col || %{}, :type, :string) do
+      :float -> "avg"
+      _ -> "count"
     end
   end
 
