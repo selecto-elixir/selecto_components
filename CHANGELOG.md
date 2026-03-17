@@ -2,18 +2,6 @@
 CHANGES
 =======
 
-V NEXT
-------
-
-- Fixed detail-cell rendering safety for tuple-backed values (for example raw
-  datetime tuples) so detail views render inspected tuple text instead of
-  raising `Phoenix.HTML.Safe` protocol errors.
-- Added regression coverage for tuple-backed detail values to prevent detail
-  modal/table crashes when adapter results include tuple types.
-- Added MSSQL aggregate pagination regression coverage for count-query aliasing
-  (`selecto_aggregate_count(...)`) to keep SQL Server aggregate pagination
-  generation stable.
-
 V 0.4.0
 --------
 
@@ -24,6 +12,23 @@ V 0.4.0
   adapter path.
 - Fixed aggregate rollup view generation to avoid empty `1..0` range warnings
   when no group-by fields are selected.
+- Fixed submit-path state updates to call `ParamsState.params_to_state/2` with
+  the correct argument order during `view-apply` handling.
+- Fixed validate/apply flows so updating one view preserves sibling detail,
+  aggregate, and graph configurations instead of clobbering them.
+- Fixed saved views to persist and restore the full multi-view configuration,
+  including filters and non-active view state.
+- Fixed aggregate form rendering after saved-view restore when view configs are
+  loaded with string keys.
+- Fixed detail-cell rendering safety for tuple-backed values (for example raw
+  datetime tuples) so detail views render inspected tuple text instead of
+  raising `Phoenix.HTML.Safe` protocol errors.
+- Added regression coverage for tuple-backed detail values, multi-view
+  save/restore behavior, submit-path state ordering, and aggregate restore
+  rendering.
+- Added MSSQL aggregate pagination regression coverage for count-query aliasing
+  (`selecto_aggregate_count(...)`) to keep SQL Server aggregate pagination
+  generation stable.
 - Bump package version to `0.4.0`.
 
 V 0.3.21
