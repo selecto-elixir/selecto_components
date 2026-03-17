@@ -143,7 +143,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
             socket
             |> assign(:current_detail_page, 0)
             |> ParamsState.clear_query_caches()
-            |> ParamsState.params_to_state(submitted_params)
+
+          socket = ParamsState.params_to_state(submitted_params, socket)
 
           committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
 
