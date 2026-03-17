@@ -42,16 +42,16 @@ defmodule SelectoComponents.ExportedViews.Manager do
         </p>
       </div>
 
-      <.form for={to_form(@form, as: :exported_view)} id={"exported-view-form-#{@id}"} phx-change="update_exported_view_form" phx-submit="create_exported_view" phx-target={@myself}>
+      <div id={"exported-view-form-#{@id}"} class="space-y-4">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_180px]">
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"exported-view-name-#{@id}"}>Name</label>
-            <input id={"exported-view-name-#{@id}"} name="exported_view[name]" value={@form.name} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Executive detail snapshot" />
+            <input id={"exported-view-name-#{@id}"} value={@form.name} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Executive detail snapshot" />
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"exported-view-ttl-#{@id}"}>Cache TTL</label>
-            <select id={"exported-view-ttl-#{@id}"} name="exported_view[cache_ttl_hours]" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+            <select id={"exported-view-ttl-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
               <option value="3" selected={to_string(@form.cache_ttl_hours) == "3"}>3 hours</option>
               <option value="6" selected={to_string(@form.cache_ttl_hours) == "6"}>6 hours</option>
               <option value="12" selected={to_string(@form.cache_ttl_hours) == "12"}>12 hours</option>
@@ -61,17 +61,17 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
         <div class="mt-4 space-y-2">
           <label class="text-sm font-medium text-base-content/80" for={"exported-view-ip-#{@id}"}>IP allowlist</label>
-          <textarea id={"exported-view-ip-#{@id}"} name="exported_view[ip_allowlist_text]" rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="203.0.113.8\n10.0.0.0/24"><%= @form.ip_allowlist_text %></textarea>
+          <textarea id={"exported-view-ip-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="203.0.113.8\n10.0.0.0/24"><%= @form.ip_allowlist_text %></textarea>
           <p class="text-xs text-base-content/60">Leave blank for unrestricted access. Use one IP or CIDR per line.</p>
         </div>
 
         <div class="mt-4 flex items-center justify-between gap-3">
           <p class="text-xs text-base-content/60">The current active view snapshot is saved and cached immediately.</p>
-          <button type="submit" class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+          <button type="button" id={"exported-view-create-#{@id}"} phx-hook="CreateExportedView" data-target={@myself} data-name-input={"exported-view-name-#{@id}"} data-ttl-input={"exported-view-ttl-#{@id}"} data-ip-input={"exported-view-ip-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
             Create Exported View
           </button>
         </div>
-      </.form>
+      </div>
 
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-3">
@@ -163,6 +163,10 @@ defmodule SelectoComponents.ExportedViews.Manager do
     {:noreply, assign(socket, :form, merge_form(socket.assigns.form, params))}
   end
 
+  def handle_event("update_exported_view_form", %{"field" => field, "value" => value}, socket) do
+    {:noreply, assign(socket, :form, merge_form(socket.assigns.form, %{field => value}))}
+  end
+
   def handle_event("create_exported_view", %{"exported_view" => params}, socket) do
     case Service.create(adapter(socket), socket.assigns, params, service_opts(socket)) do
       {:ok, _view} ->
@@ -176,6 +180,12 @@ defmodule SelectoComponents.ExportedViews.Manager do
         {:noreply,
          put_flash(socket, :error, "Failed to create exported view: #{inspect(reason)}")}
     end
+  end
+
+  def handle_event("create_exported_view", params, socket) when is_map(params) do
+    normalized_params = normalize_create_params(params, socket.assigns.form)
+
+    handle_event("create_exported_view", %{"exported_view" => normalized_params}, socket)
   end
 
   def handle_event("regen_exported_view", %{"id" => public_id}, socket) do
@@ -268,11 +278,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
       )
       |> Enum.sort_by(
         fn view ->
-          {ExportedViews.normalize_datetime(
-             ExportedViews.field(view, :updated_at, DateTime.utc_now())
-           ), ExportedViews.field(view, :name, "")}
+          updated_at =
+            view
+            |> ExportedViews.field(:updated_at, DateTime.utc_now())
+            |> ExportedViews.normalize_datetime()
+            |> DateTime.to_unix(:microsecond)
+
+          {updated_at, ExportedViews.field(view, :name, "")}
         end,
-        {:desc, DateTime}
+        :desc
       )
 
     assign(socket,
@@ -335,6 +349,21 @@ defmodule SelectoComponents.ExportedViews.Manager do
   defp default_form do
     %{name: "", cache_ttl_hours: 3, ip_allowlist_text: ""}
   end
+
+  defp normalize_create_params(params, form) do
+    params = Enum.into(params, %{}, fn {key, value} -> {to_string(key), value} end)
+
+    %{
+      "name" => present_param(Map.get(params, "name"), form.name),
+      "cache_ttl_hours" =>
+        present_param(Map.get(params, "cache_ttl_hours"), to_string(form.cache_ttl_hours)),
+      "ip_allowlist_text" =>
+        present_param(Map.get(params, "ip_allowlist_text"), form.ip_allowlist_text)
+    }
+  end
+
+  defp present_param(value, fallback) when value in [nil, ""], do: fallback
+  defp present_param(value, _fallback), do: value
 
   defp status_badge_class(:fresh),
     do: "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"

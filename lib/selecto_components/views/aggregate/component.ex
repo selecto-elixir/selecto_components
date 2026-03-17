@@ -583,11 +583,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           # Extract the actual selected fields from the selecto configuration
           # Note: assigns.selecto.set.group_by contains ROLLUP config, not actual fields
           # The actual fields are in assigns.selecto.set.selected
-          selected_fields = assigns.selecto.set.selected || []
+          selected_fields = Map.get(assigns.selecto.set, :selected, []) || []
 
           # Also get the original group_by and aggregates for processing
-          rollup_group_by = assigns.selecto.set.group_by || []
-          aggregates = assigns.selecto.set.aggregates || []
+          rollup_group_by = Map.get(assigns.selecto.set, :group_by, []) || []
+          aggregates = Map.get(assigns.selecto.set, :aggregates, []) || []
 
           # Use the rollup rendering logic instead of simple flat rendering
           render_aggregate_view(
