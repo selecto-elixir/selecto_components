@@ -48,16 +48,20 @@ defmodule SelectoComponents.Form.ParamsState do
   Convert view_config structure to URL parameters format.
   """
   def view_config_to_params(view_config) do
+    view_mode = get_map_value(view_config, :view_mode, "aggregate")
+    filters = get_map_value(view_config, :filters, [])
+    views = get_map_value(view_config, :views, %{})
+
     params = %{
-      "view_mode" => view_config.view_mode,
-      "filters" => filters_to_params(view_config.filters)
+      "view_mode" => view_mode,
+      "filters" => filters_to_params(filters)
     }
 
-    selected_view = SafeAtom.to_view_mode(view_config.view_mode)
+    selected_view = SafeAtom.to_view_mode(view_mode)
 
     # Add view-specific parameters
     view_params =
-      case view_config.views[selected_view] do
+      case Map.get(views, selected_view, Map.get(views, Atom.to_string(selected_view))) do
         nil ->
           %{}
 
@@ -81,6 +85,19 @@ defmodule SelectoComponents.Form.ParamsState do
 
     Map.merge(params, view_params)
   end
+
+  @doc """
+  Convert full view_config structure to saved-view persistence format.
+  """
+  def view_config_to_saved_params(view_config) when is_map(view_config) do
+    %{
+      "view_mode" => get_map_value(view_config, :view_mode, "aggregate"),
+      "filters" => normalize_saved_filters_for_storage(get_map_value(view_config, :filters, [])),
+      "views" => normalize_saved_views_for_storage(get_map_value(view_config, :views, %{}))
+    }
+  end
+
+  def view_config_to_saved_params(view_config), do: view_config
 
   defp view_items_to_params(items) do
     items
@@ -216,27 +233,40 @@ defmodule SelectoComponents.Form.ParamsState do
   def filters_to_params(filters) do
     filters
     |> Enum.with_index()
-    |> Enum.reduce(%{}, fn {{uuid, section, filter_data}, index}, acc ->
-      filter_params =
-        case filter_data do
-          conj when is_binary(conj) ->
-            %{
-              "uuid" => uuid,
-              "conjunction" => conj,
-              "section" => section,
-              "index" => to_string(index)
-            }
+    |> Enum.reduce(%{}, fn
+      {{uuid, section, filter_data}, index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          build_filter_params(uuid, section, filter_data, index)
+        )
 
-          filter_map when is_map(filter_map) ->
-            Map.merge(filter_map, %{
-              "uuid" => uuid,
-              "section" => section,
-              "index" => to_string(index)
-            })
-        end
-
-      Map.put(acc, compact_param_key(index), filter_params)
+      {[uuid, section, filter_data], index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          build_filter_params(uuid, section, filter_data, index)
+        )
     end)
+  end
+
+  defp build_filter_params(uuid, section, filter_data, index) do
+    case filter_data do
+      conj when is_binary(conj) ->
+        %{
+          "uuid" => uuid,
+          "conjunction" => conj,
+          "section" => section,
+          "index" => to_string(index)
+        }
+
+      filter_map when is_map(filter_map) ->
+        Map.merge(filter_map, %{
+          "uuid" => uuid,
+          "section" => section,
+          "index" => to_string(index)
+        })
+    end
   end
 
   defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
@@ -1205,10 +1235,16 @@ defmodule SelectoComponents.Form.ParamsState do
     filters = view_filter_process(params, "filters")
     existing_config = socket.assigns[:view_config] || %{}
 
+    selected_view =
+      SafeAtom.to_view_mode(
+        Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+      )
+
     view_configs =
       Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
         Map.merge(acc, %{
-          view => ViewRuntime.param_to_state(view_tuple, params)
+          view =>
+            updated_view_state(view, selected_view, view_tuple, params, existing_config, socket)
         })
       end)
       |> preserve_missing_detail_view_params(existing_config, params)
@@ -1222,6 +1258,101 @@ defmodule SelectoComponents.Form.ParamsState do
           view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
         })
     )
+  end
+
+  @doc """
+  Restore a saved-view payload into socket state.
+  """
+  def saved_params_to_state(saved_params, socket) when is_map(saved_params) do
+    if Map.has_key?(saved_params, "views") or Map.has_key?(saved_params, :views) do
+      existing_config = socket.assigns[:view_config] || %{}
+
+      restored_config = %{
+        view_mode:
+          get_map_value(
+            saved_params,
+            :view_mode,
+            get_map_value(existing_config, :view_mode, "aggregate")
+          ),
+        filters: normalize_saved_filters_from_storage(get_map_value(saved_params, :filters, [])),
+        views: restore_saved_views(saved_params, existing_config, socket)
+      }
+
+      Phoenix.Component.assign(socket, view_config: Map.merge(existing_config, restored_config))
+    else
+      params_to_state(saved_params, socket)
+    end
+  end
+
+  def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
+
+  defp updated_view_state(view, selected_view, view_tuple, params, existing_config, socket) do
+    cond do
+      view == selected_view ->
+        ViewRuntime.param_to_state(view_tuple, params)
+
+      existing_view = get_in(existing_config, [:views, view]) ->
+        existing_view
+
+      selecto = socket.assigns[:selecto] ->
+        ViewRuntime.initial_state(view_tuple, selecto)
+
+      true ->
+        %{}
+    end
+  end
+
+  defp normalize_saved_views_for_storage(views) when is_map(views) do
+    Map.new(views, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
+  end
+
+  defp normalize_saved_views_for_storage(_views), do: %{}
+
+  defp normalize_saved_filters_for_storage(filters) when is_list(filters) do
+    Enum.map(filters, &normalize_saved_term/1)
+  end
+
+  defp normalize_saved_filters_for_storage(_filters), do: []
+
+  defp normalize_saved_term(term) when is_map(term) do
+    Map.new(term, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
+  end
+
+  defp normalize_saved_term(term) when is_list(term), do: Enum.map(term, &normalize_saved_term/1)
+
+  defp normalize_saved_term(term) when is_tuple(term),
+    do: term |> Tuple.to_list() |> normalize_saved_term()
+
+  defp normalize_saved_term(term), do: term
+
+  defp normalize_saved_filters_from_storage(filters) when is_list(filters) do
+    Enum.map(filters, fn
+      [uuid, section, filter_data] -> {uuid, section, filter_data}
+      {uuid, section, filter_data} -> {uuid, section, filter_data}
+      other -> other
+    end)
+  end
+
+  defp normalize_saved_filters_from_storage(_filters), do: []
+
+  defp restore_saved_views(saved_params, existing_config, socket) do
+    Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
+      restored_view =
+        case get_in(saved_params, ["views", Atom.to_string(view)]) ||
+               get_in(saved_params, [:views, view]) do
+          nil ->
+            get_in(existing_config, [:views, view]) ||
+              if(socket.assigns[:selecto],
+                do: ViewRuntime.initial_state(view_tuple, socket.assigns.selecto),
+                else: %{}
+              )
+
+          saved_view ->
+            normalize_saved_term(saved_view)
+        end
+
+      Map.put(acc, view, restored_view)
+    end)
   end
 
   defp preserve_missing_detail_view_params(view_configs, existing_config, params) do

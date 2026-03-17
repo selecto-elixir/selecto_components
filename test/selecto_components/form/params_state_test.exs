@@ -278,6 +278,126 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.detail.row_click_action == "work_item_api_preview"
   end
 
+  test "params_to_state preserves non-selected aggregate and graph configs during detail updates" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              per_page: "30",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "workspace_spotlight",
+              prevent_denormalization: true
+            },
+            aggregate: %{
+              group_by: [{"g1", "category", %{}}],
+              aggregate: [{"a1", "amount", %{"format" => "sum"}}],
+              per_page: "300",
+              grid: true,
+              grid_colorize: true,
+              grid_color_scale: "log"
+            },
+            graph: %{
+              x_axis: [{"x1", "category", %{}}],
+              y_axis: [{"y1", "amount", %{"function" => "sum"}}],
+              series: [{"s1", "region", %{}}],
+              chart_type: "line",
+              options: %{"title" => "Revenue"}
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{},
+      "order_by" => %{},
+      "per_page" => "60",
+      "max_rows" => "1000",
+      "count_mode" => "bounded",
+      "prevent_denormalization" => "true"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.per_page == "60"
+
+    assert updated.assigns.view_config.views.aggregate ==
+             socket.assigns.view_config.views.aggregate
+
+    assert updated.assigns.view_config.views.graph == socket.assigns.view_config.views.graph
+  end
+
+  test "params_to_state preserves detail config during aggregate updates" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [{"d1", "id", %{}}],
+              order_by: [{"o1", "id", %{"dir" => "desc"}}],
+              per_page: "60",
+              max_rows: "10000",
+              count_mode: "exact",
+              row_click_action: "work_item_api_preview",
+              prevent_denormalization: false
+            },
+            aggregate: %{
+              group_by: [],
+              aggregate: [],
+              per_page: "100",
+              grid: false,
+              grid_colorize: false,
+              grid_color_scale: "linear"
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "aggregate",
+      "group_by" => %{
+        "k0" => %{"field" => "status", "index" => "0", "uuid" => "k0", "format" => "default"}
+      },
+      "aggregate" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "k0", "format" => "count"}
+      },
+      "aggregate_per_page" => "300",
+      "aggregate_grid" => "true",
+      "aggregate_grid_colorize" => "true",
+      "aggregate_grid_color_scale" => "log"
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.aggregate.per_page == "300"
+    assert updated.assigns.view_config.views.aggregate.grid == true
+    assert updated.assigns.view_config.views.detail == socket.assigns.view_config.views.detail
+  end
+
   test "submitted_form_params drops LiveView noise and preserves submitted row_click_action" do
     params = %{
       "_target" => ["row_click_action"],
@@ -305,6 +425,114 @@ defmodule SelectoComponents.Form.ParamsStateTest do
                }
              }
            }
+  end
+
+  test "view_config_to_saved_params includes all view configurations" do
+    view_config = %{
+      view_mode: "detail",
+      filters: [
+        {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
+      ],
+      views: %{
+        detail: %{
+          selected: [{"d1", "id", %{"alias" => "ID"}}],
+          order_by: [{"o1", "id", %{"dir" => "desc"}}],
+          per_page: "60",
+          max_rows: "1000",
+          count_mode: "bounded",
+          row_click_action: "workspace_spotlight",
+          prevent_denormalization: true
+        },
+        aggregate: %{
+          group_by: [{"g1", "status", %{"format" => "default"}}],
+          aggregate: [{"a1", "id", %{"format" => "count"}}],
+          per_page: "300",
+          grid: true,
+          grid_colorize: true,
+          grid_color_scale: "log"
+        },
+        graph: %{
+          x_axis: [{"x1", "status", %{}}],
+          y_axis: [{"y1", "id", %{"function" => "count"}}],
+          series: [{"s1", "priority", %{}}],
+          chart_type: "line",
+          options: %{"title" => "Open Items"}
+        }
+      }
+    }
+
+    saved = ParamsState.view_config_to_saved_params(view_config)
+
+    assert saved["view_mode"] == "detail"
+
+    assert saved["filters"] == [
+             ["f1", "filters", %{"comp" => "=", "filter" => "status", "value" => "open"}]
+           ]
+
+    assert saved["views"]["detail"]["row_click_action"] == "workspace_spotlight"
+    assert saved["views"]["aggregate"]["grid"] == true
+    assert saved["views"]["graph"]["chart_type"] == "line"
+  end
+
+  test "saved_params_to_state restores all view configurations" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{view_mode: "aggregate", filters: [], views: %{}}
+      }
+    }
+
+    saved_params = %{
+      "view_mode" => "detail",
+      "filters" => [["f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}]],
+      "views" => %{
+        "detail" => %{
+          "selected" => [["d1", "id", %{"alias" => "ID"}]],
+          "order_by" => [["o1", "id", %{"dir" => "desc"}]],
+          "per_page" => "60",
+          "max_rows" => "1000",
+          "count_mode" => "bounded",
+          "row_click_action" => "workspace_spotlight",
+          "prevent_denormalization" => true
+        },
+        "aggregate" => %{
+          "group_by" => [["g1", "status", %{"format" => "default"}]],
+          "aggregate" => [["a1", "id", %{"format" => "count"}]],
+          "per_page" => "300",
+          "grid" => true,
+          "grid_colorize" => true,
+          "grid_color_scale" => "log"
+        },
+        "graph" => %{
+          "x_axis" => [["x1", "status", %{}]],
+          "y_axis" => [["y1", "id", %{"function" => "count"}]],
+          "series" => [["s1", "priority", %{}]],
+          "chart_type" => "line",
+          "options" => %{"title" => "Open Items"}
+        }
+      }
+    }
+
+    updated = ParamsState.saved_params_to_state(saved_params, socket)
+
+    assert updated.assigns.view_config.view_mode == "detail"
+
+    assert updated.assigns.view_config.filters == [
+             {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
+           ]
+
+    assert updated.assigns.view_config.views.detail["row_click_action"] == "workspace_spotlight"
+    assert updated.assigns.view_config.views.aggregate["grid"] == true
+    assert updated.assigns.view_config.views.graph["chart_type"] == "line"
+
+    detail_params = ParamsState.view_config_to_params(updated.assigns.view_config)
+    assert detail_params["row_click_action"] == "workspace_spotlight"
+    assert detail_params["filters"]["k0"]["filter"] == "status"
   end
 
   test "filters_to_params uses compact keys while preserving uuid" do

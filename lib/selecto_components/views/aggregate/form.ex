@@ -24,6 +24,11 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   end
 
   def render(assigns) do
+    aggregate_view =
+      assigns.view_config
+      |> Map.get(:views, %{})
+      |> Map.get(:aggregate, Map.get(Map.get(assigns.view_config, :views, %{}), "aggregate", %{}))
+
     aggregate_per_page = get_aggregate_per_page(assigns.view_config)
     aggregate_grid = get_aggregate_grid(assigns.view_config)
     aggregate_grid_colorize = get_aggregate_grid_colorize(assigns.view_config)
@@ -31,6 +36,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
     assigns =
       assign(assigns,
+        aggregate_view: aggregate_view,
         aggregate_per_page: aggregate_per_page,
         aggregate_grid: aggregate_grid,
         aggregate_grid_colorize: aggregate_grid_colorize,
@@ -107,7 +113,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         available={
           Enum.filter(@columns, fn {_f, _n, format} -> format not in [:component, :link] end)
         }
-        selected_items={@view_config.views.aggregate.group_by}
+        selected_items={Map.get(@aggregate_view, :group_by, Map.get(@aggregate_view, "group_by", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>
@@ -137,7 +143,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         fieldname="aggregate"
         view={@view}
         available={@columns}
-        selected_items={@view_config.views.aggregate.aggregate}
+        selected_items={Map.get(@aggregate_view, :aggregate, Map.get(@aggregate_view, "aggregate", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>

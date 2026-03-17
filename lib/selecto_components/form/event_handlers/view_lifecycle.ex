@@ -104,7 +104,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
               params =
                 socket.assigns.view_config
-                |> ParamsState.view_config_to_params()
+                |> ParamsState.view_config_to_saved_params()
 
               view =
                 socket.assigns.saved_view_module.save_view(
@@ -137,10 +137,13 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       """
       def handle_event("view-apply", params, socket) do
         with_error_handling(socket, "view-apply", fn ->
+          submitted_params = ParamsState.submitted_form_params(params)
+
           socket =
             socket
             |> assign(:current_detail_page, 0)
             |> ParamsState.clear_query_caches()
+            |> ParamsState.params_to_state(submitted_params)
 
           committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
 
@@ -187,10 +190,15 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
               socket = ParamsState.clear_query_caches(socket)
 
               # First update the view_config state from params
-              socket = ParamsState.params_to_state(params, socket)
+              socket = ParamsState.saved_params_to_state(params, socket)
 
               # Then apply the view
-              socket = ParamsState.view_from_params(params, socket)
+              socket =
+                ParamsState.view_from_params(
+                  ParamsState.view_config_to_params(socket.assigns.view_config),
+                  socket
+                )
+
               {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
           end
         end)

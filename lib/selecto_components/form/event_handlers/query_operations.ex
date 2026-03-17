@@ -74,8 +74,14 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
           else
             socket = assign(socket, page_title: "View: #{view.name}")
             socket = normalize_query_results(socket)
-            socket = ParamsState.params_to_state(view.params, socket)
-            {:noreply, ParamsState.view_from_params(view.params, socket)}
+            saved_params = socket.assigns.saved_view_module.decode_view(view)
+            socket = ParamsState.saved_params_to_state(saved_params, socket)
+
+            {:noreply,
+             ParamsState.view_from_params(
+               ParamsState.view_config_to_params(socket.assigns.view_config),
+               socket
+             )}
           end
         end)
       end
@@ -277,6 +283,21 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
           )
 
         # Don't auto-execute, wait for user to click Apply
+        {:noreply, socket}
+      end
+
+      def handle_info({:saved_view_saved, _name}, socket) do
+        socket =
+          if socket.assigns[:saved_view_module] && socket.assigns[:saved_view_context] do
+            assign(
+              socket,
+              :available_saved_views,
+              socket.assigns.saved_view_module.get_view_names(socket.assigns.saved_view_context)
+            )
+          else
+            socket
+          end
+
         {:noreply, socket}
       end
     end
