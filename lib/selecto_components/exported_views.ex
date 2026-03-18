@@ -43,7 +43,7 @@ defmodule SelectoComponents.ExportedViews do
       params: ParamsState.view_config_to_params(Map.fetch!(assigns, :view_config)),
       views: Map.fetch!(assigns, :views),
       domain: Map.fetch!(selecto, :domain),
-      postgrex_opts: Map.get(selecto, :postgrex_opts),
+      postgrex_opts: sanitize_snapshot_connection(Map.get(selecto, :postgrex_opts)),
       adapter: Map.get(selecto, :adapter),
       path: Map.get(assigns, :path) || Map.get(assigns, :my_path),
       context:
@@ -110,7 +110,7 @@ defmodule SelectoComponents.ExportedViews do
   def decode_term(nil), do: {:error, :missing}
 
   def decode_term(blob) when is_binary(blob) do
-    {:ok, :erlang.binary_to_term(blob)}
+    {:ok, :erlang.binary_to_term(blob, [:safe])}
   rescue
     _ -> {:error, :invalid_blob}
   end
@@ -232,6 +232,54 @@ defmodule SelectoComponents.ExportedViews do
   end
 
   def normalize_optional_text(value), do: to_string(value) |> normalize_optional_text()
+
+  defp sanitize_snapshot_connection(opts) when is_list(opts) do
+    Keyword.drop(opts, [
+      :password,
+      :passfile,
+      :ssl_key,
+      :sslkey,
+      :ssl_cert,
+      :sslcert,
+      :ssl_root_cert,
+      :sslrootcert,
+      :ssl_opts,
+      :secret,
+      :token,
+      :api_key
+    ])
+  end
+
+  defp sanitize_snapshot_connection(%{} = opts) do
+    Map.drop(opts, [
+      :password,
+      :passfile,
+      :ssl_key,
+      :sslkey,
+      :ssl_cert,
+      :sslcert,
+      :ssl_root_cert,
+      :sslrootcert,
+      :ssl_opts,
+      :secret,
+      :token,
+      :api_key,
+      "password",
+      "passfile",
+      "ssl_key",
+      "sslkey",
+      "ssl_cert",
+      "sslcert",
+      "ssl_root_cert",
+      "sslrootcert",
+      "ssl_opts",
+      "secret",
+      "token",
+      "api_key"
+    ])
+  end
+
+  defp sanitize_snapshot_connection(other), do: other
 
   @doc false
   def normalize_datetime(%DateTime{} = value), do: value

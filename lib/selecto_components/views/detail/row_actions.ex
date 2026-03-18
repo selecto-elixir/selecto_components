@@ -58,7 +58,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   def resolve_external_link(%{type: :external_link, payload: payload}, row_context)
       when is_map(payload) and is_map(row_context) do
     url_template = map_get(payload, :url_template)
-    url = resolve_template(url_template, row_context)
+    url = url_template |> resolve_template(row_context) |> sanitize_url()
     target = normalize_optional_string(map_get(payload, :target)) || "_blank"
 
     if is_binary(url) and String.trim(url) != "" do
@@ -73,15 +73,19 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   def resolve_iframe_modal(%{type: :iframe_modal, payload: payload}, row_context)
       when is_map(payload) do
     url_template = map_get(payload, :url_template)
-    iframe_url = resolve_template(url_template, row_context)
+    iframe_url = url_template |> resolve_template(row_context) |> sanitize_url()
 
     if is_binary(iframe_url) and String.trim(iframe_url) != "" do
       %{
         iframe_url: iframe_url,
         url_template: url_template,
         iframe_allow: normalize_optional_string(map_get(payload, :allow)),
-        iframe_referrer_policy: normalize_optional_string(map_get(payload, :referrer_policy)),
-        iframe_sandbox: normalize_optional_string(map_get(payload, :sandbox))
+        iframe_referrer_policy:
+          normalize_optional_string(map_get(payload, :referrer_policy)) ||
+            "strict-origin-when-cross-origin",
+        iframe_sandbox:
+          normalize_optional_string(map_get(payload, :sandbox)) ||
+            "allow-scripts allow-same-origin"
       }
     else
       nil
@@ -89,6 +93,32 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   end
 
   def resolve_iframe_modal(_action, _row_context), do: nil
+
+  def sanitize_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+    lower = String.downcase(trimmed)
+    uri = URI.parse(trimmed)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      String.contains?(trimmed, <<0>>) ->
+        nil
+
+      uri.scheme in ["http", "https"] ->
+        trimmed
+
+      is_nil(uri.scheme) and not String.starts_with?(trimmed, "//") and
+          not String.starts_with?(lower, ["javascript:", "data:", "vbscript:"]) ->
+        trimmed
+
+      true ->
+        nil
+    end
+  end
+
+  def sanitize_url(_url), do: nil
 
   def resolve_live_component(%{type: :live_component, payload: payload}, row_context)
       when is_map(payload) do
