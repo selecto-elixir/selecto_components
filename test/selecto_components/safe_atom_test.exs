@@ -112,6 +112,7 @@ defmodule SelectoComponents.SafeAtomTest do
   describe "to_aggregate_function/2" do
     test "returns atom for valid aggregate functions" do
       assert SafeAtom.to_aggregate_function("count") == :count
+      assert SafeAtom.to_aggregate_function("count_distinct") == :count_distinct
       assert SafeAtom.to_aggregate_function("sum") == :sum
       assert SafeAtom.to_aggregate_function("avg") == :avg
       assert SafeAtom.to_aggregate_function("min") == :min

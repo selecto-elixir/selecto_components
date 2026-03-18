@@ -676,7 +676,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
             # Standard aggregates - return as single item list for consistency
             # Use SafeAtom to prevent atom table exhaustion from user input
             function_name =
-              case Map.get(e, "function") do
+              case Map.get(e, "function", Map.get(e, "format")) do
                 nil -> "count"
                 "" -> "count"
                 function -> function

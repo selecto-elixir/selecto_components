@@ -24,4 +24,9 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert state.grid_colorize == true
     assert state.grid_color_scale == "log"
   end
+
+  test "aggregates honors count distinct from format" do
+    assert Process.aggregates(%{"a1" => %{"field" => "id", "format" => "count_distinct"}}, []) ==
+             [{:field, {:count_distinct, "id"}, "id"}]
+  end
 end

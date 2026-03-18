@@ -103,7 +103,15 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <.sc_select
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
-                  options={Enum.map(~w(count avg sum min max buckets), fn o -> {o, o} end)}
+                  options={[
+                    {"count", "Count"},
+                    {"count_distinct", "Count Distinct"},
+                    {"avg", "Average"},
+                    {"sum", "Sum"},
+                    {"min", "Min"},
+                    {"max", "Max"},
+                    {"buckets", "Buckets"}
+                  ]}
                 />
               </label>
               <%= if Map.get(@config, "format") == "buckets" do %>
@@ -122,7 +130,13 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <.sc_select
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
-                  options={Enum.map(~w(avg sum min max buckets), fn o -> {o, o} end)}
+                  options={[
+                    {"avg", "Average"},
+                    {"sum", "Sum"},
+                    {"min", "Min"},
+                    {"max", "Max"},
+                    {"buckets", "Buckets"}
+                  ]}
                 />
               </label>
               <%= if Map.get(@config, "format") == "buckets" do %>
@@ -141,7 +155,12 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <.sc_select
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
-                  options={Enum.map(~w(count min max), fn o -> {o, o} end)}
+                  options={[
+                    {"count", "Count"},
+                    {"count_distinct", "Count Distinct"},
+                    {"min", "Min"},
+                    {"max", "Max"}
+                  ]}
                 />
               </label>
             <% :boolean -> %>
@@ -165,6 +184,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                   value={Map.get(@config, "format")}
                   options={[
                     {"count", "Count"},
+                    {"count_distinct", "Count Distinct"},
                     {"min", "Min"},
                     {"max", "Max"},
                     {"age_buckets", "Age Buckets"}

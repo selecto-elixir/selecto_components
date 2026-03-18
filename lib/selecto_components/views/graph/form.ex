@@ -337,8 +337,6 @@ defmodule SelectoComponents.Views.Graph.Form do
   end
 
   defp format_summary_label(value) do
-    value
-    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
-    |> String.downcase()
+    SelectoComponents.Helpers.aggregate_datetime_format_label(value)
   end
 end

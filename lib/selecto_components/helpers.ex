@@ -1,6 +1,15 @@
 defmodule SelectoComponents.Helpers do
   def aggregate_datetime_format_options() do
     [
+      {"count", "Count"},
+      {"count_distinct", "Count Distinct"},
+      {"sum", "Sum"},
+      {"avg", "Average"},
+      {"min", "Min"},
+      {"max", "Max"},
+      {"buckets", "Buckets"},
+      {"true_count", "True Count"},
+      {"false_count", "False Count"},
       {"YYYY-MM-DD", "Day"},
       {"YYYY-WW", "Week"},
       {"YYYY-MM", "Month"},
