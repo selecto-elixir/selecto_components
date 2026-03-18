@@ -83,7 +83,7 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
   test "exact count query omits max_rows bound" do
     selecto = detail_selecto(["name"])
 
-    {{:ok, {_rows, _columns, _aliases}, _metadata}, _updated_view_meta, _cache} =
+    {{:ok, {_rows, _columns, _aliases}, metadata}, _updated_view_meta, _cache} =
       QueryPagination.execute(selecto, params(), view_meta(%{count_mode: "exact"}), socket())
 
     count_sql =
@@ -92,6 +92,7 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
 
     assert is_binary(count_sql)
     refute count_sql =~ ~r/limit\s+1000/i
+    assert is_binary(metadata[:sql])
   end
 
   test "none count mode skips count query" do

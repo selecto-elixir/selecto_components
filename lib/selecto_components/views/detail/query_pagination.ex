@@ -174,7 +174,7 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
            sql: count_sql,
            params: base_params,
            execution_time: execution_time,
-           count_strategy: String.to_atom(count_mode),
+           count_strategy: count_strategy(count_mode),
            count_projection: :lightweight
          }}
 
@@ -201,6 +201,11 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
   defp build_count_sql(base_sql, _max_rows_limit, _count_mode, _selecto) do
     "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_detail_count"
   end
+
+  defp count_strategy("exact"), do: :exact
+  defp count_strategy("bounded"), do: :bounded
+  defp count_strategy("none"), do: :none
+  defp count_strategy(_), do: :bounded
 
   defp build_lightweight_count_selecto(selecto) do
     primary_key_field = primary_key_field(selecto)
