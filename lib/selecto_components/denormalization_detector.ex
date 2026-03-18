@@ -214,12 +214,18 @@ defmodule SelectoComponents.DenormalizationDetector do
 
     cond do
       not is_nil(target_primary_key) and not is_nil(join_target_key) ->
-        to_string(join_target_key) != to_string(target_primary_key)
+        normalize_join_key(join_target_key) != normalize_join_key(target_primary_key)
 
       true ->
         relationship_type_from_name(join_segment) == :one_to_many
     end
   end
+
+  defp normalize_join_key(key) when is_list(key) do
+    Enum.map(key, &to_string/1)
+  end
+
+  defp normalize_join_key(key), do: [to_string(key)]
 
   defp find_target_primary_key(selecto, join_segment, join_config) do
     schemas =

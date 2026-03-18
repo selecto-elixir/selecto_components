@@ -2,6 +2,15 @@
 CHANGES
 =======
 
+V 0.4.1
+--------
+
+- Fixed the detail-form denormalization toggle so submit preserves unchecked
+  state instead of re-enabling the checkbox on apply.
+- Fixed denormalization detection for joins targeting composite primary keys by
+  normalizing join-key comparisons before deciding whether a join fans out.
+- Added regression coverage for composite-key denormalization detection.
+
 V 0.4.0
 --------
 
