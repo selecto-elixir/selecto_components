@@ -792,9 +792,48 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   defp visible_aliases(columns) do
     Enum.map(columns, fn column ->
-      config_get(column, "alias") || config_get(column, "field") || ""
+      column_header_label(column)
     end)
   end
+
+  defp column_header_label(column) do
+    alias_name = present_string(config_get(column, "alias"))
+    field_name = present_string(config_get(column, "field"))
+
+    cond do
+      alias_name ->
+        alias_name
+
+      field_name ->
+        field_name
+        |> String.split(".")
+        |> List.last()
+        |> strip_short_prefix()
+        |> String.replace("_", " ")
+        |> String.trim()
+        |> Phoenix.Naming.humanize()
+
+      true ->
+        "column"
+    end
+  end
+
+  defp strip_short_prefix(field_name) when is_binary(field_name) do
+    case String.split(field_name, "_", parts: 2) do
+      [prefix, rest] when byte_size(prefix) <= 3 and rest != "" -> rest
+      _ -> field_name
+    end
+  end
+
+  defp present_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp present_string(value) when is_atom(value),
+    do: value |> Atom.to_string() |> present_string()
+
+  defp present_string(_value), do: nil
 
   defp modal_row_action?(action_type)
        when action_type in [:modal, :iframe_modal, :live_component],
@@ -998,14 +1037,23 @@ defmodule SelectoComponents.Views.Detail.Component do
   defp config_get(_config, _key), do: nil
 
   defp safe_cell_value(value) do
-    if Phoenix.HTML.Safe.impl_for(value) do
-      value
-    else
-      case value do
-        nil -> ""
-        value when is_atom(value) -> Atom.to_string(value)
-        _ -> inspect(value)
-      end
+    case value do
+      {:safe, _} = safe_value ->
+        safe_value
+
+      value when is_tuple(value) ->
+        inspect(value)
+
+      _ ->
+        if Phoenix.HTML.Safe.impl_for(value) do
+          value
+        else
+          case value do
+            nil -> ""
+            value when is_atom(value) -> Atom.to_string(value)
+            _ -> inspect(value)
+          end
+        end
     end
   end
 

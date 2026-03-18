@@ -11,8 +11,8 @@ defmodule SelectoComponents.Form.ParamsState do
   """
 
   import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
-  alias Selecto.Executor
   alias SelectoComponents.Performance.MetricsCollector
+  alias SelectoComponents.DBSupport
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Views.Detail.QueryPagination
@@ -48,39 +48,59 @@ defmodule SelectoComponents.Form.ParamsState do
   Convert view_config structure to URL parameters format.
   """
   def view_config_to_params(view_config) do
+    view_mode = get_map_value(view_config, :view_mode, "aggregate")
+    filters = get_map_value(view_config, :filters, [])
+    views = get_map_value(view_config, :views, %{})
+
     params = %{
-      "view_mode" => view_config.view_mode,
-      "filters" => filters_to_params(view_config.filters)
+      "view_mode" => view_mode,
+      "filters" => filters_to_params(filters)
     }
 
-    selected_view = SafeAtom.to_view_mode(view_config.view_mode)
-
-    # Add view-specific parameters
     view_params =
-      case view_config.views[selected_view] do
-        nil ->
-          %{}
-
-        view_data ->
-          Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
-            cond do
-              selected_view == :map and list_name in [:map_layers, "map_layers"] ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-
-              selected_view == :map ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-
-              is_list(items) ->
-                Map.put(acc, to_string(list_name), view_items_to_params(items))
-
-              true ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-            end
-          end)
-      end
+      views
+      |> Enum.reduce(%{}, fn {view_key, view_data}, acc ->
+        view = SafeAtom.to_view_mode(view_key)
+        Map.merge(acc, view_data_to_params(view, view_data))
+      end)
 
     Map.merge(params, view_params)
   end
+
+  defp view_data_to_params(_view, nil), do: %{}
+
+  defp view_data_to_params(view, view_data) when is_map(view_data) do
+    Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
+      cond do
+        view == :map and list_name in [:map_layers, "map_layers"] ->
+          merge_scalar_view_param(acc, view, list_name, items)
+
+        view == :map ->
+          merge_scalar_view_param(acc, view, list_name, items)
+
+        is_list(items) ->
+          Map.put(acc, to_string(list_name), view_items_to_params(items))
+
+        true ->
+          merge_scalar_view_param(acc, view, list_name, items)
+      end
+    end)
+  end
+
+  defp view_data_to_params(_view, _view_data), do: %{}
+
+  @doc """
+  Convert full view_config structure to saved-view persistence format.
+  """
+  def view_config_to_saved_params(view_config) when is_map(view_config) do
+    %{
+      "view_mode" => get_map_value(view_config, :view_mode, "aggregate"),
+      "filters" => normalize_saved_filters_for_storage(get_map_value(view_config, :filters, [])),
+      "views" => normalize_saved_views_for_storage(get_map_value(view_config, :views, %{}))
+    }
+  end
+
+  def view_config_to_saved_params(view_config), do: view_config
 
   defp view_items_to_params(items) do
     items
@@ -121,6 +141,20 @@ defmodule SelectoComponents.Form.ParamsState do
   defp merge_scalar_view_param(acc, :aggregate, key, value)
        when key in [:grid, "grid"] do
     Map.put(acc, "aggregate_grid", to_string(value))
+  end
+
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid_colorize, "grid_colorize"] do
+    Map.put(acc, "aggregate_grid_colorize", to_string(value))
+  end
+
+  defp merge_scalar_view_param(acc, :aggregate, key, value)
+       when key in [:grid_color_scale, "grid_color_scale"] do
+    Map.put(
+      acc,
+      "aggregate_grid_color_scale",
+      AggregateOptions.normalize_grid_color_scale_mode(value)
+    )
   end
 
   defp merge_scalar_view_param(acc, :detail, key, value)
@@ -202,27 +236,40 @@ defmodule SelectoComponents.Form.ParamsState do
   def filters_to_params(filters) do
     filters
     |> Enum.with_index()
-    |> Enum.reduce(%{}, fn {{uuid, section, filter_data}, index}, acc ->
-      filter_params =
-        case filter_data do
-          conj when is_binary(conj) ->
-            %{
-              "uuid" => uuid,
-              "conjunction" => conj,
-              "section" => section,
-              "index" => to_string(index)
-            }
+    |> Enum.reduce(%{}, fn
+      {{uuid, section, filter_data}, index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          build_filter_params(uuid, section, filter_data, index)
+        )
 
-          filter_map when is_map(filter_map) ->
-            Map.merge(filter_map, %{
-              "uuid" => uuid,
-              "section" => section,
-              "index" => to_string(index)
-            })
-        end
-
-      Map.put(acc, compact_param_key(index), filter_params)
+      {[uuid, section, filter_data], index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          build_filter_params(uuid, section, filter_data, index)
+        )
     end)
+  end
+
+  defp build_filter_params(uuid, section, filter_data, index) do
+    case filter_data do
+      conj when is_binary(conj) ->
+        %{
+          "uuid" => uuid,
+          "conjunction" => conj,
+          "section" => section,
+          "index" => to_string(index)
+        }
+
+      filter_map when is_map(filter_map) ->
+        Map.merge(filter_map, %{
+          "uuid" => uuid,
+          "section" => section,
+          "index" => to_string(index)
+        })
+    end
   end
 
   defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
@@ -396,7 +443,15 @@ defmodule SelectoComponents.Form.ParamsState do
       # Create a fresh Selecto structure instead of reusing the cached one
       # This ensures any internal state is properly reset for the new view
       old_selecto = socket.assigns.selecto
-      selecto = Selecto.configure(old_selecto.domain, old_selecto.postgrex_opts)
+
+      selecto =
+        Selecto.configure(
+          old_selecto.domain,
+          old_selecto.postgrex_opts,
+          adapter: old_selecto.adapter,
+          validate: false
+        )
+
       raw_columns = Selecto.columns(selecto)
 
       # Convert columns to the format expected by ListPicker components
@@ -473,12 +528,12 @@ defmodule SelectoComponents.Form.ParamsState do
 
       selecto = Map.put(selecto, :set, view_set)
 
-      # Apply automatic pivot if needed
+      # Apply automatic retarget if needed
       view_mode = Map.get(params, "view_mode", "detail")
       selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
 
       selecto =
-        Selecto.AutoPivot.maybe_apply(selecto,
+        Selecto.AutoRetarget.maybe_apply(selecto,
           view_mode: view_mode,
           selected: selected_columns
         )
@@ -944,8 +999,8 @@ defmodule SelectoComponents.Form.ParamsState do
         |> Map.put(:order_by, [])
       end)
 
-    {base_sql, base_params} = Selecto.to_sql(count_selecto)
-    count_sql = "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+    {base_sql, aliases, base_params} = Selecto.gen_sql(count_selecto, [])
+    count_sql = build_aggregate_count_sql(base_sql, aliases, selecto)
     started_at = System.monotonic_time(:millisecond)
 
     case execute_raw_query(selecto, count_sql, base_params) do
@@ -974,6 +1029,27 @@ defmodule SelectoComponents.Form.ParamsState do
         {:error, error}
     end
   end
+
+  defp build_aggregate_count_sql(base_sql, aliases, selecto) do
+    if DBSupport.requires_derived_table_column_aliases?(selecto) do
+      column_list =
+        aliases
+        |> aggregate_count_column_aliases()
+        |> Enum.join(", ")
+
+      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count (#{column_list})"
+    else
+      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
+    end
+  end
+
+  defp aggregate_count_column_aliases(aliases) when is_list(aliases) and aliases != [] do
+    aliases
+    |> Enum.with_index(1)
+    |> Enum.map(fn {_alias, index} -> "agg_col_#{index}" end)
+  end
+
+  defp aggregate_count_column_aliases(_aliases), do: ["agg_col_1"]
 
   defp clear_limit_offset(selecto) do
     update_in(selecto.set, fn set ->
@@ -1110,29 +1186,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp execute_raw_query(selecto, query, params) do
-    cond do
-      selecto.adapter && not postgres_adapter?(selecto.adapter) ->
-        Executor.execute_with_adapter(selecto.adapter, selecto.connection, query, params, [])
-
-      ecto_repo?(selecto.postgrex_opts) ->
-        Executor.execute_with_ecto_repo(selecto.postgrex_opts, query, params, [])
-
-      true ->
-        Executor.execute_with_postgrex(selecto.postgrex_opts, query, params, [])
-    end
-  end
-
-  defp ecto_repo?(repo) when is_atom(repo) do
-    Code.ensure_loaded?(repo) and function_exported?(repo, :__adapter__, 0)
-  end
-
-  defp ecto_repo?(_repo), do: false
-
-  defp postgres_adapter?(adapter) do
-    adapter in [
-      Module.concat(["Selecto", "DB", "PostgreSQL"]),
-      Module.concat(["SelectoDBPostgreSQL", "Adapter"])
-    ]
+    DBSupport.execute_raw_query(selecto, query, params)
   end
 
   defp normalize_count(value) when is_integer(value), do: value
@@ -1184,10 +1238,16 @@ defmodule SelectoComponents.Form.ParamsState do
     filters = view_filter_process(params, "filters")
     existing_config = socket.assigns[:view_config] || %{}
 
+    selected_view =
+      SafeAtom.to_view_mode(
+        Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+      )
+
     view_configs =
       Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
         Map.merge(acc, %{
-          view => ViewRuntime.param_to_state(view_tuple, params)
+          view =>
+            updated_view_state(view, selected_view, view_tuple, params, existing_config, socket)
         })
       end)
       |> preserve_missing_detail_view_params(existing_config, params)
@@ -1201,6 +1261,181 @@ defmodule SelectoComponents.Form.ParamsState do
           view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
         })
     )
+  end
+
+  @doc """
+  Build view_config from a submitted form payload.
+
+  Unlike URL params, the form payload contains inputs for all rendered view tabs,
+  so every view can be reconstructed from the browser state in one pass.
+  """
+  def form_params_to_state(params, socket) do
+    params = canonicalize_form_params(params)
+    filters = view_filter_process(params, "filters")
+    existing_config = socket.assigns[:view_config] || %{}
+
+    view_configs =
+      Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
+        Map.put(
+          acc,
+          view,
+          submitted_view_state(view, view_tuple, params, existing_config, socket)
+        )
+      end)
+
+    Phoenix.Component.assign(socket,
+      view_config:
+        Map.merge(existing_config, %{
+          filters: filters,
+          views: view_configs,
+          view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+        })
+    )
+  end
+
+  @doc """
+  Restore a saved-view payload into socket state.
+  """
+  def saved_params_to_state(saved_params, socket) when is_map(saved_params) do
+    if Map.has_key?(saved_params, "views") or Map.has_key?(saved_params, :views) do
+      existing_config = socket.assigns[:view_config] || %{}
+
+      restored_config = %{
+        view_mode:
+          get_map_value(
+            saved_params,
+            :view_mode,
+            get_map_value(existing_config, :view_mode, "aggregate")
+          ),
+        filters: normalize_saved_filters_from_storage(get_map_value(saved_params, :filters, [])),
+        views: restore_saved_views(saved_params, existing_config, socket)
+      }
+
+      Phoenix.Component.assign(socket, view_config: Map.merge(existing_config, restored_config))
+    else
+      params_to_state(saved_params, socket)
+    end
+  end
+
+  def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
+
+  defp submitted_view_state(view, view_tuple, params, existing_config, socket) do
+    cond do
+      view_params_present?(view, params) ->
+        ViewRuntime.param_to_state(view_tuple, params)
+
+      existing_view = get_in(existing_config, [:views, view]) ->
+        existing_view
+
+      selecto = socket.assigns[:selecto] ->
+        ViewRuntime.initial_state(view_tuple, selecto)
+
+      true ->
+        %{}
+    end
+  end
+
+  defp view_params_present?(view, params) when is_map(params) do
+    view_param_keys(view)
+    |> Enum.any?(fn key -> Map.has_key?(params, key) end)
+  end
+
+  defp view_params_present?(_view, _params), do: false
+
+  defp view_param_keys(:detail),
+    do: [
+      "selected",
+      "order_by",
+      "per_page",
+      "max_rows",
+      "count_mode",
+      "row_click_action",
+      "prevent_denormalization"
+    ]
+
+  defp view_param_keys(:aggregate),
+    do: [
+      "group_by",
+      "aggregate",
+      "aggregate_per_page",
+      "aggregate_grid",
+      "aggregate_grid_colorize",
+      "aggregate_grid_color_scale"
+    ]
+
+  defp view_param_keys(:graph), do: ["x_axis", "y_axis", "series", "chart_type", "options"]
+
+  defp view_param_keys(:map), do: ["map_layers" | @map_param_keys]
+
+  defp view_param_keys(_view), do: []
+
+  defp updated_view_state(view, selected_view, view_tuple, params, existing_config, socket) do
+    cond do
+      view == selected_view ->
+        ViewRuntime.param_to_state(view_tuple, params)
+
+      existing_view = get_in(existing_config, [:views, view]) ->
+        existing_view
+
+      selecto = socket.assigns[:selecto] ->
+        ViewRuntime.initial_state(view_tuple, selecto)
+
+      true ->
+        %{}
+    end
+  end
+
+  defp normalize_saved_views_for_storage(views) when is_map(views) do
+    Map.new(views, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
+  end
+
+  defp normalize_saved_views_for_storage(_views), do: %{}
+
+  defp normalize_saved_filters_for_storage(filters) when is_list(filters) do
+    Enum.map(filters, &normalize_saved_term/1)
+  end
+
+  defp normalize_saved_filters_for_storage(_filters), do: []
+
+  defp normalize_saved_term(term) when is_map(term) do
+    Map.new(term, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
+  end
+
+  defp normalize_saved_term(term) when is_list(term), do: Enum.map(term, &normalize_saved_term/1)
+
+  defp normalize_saved_term(term) when is_tuple(term),
+    do: term |> Tuple.to_list() |> normalize_saved_term()
+
+  defp normalize_saved_term(term), do: term
+
+  defp normalize_saved_filters_from_storage(filters) when is_list(filters) do
+    Enum.map(filters, fn
+      [uuid, section, filter_data] -> {uuid, section, filter_data}
+      {uuid, section, filter_data} -> {uuid, section, filter_data}
+      other -> other
+    end)
+  end
+
+  defp normalize_saved_filters_from_storage(_filters), do: []
+
+  defp restore_saved_views(saved_params, existing_config, socket) do
+    Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
+      restored_view =
+        case get_in(saved_params, ["views", Atom.to_string(view)]) ||
+               get_in(saved_params, [:views, view]) do
+          nil ->
+            get_in(existing_config, [:views, view]) ||
+              if(socket.assigns[:selecto],
+                do: ViewRuntime.initial_state(view_tuple, socket.assigns.selecto),
+                else: %{}
+              )
+
+          saved_view ->
+            normalize_saved_term(saved_view)
+        end
+
+      Map.put(acc, view, restored_view)
+    end)
   end
 
   defp preserve_missing_detail_view_params(view_configs, existing_config, params) do
@@ -1379,10 +1614,25 @@ defmodule SelectoComponents.Form.ParamsState do
 
     params =
       if view_type_str == "aggregate" do
-        Map.put(
-          params,
+        params
+        |> Map.put(
           "aggregate_per_page",
           AggregateOptions.normalize_per_page_param(get_map_value(view_config, :per_page, "100"))
+        )
+        |> Map.put("aggregate_grid", to_string(get_map_value(view_config, :grid, false)))
+        |> Map.put(
+          "aggregate_grid_colorize",
+          to_string(get_map_value(view_config, :grid_colorize, false))
+        )
+        |> Map.put(
+          "aggregate_grid_color_scale",
+          AggregateOptions.normalize_grid_color_scale_mode(
+            get_map_value(
+              view_config,
+              :grid_color_scale,
+              AggregateOptions.default_grid_color_scale_mode()
+            )
+          )
         )
       else
         Map.put(params, "per_page", to_string(get_map_value(view_config, :per_page, "30")))

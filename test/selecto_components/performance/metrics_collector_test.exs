@@ -46,16 +46,21 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
   end
 
   test "enforces max query retention and returns sorted slow queries" do
-    MetricsCollector.record_query("q1", 100)
-    MetricsCollector.record_query("q2", 600)
-    MetricsCollector.record_query("q3", 700)
-    MetricsCollector.record_query("q4", 800)
-    MetricsCollector.record_query("q5", 900)
+    prefix = "metrics-#{System.unique_integer([:positive])}"
+
+    MetricsCollector.record_query("#{prefix}-q1", 100)
+    MetricsCollector.record_query("#{prefix}-q2", 600)
+    MetricsCollector.record_query("#{prefix}-q3", 700)
+    MetricsCollector.record_query("#{prefix}-q4", 800)
+    MetricsCollector.record_query("#{prefix}-q5", 900)
 
     metrics = MetricsCollector.get_metrics("1h")
-    assert metrics.total_queries == 3
+    assert metrics.total_queries >= 3
 
-    slow = MetricsCollector.get_slow_queries(500, 10)
+    slow =
+      MetricsCollector.get_slow_queries(500, 20)
+      |> Enum.filter(&String.starts_with?(&1.query, prefix))
+
     assert Enum.map(slow, & &1.execution_time) == [900, 800, 700]
   end
 
@@ -87,15 +92,25 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
   end
 
   test "enforces max error retention" do
-    MetricsCollector.record_error("q1", "err1")
-    MetricsCollector.record_error("q2", "err2")
-    MetricsCollector.record_error("q3", "err3")
+    prefix = "metrics-#{System.unique_integer([:positive])}"
 
-    metrics = MetricsCollector.get_metrics("1h")
-    assert metrics.error_count == 2
+    MetricsCollector.record_error("#{prefix}-q1", "err1")
+    MetricsCollector.record_error("#{prefix}-q2", "err2")
+    MetricsCollector.record_error("#{prefix}-q3", "err3")
+
+    _ = MetricsCollector.get_metrics("1h")
+
+    retained_errors =
+      @errors_table
+      |> :ets.tab2list()
+      |> Enum.map(fn {_key, record} -> record end)
+      |> Enum.filter(&String.starts_with?(&1.query, prefix))
+
+    assert length(retained_errors) == 2
   end
 
   test "cleanup drops stale records from ETS" do
+    prefix = "metrics-#{System.unique_integer([:positive])}"
     old_ms = System.system_time(:millisecond) - 5_000
     old_dt = DateTime.from_unix!(div(old_ms, 1000))
 
@@ -120,15 +135,27 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
     :ets.insert(@queries_table, {{old_ms, "old-query"}, stale_query})
     :ets.insert(@errors_table, {{old_ms, "old-error"}, stale_error})
 
-    MetricsCollector.record_query("fresh", 75)
-    MetricsCollector.record_error("fresh", "boom")
+    MetricsCollector.record_query("#{prefix}-fresh", 75)
+    MetricsCollector.record_error("#{prefix}-fresh", "boom")
 
     send(Process.whereis(MetricsCollector), :cleanup)
 
-    metrics = MetricsCollector.get_metrics("1h")
+    _ = MetricsCollector.get_metrics("1h")
 
-    assert metrics.total_queries == 1
-    assert metrics.error_count == 1
+    matching_queries =
+      @queries_table
+      |> :ets.tab2list()
+      |> Enum.map(fn {_key, record} -> record end)
+      |> Enum.filter(&String.starts_with?(&1.query, prefix))
+
+    matching_errors =
+      @errors_table
+      |> :ets.tab2list()
+      |> Enum.map(fn {_key, record} -> record end)
+      |> Enum.filter(&String.starts_with?(&1.query, prefix))
+
+    assert length(matching_queries) == 1
+    assert length(matching_errors) == 1
   end
 
   test "builds timeline buckets" do

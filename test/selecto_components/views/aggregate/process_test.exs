@@ -3,54 +3,76 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
 
   alias SelectoComponents.Views.Aggregate.Process
 
-  defp selecto do
-    domain = %{
-      name: "AggregateProcessTest",
-      source: %{
-        source_table: "records",
-        primary_key: :id,
-        fields: [:id, :title],
-        redact_fields: [],
-        columns: %{
-          id: %{type: :integer},
-          title: %{type: :string}
-        },
-        associations: %{}
-      },
-      schemas: %{},
-      joins: %{}
-    }
-
-    Selecto.configure(domain, nil)
-  end
-
-  test "group_by/3 builds text prefix bucket selector for string fields" do
-    columns = %{
-      "title" => %{colid: :title, type: :string, name: "Title"}
-    }
-
-    params = %{
-      "g1" => %{
-        "field" => "title",
-        "index" => "0",
-        "format" => "text_prefix",
-        "prefix_length" => "2",
-        "exclude_articles" => "true"
-      }
-    }
-
-    [{_col, {:field, {:raw_sql, sql}, "title"}}] = Process.group_by(params, columns, selecto())
-
-    assert sql =~ "REGEXP_REPLACE"
-    assert sql =~ "UPPER(LEFT("
-    assert sql =~ ", 2))"
-  end
-
   test "param_to_state reads aggregate grid toggle" do
     state = Process.param_to_state(%{"aggregate_grid" => "true"}, %{})
     assert state.grid == true
 
     state = Process.param_to_state(%{"aggregate_grid" => "false"}, %{})
     assert state.grid == false
+  end
+
+  test "param_to_state reads aggregate grid color settings" do
+    state =
+      Process.param_to_state(
+        %{
+          "aggregate_grid_colorize" => "true",
+          "aggregate_grid_color_scale" => "log"
+        },
+        %{}
+      )
+
+    assert state.grid_colorize == true
+    assert state.grid_color_scale == "log"
+  end
+
+  test "aggregates honors count distinct from format" do
+    columns = %{"id" => %{name: "Category ID", type: :id, colid: "id"}}
+
+    assert Process.aggregates(
+             %{"a1" => %{"field" => "id", "format" => "count_distinct"}},
+             columns
+           ) ==
+             [{:field, {:count_distinct, "id"}, "Category ID Distinct Count"}]
+  end
+
+  test "group by uses column display names by default" do
+    columns = %{
+      "category.category_name" => %{
+        name: "Category: Category name",
+        type: :string,
+        colid: "category.category_name"
+      }
+    }
+
+    assert Process.group_by(
+             %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
+             columns,
+             nil
+           ) ==
+             [
+               {%{
+                  "group_format" => "default",
+                  name: "Category: Category name",
+                  type: :string,
+                  colid: "category.category_name",
+                  group_format: "default"
+                }, {:field, "category.category_name", "Category Name"}}
+             ]
+  end
+
+  test "aggregates use friendly default labels" do
+    columns = %{
+      "order_details.order_id" => %{
+        name: "Order Details: Order id",
+        type: :id,
+        colid: "order_details.order_id"
+      }
+    }
+
+    assert Process.aggregates(
+             %{"a1" => %{"field" => "order_details.order_id", "format" => "count_distinct"}},
+             columns
+           ) ==
+             [{:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}]
   end
 end

@@ -101,6 +101,35 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "101"
   end
 
+  test "renders tuple values safely instead of crashing detail cells" do
+    tuple_value = {{2026, 3, 17}, {8, 0, 0, 0}}
+
+    assigns =
+      base_assigns(%{
+        query_results: {[[tuple_value]], ["placed_at"], ["placed_at"]},
+        selecto: %{
+          selecto()
+          | domain: %{
+              selecto().domain
+              | source: %{
+                  selecto().domain.source
+                  | fields: [:id, :placed_at],
+                    columns: %{id: %{type: :integer}, placed_at: %{type: :utc_datetime}}
+                }
+            },
+            set: %{
+              columns: [
+                %{"field" => "placed_at", "alias" => "placed_at", "uuid" => "placed-at-col"}
+              ]
+            }
+        }
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "{{2026, 3, 17}, {8, 0, 0, 0}}"
+  end
+
   test "renders row values when column uuid does not match row-data uuid mapping" do
     assigns =
       base_assigns(%{

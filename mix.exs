@@ -71,7 +71,8 @@ defmodule SelectoComponents.MixProject do
   defp use_local_selecto? do
     case System.get_env("SELECTO_ECOSYSTEM_USE_LOCAL") do
       value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
-      _ -> false
+      value when value in ["0", "false", "FALSE", "no", "NO", "off", "OFF"] -> false
+      _ -> File.dir?(Path.expand("../selecto", __DIR__))
     end
   end
 

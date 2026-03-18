@@ -28,8 +28,9 @@ defmodule SelectoComponents.PropertyRoundtripTest do
 
       Enum.zip(filters, processed)
       |> Enum.each(fn {{orig_uuid, orig_section, orig_map}, {uuid, section, processed_map}} ->
-        assert uuid == orig_uuid
+        assert uuid =~ ~r/^k[0-9a-z]+$/
         assert section == orig_section
+        assert processed_map["uuid"] == orig_uuid
         assert processed_map["filter"] == orig_map["filter"]
         assert processed_map["comp"] == orig_map["comp"]
         assert processed_map["value"] == orig_map["value"]

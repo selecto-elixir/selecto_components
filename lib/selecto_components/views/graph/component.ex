@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   use Phoenix.LiveComponent
   require Logger
+  alias SelectoComponents.DBSupport
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
@@ -50,9 +51,8 @@ defmodule SelectoComponents.Views.Graph.Component do
           <% end %>
 
           <%= if @error.details[:exception] do %>
-            <%= case @error.details.exception do %>
-              <% %{__struct__: module, postgres: postgres}
-                 when module == Postgrex.Error and is_map(postgres) -> %>
+            <%= case DBSupport.database_error_details(@error.details.exception) do %>
+              <% postgres when is_map(postgres) -> %>
                 <div class="bg-error/20 rounded p-3 mt-3 text-left">
                   <div class="font-mono text-sm text-error">
                     {Map.get(postgres, :message, "Database error occurred")}

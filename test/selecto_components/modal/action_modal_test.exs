@@ -74,6 +74,23 @@ defmodule SelectoComponents.Modal.ActionModalTest do
            ).size == :third
   end
 
+  test "iframe modal sanitizes unsafe urls and defaults sandbox settings" do
+    assert nil ==
+             SelectoComponents.Views.Detail.RowActions.resolve_iframe_modal(
+               %{type: :iframe_modal, payload: %{url_template: "javascript:alert(1)"}},
+               %{}
+             )
+
+    assert %{
+             iframe_referrer_policy: "strict-origin-when-cross-origin",
+             iframe_sandbox: "allow-scripts allow-same-origin"
+           } =
+             SelectoComponents.Views.Detail.RowActions.resolve_iframe_modal(
+               %{type: :iframe_modal, payload: %{url_template: "/safe/path"}},
+               %{}
+             )
+  end
+
   test "renders live component modal content" do
     html =
       render_component(LiveComponentModal, %{

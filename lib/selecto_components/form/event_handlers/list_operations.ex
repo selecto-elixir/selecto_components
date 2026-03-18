@@ -36,6 +36,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.Form.ListPickerOperations
+      alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.SafeAtom
 
       @doc """
@@ -54,6 +55,12 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
       `{:noreply, socket}` with updated view configuration
       """
       def handle_info({:list_picker_add, view, list, item}, socket) do
+        handle_info({:list_picker_add, nil, view, list, item}, socket)
+      end
+
+      def handle_info({:list_picker_add, form_state_query, view, list, item}, socket) do
+        socket = hydrate_list_picker_form_state(socket, form_state_query)
+
         # Create item tuple with UUID and empty config
         item_tuple = {UUID.uuid4(), item, %{}}
 
@@ -97,6 +104,12 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
       `{:noreply, socket}` with updated view configuration
       """
       def handle_info({:list_picker_remove, view, list, item}, socket) do
+        handle_info({:list_picker_remove, nil, view, list, item}, socket)
+      end
+
+      def handle_info({:list_picker_remove, form_state_query, view, list, item}, socket) do
+        socket = hydrate_list_picker_form_state(socket, form_state_query)
+
         # Use helper module to remove item
         updated_view_config =
           ListPickerOperations.remove_item_from_list(
@@ -177,6 +190,15 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
       `{:noreply, socket}` with updated view configuration
       """
       def handle_info({:list_picker_reorder, view, list, dragged_uuid, target_uuid}, socket) do
+        handle_info({:list_picker_reorder, nil, view, list, dragged_uuid, target_uuid}, socket)
+      end
+
+      def handle_info(
+            {:list_picker_reorder, form_state_query, view, list, dragged_uuid, target_uuid},
+            socket
+          ) do
+        socket = hydrate_list_picker_form_state(socket, form_state_query)
+
         updated_view_config =
           ListPickerOperations.reorder_item_in_list(
             socket.assigns.view_config,
@@ -198,6 +220,16 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         end
 
         {:noreply, socket}
+      end
+
+      defp hydrate_list_picker_form_state(socket, nil), do: socket
+      defp hydrate_list_picker_form_state(socket, ""), do: socket
+
+      defp hydrate_list_picker_form_state(socket, form_state_query)
+           when is_binary(form_state_query) do
+        form_state_query
+        |> Plug.Conn.Query.decode()
+        |> ParamsState.form_params_to_state(socket)
       end
     end
   end

@@ -88,8 +88,9 @@ defmodule SelectoComponents.Views.Detail.Form do
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = Selecto.field(@selecto, item) %>
+          <% format_summary = detail_format_summary(col, config) %>
           <span class="truncate"><%= summary_title(config, column_display_name(@columns, item, col)) %></span>
-          <span class="truncate text-sm font-normal text-base-content/60"><%= detail_format_summary(col, config) %></span>
+          <span :if={present_summary?(format_summary)} class="truncate text-sm font-normal text-base-content/60"><%= format_summary %></span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <% param_key = compact_param_key(index) %>
@@ -305,7 +306,7 @@ defmodule SelectoComponents.Views.Detail.Form do
 
     case type do
       x when x in [:int, :id] ->
-        if Map.get(config, "commas"), do: "commas", else: "default"
+        if Map.get(config, "commas"), do: "commas", else: nil
 
       x when x in [:float, :decimal] ->
         commas = if(Map.get(config, "commas"), do: "commas, ", else: "")
@@ -314,7 +315,7 @@ defmodule SelectoComponents.Views.Detail.Form do
 
       x when x in [:naive_datetime, :utc_datetime, :date] ->
         case Map.get(config, "format") do
-          value when value in [nil, ""] -> "default"
+          value when value in [nil, "", "default"] -> nil
           value -> format_summary_label(value)
         end
 
@@ -322,7 +323,7 @@ defmodule SelectoComponents.Views.Detail.Form do
         if is_function(Map.get(col || %{}, :configure_component)) do
           "custom options"
         else
-          "default"
+          nil
         end
     end
   end
@@ -335,10 +336,10 @@ defmodule SelectoComponents.Views.Detail.Form do
   end
 
   defp format_summary_label(value) do
-    value
-    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
-    |> String.downcase()
+    SelectoComponents.Helpers.aggregate_datetime_format_label(value)
   end
+
+  defp present_summary?(value), do: value not in [nil, ""]
 
   defp row_action_type_label(:modal), do: "Modal"
   defp row_action_type_label(:iframe_modal), do: "Iframe modal"

@@ -4,6 +4,8 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
   Provides consistent error classification for proper display and handling.
   """
 
+  alias SelectoComponents.DBSupport
+
   @doc """
   Categorizes an error and returns detailed classification.
   """
@@ -40,14 +42,24 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
     }
   end
 
-  def categorize({:error, %{__struct__: module} = error}) when module == Postgrex.Error do
-    %{
-      category: :database,
-      severity: :error,
-      recoverable: is_db_error_recoverable?(error),
-      error: error,
-      source: :database
-    }
+  def categorize({:error, error}) when is_map(error) do
+    if DBSupport.database_error?(error) do
+      %{
+        category: :database,
+        severity: :error,
+        recoverable: DBSupport.database_error_recoverable?(error),
+        error: error,
+        source: :database
+      }
+    else
+      %{
+        category: :unknown,
+        severity: :error,
+        recoverable: false,
+        error: %{message: inspect(error)},
+        source: :unknown
+      }
+    end
   end
 
   def categorize({:error, reason}) when is_binary(reason) do
@@ -104,9 +116,8 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
     end
   end
 
-  def format_message(%{category: :database, error: %{__struct__: module} = error})
-      when module == Postgrex.Error do
-    format_database_error(error)
+  def format_message(%{category: :database, error: error}) when is_map(error) do
+    DBSupport.format_database_error(error)
   end
 
   def format_message(%{category: :validation, error: %{message: message}}) do
@@ -204,42 +215,4 @@ defmodule SelectoComponents.ErrorHandling.ErrorCategorizer do
   defp is_recoverable?(:connection_error), do: false
   defp is_recoverable?(:configuration_error), do: false
   defp is_recoverable?(_), do: false
-
-  defp is_db_error_recoverable?(%{__struct__: module, postgres: %{code: code}})
-       when module == Postgrex.Error do
-    code in ["23505", "23503", "23502"]
-  end
-
-  defp is_db_error_recoverable?(_), do: false
-
-  defp format_database_error(%{
-         __struct__: module,
-         postgres: %{code: "23505", constraint: constraint}
-       })
-       when module == Postgrex.Error do
-    "Duplicate value violates uniqueness constraint: #{constraint}"
-  end
-
-  defp format_database_error(%{
-         __struct__: module,
-         postgres: %{code: "23503", constraint: constraint}
-       })
-       when module == Postgrex.Error do
-    "Foreign key constraint violation: #{constraint}"
-  end
-
-  defp format_database_error(%{__struct__: module, postgres: %{code: "23502", column: column}})
-       when module == Postgrex.Error do
-    "Required field '#{column}' cannot be empty"
-  end
-
-  defp format_database_error(%{__struct__: module, postgres: %{message: message}})
-       when module == Postgrex.Error do
-    "Database error: #{message}"
-  end
-
-  defp format_database_error(%{__struct__: module, message: message})
-       when module == Postgrex.Error do
-    "Database error: #{message}"
-  end
 end

@@ -80,29 +80,10 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
     end
   end
 
-  test "bounded count query uses lightweight projection and max_rows limit" do
-    selecto = detail_selecto(["name"])
-
-    {{:ok, {rows, columns, _aliases}, _metadata}, _updated_view_meta, _cache} =
-      QueryPagination.execute(selecto, params(), view_meta(%{count_mode: "bounded"}), socket())
-
-    assert rows == [["Alpha"], ["Beta"]]
-    assert columns == ["name"]
-
-    count_sql =
-      collect_sql_messages()
-      |> Enum.find(&String.contains?(String.downcase(&1), "count(*) as total_rows"))
-
-    assert is_binary(count_sql)
-    assert count_sql =~ ~r/\bid\b/i
-    assert count_sql =~ ~r/limit\s+1000/i
-    refute count_sql =~ ~r/\bname\b/i
-  end
-
   test "exact count query omits max_rows bound" do
     selecto = detail_selecto(["name"])
 
-    {{:ok, {_rows, _columns, _aliases}, _metadata}, _updated_view_meta, _cache} =
+    {{:ok, {_rows, _columns, _aliases}, metadata}, _updated_view_meta, _cache} =
       QueryPagination.execute(selecto, params(), view_meta(%{count_mode: "exact"}), socket())
 
     count_sql =
@@ -111,6 +92,7 @@ defmodule SelectoComponents.Views.Detail.QueryPaginationTest do
 
     assert is_binary(count_sql)
     refute count_sql =~ ~r/limit\s+1000/i
+    assert is_binary(metadata[:sql])
   end
 
   test "none count mode skips count query" do

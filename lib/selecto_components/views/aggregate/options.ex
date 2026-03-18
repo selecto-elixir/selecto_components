@@ -4,10 +4,14 @@ defmodule SelectoComponents.Views.Aggregate.Options do
   @per_page_options [30, 100, 200, 300, "all"]
   @default_per_page "100"
   @default_max_client_rows 10_000
+  @grid_color_scale_modes ["linear", "log"]
+  @default_grid_color_scale_mode "linear"
 
   def per_page_options, do: @per_page_options
   def default_per_page, do: @default_per_page
   def default_max_client_rows, do: @default_max_client_rows
+  def grid_color_scale_modes, do: @grid_color_scale_modes
+  def default_grid_color_scale_mode, do: @default_grid_color_scale_mode
 
   def max_client_rows do
     configured =
@@ -60,6 +64,21 @@ defmodule SelectoComponents.Views.Aggregate.Options do
     do: normalize_per_page_param(Atom.to_string(value))
 
   def normalize_per_page_param(_value), do: @default_per_page
+
+  def normalize_grid_color_scale_mode(value) when is_binary(value) do
+    normalized = value |> String.trim() |> String.downcase()
+
+    if normalized in @grid_color_scale_modes do
+      normalized
+    else
+      @default_grid_color_scale_mode
+    end
+  end
+
+  def normalize_grid_color_scale_mode(value) when is_atom(value),
+    do: normalize_grid_color_scale_mode(Atom.to_string(value))
+
+  def normalize_grid_color_scale_mode(_value), do: @default_grid_color_scale_mode
 
   def per_page_to_int("all", total_rows), do: max(total_rows, 1)
 

@@ -23,6 +23,7 @@ defmodule SelectoComponents.Form do
         columns: build_column_list(assigns.selecto),
         field_filters: FilterRendering.build_filter_list(assigns.selecto),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
+        use_exported_views: Map.get(assigns, :exported_view_module, false),
         form:
           Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form(as: "view_config")
       )
@@ -257,7 +258,7 @@ defmodule SelectoComponents.Form do
           }
         >
           <h3 class="text-base-content font-medium mb-2">Export Options</h3>
-          <div class="space-y-4">
+          <div class="space-y-6">
             <p class="text-sm text-gray-600 dark:text-gray-400">
               Export current query results now:
             </p>
@@ -274,6 +275,28 @@ defmodule SelectoComponents.Form do
             <p class="text-xs text-gray-500 dark:text-gray-400">
               Email delivery and scheduled exports are planned next.
             </p>
+
+            <.live_component
+              :if={@use_exported_views}
+              module={SelectoComponents.ExportedViews.Manager}
+              id="exported_views_manager"
+              exported_view_module={Map.get(assigns, :exported_view_module)}
+              exported_view_context={
+                Map.get(assigns, :exported_view_context) ||
+                  SelectoComponents.Tenant.scoped_context(
+                    Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
+                    Map.get(assigns, :tenant_context)
+                  )
+              }
+              exported_view_endpoint={Map.get(assigns, :exported_view_endpoint)}
+              exported_view_base_url={Map.get(assigns, :exported_view_base_url)}
+              current_user_id={Map.get(assigns, :current_user_id)}
+              selecto={@selecto}
+              views={@views}
+              view_config={@view_config}
+              path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
+              tenant_context={Map.get(assigns, :tenant_context)}
+            />
           </div>
         </div>
 
@@ -505,8 +528,8 @@ defmodule SelectoComponents.Form do
   #   |> Map.new()
   # end
 
-  # Helper to extract selected columns from params for pivot detection
-  # This function is used both internally and by Selecto.AutoPivot
+  # Helper to extract selected columns from params for retarget detection
+  # This function is used both internally and by Selecto.AutoRetarget
 
   def get_selected_columns_from_params(params) do
     view_mode = Map.get(params, "view_mode", "")

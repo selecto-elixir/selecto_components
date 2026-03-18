@@ -88,7 +88,11 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       assert length(view_set.groups) == 2
 
       # Check GROUP BY and ORDER BY are properly set for multi-dimensional data
-      assert view_set.group_by == [{:literal_position, 1}, {:literal_position, 2}]
+      assert view_set.group_by == [
+               {:field, :category, "Film Category"},
+               {:field, :rating, "Rating"}
+             ]
+
       assert view_set.order_by == [{:literal_position, 1}, {:literal_position, 2}]
 
       # Step 5: Simulate query execution results

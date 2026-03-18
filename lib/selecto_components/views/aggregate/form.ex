@@ -24,13 +24,24 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   end
 
   def render(assigns) do
+    aggregate_view =
+      assigns.view_config
+      |> Map.get(:views, %{})
+      |> Map.get(:aggregate, Map.get(Map.get(assigns.view_config, :views, %{}), "aggregate", %{}))
+
     aggregate_per_page = get_aggregate_per_page(assigns.view_config)
     aggregate_grid = get_aggregate_grid(assigns.view_config)
+    aggregate_grid_colorize = get_aggregate_grid_colorize(assigns.view_config)
+    aggregate_grid_color_scale = get_aggregate_grid_color_scale(assigns.view_config)
 
     assigns =
       assign(assigns,
+        aggregate_view: aggregate_view,
         aggregate_per_page: aggregate_per_page,
         aggregate_grid: aggregate_grid,
+        aggregate_grid_colorize: aggregate_grid_colorize,
+        aggregate_grid_color_scale: aggregate_grid_color_scale,
+        aggregate_grid_color_scale_options: Options.grid_color_scale_modes(),
         aggregate_per_page_options: Options.per_page_options()
       )
 
@@ -63,6 +74,35 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           />
           Grid view (2 group-by + 1 aggregate)
         </label>
+
+        <label class="mt-3 inline-flex items-center gap-2 text-sm text-base-content/80">
+          <input type="hidden" name="aggregate_grid_colorize" value="false" />
+          <input
+            type="checkbox"
+            name="aggregate_grid_colorize"
+            value="true"
+            checked={@aggregate_grid_colorize}
+            class="checkbox checkbox-sm border-base-300 bg-base-100 text-primary"
+          />
+          Colorize grid cells
+        </label>
+
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <label for="aggregate_grid_color_scale" class="text-xs font-medium text-base-content/80">
+            Grid Color Scale
+          </label>
+          <select
+            id="aggregate_grid_color_scale"
+            name="aggregate_grid_color_scale"
+            class="select select-bordered select-sm w-32 border-base-300 bg-base-100 text-base-content"
+          >
+            <%= for option <- @aggregate_grid_color_scale_options do %>
+              <option value={option} selected={@aggregate_grid_color_scale == option}>
+                {String.capitalize(option)}
+              </option>
+            <% end %>
+          </select>
+        </div>
       </div>
       Group By
       <.live_component
@@ -73,12 +113,13 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         available={
           Enum.filter(@columns, fn {_f, _n, format} -> format not in [:component, :link] end)
         }
-        selected_items={@view_config.views.aggregate.group_by}
+        selected_items={Map.get(@aggregate_view, :group_by, Map.get(@aggregate_view, "group_by", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>
+          <% format_summary = group_by_format_summary(col, config) %>
           <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
-          <span class="truncate text-sm font-normal text-base-content/60">{group_by_format_summary(col, config)}</span>
+          <span :if={present_summary?(format_summary)} class="truncate text-sm font-normal text-base-content/60">{format_summary}</span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"group_by[#{id}][field]"} type="hidden" value={item} />
@@ -103,12 +144,12 @@ defmodule SelectoComponents.Views.Aggregate.Form do
         fieldname="aggregate"
         view={@view}
         available={@columns}
-        selected_items={@view_config.views.aggregate.aggregate}
+        selected_items={Map.get(@aggregate_view, :aggregate, Map.get(@aggregate_view, "aggregate", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>
           <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
-          <span class="truncate text-sm font-normal text-base-content/60">{aggregate_format_summary(config)}</span>
+          <span class="truncate text-sm font-normal text-base-content/60">{aggregate_format_summary(col, config)}</span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"aggregate[#{id}][field]"} type="hidden" value={item} />
@@ -154,6 +195,30 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     |> normalize_checkbox()
   end
 
+  defp get_aggregate_grid_colorize(view_config) do
+    view_config
+    |> Map.get(:views, %{})
+    |> Map.get(:aggregate, %{})
+    |> then(fn aggregate_cfg ->
+      Map.get(aggregate_cfg, :grid_colorize, Map.get(aggregate_cfg, "grid_colorize", false))
+    end)
+    |> normalize_checkbox()
+  end
+
+  defp get_aggregate_grid_color_scale(view_config) do
+    view_config
+    |> Map.get(:views, %{})
+    |> Map.get(:aggregate, %{})
+    |> then(fn aggregate_cfg ->
+      Map.get(
+        aggregate_cfg,
+        :grid_color_scale,
+        Map.get(aggregate_cfg, "grid_color_scale", Options.default_grid_color_scale_mode())
+      )
+    end)
+    |> Options.normalize_grid_color_scale_mode()
+  end
+
   defp normalize_checkbox(value) when value in [true, "true", "on", "1", 1], do: true
   defp normalize_checkbox(_value), do: false
 
@@ -184,7 +249,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   end
 
   defp group_by_format_summary(col, config) do
-    case Map.get(config || %{}, "format") do
+    case config_value(config, :format) do
       value when value in [nil, ""] ->
         case Map.get(col || %{}, :type, :string) do
           x
@@ -201,11 +266,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
                  :utc_datetime,
                  :date
                ] ->
-            "default"
+            nil
 
           _ ->
             "standard"
         end
+
+      "default" ->
+        nil
 
       "text_prefix" ->
         "text prefix"
@@ -221,16 +289,34 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     end
   end
 
-  defp aggregate_format_summary(config) do
-    case Map.get(config || %{}, "format") do
-      value when value in [nil, ""] -> "default"
-      value -> format_summary_label(value)
+  defp aggregate_format_summary(col, config) do
+    case config_value(config, :format) do
+      value when value in [nil, ""] ->
+        col
+        |> aggregate_default_format()
+        |> format_summary_label()
+
+      value ->
+        format_summary_label(value)
+    end
+  end
+
+  defp config_value(config, key) when is_map(config) and is_atom(key) do
+    Map.get(config, Atom.to_string(key), Map.get(config, key))
+  end
+
+  defp config_value(_config, _key), do: nil
+
+  defp aggregate_default_format(col) do
+    case Map.get(col || %{}, :type, :string) do
+      :float -> "avg"
+      _ -> "count"
     end
   end
 
   defp format_summary_label(value) do
-    value
-    |> SelectoComponents.Helpers.aggregate_datetime_format_label()
-    |> String.downcase()
+    SelectoComponents.Helpers.aggregate_datetime_format_label(value)
   end
+
+  defp present_summary?(value), do: value not in [nil, ""]
 end

@@ -157,7 +157,12 @@ defmodule SelectoComponents.Modal.IframeModal do
 
   defp maybe_assign_iframe_url(socket, record) do
     if is_binary(socket.assigns[:url_template]) do
-      assign(socket, iframe_url: RowActions.resolve_template(socket.assigns.url_template, record))
+      assign(socket,
+        iframe_url:
+          socket.assigns.url_template
+          |> RowActions.resolve_template(record)
+          |> RowActions.sanitize_url()
+      )
     else
       socket
     end

@@ -8,7 +8,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       group_by: SelectoComponents.Views.view_param_process(params, "group_by", "field"),
       aggregate: SelectoComponents.Views.view_param_process(params, "aggregate", "field"),
       per_page: Options.normalize_per_page_param(Map.get(params, "aggregate_per_page")),
-      grid: truthy_param?(Map.get(params, "aggregate_grid"))
+      grid: truthy_param?(Map.get(params, "aggregate_grid")),
+      grid_colorize: truthy_param?(Map.get(params, "aggregate_grid_colorize")),
+      grid_color_scale:
+        Options.normalize_grid_color_scale_mode(Map.get(params, "aggregate_grid_color_scale"))
     }
   end
 
@@ -21,7 +24,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         Map.get(Selecto.domain(selecto), :default_group_by, [])
         |> SelectoComponents.Helpers.build_initial_state(),
       per_page: Options.default_per_page(),
-      grid: false
+      grid: false,
+      grid_colorize: false,
+      grid_color_scale: Options.default_grid_color_scale_mode()
     }
   end
 
@@ -29,6 +34,10 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     group_by_params = Map.get(params, "group_by", %{})
     per_page = Options.normalize_per_page_param(Map.get(params, "aggregate_per_page"))
     grid = truthy_param?(Map.get(params, "aggregate_grid"))
+    grid_colorize = truthy_param?(Map.get(params, "aggregate_grid_colorize"))
+
+    grid_color_scale =
+      Options.normalize_grid_color_scale_mode(Map.get(params, "aggregate_grid_color_scale"))
 
     aggregate =
       Map.get(params, "aggregate", %{})
@@ -73,9 +82,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       end
 
     rollup_group_by =
-      case literal_positions do
+      case Enum.map(group_by_with_coalesce, fn {_col, sel} -> sel end) do
         [] -> []
-        positions -> [{:rollup, positions}]
+        selectors -> [{:rollup, selectors}]
       end
 
     view_set = %{
@@ -89,7 +98,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       order_by: literal_positions
     }
 
-    {view_set, %{per_page: per_page, grid_enabled: grid}}
+    {view_set,
+     %{
+       per_page: per_page,
+       grid_enabled: grid,
+       grid_colorize: grid_colorize,
+       grid_color_scale: grid_color_scale
+     }}
   end
 
   defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
@@ -151,8 +166,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       # ????
       alias =
         case Map.get(e, "alias") do
-          "" -> Map.get(e, "field")
-          nil -> Map.get(e, "field")
+          "" -> default_field_label(Map.get(e, "field"), col, columns)
+          nil -> default_field_label(Map.get(e, "field"), col, columns)
           _ -> Map.get(e, "alias")
         end
 
@@ -472,7 +487,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end
   end
 
-  def aggregates(aggregates, _columns) do
+  def aggregates(aggregates, columns) do
     result =
       aggregates
       |> Map.values()
@@ -481,17 +496,24 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       end)
       |> Enum.flat_map(fn e ->
         # ????
-        alias =
-          case Map.get(e, "alias") do
-            "" -> Map.get(e, "field")
-            nil -> Map.get(e, "field")
-            _ -> Map.get(e, "alias")
-          end
-
         # Handle special formats like buckets and age_buckets
-        format = Map.get(e, "format", "count")
+        format = Map.get(e, "format")
         field = Map.get(e, "field")
         bucket_ranges = Map.get(e, "bucket_ranges")
+
+        function_name =
+          case Map.get(e, "function", Map.get(e, "format")) do
+            nil -> "count"
+            "" -> "count"
+            function -> function
+          end
+
+        aggregate_alias =
+          case Map.get(e, "alias") do
+            "" -> default_aggregate_label(field, columns, function_name)
+            nil -> default_aggregate_label(field, columns, function_name)
+            custom -> custom
+          end
 
         case format do
           "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
@@ -545,8 +567,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
               # Add the alias prefix only to the first column
               pretty_label =
-                if index == 0 && alias != "" && alias != nil do
-                  "#{alias}: #{pretty_label}"
+                if index == 0 && aggregate_alias != "" && aggregate_alias != nil do
+                  "#{aggregate_alias}: #{pretty_label}"
                 else
                   pretty_label
                 end
@@ -615,8 +637,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
               # Add the alias prefix only to the first column
               pretty_label =
-                if index == 0 && alias != "" && alias != nil do
-                  "#{alias}: #{pretty_label}"
+                if index == 0 && aggregate_alias != "" && aggregate_alias != nil do
+                  "#{aggregate_alias}: #{pretty_label}"
                 else
                   pretty_label
                 end
@@ -657,13 +679,116 @@ defmodule SelectoComponents.Views.Aggregate.Process do
             # Remove any nil entries
             |> Enum.reject(&is_nil/1)
 
-          format_str ->
+          _other ->
             # Standard aggregates - return as single item list for consistency
             # Use SafeAtom to prevent atom table exhaustion from user input
-            [{:field, {SafeAtom.to_aggregate_function(format_str), field}, alias}]
+            [{:field, {SafeAtom.to_aggregate_function(function_name), field}, aggregate_alias}]
         end
       end)
 
     result
+  end
+
+  defp default_aggregate_label(field, columns, function_name) do
+    "#{default_field_label(field, lookup_column(columns, field), columns)} #{aggregate_function_label(function_name)}"
+  end
+
+  defp default_field_label(field, col, columns) do
+    fallback = humanize_field_name(field)
+
+    candidate =
+      case lookup_column(columns, field) do
+        %{name: name} when is_binary(name) and name != "" ->
+          name
+
+        %{"name" => name} when is_binary(name) and name != "" ->
+          name
+
+        _ ->
+          cond do
+            is_map(col) and is_binary(Map.get(col, :name)) and Map.get(col, :name) != "" ->
+              Map.get(col, :name)
+
+            is_map(col) and is_binary(Map.get(col, "name")) and Map.get(col, "name") != "" ->
+              Map.get(col, "name")
+
+            true ->
+              nil
+          end
+      end
+
+    normalize_field_label(candidate, fallback)
+  end
+
+  defp lookup_column(columns, field) when is_map(columns) do
+    Map.get(columns, field) ||
+      case field do
+        field_name when is_binary(field_name) ->
+          try do
+            field_name
+            |> String.to_existing_atom()
+            |> then(&Map.get(columns, &1))
+          rescue
+            ArgumentError -> nil
+          end
+
+        field_name when is_atom(field_name) ->
+          Map.get(columns, Atom.to_string(field_name))
+
+        _ ->
+          nil
+      end
+  end
+
+  defp lookup_column(_columns, _field), do: nil
+
+  defp humanize_field_name(field) do
+    field
+    |> to_string()
+    |> String.split(".")
+    |> List.last()
+    |> String.split("_")
+    |> Enum.map_join(" ", fn
+      "id" -> "ID"
+      part -> String.capitalize(part)
+    end)
+  end
+
+  defp normalize_field_label(nil, fallback), do: fallback
+  defp normalize_field_label("", fallback), do: fallback
+
+  defp normalize_field_label(candidate, fallback) when is_binary(candidate) do
+    cond do
+      candidate == fallback ->
+        fallback
+
+      String.ends_with?(candidate, ": #{fallback}") ->
+        fallback
+
+      String.contains?(candidate, ": ") ->
+        fallback
+
+      String.contains?(candidate, "_") ->
+        fallback
+
+      true ->
+        candidate
+    end
+  end
+
+  defp aggregate_function_label(function_name) do
+    case to_string(function_name) do
+      "count_distinct" -> "Distinct Count"
+      "count" -> "Count"
+      "sum" -> "Sum"
+      "avg" -> "Average"
+      "min" -> "Min"
+      "max" -> "Max"
+      "buckets" -> "Buckets"
+      "age_buckets" -> "Age Buckets"
+      "true_count" -> "True Count"
+      "false_count" -> "False Count"
+      value -> SelectoComponents.Helpers.aggregate_datetime_format_label(value)
+    end
   end
 end
