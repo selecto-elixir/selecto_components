@@ -528,12 +528,12 @@ defmodule SelectoComponents.Form.ParamsState do
 
       selecto = Map.put(selecto, :set, view_set)
 
-      # Apply automatic pivot if needed
+      # Apply automatic retarget if needed
       view_mode = Map.get(params, "view_mode", "detail")
       selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
 
       selecto =
-        Selecto.AutoPivot.maybe_apply(selecto,
+        Selecto.AutoRetarget.maybe_apply(selecto,
           view_mode: view_mode,
           selected: selected_columns
         )

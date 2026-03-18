@@ -528,8 +528,8 @@ defmodule SelectoComponents.Form do
   #   |> Map.new()
   # end
 
-  # Helper to extract selected columns from params for pivot detection
-  # This function is used both internally and by Selecto.AutoPivot
+  # Helper to extract selected columns from params for retarget detection
+  # This function is used both internally and by Selecto.AutoRetarget
 
   def get_selected_columns_from_params(params) do
     view_mode = Map.get(params, "view_mode", "")
