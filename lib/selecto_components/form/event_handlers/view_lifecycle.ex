@@ -61,7 +61,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         else
           with_error_handling(socket, "view-validate", fn ->
             # Process all parameters including view-specific configs (aggregates, group_by, etc.)
-            socket = ParamsState.params_to_state(params, socket)
+            socket = ParamsState.form_params_to_state(params, socket)
 
             # Don't execute view on validation - only on submit
             # This allows users to configure aggregates without immediate updates
@@ -144,7 +144,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
             |> assign(:current_detail_page, 0)
             |> ParamsState.clear_query_caches()
 
-          socket = ParamsState.params_to_state(submitted_params, socket)
+          socket = ParamsState.form_params_to_state(submitted_params, socket)
 
           committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
 

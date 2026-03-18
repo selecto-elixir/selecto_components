@@ -398,6 +398,125 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.detail == socket.assigns.view_config.views.detail
   end
 
+  test "form_params_to_state rebuilds detail and aggregate configs from the same submitted form" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              per_page: "30",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "",
+              prevent_denormalization: true
+            },
+            aggregate: %{
+              group_by: [],
+              aggregate: [],
+              per_page: "100",
+              grid: false,
+              grid_colorize: false,
+              grid_color_scale: "linear"
+            },
+            graph: %{
+              x_axis: [],
+              y_axis: [],
+              series: [],
+              chart_type: "bar",
+              options: %{}
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "aggregate",
+      "selected" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "detail-col-1", "alias" => "ID"}
+      },
+      "order_by" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "detail-order-1", "dir" => "desc"}
+      },
+      "per_page" => "60",
+      "max_rows" => "10000",
+      "count_mode" => "exact",
+      "row_click_action" => "work_item_api_preview",
+      "prevent_denormalization" => "false",
+      "group_by" => %{
+        "k0" => %{
+          "field" => "status",
+          "index" => "0",
+          "uuid" => "agg-group-1",
+          "format" => "default"
+        }
+      },
+      "aggregate" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "agg-metric-1", "format" => "count"}
+      },
+      "aggregate_per_page" => "300",
+      "aggregate_grid" => "true",
+      "aggregate_grid_colorize" => "true",
+      "aggregate_grid_color_scale" => "log",
+      "chart_type" => "line",
+      "options" => %{"title" => "Revenue"}
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.view_mode == "aggregate"
+
+    assert updated.assigns.view_config.views.detail == %{
+             selected: [
+               {"detail-col-1", "id",
+                %{"alias" => "ID", "field" => "id", "index" => "0", "uuid" => "detail-col-1"}}
+             ],
+             order_by: [
+               {"detail-order-1", "id",
+                %{"dir" => "desc", "field" => "id", "index" => "0", "uuid" => "detail-order-1"}}
+             ],
+             per_page: "60",
+             max_rows: "10000",
+             count_mode: "exact",
+             row_click_action: "work_item_api_preview",
+             prevent_denormalization: false
+           }
+
+    assert updated.assigns.view_config.views.aggregate == %{
+             group_by: [
+               {"agg-group-1", "status",
+                %{
+                  "field" => "status",
+                  "format" => "default",
+                  "index" => "0",
+                  "uuid" => "agg-group-1"
+                }}
+             ],
+             aggregate: [
+               {"agg-metric-1", "id",
+                %{"field" => "id", "format" => "count", "index" => "0", "uuid" => "agg-metric-1"}}
+             ],
+             per_page: "300",
+             grid: true,
+             grid_colorize: true,
+             grid_color_scale: "log"
+           }
+
+    assert updated.assigns.view_config.views.graph.chart_type == "line"
+    assert updated.assigns.view_config.views.graph.options == %{"title" => "Revenue"}
+  end
+
   test "submitted_form_params drops LiveView noise and preserves submitted row_click_action" do
     params = %{
       "_target" => ["row_click_action"],

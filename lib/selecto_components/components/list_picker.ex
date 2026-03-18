@@ -35,6 +35,7 @@ defmodule SelectoComponents.Components.ListPicker do
       <div
         id={"#{@component_dom_id}-filter"}
         phx-hook=".ListPickerFilter"
+        data-list-picker-root
         class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]"
       >
         <div class="text-base-content">Available
@@ -51,7 +52,11 @@ defmodule SelectoComponents.Components.ListPicker do
         <div class="text-base-content">Selected</div>
 
         <div class="flex flex-col gap-1 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-72 overflow-auto">
-          <div :for={{id, name, _f} <- @available} phx-click="add" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}
+          <div :for={{id, name, _f} <- @available}
+            data-picker-action="add"
+            data-view-id={@view_id}
+            data-list-id={@fieldname}
+            data-item-id={id}
             data-available-item
             class="max-w-100 rounded-lg border border-base-300 bg-base-200 px-3 py-2 text-sm text-base-content transition hover:bg-base-300 cursor-pointer"
             >
@@ -69,12 +74,11 @@ defmodule SelectoComponents.Components.ListPicker do
             id={"#{@component_dom_id}-reorder-button"}
             type="button"
             class="hidden"
-            phx-click="reorder"
-            phx-target={@myself}
-            phx-value-view={@view_id}
-            phx-value-list-id={@fieldname}
-            phx-value-item=""
-            phx-value-target-item=""
+            data-picker-action="reorder"
+            data-view-id={@view_id}
+            data-list-id={@fieldname}
+            data-item-id=""
+            data-target-item-id=""
           />
 
           <div :if={Enum.empty?(@selected_items)} class="rounded-lg border border-dashed border-base-300 px-4 py-6 text-center text-sm text-base-content/60">
@@ -117,7 +121,7 @@ defmodule SelectoComponents.Components.ListPicker do
                   <span data-editor-open-label>Edit</span>
                   <span data-editor-close-label class="hidden">Close</span>
                 </button>
-                <.sc_x_button phx-click="remove" phx-target={@myself} phx-value-view={@view_id} phx-value-list-id={@fieldname} phx-value-item={id}/>
+                <.sc_x_button data-picker-action="remove" data-view-id={@view_id} data-list-id={@fieldname} data-item-id={id}/>
               </div>
             </div>
 
@@ -190,9 +194,19 @@ defmodule SelectoComponents.Components.ListPicker do
                     return;
                   }
 
-                  reorderButton.setAttribute('phx-value-item', this.draggedItemId);
-                  reorderButton.setAttribute('phx-value-target-item', targetItemId);
-                  reorderButton.click();
+                  reorderButton.dataset.itemId = this.draggedItemId;
+                  reorderButton.dataset.targetItemId = targetItemId;
+
+                  const root = this.el.closest('[data-list-picker-root]');
+                  const form = root?.closest('form');
+
+                  this.pushEventTo(this.el, 'reorder', {
+                    view: reorderButton.dataset.viewId,
+                    'list-id': reorderButton.dataset.listId,
+                    item: this.draggedItemId,
+                    'target-item': targetItemId,
+                    form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+                  });
                 });
               };
 
@@ -214,11 +228,13 @@ defmodule SelectoComponents.Components.ListPicker do
         <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerFilter">
           export default {
             mounted() {
+              this.bindActionHandlers();
               this.bindFilter();
               this.applyFilter();
             },
 
             updated() {
+              this.bindActionHandlers();
               this.bindFilter();
               this.applyFilter();
             },
@@ -232,6 +248,44 @@ defmodule SelectoComponents.Components.ListPicker do
               if (this.clearButton && this.handleClearClick) {
                 this.clearButton.removeEventListener('click', this.handleClearClick);
               }
+
+              if (this.handleActionClick) {
+                this.el.removeEventListener('click', this.handleActionClick);
+              }
+            },
+
+            bindActionHandlers() {
+              if (this.actionsBound) {
+                return;
+              }
+
+              this.actionsBound = true;
+              this.handleActionClick = (event) => {
+                const trigger = event.target.closest('[data-picker-action]');
+
+                if (!trigger || !this.el.contains(trigger)) {
+                  return;
+                }
+
+                const action = trigger.dataset.pickerAction;
+
+                if (!['add', 'remove'].includes(action)) {
+                  return;
+                }
+
+                event.preventDefault();
+
+                const form = this.el.closest('form');
+
+                this.pushEventTo(this.el, action, {
+                  view: trigger.dataset.viewId,
+                  'list-id': trigger.dataset.listId,
+                  item: trigger.dataset.itemId,
+                  form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+                });
+              };
+
+              this.el.addEventListener('click', this.handleActionClick);
             },
 
             bindFilter() {
@@ -367,12 +421,22 @@ defmodule SelectoComponents.Components.ListPicker do
   end
 
   def handle_event("remove", params, socket) do
-    send(self(), {:list_picker_remove, params["view"], params["list-id"], params["item"]})
+    send(
+      self(),
+      {:list_picker_remove, params["form_state_query"], params["view"], params["list-id"],
+       params["item"]}
+    )
+
     {:noreply, socket}
   end
 
   def handle_event("add", params, socket) do
-    send(self(), {:list_picker_add, params["view"], params["list-id"], params["item"]})
+    send(
+      self(),
+      {:list_picker_add, params["form_state_query"], params["view"], params["list-id"],
+       params["item"]}
+    )
+
     {:noreply, socket}
   end
 
@@ -388,8 +452,8 @@ defmodule SelectoComponents.Components.ListPicker do
   def handle_event("reorder", params, socket) do
     send(
       self(),
-      {:list_picker_reorder, params["view"], params["list-id"], params["item"],
-       params["target-item"]}
+      {:list_picker_reorder, params["form_state_query"], params["view"], params["list-id"],
+       params["item"], params["target-item"]}
     )
 
     {:noreply, socket}

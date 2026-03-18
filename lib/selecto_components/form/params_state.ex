@@ -1261,6 +1261,36 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   @doc """
+  Build view_config from a submitted form payload.
+
+  Unlike URL params, the form payload contains inputs for all rendered view tabs,
+  so every view can be reconstructed from the browser state in one pass.
+  """
+  def form_params_to_state(params, socket) do
+    params = canonicalize_form_params(params)
+    filters = view_filter_process(params, "filters")
+    existing_config = socket.assigns[:view_config] || %{}
+
+    view_configs =
+      Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
+        Map.put(
+          acc,
+          view,
+          submitted_view_state(view, view_tuple, params, existing_config, socket)
+        )
+      end)
+
+    Phoenix.Component.assign(socket,
+      view_config:
+        Map.merge(existing_config, %{
+          filters: filters,
+          views: view_configs,
+          view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+        })
+    )
+  end
+
+  @doc """
   Restore a saved-view payload into socket state.
   """
   def saved_params_to_state(saved_params, socket) when is_map(saved_params) do
@@ -1285,6 +1315,22 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
+
+  defp submitted_view_state(view, view_tuple, params, existing_config, socket) do
+    cond do
+      is_map(params) ->
+        ViewRuntime.param_to_state(view_tuple, params)
+
+      existing_view = get_in(existing_config, [:views, view]) ->
+        existing_view
+
+      selecto = socket.assigns[:selecto] ->
+        ViewRuntime.initial_state(view_tuple, selecto)
+
+      true ->
+        %{}
+    end
+  end
 
   defp updated_view_state(view, selected_view, view_tuple, params, existing_config, socket) do
     cond do

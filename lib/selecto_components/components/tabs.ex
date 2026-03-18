@@ -13,7 +13,7 @@ defmodule SelectoComponents.Components.Tabs do
 
   def render(assigns) do
     ~H"""
-    <div class="w-full">
+    <div id={"tabs-#{@id}"} phx-hook=".TabsFormSync" class="w-full">
       <!-- Tab Navigation Bar -->
       <div class="flex border-b border-gray-200 dark:border-gray-700">
         <div class="flex space-x-1" role="tablist" aria-label="View Type">
@@ -24,9 +24,8 @@ defmodule SelectoComponents.Components.Tabs do
             aria-selected={@view_mode == Atom.to_string(id)}
             aria-controls={"tabpanel-#{id}"}
             id={"tab-#{id}"}
-            phx-click="view_set"
-            phx-target={@myself}
-            phx-value-view={id}
+            data-view-tab
+            data-view-id={id}
             class={[
               "px-4 py-2 text-sm font-medium transition-all duration-200",
               "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
@@ -54,15 +53,43 @@ defmodule SelectoComponents.Components.Tabs do
           <%= render_slot(@section, {id, module, name, opt}) %>
         </div>
       </div>
-      
+
       <!-- Hidden radio input for form submission -->
-      <input type="hidden" name={@fieldname} value={@view_mode} />
+      <input type="hidden" name={@fieldname} value={@view_mode} data-view-mode-input />
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".TabsFormSync">
+        export default {
+          mounted() {
+            this.handleClick = (event) => {
+              const button = event.target.closest('[data-view-tab]');
+
+              if (!button || !this.el.contains(button)) {
+                return;
+              }
+
+              const input = this.el.querySelector('[data-view-mode-input]');
+              const nextView = button.dataset.viewId;
+
+              if (!input || !nextView || input.value === nextView) {
+                return;
+              }
+
+              input.value = nextView;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+
+            this.el.addEventListener('click', this.handleClick);
+          },
+
+          destroyed() {
+            if (this.handleClick) {
+              this.el.removeEventListener('click', this.handleClick);
+            }
+          }
+        };
+      </script>
     </div>
     """
-  end
-
-  def handle_event("view_set", %{"view" => view_id}, socket) do
-    send(self(), {:view_set, view_id})
-    {:noreply, socket}
   end
 end
