@@ -116,4 +116,42 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
 
     assert html =~ "Count Distinct"
   end
+
+  test "omits default group by format from the selected item summary" do
+    domain = %{
+      name: "AggregateFormTest",
+      source: %{
+        source_table: "items",
+        primary_key: :id,
+        fields: [:status],
+        redact_fields: [],
+        columns: %{
+          status: %{type: :string, name: "Status", colid: :status}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    html =
+      render_component(Form, %{
+        id: "aggregate-form-group-default-test",
+        columns: [{:status, "Status", :string}],
+        view: {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            aggregate: %{
+              group_by: [{"group-1", "status", %{"format" => "default"}}],
+              aggregate: [],
+              per_page: "30"
+            }
+          }
+        }
+      })
+
+    refute html =~ ~s(text-base-content/60">Default</span>)
+    refute html =~ ~s(text-base-content/60">default</span>)
+  end
 end

@@ -114,6 +114,33 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "rows"
   end
 
+  test "renders friendly headers from selected field aliases instead of query aliases" do
+    html =
+      render_component(
+        Component,
+        aggregate_assigns(%{
+          selecto: %{
+            selecto()
+            | set: %{
+                selected: [
+                  {:field, "category.category_name", "Category Name"},
+                  {:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}
+                ],
+                group_by: [{:rollup, [{:literal_position, 1}]}],
+                aggregates: [
+                  {:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}
+                ]
+              }
+          },
+          query_results: {[["Books", 3]], [], ["category_name", "count_distinct_order_id"]}
+        })
+      )
+
+    assert html =~ "Category Name"
+    assert html =~ "Order ID Distinct Count"
+    refute html =~ ">category_name<"
+  end
+
   test "aggregate page navigation clamps to first and last pages" do
     socket =
       %Phoenix.LiveView.Socket{

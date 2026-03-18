@@ -46,8 +46,9 @@ defmodule SelectoComponents.Views.Graph.Form do
         >
           <:item_summary :let={{_id, item, config, _index}}>
             <% col = Selecto.field(@selecto, item) %>
+            <% axis_summary = graph_x_axis_summary(col, config) %>
             <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
-            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_x_axis_summary(col, config) %></span>
+            <span :if={present_summary?(axis_summary)} class="truncate text-sm font-normal text-base-content/60"><%= axis_summary %></span>
           </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"x_axis[#{id}][field]"} type="hidden" value={item} />
@@ -310,7 +311,7 @@ defmodule SelectoComponents.Views.Graph.Form do
         "max #{Map.get(config, "max_length")}"
 
       true ->
-        "default"
+        nil
     end
   end
 
@@ -339,4 +340,6 @@ defmodule SelectoComponents.Views.Graph.Form do
   defp format_summary_label(value) do
     SelectoComponents.Helpers.aggregate_datetime_format_label(value)
   end
+
+  defp present_summary?(value), do: value not in [nil, ""]
 end

@@ -758,14 +758,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     group_by =
       group_by_mappings
       |> Enum.with_index()
-      |> Enum.map(fn {{alias, field}, idx} ->
+      |> Enum.map(fn {{query_alias, field}, idx} ->
+        display_alias = selected_field_alias(field, query_alias)
+
         # Get the proper column definition from selecto
         # Now that Selecto.field returns full definitions, we get all properties
         coldef =
           case field do
             {:field, {:to_char, {field_name, _format}}, _alias} ->
               # Handle formatted date fields
-              Selecto.field(assigns.selecto, field_name) || %{name: alias, format: nil}
+              Selecto.field(assigns.selecto, field_name) || %{name: display_alias, format: nil}
 
             {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
               # Selecto.field now returns full custom column definitions with group_by_filter
@@ -773,14 +775,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               if result == nil do
                 # Field not found - use basic definition
-                %{name: alias, format: nil}
+                %{name: display_alias, format: nil}
               else
                 result
               end
 
             {:field, {_extract_type, field_id, _format}, _alias} ->
               # Handle extracted fields (e.g., date parts)
-              Selecto.field(assigns.selecto, field_id) || %{name: alias}
+              Selecto.field(assigns.selecto, field_id) || %{name: display_alias}
 
             {:row, [display_field | _rest], _alias} ->
               # For row selectors (e.g., join mode columns), look up the actual column definition
@@ -824,24 +826,26 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
               if result == nil do
                 # Field not found - use basic definition
-                %{name: alias, format: nil}
+                %{name: display_alias, format: nil}
               else
                 result
               end
 
             _ ->
               # Fallback to basic definition
-              %{name: alias, format: nil}
+              %{name: display_alias, format: nil}
           end
 
         coldef = maybe_set_group_by_filter(coldef, Enum.at(group_by_param_fields, idx))
         coldef = maybe_set_group_by_format(coldef, Enum.at(group_by_param_configs, idx))
-        {alias, {:group_by, field, coldef}}
+        {display_alias, {:group_by, field, coldef}}
       end)
 
     aggregates_processed =
       Enum.zip(aggregate_mappings, aggregates)
-      |> Enum.map(fn {{alias, _field}, agg} ->
+      |> Enum.map(fn {{query_alias, selected_field}, agg} ->
+        display_alias = selected_field_alias(selected_field, query_alias)
+
         # Get the proper column definition from selecto
         coldef =
           case agg do
@@ -856,7 +860,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               %{}
           end
 
-        {alias, {:agg, agg, coldef}}
+        {display_alias, {:agg, agg, coldef}}
       end)
 
     # Prepare rollup rows with hierarchy level metadata
@@ -1357,6 +1361,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
   defp grid_row_alias(_), do: "Group 1"
+
+  defp selected_field_alias({_kind, _field, alias_name}, _fallback)
+       when is_binary(alias_name) and alias_name != "",
+       do: alias_name
+
+  defp selected_field_alias(_selected_field, fallback), do: fallback
 
   defp grid_coldef(group_by, idx) do
     case Enum.at(group_by, idx) do

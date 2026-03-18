@@ -117,8 +117,9 @@ defmodule SelectoComponents.Views.Aggregate.Form do
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <% col = get_field_for_item(@selecto, item) %>
+          <% format_summary = group_by_format_summary(col, config) %>
           <span class="truncate">{summary_title(config, column_display_name(@columns, item, col))}</span>
-          <span class="truncate text-sm font-normal text-base-content/60">{group_by_format_summary(col, config)}</span>
+          <span :if={present_summary?(format_summary)} class="truncate text-sm font-normal text-base-content/60">{format_summary}</span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <input name={"group_by[#{id}][field]"} type="hidden" value={item} />
@@ -265,11 +266,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
                  :utc_datetime,
                  :date
                ] ->
-            "default"
+            nil
 
           _ ->
             "standard"
         end
+
+      "default" ->
+        nil
 
       "text_prefix" ->
         "text prefix"
@@ -313,4 +317,6 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   defp format_summary_label(value) do
     SelectoComponents.Helpers.aggregate_datetime_format_label(value)
   end
+
+  defp present_summary?(value), do: value not in [nil, ""]
 end

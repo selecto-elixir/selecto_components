@@ -26,7 +26,53 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
   end
 
   test "aggregates honors count distinct from format" do
-    assert Process.aggregates(%{"a1" => %{"field" => "id", "format" => "count_distinct"}}, []) ==
-             [{:field, {:count_distinct, "id"}, "id"}]
+    columns = %{"id" => %{name: "Category ID", type: :id, colid: "id"}}
+
+    assert Process.aggregates(
+             %{"a1" => %{"field" => "id", "format" => "count_distinct"}},
+             columns
+           ) ==
+             [{:field, {:count_distinct, "id"}, "Category ID Distinct Count"}]
+  end
+
+  test "group by uses column display names by default" do
+    columns = %{
+      "category.category_name" => %{
+        name: "Category: Category name",
+        type: :string,
+        colid: "category.category_name"
+      }
+    }
+
+    assert Process.group_by(
+             %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
+             columns,
+             nil
+           ) ==
+             [
+               {%{
+                  "group_format" => "default",
+                  name: "Category: Category name",
+                  type: :string,
+                  colid: "category.category_name",
+                  group_format: "default"
+                }, {:field, "category.category_name", "Category Name"}}
+             ]
+  end
+
+  test "aggregates use friendly default labels" do
+    columns = %{
+      "order_details.order_id" => %{
+        name: "Order Details: Order id",
+        type: :id,
+        colid: "order_details.order_id"
+      }
+    }
+
+    assert Process.aggregates(
+             %{"a1" => %{"field" => "order_details.order_id", "format" => "count_distinct"}},
+             columns
+           ) ==
+             [{:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}]
   end
 end
