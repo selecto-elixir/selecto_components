@@ -119,6 +119,43 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["aggregate_grid_color_scale"] == "log"
   end
 
+  test "view_config_to_params includes non-active view state for URL round-trips" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        detail: %{
+          selected: [{"d1", "id", %{"alias" => "ID"}}],
+          order_by: [{"o1", "id", %{"dir" => "desc"}}],
+          per_page: "60",
+          max_rows: "1000",
+          count_mode: "bounded",
+          row_click_action: "work_item_quick_view",
+          prevent_denormalization: true
+        },
+        aggregate: %{
+          group_by: [{"g1", "status", %{"format" => "default"}}],
+          aggregate: [{"a1", "id", %{"format" => "count"}}],
+          per_page: "300",
+          grid: true,
+          grid_colorize: true,
+          grid_color_scale: "log"
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["view_mode"] == "aggregate"
+    assert params["selected"]["k0"]["field"] == "id"
+    assert params["order_by"]["k0"]["field"] == "id"
+    assert params["per_page"] == "60"
+    assert params["row_click_action"] == "work_item_quick_view"
+    assert params["group_by"]["k0"]["field"] == "status"
+    assert params["aggregate"]["k0"]["field"] == "id"
+    assert params["aggregate_per_page"] == "300"
+  end
+
   test "convert_saved_config_to_full_params restores aggregate grid color settings" do
     saved = %{
       "aggregate" => %{
@@ -515,6 +552,77 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert updated.assigns.view_config.views.graph.chart_type == "line"
     assert updated.assigns.view_config.views.graph.options == %{"title" => "Revenue"}
+  end
+
+  test "form_params_to_state preserves missing non-active views for partial URL params" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+          {:graph, SelectoComponents.Views.Graph, "Graph", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [{"d1", "id", %{"alias" => "ID"}}],
+              order_by: [],
+              per_page: "60",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "work_item_quick_view",
+              prevent_denormalization: true
+            },
+            aggregate: %{
+              group_by: [{"g1", "status", %{"format" => "default"}}],
+              aggregate: [{"a1", "id", %{"format" => "count"}}],
+              per_page: "300",
+              grid: true,
+              grid_colorize: true,
+              grid_color_scale: "log"
+            },
+            graph: %{
+              x_axis: [],
+              y_axis: [],
+              series: [],
+              chart_type: "line",
+              options: %{"title" => "Revenue"}
+            }
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "k0" => %{
+          "filter" => "status",
+          "comp" => "=",
+          "value" => "open",
+          "uuid" => "f1",
+          "index" => "0",
+          "section" => "filters"
+        }
+      },
+      "selected" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "d1", "alias" => "ID"}
+      },
+      "per_page" => "30"
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.per_page == "30"
+
+    assert updated.assigns.view_config.views.aggregate ==
+             socket.assigns.view_config.views.aggregate
+
+    assert updated.assigns.view_config.views.graph == socket.assigns.view_config.views.graph
   end
 
   test "submitted_form_params drops LiveView noise and preserves submitted row_click_action" do

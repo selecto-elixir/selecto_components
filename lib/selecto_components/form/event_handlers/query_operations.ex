@@ -91,7 +91,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
 
         # Normalize any existing query results before processing
         socket = normalize_query_results(socket)
-        socket = ParamsState.params_to_state(params, socket)
+        socket = ParamsState.form_params_to_state(params, socket)
         {:noreply, ParamsState.view_from_params(params, socket)}
       end
 

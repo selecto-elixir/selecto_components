@@ -57,34 +57,37 @@ defmodule SelectoComponents.Form.ParamsState do
       "filters" => filters_to_params(filters)
     }
 
-    selected_view = SafeAtom.to_view_mode(view_mode)
-
-    # Add view-specific parameters
     view_params =
-      case Map.get(views, selected_view, Map.get(views, Atom.to_string(selected_view))) do
-        nil ->
-          %{}
-
-        view_data ->
-          Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
-            cond do
-              selected_view == :map and list_name in [:map_layers, "map_layers"] ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-
-              selected_view == :map ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-
-              is_list(items) ->
-                Map.put(acc, to_string(list_name), view_items_to_params(items))
-
-              true ->
-                merge_scalar_view_param(acc, selected_view, list_name, items)
-            end
-          end)
-      end
+      views
+      |> Enum.reduce(%{}, fn {view_key, view_data}, acc ->
+        view = SafeAtom.to_view_mode(view_key)
+        Map.merge(acc, view_data_to_params(view, view_data))
+      end)
 
     Map.merge(params, view_params)
   end
+
+  defp view_data_to_params(_view, nil), do: %{}
+
+  defp view_data_to_params(view, view_data) when is_map(view_data) do
+    Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
+      cond do
+        view == :map and list_name in [:map_layers, "map_layers"] ->
+          merge_scalar_view_param(acc, view, list_name, items)
+
+        view == :map ->
+          merge_scalar_view_param(acc, view, list_name, items)
+
+        is_list(items) ->
+          Map.put(acc, to_string(list_name), view_items_to_params(items))
+
+        true ->
+          merge_scalar_view_param(acc, view, list_name, items)
+      end
+    end)
+  end
+
+  defp view_data_to_params(_view, _view_data), do: %{}
 
   @doc """
   Convert full view_config structure to saved-view persistence format.
@@ -1318,7 +1321,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp submitted_view_state(view, view_tuple, params, existing_config, socket) do
     cond do
-      is_map(params) ->
+      view_params_present?(view, params) ->
         ViewRuntime.param_to_state(view_tuple, params)
 
       existing_view = get_in(existing_config, [:views, view]) ->
@@ -1331,6 +1334,40 @@ defmodule SelectoComponents.Form.ParamsState do
         %{}
     end
   end
+
+  defp view_params_present?(view, params) when is_map(params) do
+    view_param_keys(view)
+    |> Enum.any?(fn key -> Map.has_key?(params, key) end)
+  end
+
+  defp view_params_present?(_view, _params), do: false
+
+  defp view_param_keys(:detail),
+    do: [
+      "selected",
+      "order_by",
+      "per_page",
+      "max_rows",
+      "count_mode",
+      "row_click_action",
+      "prevent_denormalization"
+    ]
+
+  defp view_param_keys(:aggregate),
+    do: [
+      "group_by",
+      "aggregate",
+      "aggregate_per_page",
+      "aggregate_grid",
+      "aggregate_grid_colorize",
+      "aggregate_grid_color_scale"
+    ]
+
+  defp view_param_keys(:graph), do: ["x_axis", "y_axis", "series", "chart_type", "options"]
+
+  defp view_param_keys(:map), do: ["map_layers" | @map_param_keys]
+
+  defp view_param_keys(_view), do: []
 
   defp updated_view_state(view, selected_view, view_tuple, params, existing_config, socket) do
     cond do
