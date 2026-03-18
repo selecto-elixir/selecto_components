@@ -237,9 +237,11 @@ defmodule SelectoComponents.Views.Detail.Form do
 
       <div class="mt-4">
         <label class="flex items-center space-x-2">
+          <input type="hidden" name="prevent_denormalization" value="false" />
           <input
             type="checkbox"
             name="prevent_denormalization"
+            value="true"
             checked={@detail_prevent_denormalization}
             class="rounded border-base-300 bg-base-100 text-primary"
           />
