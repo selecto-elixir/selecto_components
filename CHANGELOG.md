@@ -7,6 +7,9 @@ V 0.4.0
 
 - Updated SelectoComponents compatibility for the external adapter architecture
   introduced in `selecto 0.4.0`.
+- Renamed component auto-pivot and routing terminology to `retarget`, and
+  updated local workspace dependency detection so sibling Selecto packages are
+  used automatically during ecosystem development.
 - Fixed PostgreSQL adapter detection so repo-backed execution paths treat
   `SelectoDBPostgreSQL.Adapter` as the PostgreSQL path instead of the generic
   adapter path.
@@ -29,7 +32,6 @@ V 0.4.0
 - Added MSSQL aggregate pagination regression coverage for count-query aliasing
   (`selecto_aggregate_count(...)`) to keep SQL Server aggregate pagination
   generation stable.
-- Bump package version to `0.4.0`.
 
 V 0.3.21
 --------
