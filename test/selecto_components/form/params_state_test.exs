@@ -3,6 +3,55 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
   alias SelectoComponents.Form.ParamsState
 
+  defmodule BrokenView do
+    def view(_options, _params, _columns_map, _filtered, _selecto) do
+      raise ArgumentError, "broken runtime"
+    end
+
+    def initial_state(_selecto, _options), do: %{}
+    def param_to_state(_params, _options), do: %{}
+    def form_component, do: SelectoComponents.Views.Detail.Form
+    def result_component, do: SelectoComponents.Views.Detail.Component
+  end
+
+  defp selecto do
+    domain = %{
+      name: "ParamsStateTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :status],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, status: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp base_socket(views \\ nil) do
+    %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: selecto(),
+        views:
+          views ||
+            [
+              {:detail, SelectoComponents.Views.Detail, "Detail", []},
+              {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+              {:graph, SelectoComponents.Views.Graph, "Graph", []}
+            ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}},
+        current_detail_page: 0,
+        sort_by: nil,
+        last_query_info: %{}
+      }
+    }
+  end
+
   test "view_config_to_params includes detail max_rows and per_page" do
     view_config = %{
       view_mode: "detail",
@@ -1026,5 +1075,33 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["map_layers"]["1"]["scale_categories"] == "queued:#22c55e,loading:#f59e0b"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
+  end
+
+  test "view_from_params returns stage-aware processing error for unknown view mode" do
+    updated = ParamsState.view_from_params(%{"view_mode" => "missing_view"}, base_socket())
+
+    assert updated.assigns.executed == false
+    assert updated.assigns.execution_error.stage in [:result_process, :db_execute]
+    assert updated.assigns.execution_error.category in [:processing, :query, :connection]
+
+    assert updated.assigns.execution_error.code in [
+             :view_processing_failed,
+             :db_query_failed,
+             :connection_error
+           ]
+
+    assert is_binary(updated.assigns.execution_error.summary)
+  end
+
+  test "view_from_params returns stage-aware processing error for broken view runtime" do
+    socket = base_socket([{:detail, BrokenView, "Detail", []}])
+
+    updated = ParamsState.view_from_params(%{"view_mode" => "detail"}, socket)
+
+    assert updated.assigns.executed == false
+    assert updated.assigns.execution_error.stage == :result_process
+    assert updated.assigns.execution_error.category == :processing
+    assert updated.assigns.execution_error.code == :view_processing_failed
+    assert updated.assigns.execution_error.user_message == "View processing failed"
   end
 end

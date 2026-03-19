@@ -11,8 +11,12 @@ V 0.4.2
   viewport so wide and tall colorized grids stay readable.
 - Updated aggregate Grid exports so CSV and JSON downloads preserve the rendered
   grid shape instead of falling back to flat aggregate rows.
+- Reworked SelectoComponents error handling so query, configuration, persistence,
+  export, filter-set, and drill-down failures report clearer stage-aware messages
+  with next-step guidance.
 - Added regression coverage for unpaginated grid rendering, legend display, and
-  sticky grid layout behavior, plus grid-shaped export output.
+  sticky grid layout behavior, plus grid-shaped export output and stage-aware
+  error rendering.
 
 V 0.4.1
 --------
