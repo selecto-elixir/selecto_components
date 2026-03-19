@@ -6,6 +6,7 @@ defmodule SelectoComponents.ViewConfigManager do
 
   use Phoenix.LiveComponent
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
 
   @impl true
@@ -339,9 +340,16 @@ defmodule SelectoComponents.ViewConfigManager do
         # The parent can check for this and display a message
         {:noreply, socket}
 
-      {:error, _changeset} ->
-        # Component can't use put_flash directly
-        {:noreply, socket}
+      {:error, reason} ->
+        {:noreply,
+         Phoenix.LiveView.put_flash(
+           socket,
+           :error,
+           saved_view_config_error_message(reason,
+             code: :save_view_config_failed,
+             operation: "do_save_view_config"
+           )
+         )}
     end
   end
 
@@ -363,7 +371,17 @@ defmodule SelectoComponents.ViewConfigManager do
 
     case config do
       nil ->
-        {:noreply, socket}
+        {:noreply,
+         Phoenix.LiveView.put_flash(
+           socket,
+           :error,
+           saved_view_config_error_message("View configuration not found",
+             stage: :persistence,
+             category: :persistence,
+             code: :view_config_not_found,
+             operation: "load_view_config"
+           )
+         )}
 
       config ->
         # Send message to parent LiveView to apply the config
@@ -511,6 +529,19 @@ defmodule SelectoComponents.ViewConfigManager do
   defp get_view_type_label("timeseries"), do: "Time Series"
   defp get_view_type_label("map"), do: "Map"
   defp get_view_type_label(_), do: "Detail"
+
+  defp saved_view_config_error_message(reason, opts) do
+    error =
+      ErrorBuilder.build(
+        if(is_binary(reason), do: reason, else: inspect(reason)),
+        Keyword.merge(
+          [stage: :persistence, category: :persistence],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
+  end
 
   defp format_time_ago(%DateTime{} = datetime) do
     now = DateTime.utc_now()

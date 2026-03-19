@@ -22,6 +22,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
   defmacro __using__(_opts) do
     quote do
+      alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Form.ParamsState
       import SelectoComponents.Form.ErrorHandling
 
@@ -89,14 +90,31 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           cond do
             save_as == "" ->
-              {:noreply, put_flash(socket, :error, "Enter a view name before saving")}
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 lifecycle_error_message(
+                   "Enter a view name before saving",
+                   stage: :persistence,
+                   category: :validation,
+                   code: :missing_view_name,
+                   operation: "save_view"
+                 )
+               )}
 
             String.match?(save_as, ~r/[^a-zA-Z0-9_ ]/) ->
               {:noreply,
                put_flash(
                  socket,
                  :error,
-                 "View name can only include letters, numbers, spaces, and underscore"
+                 lifecycle_error_message(
+                   "View name can only include letters, numbers, spaces, and underscore",
+                   stage: :persistence,
+                   category: :validation,
+                   code: :invalid_view_name,
+                   operation: "save_view"
+                 )
                )}
 
             true ->
@@ -178,7 +196,18 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
                  user_id: Map.get(socket.assigns, :current_user_id)
                ) do
             nil ->
-              {:noreply, put_flash(socket, :error, "View configuration not found")}
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 lifecycle_error_message(
+                   "View configuration not found",
+                   stage: :persistence,
+                   category: :persistence,
+                   code: :view_config_not_found,
+                   operation: "load_view_config"
+                 )
+               )}
 
             config ->
               # Decode the saved configuration
@@ -203,6 +232,11 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
               {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
           end
         end)
+      end
+
+      defp lifecycle_error_message(message, opts) do
+        error = ErrorBuilder.build(message, opts)
+        error.summary <> ": " <> error.user_message
       end
     end
   end

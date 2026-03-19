@@ -5,6 +5,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   use Phoenix.LiveComponent
 
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ExportedViews
   alias SelectoComponents.ExportedViews.Service
   alias SelectoComponents.ExportedViews.Snippets
@@ -178,7 +179,14 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
       {:error, reason} ->
         {:noreply,
-         put_flash(socket, :error, "Failed to create exported view: #{inspect(reason)}")}
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :create_exported_view_failed,
+             operation: "create_exported_view"
+           )
+         )}
     end
   end
 
@@ -194,7 +202,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
       {:noreply, socket |> put_flash(:info, "Export regenerated") |> reload_exported_views()}
     else
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Regen failed: #{inspect(reason)}")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :regen_exported_view_failed,
+             operation: "regen_exported_view"
+           )
+         )}
     end
   end
 
@@ -205,7 +221,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
       {:noreply, socket |> put_flash(:info, "Signature rotated") |> reload_exported_views()}
     else
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Rotation failed: #{inspect(reason)}")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :rotate_exported_view_signature_failed,
+             operation: "rotate_exported_view_signature"
+           )
+         )}
     end
   end
 
@@ -226,7 +250,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
       {:noreply, socket |> put_flash(:info, "Export updated") |> reload_exported_views()}
     else
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :update_exported_view_failed,
+             operation: "toggle_exported_view_disabled"
+           )
+         )}
     end
   end
 
@@ -241,7 +273,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
        |> reload_exported_views()}
     else
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Delete failed: #{inspect(reason)}")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :delete_exported_view_failed,
+             operation: "delete_exported_view"
+           )
+         )}
     end
   end
 
@@ -251,7 +291,15 @@ defmodule SelectoComponents.ExportedViews.Manager do
       {:noreply, assign(socket, snippets: snippets, snippets_view_id: public_id)}
     else
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, snippet_error_message(reason))}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           exported_view_error_message(reason,
+             code: :build_exported_view_snippets_failed,
+             operation: "show_exported_view_snippets"
+           )
+         )}
     end
   end
 
@@ -420,9 +468,29 @@ defmodule SelectoComponents.ExportedViews.Manager do
   defp present_allowlist(nil), do: "Any IP"
   defp present_allowlist(text), do: String.replace(text, "\n", ", ")
 
-  defp snippet_error_message(:missing_endpoint) do
-    "Snippet generation requires `exported_view_endpoint` to be assigned by the host LiveView"
+  defp exported_view_error_message(:missing_endpoint, opts) do
+    error =
+      ErrorBuilder.build(
+        "Snippet generation requires `exported_view_endpoint` to be assigned by the host LiveView",
+        Keyword.merge(
+          [stage: :persistence, category: :configuration],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
   end
 
-  defp snippet_error_message(reason), do: "Failed to build snippets: #{inspect(reason)}"
+  defp exported_view_error_message(reason, opts) do
+    error =
+      ErrorBuilder.build(
+        inspect(reason),
+        Keyword.merge(
+          [stage: :persistence, category: :persistence],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
+  end
 end
