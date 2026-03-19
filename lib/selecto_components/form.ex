@@ -3,6 +3,8 @@ defmodule SelectoComponents.Form do
 
   import SelectoComponents.Components.Common
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.ErrorHandling.ErrorSanitizer
   alias SelectoComponents.ErrorHandling.ErrorDisplay
   alias SelectoComponents.Form.FilterRendering
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
@@ -590,21 +592,13 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  def sanitize_error_for_environment(error) do
-    if dev_mode?() do
-      # In dev mode, return the full error with all details
-      error
-    else
-      # In production, sanitize the error to remove sensitive information
-      attrs = %{
-        type: map_get(error, :type, :query_error),
-        message: get_safe_error_message(error),
-        details: %{},
-        query: nil,
-        params: []
-      }
+  def sanitize_error_for_environment(error, opts \\ []) do
+    normalized = ErrorBuilder.build(error, opts)
 
-      maybe_build_selecto_error(attrs)
+    if dev_mode?() do
+      normalized
+    else
+      sanitize_normalized_error(normalized)
     end
   end
 
@@ -623,31 +617,6 @@ defmodule SelectoComponents.Form do
     })
   end
 
-  defp get_safe_error_message(error) do
-    type = map_get(error, :type, :query_error)
-
-    # Return user-friendly messages based on error type
-    case type do
-      :connection_error ->
-        "Unable to connect to the database. Please try again later."
-
-      :query_error ->
-        "An error occurred while processing your request. Please try again."
-
-      :timeout_error ->
-        "The request took too long to complete. Please try again with a simpler query."
-
-      :permission_error ->
-        "You don't have permission to access this data."
-
-      :validation_error ->
-        "The request contains invalid parameters. Please check your inputs."
-
-      _ ->
-        "An unexpected error occurred. Please try again or contact support if the problem persists."
-    end
-  end
-
   defp maybe_build_selecto_error(attrs) do
     if Code.ensure_loaded?(Selecto.Error) do
       try do
@@ -660,8 +629,30 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  defp map_get(map, key, default) when is_map(map), do: Map.get(map, key, default)
-  defp map_get(_, _key, default), do: default
+  defp sanitize_normalized_error(error_info) do
+    sanitized_message =
+      error_info.user_message
+      |> then(&ErrorSanitizer.sanitize_error(%{message: &1, details: %{}}))
+      |> Map.get(:message)
+
+    sanitized_suggestions =
+      if error_info.suggestions != [] do
+        ErrorSanitizer.sanitize_suggestions(error_info.suggestions)
+      else
+        ErrorSanitizer.safe_suggestions(error_info.category)
+      end
+
+    %{
+      error_info
+      | source: :application,
+        user_message: sanitized_message,
+        detail: nil,
+        suggestion: List.first(sanitized_suggestions),
+        suggestions: sanitized_suggestions,
+        debug: %{},
+        error: nil
+    }
+  end
 
   @doc false
   def build_debug_data(assigns) do

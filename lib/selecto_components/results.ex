@@ -1,7 +1,9 @@
 defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
+
   alias SelectoComponents.Debug.DebugDisplay
   alias SelectoComponents.Debug.ProductionConfig
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
@@ -41,29 +43,27 @@ defmodule SelectoComponents.Results do
     assigns = Map.put(assigns, :show_debug, show_debug)
     has_component_errors = match?([_ | _], Map.get(assigns, :component_errors, []))
     assigns = Map.put(assigns, :has_component_errors, has_component_errors)
+    assigns = Map.put(assigns, :normalized_execution_error, normalize_execution_error(assigns))
 
     ~H"""
     <div>
       <div
-        :if={Map.get(assigns, :execution_error) && !@applied_view}
+        :if={@normalized_execution_error && !@applied_view}
         class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
         role="alert"
       >
-        <strong class="font-bold">View Error:</strong>
-        <span class="block sm:inline ml-1">
-          <%= case Map.get(assigns, :execution_error) do %>
-            <% %{message: msg} -> %>
-              {msg}
-            <% error when is_binary(error) -> %>
-              {error}
-            <% error -> %>
-              {inspect(error)}
-          <% end %>
-        </span>
-        <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) && map_size(@execution_error.details) > 0 do %>
+        <strong class="font-bold">{@normalized_execution_error.summary}:</strong>
+        <span class="block sm:inline ml-1">{@normalized_execution_error.user_message}</span>
+        <div :if={@normalized_execution_error.detail} class="text-sm mt-1">
+          {@normalized_execution_error.detail}
+        </div>
+        <div :if={@normalized_execution_error.suggestion} class="text-sm mt-1 font-medium">
+          Next step: {@normalized_execution_error.suggestion}
+        </div>
+        <%= if Mix.env() == :dev && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
           <details class="mt-2">
             <summary class="cursor-pointer text-sm">Debug Details</summary>
-            <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+            <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
           </details>
         <% end %>
       </div>
@@ -113,6 +113,13 @@ defmodule SelectoComponents.Results do
 
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)
+  end
+
+  defp normalize_execution_error(assigns) do
+    case Map.get(assigns, :execution_error) do
+      nil -> nil
+      error -> ErrorBuilder.normalize(error)
+    end
   end
 
   defp build_debug_data(assigns) do

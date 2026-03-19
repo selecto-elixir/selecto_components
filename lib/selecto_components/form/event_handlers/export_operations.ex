@@ -8,6 +8,7 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
 
   defmacro __using__(_opts) do
     quote do
+      alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Exporter
       import SelectoComponents.Form.ErrorHandling
 
@@ -45,15 +46,51 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
               end
 
             {:error, :no_results} ->
-              {:noreply, put_flash(socket, :error, "No query results to export yet.")}
+              {:noreply, put_flash(socket, :error, export_error_message(:no_results))}
 
             {:error, :unsupported_format} ->
-              {:noreply, put_flash(socket, :error, "Unsupported export format.")}
+              {:noreply, put_flash(socket, :error, export_error_message(:unsupported_format))}
 
-            {:error, _reason} ->
-              {:noreply, put_flash(socket, :error, "Export failed. Please try again.")}
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, export_error_message(reason))}
           end
         end)
+      end
+
+      defp export_error_message(:no_results) do
+        error =
+          ErrorBuilder.build("No query results to export yet.",
+            stage: :export,
+            category: :validation,
+            code: :export_no_results,
+            operation: "export_data"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message(:unsupported_format) do
+        error =
+          ErrorBuilder.build("Unsupported export format.",
+            stage: :export,
+            category: :validation,
+            code: :unsupported_export_format,
+            operation: "export_data"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message(reason) do
+        error =
+          ErrorBuilder.build(inspect(reason),
+            stage: :export,
+            category: :runtime,
+            code: :export_failed,
+            operation: "export_data"
+          )
+
+        error.summary <> ": " <> error.user_message
       end
     end
   end

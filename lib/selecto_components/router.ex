@@ -7,6 +7,7 @@ defmodule SelectoComponents.Router do
   """
 
   alias SelectoComponents.State
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
   alias UUID
 
@@ -44,7 +45,15 @@ defmodule SelectoComponents.Router do
         {:ok, updated_state}
 
       {:error, error} ->
-        updated_state = State.set_execution_error(state, error)
+        updated_state =
+          State.set_execution_error(
+            state,
+            ErrorBuilder.build(error,
+              stage: :db_execute,
+              operation: "view-apply"
+            )
+          )
+
         {:error, updated_state}
     end
   end
@@ -70,7 +79,15 @@ defmodule SelectoComponents.Router do
 
   def handle_event(event, _params, state) do
     # Fallback for unhandled events
-    {:error, State.set_execution_error(state, "Unknown event: #{event}")}
+    {:error,
+     State.set_execution_error(
+       state,
+       ErrorBuilder.build("Unknown event: #{event}",
+         stage: :lifecycle,
+         category: :runtime,
+         code: :unknown_event
+       )
+     )}
   end
 
   @doc """
@@ -138,7 +155,16 @@ defmodule SelectoComponents.Router do
             {:ok, state}
 
           {:error, reason} ->
-            {:ok, State.set_execution_error(state, "Failed to save view: #{inspect(reason)}")}
+            {:ok,
+             State.set_execution_error(
+               state,
+               ErrorBuilder.build("Failed to save view: #{inspect(reason)}",
+                 stage: :persistence,
+                 category: :persistence,
+                 code: :save_view_failed,
+                 operation: "save_view"
+               )
+             )}
         end
     end
   end

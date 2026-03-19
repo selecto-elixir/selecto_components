@@ -58,11 +58,18 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
             socket.assigns.saved_view_module.get_view(name, socket.assigns.saved_view_context)
 
           if is_nil(view) do
-            error = %{
-              type: :saved_view_not_found,
-              message: "Saved view '#{name}' was not found for this page.",
-              details: %{saved_view: name}
-            }
+            error =
+              SelectoComponents.Form.sanitize_error_for_environment(
+                %{
+                  type: :saved_view_not_found,
+                  message: "Saved view '#{name}' was not found for this page.",
+                  details: %{saved_view: name}
+                },
+                stage: :persistence,
+                category: :persistence,
+                code: :saved_view_not_found,
+                operation: "load_saved_view"
+              )
 
             {:noreply,
              assign(socket,

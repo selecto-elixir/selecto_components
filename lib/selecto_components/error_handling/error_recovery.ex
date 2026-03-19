@@ -25,6 +25,8 @@ defmodule SelectoComponents.ErrorHandling.ErrorRecovery do
   @doc """
   Determines if an error is retryable based on its type.
   """
+  def retryable_error?(%{retryable: retryable}) when is_boolean(retryable), do: retryable
+
   def retryable_error?(error) when is_map(error) do
     error_type = Map.get(error, :type) || classify_error(error)
     error_type in @retryable_errors

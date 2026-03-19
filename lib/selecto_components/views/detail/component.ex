@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.SqlDebug
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.Views.Detail.RowActions
   use Phoenix.LiveComponent
@@ -49,26 +50,24 @@ defmodule SelectoComponents.Views.Detail.Component do
   def render(assigns) do
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
+      error_info = ErrorBuilder.normalize(assigns.execution_error)
+      assigns = assign(assigns, :error_info, error_info)
+
       # Display the actual error message
       ~H"""
       <div>
         <%= if @execution_error do %>
           <div class="bg-error/15 border border-error/40 text-error px-4 py-3 rounded relative mb-4" role="alert">
-            <strong class="font-bold">Query Error:</strong>
-            <span class="block sm:inline">
-              <%= case @execution_error do %>
-                <% %{message: msg} -> %>
-                  {msg}
-                <% error when is_binary(error) -> %>
-                  {error}
-                <% error -> %>
-                  {inspect(error)}
-              <% end %>
-            </span>
-            <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) do %>
+            <strong class="font-bold">{@error_info.summary}:</strong>
+            <span class="block sm:inline">{@error_info.user_message}</span>
+            <div :if={@error_info.detail} class="text-sm mt-1">{@error_info.detail}</div>
+            <div :if={@error_info.suggestion} class="text-sm mt-1 font-medium">
+              Next step: {@error_info.suggestion}
+            </div>
+            <%= if Mix.env() == :dev && is_map(@error_info.debug) && map_size(@error_info.debug) > 0 do %>
               <details class="mt-2">
                 <summary class="cursor-pointer text-sm">Debug Details</summary>
-                <pre class="text-xs mt-2 bg-error/20 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+                <pre class="text-xs mt-2 bg-error/20 p-2 rounded overflow-x-auto"><%= inspect(@error_info.debug, pretty: true) %></pre>
               </details>
             <% end %>
           </div>

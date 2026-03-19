@@ -101,6 +101,34 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "101"
   end
 
+  test "renders stage-aware execution errors" do
+    assigns =
+      base_assigns(%{
+        execution_error: %{
+          stage: :sql_compile,
+          category: :query,
+          code: :sql_compile_failed,
+          summary: "Query error while generating SQL",
+          user_message: "The current configuration could not be compiled into valid SQL.",
+          suggestion: "Check calculated fields, grouping, filters, and ordering.",
+          suggestions: ["Check calculated fields, grouping, filters, and ordering."],
+          detail: "column foo does not exist",
+          severity: :error,
+          recoverable: true,
+          retryable: false,
+          source: :selecto,
+          debug: %{sql: "select * from broken"},
+          error: %{message: "broken"}
+        }
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Query error while generating SQL"
+    assert html =~ "The current configuration could not be compiled into valid SQL."
+    assert html =~ "Check calculated fields, grouping, filters, and ordering."
+  end
+
   test "renders tuple values safely instead of crashing detail cells" do
     tuple_value = {{2026, 3, 17}, {8, 0, 0, 0}}
 

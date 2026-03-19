@@ -4,7 +4,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   use Phoenix.LiveComponent
   require Logger
-  alias SelectoComponents.DBSupport
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
@@ -37,63 +37,25 @@ defmodule SelectoComponents.Views.Graph.Component do
   end
 
   defp render_error_state(assigns) do
-    assigns = assign(assigns, :error, assigns[:execution_error])
+    assigns = assign(assigns, :error_info, ErrorBuilder.normalize(assigns[:execution_error]))
 
     ~H"""
     <div class="flex items-center justify-center min-h-64 bg-error/15 rounded-lg border border-error/40 p-6">
       <div class="text-center max-w-2xl">
         <div class="text-4xl mb-3 text-error">⚠️</div>
-        <div class="font-semibold text-error text-lg mb-2">Query Execution Error</div>
-
-        <%= if is_struct(@error, Selecto.Error) do %>
-          <%= if @error.message do %>
-            <div class="text-error mb-2">{@error.message}</div>
-          <% end %>
-
-          <%= if @error.details[:exception] do %>
-            <%= case DBSupport.database_error_details(@error.details.exception) do %>
-              <% postgres when is_map(postgres) -> %>
-                <div class="bg-error/20 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-error">
-                    {Map.get(postgres, :message, "Database error occurred")}
-                  </div>
-                  <%= if Map.get(postgres, :position) do %>
-                    <div class="text-xs text-error/90 mt-1">
-                      Position: {postgres.position}
-                    </div>
-                  <% end %>
-                  <%= if Map.get(postgres, :code) do %>
-                    <div class="text-xs text-error/90 mt-1">
-                      Error Code: {postgres.code}
-                    </div>
-                  <% end %>
-                </div>
-              <% _ -> %>
-                <div class="bg-error/20 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-error">
-                    {inspect(@error.details.exception)}
-                  </div>
-                </div>
-            <% end %>
-          <% end %>
-
-          <%= if @error.query do %>
-            <details class="mt-3 text-left">
-              <summary class="cursor-pointer text-sm text-error hover:text-error">
-                Show Query
-              </summary>
-              <pre class="bg-base-200 p-2 rounded mt-2 text-xs overflow-x-auto text-base-content"><%= @error.query %></pre>
-            </details>
-          <% end %>
-        <% else %>
-          <div class="text-error">
-            {inspect(@error)}
-          </div>
-        <% end %>
-
-        <div class="mt-4 text-sm text-base-content/70">
-          Please check your query configuration and try again.
+        <div class="font-semibold text-error text-lg mb-2">{@error_info.summary}</div>
+        <div class="text-error mb-2">{@error_info.user_message}</div>
+        <div :if={@error_info.detail} class="text-sm text-error/90 mb-2">{@error_info.detail}</div>
+        <div :if={@error_info.suggestion} class="mt-4 text-sm text-base-content/70">
+          Next step: {@error_info.suggestion}
         </div>
+
+        <details :if={Mix.env() == :dev && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-3 text-left">
+          <summary class="cursor-pointer text-sm text-error hover:text-error">
+            Debug Details
+          </summary>
+          <pre class="bg-base-200 p-2 rounded mt-2 text-xs overflow-x-auto text-base-content"><%= inspect(@error_info.debug, pretty: true) %></pre>
+        </details>
       </div>
     </div>
     """

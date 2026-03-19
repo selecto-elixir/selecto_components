@@ -703,7 +703,11 @@ defmodule SelectoComponents.Form.ParamsState do
           socket
 
         {:error, %{__struct__: module} = error} when module == Selecto.Error ->
-          sanitized_error = SelectoComponents.Form.sanitize_error_for_environment(error)
+          sanitized_error =
+            SelectoComponents.Form.sanitize_error_for_environment(
+              error,
+              execution_error_opts(error, params, operation: "view-apply")
+            )
 
           if SelectoComponents.Form.dev_mode?() do
             # Selecto.Error occurred
@@ -748,7 +752,9 @@ defmodule SelectoComponents.Form.ParamsState do
               inspect(error),
               %{original_error: error}
             )
-            |> SelectoComponents.Form.sanitize_error_for_environment()
+            |> SelectoComponents.Form.sanitize_error_for_environment(
+              execution_error_opts(error, params, operation: "view-apply")
+            )
 
           if SelectoComponents.Form.dev_mode?() do
             # Generic error occurred
@@ -797,7 +803,13 @@ defmodule SelectoComponents.Form.ParamsState do
             __STACKTRACE__,
             params
           )
-          |> SelectoComponents.Form.sanitize_error_for_environment()
+          |> SelectoComponents.Form.sanitize_error_for_environment(
+            stage: :result_process,
+            category: :processing,
+            code: :view_processing_failed,
+            operation: "view-apply",
+            view_mode: view_mode_value(params)
+          )
 
         if SelectoComponents.Form.dev_mode?() do
           # View error occurred
@@ -835,7 +847,13 @@ defmodule SelectoComponents.Form.ParamsState do
                 view_mode: view_mode_value(params, socket.assigns[:applied_view])
               }
             )
-            |> SelectoComponents.Form.sanitize_error_for_environment(),
+            |> SelectoComponents.Form.sanitize_error_for_environment(
+              stage: if(reason == :timeout, do: :timeout, else: :lifecycle),
+              category: if(reason == :timeout, do: :timeout, else: :runtime),
+              code: if(reason == :timeout, do: :query_timed_out, else: :system_exit),
+              operation: "view-apply",
+              view_mode: view_mode_value(params, socket.assigns[:applied_view])
+            ),
           view_meta: %{},
           detail_page_cache: nil,
           aggregate_page_cache: nil,
@@ -1097,6 +1115,73 @@ defmodule SelectoComponents.Form.ParamsState do
 
     SelectoComponents.Form.build_selecto_error(type, message, details)
   end
+
+  defp execution_error_opts(error, params, extra_opts) do
+    view_mode = view_mode_value(params)
+
+    Keyword.merge(
+      [
+        stage: execution_error_stage(error),
+        category: execution_error_category(error),
+        code: execution_error_code(error),
+        view_mode: view_mode
+      ],
+      extra_opts
+    )
+  end
+
+  defp execution_error_stage(%{__struct__: module} = error) when module == Selecto.Error do
+    case Map.get(error, :type, :query_error) do
+      :validation_error -> :input
+      :configuration_error -> :configuration
+      :field_resolution_error -> :configuration
+      :timeout_error -> :timeout
+      :connection_error -> :db_execute
+      :transformation_error -> :result_process
+      :query_error -> if(Map.get(error, :query), do: :db_execute, else: :query_build)
+      _ -> :unknown
+    end
+  end
+
+  defp execution_error_stage(:timeout), do: :timeout
+  defp execution_error_stage({:error, :timeout}), do: :timeout
+  defp execution_error_stage(_), do: :db_execute
+
+  defp execution_error_category(%{__struct__: module} = error) when module == Selecto.Error do
+    case Map.get(error, :type, :query_error) do
+      :validation_error -> :validation
+      :configuration_error -> :configuration
+      :field_resolution_error -> :configuration
+      :timeout_error -> :timeout
+      :connection_error -> :connection
+      :transformation_error -> :processing
+      :permission_error -> :authorization
+      :query_error -> :query
+      _ -> :runtime
+    end
+  end
+
+  defp execution_error_category(:timeout), do: :timeout
+  defp execution_error_category({:error, :timeout}), do: :timeout
+  defp execution_error_category(_), do: :query
+
+  defp execution_error_code(%{__struct__: module} = error) when module == Selecto.Error do
+    case Map.get(error, :type, :query_error) do
+      :validation_error -> :validation_error
+      :configuration_error -> :invalid_view_config
+      :field_resolution_error -> :unknown_field
+      :timeout_error -> :query_timed_out
+      :connection_error -> :connection_error
+      :transformation_error -> :result_processing_failed
+      :permission_error -> :permission_error
+      :query_error -> if(Map.get(error, :query), do: :db_query_failed, else: :query_build_failed)
+      type -> type
+    end
+  end
+
+  defp execution_error_code(:timeout), do: :query_timed_out
+  defp execution_error_code({:error, :timeout}), do: :query_timed_out
+  defp execution_error_code(_), do: :db_query_failed
 
   defp format_stacktrace(stacktrace) when is_list(stacktrace) do
     stacktrace
