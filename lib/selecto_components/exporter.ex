@@ -15,7 +15,7 @@ defmodule SelectoComponents.Exporter do
   def build(format, {_rows, _columns, _aliases} = query_results, opts) do
     format = normalize_format(format)
 
-    with {:ok, normalized} <- normalize_rows(query_results) do
+    with {:ok, normalized} <- normalize_rows(query_results, opts) do
       case format do
         "json" -> build_json(normalized, opts)
         "csv" -> build_csv(normalized, opts)
@@ -77,7 +77,18 @@ defmodule SelectoComponents.Exporter do
      }}
   end
 
-  defp normalize_rows({rows, columns, _aliases}) when is_list(rows) and is_list(columns) do
+  defp normalize_rows({rows, columns, _aliases} = query_results, opts)
+       when is_list(rows) and is_list(columns) do
+    if aggregate_grid_export?(opts) do
+      normalize_grid_rows(query_results, opts)
+    else
+      normalize_tabular_rows(query_results)
+    end
+  end
+
+  defp normalize_rows(_query_results, _opts), do: {:error, :no_results}
+
+  defp normalize_tabular_rows({rows, columns, _aliases}) do
     headers = headers(columns, rows)
 
     normalized_rows =
@@ -88,7 +99,184 @@ defmodule SelectoComponents.Exporter do
     {:ok, %{headers: headers, rows: normalized_rows}}
   end
 
-  defp normalize_rows(_query_results), do: {:error, :no_results}
+  defp normalize_grid_rows({rows, columns, _aliases}, opts) do
+    row_header = grid_header(opts, 0, Enum.at(columns, 0))
+    col_headers = unique_grid_axis_values(rows, 1)
+    cells = build_grid_cells(rows)
+    headers = [row_header | Enum.map(col_headers, &sanitize_value/1)]
+    row_headers = unique_grid_axis_values(rows, 0)
+
+    normalized_rows =
+      Enum.map(row_headers, fn row_value ->
+        base_row = %{row_header => sanitize_value(row_value)}
+
+        Enum.reduce(col_headers, base_row, fn col_value, acc ->
+          Map.put(acc, sanitize_value(col_value), Map.get(cells, {row_value, col_value}))
+        end)
+      end)
+
+    {:ok, %{headers: headers, rows: normalized_rows}}
+  end
+
+  defp aggregate_grid_export?(opts) do
+    view_mode = normalize_view_mode(Keyword.get(opts, :view_mode, "results"))
+    view_config = Keyword.get(opts, :view_config, %{})
+    aggregate_view = aggregate_view_config(view_config)
+
+    view_mode == "aggregate" and truthy?(get_map_value(aggregate_view, :grid, false)) and
+      aggregate_grid_compatible?(aggregate_view)
+  end
+
+  defp aggregate_grid_compatible?(aggregate_view) do
+    group_count = aggregate_view |> get_map_value(:group_by, []) |> count_view_items()
+    aggregate_count = aggregate_view |> get_map_value(:aggregate, []) |> count_view_items()
+    group_count == 2 and aggregate_count == 1
+  end
+
+  defp aggregate_view_config(view_config) when is_map(view_config) do
+    get_map_value(get_map_value(view_config, :views, %{}), :aggregate, %{})
+  end
+
+  defp aggregate_view_config(_), do: %{}
+
+  defp count_view_items(items) when is_list(items), do: length(items)
+  defp count_view_items(items) when is_map(items), do: map_size(items)
+  defp count_view_items(_), do: 0
+
+  defp grid_header(opts, idx, fallback) do
+    aggregate_view = aggregate_view_config(Keyword.get(opts, :view_config, %{}))
+
+    aggregate_view
+    |> get_map_value(:group_by, [])
+    |> ordered_view_items()
+    |> Enum.at(idx)
+    |> item_alias_or_fallback(fallback)
+    |> to_string()
+  end
+
+  defp ordered_view_items(items) when is_list(items), do: items
+
+  defp ordered_view_items(items) when is_map(items) do
+    items
+    |> Map.values()
+    |> Enum.sort_by(fn item -> item |> get_map_value(:index, "0") |> to_string() end)
+  end
+
+  defp ordered_view_items(_), do: []
+
+  defp item_alias_or_fallback({_uuid, _field, opts}, fallback) when is_map(opts) do
+    alias_value = get_map_value(opts, :alias, "")
+    if alias_value in [nil, ""], do: fallback, else: alias_value
+  end
+
+  defp item_alias_or_fallback(item, fallback) when is_map(item) do
+    alias_value = get_map_value(item, :alias, "")
+    if alias_value in [nil, ""], do: fallback, else: alias_value
+  end
+
+  defp item_alias_or_fallback(_, fallback), do: fallback
+
+  defp unique_grid_axis_values(rows, idx) do
+    rows
+    |> aggregate_grid_detail_rows(2)
+    |> Enum.reduce([], fn row, acc ->
+      value = Enum.at(row, idx)
+      if value in acc, do: acc, else: acc ++ [value]
+    end)
+  end
+
+  defp build_grid_cells(rows) do
+    rows
+    |> aggregate_grid_detail_rows(2)
+    |> Enum.reduce(%{}, fn row, acc ->
+      Map.put(acc, {Enum.at(row, 0), Enum.at(row, 1)}, sanitize_value(Enum.at(row, 2)))
+    end)
+  end
+
+  defp aggregate_grid_detail_rows(rows, num_group_by) do
+    rows
+    |> prepare_rollup_rows(num_group_by)
+    |> Enum.reduce([], fn
+      {level, row, false}, acc when level == num_group_by -> [row | acc]
+      _other, acc -> acc
+    end)
+    |> Enum.reverse()
+  end
+
+  defp prepare_rollup_rows(results, num_group_by_cols) do
+    rows_with_metadata =
+      results
+      |> Enum.with_index()
+      |> Enum.map(fn {row, idx} ->
+        level = rollup_level(row, num_group_by_cols)
+        group_cols = Enum.take(row, num_group_by_cols)
+        has_null_at_level = level > 0 and Enum.at(group_cols, level - 1) == "[NULL]"
+        {level, row, has_null_at_level, idx}
+      end)
+
+    filtered_rows =
+      rows_with_metadata
+      |> Enum.with_index()
+      |> Enum.filter(fn {{level, row, has_null_at_level, _orig_idx}, current_idx} ->
+        if has_null_at_level do
+          next_row = Enum.at(rows_with_metadata, current_idx + 1)
+          group_cols = Enum.take(row, num_group_by_cols)
+
+          case next_row do
+            {next_level, next_row_data, _has_null, _next_idx} when next_level == level - 1 ->
+              current_group_prefix = Enum.take(group_cols, level - 1)
+              next_group_cols = Enum.take(next_row_data, num_group_by_cols)
+              next_group_prefix = Enum.take(next_group_cols, level - 1)
+
+              if current_group_prefix == next_group_prefix do
+                current_aggs = Enum.drop(row, num_group_by_cols)
+                next_aggs = Enum.drop(next_row_data, num_group_by_cols)
+                not (current_aggs == next_aggs)
+              else
+                false
+              end
+
+            _ ->
+              false
+          end
+        else
+          true
+        end
+      end)
+
+    last_level0_idx =
+      filtered_rows
+      |> Enum.with_index()
+      |> Enum.reduce(nil, fn
+        {{{0, row, _has_null, _orig_idx}, _current_idx}, idx}, acc ->
+          group_cols = Enum.take(row, num_group_by_cols)
+          if Enum.all?(group_cols, &(&1 in [nil, ""])), do: idx, else: acc
+
+        _other, acc ->
+          acc
+      end)
+
+    filtered_rows
+    |> Enum.with_index()
+    |> Enum.map(fn {{{level, row, _has_null, _orig_idx}, _current_idx}, idx} ->
+      {level, row, idx == last_level0_idx}
+    end)
+  end
+
+  defp rollup_level(row, num_group_by_cols) do
+    row
+    |> Enum.take(num_group_by_cols)
+    |> Enum.count(fn col -> not is_nil(col) and col != "" end)
+  end
+
+  defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
+  defp truthy?(_), do: false
+
+  defp get_map_value(map, key, default) when is_map(map) do
+    Map.get(map, key, Map.get(map, to_string(key), default))
+  end
+
+  defp get_map_value(_map, _key, default), do: default
 
   defp headers(columns, rows) do
     column_headers = Enum.map(columns, &to_string/1)

@@ -87,6 +87,85 @@ defmodule SelectoComponents.ExporterTest do
     assert [%{"title" => "Film A", "release_year" => 1901} | _] = decoded["rows"]
   end
 
+  test "builds grid-shaped CSV export for aggregate grid view" do
+    query_results =
+      {
+        [
+          [2001, "A", 3],
+          [2001, "B", 5],
+          [2002, "A", 2],
+          [nil, nil, 10]
+        ],
+        ["release_year", "title", "film_count"],
+        []
+      }
+
+    view_config = %{
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"g0", "release_year", %{"alias" => "Year", "index" => "0"}},
+            {"g1", "title", %{"alias" => "Title", "index" => "1"}}
+          ],
+          aggregate: [{"a0", "film_count", %{"alias" => "Films", "index" => "0"}}],
+          grid: true
+        }
+      }
+    }
+
+    assert {:ok, export} =
+             Exporter.build("csv", query_results,
+               view_mode: "aggregate",
+               view_config: view_config,
+               exported_at: @exported_at
+             )
+
+    assert export.filename == "selecto_aggregate_20260225_120000.csv"
+    assert export.content == "Year,A,B\n2001,3,5\n2002,2,"
+  end
+
+  test "builds grid-shaped JSON export for aggregate grid view" do
+    query_results =
+      {
+        [
+          [2001, "A", 3],
+          [2001, "B", 5],
+          [2002, "A", 2],
+          [nil, nil, 10]
+        ],
+        ["release_year", "title", "film_count"],
+        []
+      }
+
+    view_config = %{
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"g0", "release_year", %{"alias" => "Year", "index" => "0"}},
+            {"g1", "title", %{"alias" => "Title", "index" => "1"}}
+          ],
+          aggregate: [{"a0", "film_count", %{"alias" => "Films", "index" => "0"}}],
+          grid: true
+        }
+      }
+    }
+
+    assert {:ok, export} =
+             Exporter.build("json", query_results,
+               view_mode: :aggregate,
+               view_config: view_config,
+               exported_at: @exported_at
+             )
+
+    decoded = Jason.decode!(export.content)
+    assert decoded["columns"] == ["Year", "A", "B"]
+
+    assert decoded["rows"] == [
+             %{"Year" => 2001, "A" => 3, "B" => 5},
+             %{"Year" => 2002, "A" => 2, "B" => nil}
+           ]
+  end
+
   test "returns no_results error for invalid query_results" do
     assert {:error, :no_results} = Exporter.build("csv", nil)
   end

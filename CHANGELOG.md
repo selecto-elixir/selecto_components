@@ -9,8 +9,10 @@ V 0.4.2
   at once instead of splitting across pages.
 - Added a Grid color-scale legend plus sticky top/left headers inside a scrollable
   viewport so wide and tall colorized grids stay readable.
+- Updated aggregate Grid exports so CSV and JSON downloads preserve the rendered
+  grid shape instead of falling back to flat aggregate rows.
 - Added regression coverage for unpaginated grid rendering, legend display, and
-  sticky grid layout behavior.
+  sticky grid layout behavior, plus grid-shaped export output.
 
 V 0.4.1
 --------

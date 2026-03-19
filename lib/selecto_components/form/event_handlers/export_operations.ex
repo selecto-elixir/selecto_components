@@ -25,7 +25,10 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
           query_results = socket.assigns[:query_results]
           view_mode = socket.assigns[:applied_view] || socket.assigns.view_config.view_mode
 
-          case Exporter.build(format, query_results, view_mode: view_mode) do
+          case Exporter.build(format, query_results,
+                 view_mode: view_mode,
+                 view_config: socket.assigns[:view_config]
+               ) do
             {:ok, export} ->
               if byte_size(export.content) > @max_export_payload_bytes do
                 {:noreply,
