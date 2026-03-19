@@ -1371,6 +1371,7 @@ defmodule SelectoComponents.Form.ParamsState do
           submitted_view_state(view, view_tuple, params, existing_config, socket)
         )
       end)
+      |> preserve_missing_detail_view_params(existing_config, params)
 
     Phoenix.Component.assign(socket,
       view_config:
@@ -1520,12 +1521,42 @@ defmodule SelectoComponents.Form.ParamsState do
               )
 
           saved_view ->
-            normalize_saved_term(saved_view)
+            saved_view
+            |> normalize_saved_term()
+            |> normalize_restored_view(view)
         end
 
       Map.put(acc, view, restored_view)
     end)
   end
+
+  defp normalize_restored_view(saved_view, :detail) when is_map(saved_view) do
+    normalize_saved_boolean(saved_view, :prevent_denormalization, true)
+  end
+
+  defp normalize_restored_view(saved_view, _view), do: saved_view
+
+  defp normalize_saved_boolean(saved_view, key, default) do
+    current_value = Map.get(saved_view, key, Map.get(saved_view, to_string(key), default))
+    normalized_value = normalize_saved_boolean_value(current_value, default)
+
+    saved_view
+    |> Map.put(key, normalized_value)
+    |> Map.put(to_string(key), normalized_value)
+  end
+
+  defp normalize_saved_boolean_value(value, _default) when value in [true, "true", "on", 1, "1"],
+    do: true
+
+  defp normalize_saved_boolean_value(value, _default)
+       when value in [false, "false", 0, "0"],
+       do: false
+
+  defp normalize_saved_boolean_value([value | _rest], default),
+    do: normalize_saved_boolean_value(value, default)
+
+  defp normalize_saved_boolean_value(nil, default), do: default
+  defp normalize_saved_boolean_value(_value, default), do: default
 
   defp preserve_missing_detail_view_params(view_configs, existing_config, params) do
     existing_detail = get_in(existing_config, [:views, :detail]) || %{}

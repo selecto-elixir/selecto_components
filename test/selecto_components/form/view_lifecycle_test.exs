@@ -46,7 +46,7 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
               max_rows: "1000",
               count_mode: "bounded",
               row_click_action: "workspace_spotlight",
-              prevent_denormalization: true
+              prevent_denormalization: false
             },
             aggregate: %{
               group_by: [{"g1", "status", %{"format" => "default"}}],
@@ -75,6 +75,7 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     assert_received {:saved_view, "My Saved View", "/work-items", saved_params}
     assert saved_params["view_mode"] == "detail"
     assert saved_params["views"]["detail"]["row_click_action"] == "workspace_spotlight"
+    assert saved_params["views"]["detail"]["prevent_denormalization"] == false
     assert saved_params["views"]["aggregate"]["grid"] == true
     assert saved_params["views"]["graph"]["chart_type"] == "line"
 

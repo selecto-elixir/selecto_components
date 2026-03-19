@@ -104,6 +104,45 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     refute html =~ ~s(<option value="work_item_api_preview" selected>)
   end
 
+  test "renders prevent_denormalization unchecked when restored as string false" do
+    domain = %{
+      name: "DetailFormCheckboxTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          title: %{type: :string, name: "Title", colid: :title}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{}
+    }
+
+    html =
+      render_component(Form, %{
+        id: "detail-form-checkbox-test",
+        columns: [{:id, "ID", :integer}, {:title, "Title", :string}],
+        view: {:detail, SelectoComponents.Views.Detail, "Detail", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              prevent_denormalization: "false"
+            }
+          }
+        }
+      })
+
+    refute html =~ ~s(name="prevent_denormalization" value="true" checked)
+  end
+
   test "set_row_click_action updates detail view config" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{

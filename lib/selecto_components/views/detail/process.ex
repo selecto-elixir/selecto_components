@@ -13,9 +13,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       count_mode: Options.normalize_count_mode_param(Map.get(params, "count_mode")),
       row_click_action:
         Options.normalize_row_click_action_param(Map.get(params, "row_click_action")),
-      prevent_denormalization:
-        params["prevent_denormalization"] in ["on", "true"] ||
-          (params["prevent_denormalization"] == nil && params["selected"] == nil)
+      prevent_denormalization: prevent_denormalization_enabled?(params)
     }
   end
 
@@ -58,9 +56,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       )
 
     # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
-    prevent_denorm =
-      params["prevent_denormalization"] in ["on", "true"] ||
-        (params["prevent_denormalization"] == nil && params["selected"] == nil)
+    prevent_denorm = prevent_denormalization_enabled?(params)
 
     # Process columns for denormalization if enabled
     {selected_columns, visible_columns, subselect_configs, denorm_groups} =
@@ -178,6 +174,27 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   defp normalize_selected_entries(_), do: []
+
+  defp prevent_denormalization_enabled?(params) when is_map(params) do
+    case Map.get(params, "prevent_denormalization") do
+      value when value in [true, "true", "on", 1, "1"] ->
+        true
+
+      value when value in [false, "false", 0, "0"] ->
+        false
+
+      [value | _rest] ->
+        value in [true, "true", "on", 1, "1"]
+
+      nil ->
+        Map.get(params, "selected") == nil
+
+      _other ->
+        false
+    end
+  end
+
+  defp prevent_denormalization_enabled?(_params), do: true
 
   defp normalize_selected_entry(%{} = config, fallback_uuid, fallback_index) do
     config

@@ -603,6 +603,49 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.graph.options == %{"title" => "Revenue"}
   end
 
+  test "form_params_to_state preserves existing prevent_denormalization when submit omits it" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [{"d1", "id", %{"alias" => "ID"}}],
+              order_by: [],
+              per_page: "60",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "",
+              prevent_denormalization: false
+            },
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"}
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "detail-col-1", "alias" => "ID"}
+      },
+      "per_page" => "60",
+      "max_rows" => "1000",
+      "count_mode" => "bounded"
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.prevent_denormalization == false
+  end
+
   test "form_params_to_state preserves missing non-active views for partial URL params" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
@@ -802,13 +845,47 @@ defmodule SelectoComponents.Form.ParamsStateTest do
              {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
            ]
 
-    assert updated.assigns.view_config.views.detail["row_click_action"] == "workspace_spotlight"
-    assert updated.assigns.view_config.views.aggregate["grid"] == true
-    assert updated.assigns.view_config.views.graph["chart_type"] == "line"
+    assert get_in(updated.assigns.view_config, [:views, :detail, "row_click_action"]) ==
+             "workspace_spotlight"
+
+    assert get_in(updated.assigns.view_config, [:views, :aggregate, "grid"]) == true
+    assert get_in(updated.assigns.view_config, [:views, :graph, "chart_type"]) == "line"
 
     detail_params = ParamsState.view_config_to_params(updated.assigns.view_config)
     assert detail_params["row_click_action"] == "workspace_spotlight"
     assert detail_params["filters"]["k0"]["filter"] == "status"
+  end
+
+  test "saved_params_to_state normalizes saved detail prevent_denormalization strings" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    saved_params = %{
+      "view_mode" => "detail",
+      "filters" => [],
+      "views" => %{
+        "detail" => %{
+          "selected" => [["d1", "id", %{"alias" => "ID"}]],
+          "order_by" => [],
+          "per_page" => "60",
+          "max_rows" => "1000",
+          "count_mode" => "bounded",
+          "prevent_denormalization" => "false"
+        }
+      }
+    }
+
+    updated = ParamsState.saved_params_to_state(saved_params, socket)
+
+    assert get_in(updated.assigns.view_config, [:views, :detail, :prevent_denormalization]) ==
+             false
   end
 
   test "filters_to_params uses compact keys while preserving uuid" do

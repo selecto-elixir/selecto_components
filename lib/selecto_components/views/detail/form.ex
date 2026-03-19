@@ -53,6 +53,7 @@ defmodule SelectoComponents.Views.Detail.Form do
         :prevent_denormalization,
         Map.get(detail_config, "prevent_denormalization", true)
       )
+      |> normalize_checkbox_value()
 
     row_action_options = RowActions.available_actions(assigns.selecto)
 
@@ -279,6 +280,12 @@ defmodule SelectoComponents.Views.Detail.Form do
 
     {:noreply, assign(socket, view_config: updated_view_config)}
   end
+
+  defp normalize_checkbox_value(value) when value in [true, "true", "on", 1, "1"], do: true
+  defp normalize_checkbox_value(value) when value in [false, "false", 0, "0"], do: false
+  defp normalize_checkbox_value([value | _rest]), do: normalize_checkbox_value(value)
+  defp normalize_checkbox_value(nil), do: false
+  defp normalize_checkbox_value(_value), do: true
 
   defp compact_param_key(index) when is_integer(index), do: "k" <> Integer.to_string(index, 36)
 
