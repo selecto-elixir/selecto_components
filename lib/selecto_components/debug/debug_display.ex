@@ -247,7 +247,7 @@ defmodule SelectoComponents.Debug.DebugDisplay do
   def mount(socket) do
     {:ok,
      assign(socket,
-       expanded: true,
+       expanded: false,
        show_debug: false,
        show_interpolated: false,
        debug_info: %{},
