@@ -986,7 +986,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       if grid_available?,
         do:
           build_grid_data(
-            paged_rollup_rows,
+            rollup_rows,
             num_group_by,
             group_by,
             grid_colorize,
@@ -1015,12 +1015,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         grid_colorize: grid_colorize,
         grid_color_scale: grid_color_scale,
         grid_available?: grid_available?,
-        grid_data: grid_data
+        grid_data: grid_data,
+        grid_legend_colors: @grid_palette
       )
 
     ~H"""
     <div>
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2 dark:border-gray-700 dark:from-gray-900 dark:to-gray-800">
+      <div
+        :if={!@grid_available?}
+        class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2 dark:border-gray-700 dark:from-gray-900 dark:to-gray-800"
+      >
         <div class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
           <button
             type="button"
@@ -1172,40 +1176,57 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             {String.capitalize(@grid_color_scale)} color scale
           </span>
         </div>
-        <table class="min-w-full overflow-hidden divide-y divide-gray-200 rounded-sm table-auto ring-1 ring-gray-200 dark:divide-gray-700 dark:ring-gray-700 sm:rounded">
-          <thead class="bg-gray-50 dark:bg-gray-800/80">
-            <tr>
-              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {@grid_data.row_alias}
-              </th>
-              <%= for col_value <- @grid_data.col_headers do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {format_group_value(col_value, @grid_data.col_coldef)}
+        <div
+          :if={@grid_colorize}
+          class="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-cyan-100 bg-cyan-50/60 px-3 py-2 text-xs text-gray-700 dark:border-cyan-900/60 dark:bg-cyan-950/20 dark:text-gray-200"
+        >
+          <span class="font-medium">Color legend</span>
+          <span>Low</span>
+          <div class="flex items-center gap-1" aria-label="Grid color legend">
+            <span
+              :for={color <- @grid_legend_colors}
+              class="h-3 w-5 rounded-sm border border-gray-200 dark:border-gray-700"
+              style={"background-color: #{color};"}
+            />
+          </div>
+          <span>High</span>
+        </div>
+        <div class="mb-1 overflow-x-auto overflow-y-auto rounded-sm ring-1 ring-gray-200 dark:ring-gray-700 max-h-[70vh]">
+          <table class="min-w-full divide-y divide-gray-200 table-auto dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-800/80">
+              <tr>
+                <th class="sticky left-0 top-0 z-30 bg-gray-50 px-3 py-3.5 text-left text-sm font-semibold text-gray-900 shadow-[1px_0_0_0_rgba(229,231,235,1)] dark:bg-gray-800 dark:text-gray-100 dark:shadow-[1px_0_0_0_rgba(55,65,81,1)]">
+                  {@grid_data.row_alias}
                 </th>
-              <% end %>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-            <tr :for={row_value <- @grid_data.row_headers}>
-              <td class="px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                {format_group_value(row_value, @grid_data.row_coldef)}
-              </td>
-              <td
-                :for={col_value <- @grid_data.col_headers}
-                class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-                style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background-color: #ffffff; color: #111827;")}
-              >
-                <div
-                  phx-click="agg_add_filters"
-                  {build_filter_attrs([row_value, col_value], @group_by, 2)}
-                  class="cursor-pointer hover:underline"
+                <%= for col_value <- @grid_data.col_headers do %>
+                  <th class="sticky top-0 z-20 bg-gray-50 px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:bg-gray-800 dark:text-gray-100">
+                    {format_group_value(col_value, @grid_data.col_coldef)}
+                  </th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+              <tr :for={row_value <- @grid_data.row_headers}>
+                <td class="sticky left-0 z-10 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-[1px_0_0_0_rgba(229,231,235,1)] dark:bg-gray-900 dark:text-gray-100 dark:shadow-[1px_0_0_0_rgba(55,65,81,1)]">
+                  {format_group_value(row_value, @grid_data.row_coldef)}
+                </td>
+                <td
+                  :for={col_value <- @grid_data.col_headers}
+                  class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                  style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background-color: #ffffff; color: #111827;")}
                 >
-                  {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <div
+                    phx-click="agg_add_filters"
+                    {build_filter_attrs([row_value, col_value], @group_by, 2)}
+                    class="cursor-pointer whitespace-nowrap hover:underline"
+                  >
+                    {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       <% else %>
         <table class="min-w-full overflow-hidden divide-y divide-gray-200 rounded-sm table-auto ring-1 ring-gray-200 dark:divide-gray-700 dark:ring-gray-700 sm:rounded">
           <thead class="bg-gray-50 dark:bg-gray-800/80">
@@ -1249,6 +1270,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp build_grid_data(paged_rollup_rows, num_group_by, group_by, colorize?, scale_mode) do
     detail_rows =
       Enum.reduce(paged_rollup_rows, [], fn
+        {level, row, grand_total?}, acc when level == num_group_by ->
+          if grand_total? do
+            acc
+          else
+            [row | acc]
+          end
+
         {level, row, continued?, grand_total?}, acc when level == num_group_by ->
           if continued? or grand_total? do
             acc

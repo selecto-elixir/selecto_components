@@ -875,7 +875,7 @@ defmodule SelectoComponents.Form.ParamsState do
         per_page_setting
       )
 
-    if per_page_setting == "all" do
+    if per_page_setting == "all" or aggregate_grid_enabled?(params) do
       updated_view_meta =
         view_meta
         |> Map.put(:aggregate_server_paged?, false)
@@ -915,6 +915,10 @@ defmodule SelectoComponents.Form.ParamsState do
           {{:error, error}, view_meta, aggregate_cache}
       end
     end
+  end
+
+  defp aggregate_grid_enabled?(params) do
+    get_map_value(params, :aggregate_grid, false) in [true, "true", "on", "1", 1]
   end
 
   defp init_or_reset_aggregate_cache(

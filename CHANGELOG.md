@@ -2,6 +2,16 @@
 CHANGES
 =======
 
+V 0.4.2
+--------
+
+- Updated aggregate Grid view to bypass pagination so the full 2D result renders
+  at once instead of splitting across pages.
+- Added a Grid color-scale legend plus sticky top/left headers inside a scrollable
+  viewport so wide and tall colorized grids stay readable.
+- Added regression coverage for unpaginated grid rendering, legend display, and
+  sticky grid layout behavior.
+
 V 0.4.1
 --------
 
