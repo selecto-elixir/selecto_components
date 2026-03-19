@@ -2,6 +2,18 @@
 CHANGES
 =======
 
+V 0.4.3
+--------
+
+- Fixed denormalized detail subselect generation for nested joins that revisit
+  the same target schema, so paths like workspace team members vs. employee
+  managers no longer collapse into the same `json_agg(...)` subquery.
+- Preserved explicit join ancestry in denormalization detection and subselect
+  config generation, and added regression coverage for repeated-schema nested
+  joins.
+- Updated packaged `selecto` compatibility to require `>= 0.4.1` for the
+  nested-subselect correlation fix.
+
 V 0.4.2
 --------
 

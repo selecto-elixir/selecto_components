@@ -141,6 +141,73 @@ defmodule SelectoComponents.DenormalizationDetectorTest do
     %{base | config: updated_config, domain: updated_domain}
   end
 
+  defp repeated_target_selecto do
+    domain = %{
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, name: %{type: :string}},
+        associations: %{
+          members: %{
+            queryable: :employee,
+            field: :members,
+            owner_key: :id,
+            related_key: :workspace_id
+          }
+        }
+      },
+      schemas: %{
+        employee: %{
+          source_table: "employees",
+          primary_key: :id,
+          fields: [:id, :full_name, :workspace_id, :manager_id],
+          redact_fields: [],
+          columns: %{
+            id: %{type: :integer},
+            full_name: %{type: :string},
+            workspace_id: %{type: :integer},
+            manager_id: %{type: :integer}
+          },
+          associations: %{
+            manager: %{
+              queryable: :employee,
+              field: :manager,
+              owner_key: :manager_id,
+              related_key: :id
+            }
+          }
+        }
+      },
+      name: "Workspace",
+      joins: %{members: %{type: :left, name: "members"}}
+    }
+
+    base = Selecto.configure(domain, [hostname: "localhost"], validate: false)
+
+    joins = %{
+      members: %{
+        type: :left,
+        name: "members",
+        source: "employees",
+        my_key: :workspace_id,
+        requires_join: :selecto_root,
+        fields: %{}
+      },
+      manager: %{
+        type: :left,
+        name: "manager",
+        source: "employees",
+        my_key: :manager_id,
+        requires_join: :members,
+        fields: %{}
+      }
+    }
+
+    %{base | config: Map.put(base.config, :joins, joins)}
+  end
+
   test "groups fan-out columns into denormalized buckets" do
     selecto = test_selecto()
 
@@ -173,7 +240,25 @@ defmodule SelectoComponents.DenormalizationDetectorTest do
 
     assert "name" in normal_columns
     refute "post_profile.display_name" in normal_columns
-    assert denorm_groups == %{"post_profile" => ["post_profile.display_name"]}
+    assert denorm_groups == %{"posts.post_profile" => ["post_profile.display_name"]}
+  end
+
+  test "preserves the full nested path for repeated target schemas" do
+    selecto = repeated_target_selecto()
+
+    {normal_columns, denorm_groups} =
+      DenormalizationDetector.detect_and_group_columns(selecto, [
+        "name",
+        "members.full_name",
+        "manager.full_name"
+      ])
+
+    assert "name" in normal_columns
+
+    assert denorm_groups == %{
+             "members" => ["members.full_name"],
+             "members.manager" => ["manager.full_name"]
+           }
   end
 
   test "handles composite primary keys when detecting denormalizing joins" do

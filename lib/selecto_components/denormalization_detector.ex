@@ -63,7 +63,7 @@ defmodule SelectoComponents.DenormalizationDetector do
 
   defp analyze_column(selecto, field, fallback_field_name \\ nil) do
     # Get the join path for this field
-    join_path = get_join_path(field, fallback_field_name)
+    join_path = get_join_path(selecto, field, fallback_field_name)
 
     # Check if this involves a one-to-many or many-to-many relationship
     causes_denormalization = is_denormalizing_join?(selecto, join_path)
@@ -77,7 +77,7 @@ defmodule SelectoComponents.DenormalizationDetector do
     }
   end
 
-  defp get_join_path(field, fallback_field_name) do
+  defp get_join_path(selecto, field, fallback_field_name) do
     # Extract join path from field definition
     # Check various field formats for join indicators
     normalized_field = field || %{}
@@ -95,18 +95,62 @@ defmodule SelectoComponents.DenormalizationDetector do
       # Check for dot notation: "table.column"
       String.contains?(field_name, ".") ->
         parts = String.split(field_name, ".")
-        # All but the last part are the join path
-        Enum.take(parts, length(parts) - 1)
+        resolve_join_path_segments(selecto, Enum.take(parts, length(parts) - 1))
 
       # Check requires_join field
       Map.get(normalized_field, :requires_join) not in [nil, :selecto_root] ->
-        # If it requires a join, use that as the path
-        [to_string(Map.get(normalized_field, :requires_join))]
+        resolve_join_path_from_join(selecto, Map.get(normalized_field, :requires_join))
 
       true ->
         # No join required
         []
     end
+  end
+
+  defp resolve_join_path_segments(_selecto, []), do: []
+
+  defp resolve_join_path_segments(selecto, ["source" | rest]) do
+    resolve_join_path_segments(selecto, rest)
+  end
+
+  defp resolve_join_path_segments(selecto, [single_segment]) do
+    resolve_join_path_from_join(selecto, single_segment)
+  end
+
+  defp resolve_join_path_segments(selecto, segments) do
+    Enum.map(segments, fn segment -> resolve_join_segment(selecto, segment) end)
+  end
+
+  defp resolve_join_path_from_join(selecto, join_segment) do
+    do_resolve_join_path_from_join(selecto, join_segment, MapSet.new())
+  end
+
+  defp do_resolve_join_path_from_join(_selecto, nil, _visited), do: []
+  defp do_resolve_join_path_from_join(_selecto, :selecto_root, _visited), do: []
+
+  defp do_resolve_join_path_from_join(selecto, join_segment, visited) do
+    resolved_segment = resolve_join_segment(selecto, join_segment)
+
+    if MapSet.member?(visited, resolved_segment) do
+      [resolved_segment]
+    else
+      join_config = find_join_config(selecto, resolved_segment)
+      parent = if is_map(join_config), do: Map.get(join_config, :requires_join), else: nil
+
+      do_resolve_join_path_from_join(selecto, parent, MapSet.put(visited, resolved_segment)) ++
+        [resolved_segment]
+    end
+  end
+
+  defp resolve_join_segment(selecto, join_segment) do
+    join_segment_string = to_string(join_segment)
+
+    selecto
+    |> Map.get(:config, %{})
+    |> Map.get(:joins, %{})
+    |> Enum.find_value(join_segment_string, fn {join_id, _join_config} ->
+      if to_string(join_id) == join_segment_string, do: join_id
+    end)
   end
 
   defp build_relationship_path(join_path) do
@@ -189,7 +233,7 @@ defmodule SelectoComponents.DenormalizationDetector do
       |> Map.get(:joins, %{})
 
     Enum.find_value(joins, fn {join_id, join_config} ->
-      if to_string(join_id) == join_segment, do: join_config
+      if to_string(join_id) == to_string(join_segment), do: join_config
     end)
   end
 
