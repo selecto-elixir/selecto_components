@@ -8,6 +8,8 @@ defmodule SelectoComponents.Filter.FilterSets do
   import Phoenix.Component
   require Logger
 
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+
   @max_shared_filters_param_bytes 32_768
   @max_shared_filters_compressed_bytes 24_576
   @max_shared_filters_json_bytes 262_144
@@ -399,7 +401,15 @@ defmodule SelectoComponents.Filter.FilterSets do
            )}
 
         {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to load filter set")}
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             filter_set_error_message("Failed to load filter set",
+               code: :load_filter_set_failed,
+               operation: "load_filter_set"
+             )
+           )}
       end
     end
   end
@@ -452,7 +462,17 @@ defmodule SelectoComponents.Filter.FilterSets do
 
     # Validate that name is not empty
     if params["name"] == "" || is_nil(params["name"]) do
-      {:noreply, put_flash(socket, :error, "Filter set name cannot be empty")}
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         filter_set_error_message("Filter set name cannot be empty",
+           stage: :persistence,
+           category: :validation,
+           code: :missing_filter_set_name,
+           operation: "do_save_filter_set"
+         )
+       )}
     else
       case save_filter_set(params, socket.assigns) do
         {:ok, filter_set} ->
@@ -480,7 +500,15 @@ defmodule SelectoComponents.Filter.FilterSets do
                 "Failed to save filter set"
             end
 
-          {:noreply, put_flash(socket, :error, error_msg)}
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             filter_set_error_message(error_msg,
+               code: :save_filter_set_failed,
+               operation: "do_save_filter_set"
+             )
+           )}
       end
     end
   end
@@ -496,7 +524,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set deleted")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to delete filter set",
+             code: :delete_filter_set_failed,
+             operation: "delete_set"
+           )
+         )}
     end
   end
 
@@ -510,7 +546,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Default filter set updated")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to set default")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to set default filter set",
+             code: :set_default_filter_set_failed,
+             operation: "set_default"
+           )
+         )}
     end
   end
 
@@ -528,7 +572,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set duplicated")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to duplicate filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to duplicate filter set",
+             code: :duplicate_filter_set_failed,
+             operation: "duplicate_set"
+           )
+         )}
     end
   end
 
@@ -544,7 +596,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          )}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to generate share data")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to generate share data",
+             code: :share_filter_set_failed,
+             operation: "share_filter_set"
+           )
+         )}
     end
   end
 
@@ -567,13 +627,41 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set imported successfully")}
 
       {:error, :invalid_format} ->
-        {:noreply, put_flash(socket, :error, "Invalid filter set format")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Invalid filter set format",
+             stage: :input,
+             category: :validation,
+             code: :invalid_filter_set_format,
+             operation: "import_set"
+           )
+         )}
 
       {:error, {:json_decode_failed, _}} ->
-        {:noreply, put_flash(socket, :error, "Invalid JSON format")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Invalid JSON format",
+             stage: :input,
+             category: :validation,
+             code: :invalid_filter_set_json,
+             operation: "import_set"
+           )
+         )}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to import filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to import filter set",
+             code: :import_filter_set_failed,
+             operation: "import_set"
+           )
+         )}
     end
   end
 
@@ -593,8 +681,29 @@ defmodule SelectoComponents.Filter.FilterSets do
         {:noreply, put_flash(socket, :info, "Filter set exported")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to export filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to export filter set",
+             code: :export_filter_set_failed,
+             operation: "export_set"
+           )
+         )}
     end
+  end
+
+  defp filter_set_error_message(message, opts) do
+    error =
+      ErrorBuilder.build(
+        message,
+        Keyword.merge(
+          [stage: :persistence, category: :persistence],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
   end
 
   # Helper functions

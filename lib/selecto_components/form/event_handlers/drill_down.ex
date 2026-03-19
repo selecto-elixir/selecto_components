@@ -30,6 +30,7 @@ defmodule SelectoComponents.Form.EventHandlers.DrillDown do
 
   defmacro __using__(_opts) do
     quote do
+      alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.Views.Aggregate.DrillDown, as: AggregateDrillDown
       alias SelectoComponents.Views.Graph.DrillDown, as: GraphDrillDown
@@ -94,9 +95,24 @@ defmodule SelectoComponents.Form.EventHandlers.DrillDown do
               {:noreply, ParamsState.state_to_url(view_params, updated_socket)}
 
             {:error, message} ->
-              {:noreply, put_flash(socket, :error, message)}
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 drill_down_error_message(message,
+                   stage: :configuration,
+                   category: :validation,
+                   code: :graph_drill_down_failed,
+                   operation: "chart_click"
+                 )
+               )}
           end
         end)
+      end
+
+      defp drill_down_error_message(message, opts) do
+        error = ErrorBuilder.build(message, opts)
+        error.summary <> ": " <> error.user_message
       end
     end
   end
