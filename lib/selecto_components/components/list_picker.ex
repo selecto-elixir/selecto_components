@@ -51,7 +51,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <div class="text-base-content">Selected</div>
 
-        <div class="flex flex-col gap-1 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-72 overflow-auto">
+        <div class="flex flex-col gap-1 rounded-xl border border-base-300 bg-base-100 p-2 shadow-sm h-96 overflow-auto">
           <div :for={{id, name, _f} <- @available}
             data-picker-action="add"
             data-view-id={@view_id}
@@ -227,16 +227,47 @@ defmodule SelectoComponents.Components.ListPicker do
 
         <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerFilter">
           export default {
+            persistKey() {
+              return this.el.id || 'list-picker-filter';
+            },
+
+            readPersistedFilter() {
+              const store = window.__selectoListPickerFilterValues || {};
+              return store[this.persistKey()] || '';
+            },
+
+            writePersistedFilter(value) {
+              window.__selectoListPickerFilterValues = window.__selectoListPickerFilterValues || {};
+              window.__selectoListPickerFilterValues[this.persistKey()] = value || '';
+            },
+
             mounted() {
+              this.filterValue = this.readPersistedFilter();
+              this.filterWasFocused = false;
               this.bindActionHandlers();
               this.bindFilter();
               this.applyFilter();
+            },
+
+            beforeUpdate() {
+              this.filterWasFocused = document.activeElement === this.filterInput;
+              this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+              this.writePersistedFilter(this.filterValue);
             },
 
             updated() {
               this.bindActionHandlers();
               this.bindFilter();
               this.applyFilter();
+
+              if (this.filterWasFocused && this.filterInput) {
+                this.filterInput.focus();
+
+                if (this.filterInput.setSelectionRange) {
+                  const length = this.filterInput.value.length;
+                  this.filterInput.setSelectionRange(length, length);
+                }
+              }
             },
 
             destroyed() {
@@ -252,6 +283,8 @@ defmodule SelectoComponents.Components.ListPicker do
               if (this.handleActionClick) {
                 this.el.removeEventListener('click', this.handleActionClick);
               }
+
+              this.writePersistedFilter(this.filterValue || '');
             },
 
             bindActionHandlers() {
@@ -276,6 +309,8 @@ defmodule SelectoComponents.Components.ListPicker do
                 event.preventDefault();
 
                 const form = this.el.closest('form');
+                this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+                this.writePersistedFilter(this.filterValue);
 
                 this.pushEventTo(this.el, action, {
                   view: trigger.dataset.viewId,
@@ -301,10 +336,19 @@ defmodule SelectoComponents.Components.ListPicker do
                 this.filterInput = filterInput;
 
                 if (this.filterInput) {
-                  this.handleFilterInput = () => this.applyFilter();
+                  this.filterInput.value = this.filterValue || '';
+
+                  this.handleFilterInput = () => {
+                    this.filterValue = this.filterInput.value;
+                    this.writePersistedFilter(this.filterValue);
+                    this.applyFilter();
+                  };
+
                   this.handleFilterKeydown = (event) => {
                     if (event.key === 'Escape') {
+                      this.filterValue = '';
                       this.filterInput.value = '';
+                      this.writePersistedFilter(this.filterValue);
                       this.applyFilter();
                     }
                   };
@@ -327,7 +371,9 @@ defmodule SelectoComponents.Components.ListPicker do
                       return;
                     }
 
+                    this.filterValue = '';
                     this.filterInput.value = '';
+                    this.writePersistedFilter(this.filterValue);
                     this.applyFilter();
                     this.filterInput.focus();
                   };
@@ -338,13 +384,17 @@ defmodule SelectoComponents.Components.ListPicker do
             },
 
             applyFilter() {
-              const filterValue = (this.filterInput?.value || '').trim().toUpperCase();
+              const filterValue = (this.filterValue || '').trim().toUpperCase();
               const items = this.el.querySelectorAll('[data-available-item]');
 
               items.forEach((item) => {
                 const text = item.textContent.toUpperCase();
                 item.style.display = !filterValue || text.includes(filterValue) ? '' : 'none';
               });
+
+              if (this.filterInput && this.filterInput.value !== (this.filterValue || '')) {
+                this.filterInput.value = this.filterValue || '';
+              }
 
               if (this.clearButton) {
                 this.clearButton.classList.toggle('hidden', filterValue === '');

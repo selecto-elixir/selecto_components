@@ -58,6 +58,24 @@ defmodule SelectoComponents.Components.TreeBuilder do
           draggedElement: null,
           initialized: false,
 
+          componentId() {
+            return this.el.id.replace('tree-builder-', '');
+          },
+
+          persistKey() {
+            return this.componentId().replace(/_\d+$/, '');
+          },
+
+          readPersistedFilter() {
+            const store = window.__selectoTreeBuilderFilterValues || {};
+            return store[this.persistKey()] || '';
+          },
+
+          writePersistedFilter(value) {
+            window.__selectoTreeBuilderFilterValues = window.__selectoTreeBuilderFilterValues || {};
+            window.__selectoTreeBuilderFilterValues[this.persistKey()] = value || '';
+          },
+
           initializeDragDrop() {
             if (this.initialized) {
               return;
@@ -135,44 +153,115 @@ defmodule SelectoComponents.Components.TreeBuilder do
             this.initialized = true;
           },
 
-          initializeFilter() {
-            const componentId = this.el.id.replace('tree-builder-', '');
+          bindFilter() {
+            const componentId = this.componentId();
             const filterInput = this.el.querySelector(`#filter-input-${componentId}`);
             const clearButton = this.el.querySelector(`#clear-filter-${componentId}`);
 
-            if (filterInput) {
-              this.onFilterInput = (e) => {
-                e.stopPropagation();
-                const filterValue = e.target.value.toUpperCase();
-                if (clearButton) {
-                  clearButton.style.display = filterValue ? '' : 'none';
-                }
-                
-                const filterableItems = this.el.querySelectorAll('.filterable-item');
-                filterableItems.forEach(item => {
-                  const text = item.textContent.toUpperCase();
-                  const shouldShow = !filterValue || text.includes(filterValue);
-                  item.style.display = shouldShow ? '' : 'none';
-                });
-              };
-              filterInput.addEventListener('input', this.onFilterInput);
+            if (this.filterInput !== filterInput) {
+              if (this.filterInput && this.onFilterInput) {
+                this.filterInput.removeEventListener('input', this.onFilterInput);
+              }
+
+              if (this.filterInput && this.onFilterKeydown) {
+                this.filterInput.removeEventListener('keydown', this.onFilterKeydown);
+              }
+
+              this.filterInput = filterInput;
+
+              if (this.filterInput) {
+                this.filterInput.value = this.filterValue || '';
+
+                this.onFilterInput = (e) => {
+                  e.stopPropagation();
+                  this.filterValue = e.target.value;
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                };
+
+                this.onFilterKeydown = (e) => {
+                  if (e.key === 'Escape') {
+                    this.filterValue = '';
+                    this.filterInput.value = '';
+                    this.writePersistedFilter(this.filterValue);
+                    this.applyFilter();
+                  }
+                };
+
+                this.filterInput.addEventListener('input', this.onFilterInput);
+                this.filterInput.addEventListener('keydown', this.onFilterKeydown);
+              }
+            } else if (this.filterInput && this.filterInput.value !== (this.filterValue || '')) {
+              this.filterInput.value = this.filterValue || '';
             }
 
-            if (clearButton) {
-              this.onClearClick = () => {
-                filterInput.value = '';
-                filterInput.dispatchEvent(new Event('input'));
-              };
-              clearButton.addEventListener('click', this.onClearClick);
+            if (this.clearButton !== clearButton) {
+              if (this.clearButton && this.onClearClick) {
+                this.clearButton.removeEventListener('click', this.onClearClick);
+              }
+
+              this.clearButton = clearButton;
+
+              if (this.clearButton) {
+                this.onClearClick = () => {
+                  if (!this.filterInput) {
+                    return;
+                  }
+
+                  this.filterValue = '';
+                  this.filterInput.value = '';
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                  this.filterInput.focus();
+                };
+
+                this.clearButton.addEventListener('click', this.onClearClick);
+              }
+            }
+          },
+
+          applyFilter() {
+            const filterValue = (this.filterValue || '').trim().toUpperCase();
+            const filterableItems = this.el.querySelectorAll('.filterable-item');
+
+            filterableItems.forEach(item => {
+              const text = item.textContent.toUpperCase();
+              const shouldShow = !filterValue || text.includes(filterValue);
+              item.style.display = shouldShow ? '' : 'none';
+            });
+
+            if (this.clearButton) {
+              this.clearButton.style.display = filterValue ? '' : 'none';
             }
           },
 
           mounted() {
-            this.initializeFilter();
+            this.filterValue = this.readPersistedFilter();
+            this.filterWasFocused = false;
+            this.bindFilter();
             this.initializeDragDrop();
+            this.applyFilter();
           },
 
-          updated() {},
+          beforeUpdate() {
+            this.filterWasFocused = document.activeElement === this.filterInput;
+            this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+            this.writePersistedFilter(this.filterValue);
+          },
+
+          updated() {
+            this.bindFilter();
+            this.applyFilter();
+
+            if (this.filterWasFocused && this.filterInput) {
+              this.filterInput.focus();
+
+              if (this.filterInput.setSelectionRange) {
+                const length = this.filterInput.value.length;
+                this.filterInput.setSelectionRange(length, length);
+              }
+            }
+          },
 
           destroyed() {
             this.el.removeEventListener('dragstart', this.onDragStart);
@@ -182,18 +271,21 @@ defmodule SelectoComponents.Components.TreeBuilder do
             this.el.removeEventListener('dragleave', this.onDragLeave);
             this.el.removeEventListener('drop', this.onDrop);
 
-            const componentId = this.el.id.replace('tree-builder-', '');
-            const filterInput = this.el.querySelector(`#filter-input-${componentId}`);
-            const clearButton = this.el.querySelector(`#clear-filter-${componentId}`);
-            if (filterInput && this.onFilterInput) {
-              filterInput.removeEventListener('input', this.onFilterInput);
+            if (this.filterInput && this.onFilterInput) {
+              this.filterInput.removeEventListener('input', this.onFilterInput);
             }
-            if (clearButton && this.onClearClick) {
-              clearButton.removeEventListener('click', this.onClearClick);
+
+            if (this.filterInput && this.onFilterKeydown) {
+              this.filterInput.removeEventListener('keydown', this.onFilterKeydown);
+            }
+
+            if (this.clearButton && this.onClearClick) {
+              this.clearButton.removeEventListener('click', this.onClearClick);
             }
 
             this.draggedElement = null;
             this.initialized = false;
+            this.writePersistedFilter(this.filterValue || '');
           }
         }
       </script>
