@@ -500,6 +500,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         format = Map.get(e, "format")
         field = Map.get(e, "field")
         bucket_ranges = Map.get(e, "bucket_ranges")
+        ignore_nulls_in_sum = truthy_param?(Map.get(e, "ignore_nulls_in_sum"))
 
         function_name =
           case Map.get(e, "function", Map.get(e, "format")) do
@@ -681,13 +682,27 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
           _other ->
             # Standard aggregates - return as single item list for consistency
-            # Use SafeAtom to prevent atom table exhaustion from user input
-            [{:field, {SafeAtom.to_aggregate_function(function_name), field}, aggregate_alias}]
+            [
+              {:field, aggregate_selector(function_name, field, ignore_nulls_in_sum),
+               aggregate_alias}
+            ]
         end
       end)
 
     result
   end
+
+  defp aggregate_selector("true_count", field, _ignore_nulls_in_sum),
+    do: {:count, field, {field, true}}
+
+  defp aggregate_selector("false_count", field, _ignore_nulls_in_sum),
+    do: {:count, field, {field, false}}
+
+  defp aggregate_selector("sum", field, true),
+    do: {:sum, {:coalesce, [field, 0]}}
+
+  defp aggregate_selector(function_name, field, _ignore_nulls_in_sum),
+    do: {SafeAtom.to_aggregate_function(function_name), field}
 
   defp default_aggregate_label(field, columns, function_name) do
     "#{default_field_label(field, lookup_column(columns, field), columns)} #{aggregate_function_label(function_name)}"

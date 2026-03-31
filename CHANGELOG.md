@@ -2,6 +2,16 @@
 CHANGES
 =======
 
+V 0.4.4
+--------
+
+- Added filter persistence for `ListPicker` and `TreeBuilder` so selected filter
+  state survives the relevant component workflows.
+- Added aggregate `True Count` / `False Count` options and a `Treat NULL as 0`
+  sum toggle, including aggregate summary and processing coverage for the new
+  behaviors.
+- Updated packaged `selecto` compatibility to require `>= 0.4.2`.
+
 V 0.4.3
 --------
 

@@ -114,6 +114,18 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                   ]}
                 />
               </label>
+              <%= if Map.get(@config, "format") == "sum" do %>
+                <label class="inline-flex items-center gap-2">
+                  <input type="hidden" name={"#{@prefix}[ignore_nulls_in_sum]"} value="false" />
+                  <input
+                    type="checkbox"
+                    name={"#{@prefix}[ignore_nulls_in_sum]"}
+                    value="true"
+                    checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
+                  />
+                  Treat NULL as 0 in Sum
+                </label>
+              <% end %>
               <%= if Map.get(@config, "format") == "buckets" do %>
                 <label>
                   Bucket Ranges
@@ -139,6 +151,18 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                   ]}
                 />
               </label>
+              <%= if Map.get(@config, "format") == "sum" do %>
+                <label class="inline-flex items-center gap-2">
+                  <input type="hidden" name={"#{@prefix}[ignore_nulls_in_sum]"} value="false" />
+                  <input
+                    type="checkbox"
+                    name={"#{@prefix}[ignore_nulls_in_sum]"}
+                    value="true"
+                    checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
+                  />
+                  Treat NULL as 0 in Sum
+                </label>
+              <% end %>
               <%= if Map.get(@config, "format") == "buckets" do %>
                 <label>
                   Bucket Ranges

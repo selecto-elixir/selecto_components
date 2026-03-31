@@ -35,6 +35,38 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
              [{:field, {:count_distinct, "id"}, "Category ID Distinct Count"}]
   end
 
+  test "aggregates build filtered boolean counts" do
+    columns = %{"active" => %{name: "Active", type: :boolean, colid: "active"}}
+
+    assert Process.aggregates(
+             %{
+               "a1" => %{"field" => "active", "format" => "true_count"},
+               "a2" => %{"field" => "active", "format" => "false_count", "index" => "1"}
+             },
+             columns
+           ) == [
+             {:field, {:count, "active", {"active", true}}, "Active True Count"},
+             {:field, {:count, "active", {"active", false}}, "Active False Count"}
+           ]
+  end
+
+  test "aggregates can treat null as zero for sum" do
+    columns = %{"total" => %{name: "Total", type: :decimal, colid: "total"}}
+
+    assert Process.aggregates(
+             %{
+               "a1" => %{
+                 "field" => "total",
+                 "format" => "sum",
+                 "ignore_nulls_in_sum" => "true"
+               }
+             },
+             columns
+           ) == [
+             {:field, {:sum, {:coalesce, ["total", 0]}}, "Total Sum"}
+           ]
+  end
+
   test "group by uses column display names by default" do
     columns = %{
       "category.category_name" => %{

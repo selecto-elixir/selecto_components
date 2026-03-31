@@ -290,14 +290,22 @@ defmodule SelectoComponents.Views.Aggregate.Form do
   end
 
   defp aggregate_format_summary(col, config) do
-    case config_value(config, :format) do
-      value when value in [nil, ""] ->
-        col
-        |> aggregate_default_format()
-        |> format_summary_label()
+    format =
+      case config_value(config, :format) do
+        value when value in [nil, ""] ->
+          col
+          |> aggregate_default_format()
+          |> format_summary_label()
 
-      value ->
-        format_summary_label(value)
+        value ->
+          format_summary_label(value)
+      end
+
+    if config_value(config, :format) == "sum" and
+         normalize_checkbox(config_value(config, :ignore_nulls_in_sum)) do
+      "#{format}, null as 0"
+    else
+      format
     end
   end
 
