@@ -10,7 +10,7 @@ defmodule SelectoComponents.ExportedViews do
   building, cache payload generation, signature verification, and management UI.
   """
 
-  alias SelectoComponents.Form.ParamsState
+  alias SelectoComponents.ExportSnapshots
 
   @typedoc "Persisted exported view record/struct"
   @type exported_view :: map()
@@ -28,31 +28,13 @@ defmodule SelectoComponents.ExportedViews do
   @callback delete_exported_view(exported_view(), opts :: keyword()) ::
               {:ok, exported_view()} | {:error, term()}
 
-  @snapshot_version 1
   @default_embed_path "/selecto/exported"
 
   @doc """
   Build the persisted snapshot payload from current SelectoComponents assigns.
   """
   @spec build_snapshot(map()) :: map()
-  def build_snapshot(assigns) when is_map(assigns) do
-    selecto = Map.fetch!(assigns, :selecto)
-
-    %{
-      version: @snapshot_version,
-      params: ParamsState.view_config_to_params(Map.fetch!(assigns, :view_config)),
-      views: Map.fetch!(assigns, :views),
-      domain: Map.fetch!(selecto, :domain),
-      postgrex_opts: sanitize_snapshot_connection(Map.get(selecto, :postgrex_opts)),
-      adapter: Map.get(selecto, :adapter),
-      path: Map.get(assigns, :path) || Map.get(assigns, :my_path),
-      context:
-        Map.get(assigns, :exported_view_context) || Map.get(assigns, :saved_view_context) ||
-          Map.get(assigns, :domain) || Map.get(assigns, :path),
-      current_user_id: Map.get(assigns, :current_user_id),
-      tenant_context: Map.get(assigns, :tenant_context)
-    }
-  end
+  def build_snapshot(assigns) when is_map(assigns), do: ExportSnapshots.build_snapshot(assigns)
 
   @doc """
   Build attributes for `create_exported_view/2` from current assigns.
@@ -101,19 +83,13 @@ defmodule SelectoComponents.ExportedViews do
   Encode an arbitrary Elixir term for persistence.
   """
   @spec encode_term(term()) :: term_blob()
-  def encode_term(term), do: :erlang.term_to_binary(term, compressed: 6)
+  def encode_term(term), do: ExportSnapshots.encode_term(term)
 
   @doc """
   Decode a previously encoded persistence blob.
   """
   @spec decode_term(term_blob() | nil) :: {:ok, term()} | {:error, :invalid_blob | :missing}
-  def decode_term(nil), do: {:error, :missing}
-
-  def decode_term(blob) when is_binary(blob) do
-    {:ok, :erlang.binary_to_term(blob, [:safe])}
-  rescue
-    _ -> {:error, :invalid_blob}
-  end
+  def decode_term(blob), do: ExportSnapshots.decode_term(blob)
 
   @doc """
   Fetch a field from a map/struct, supporting atom and string keys.
@@ -232,54 +208,6 @@ defmodule SelectoComponents.ExportedViews do
   end
 
   def normalize_optional_text(value), do: to_string(value) |> normalize_optional_text()
-
-  defp sanitize_snapshot_connection(opts) when is_list(opts) do
-    Keyword.drop(opts, [
-      :password,
-      :passfile,
-      :ssl_key,
-      :sslkey,
-      :ssl_cert,
-      :sslcert,
-      :ssl_root_cert,
-      :sslrootcert,
-      :ssl_opts,
-      :secret,
-      :token,
-      :api_key
-    ])
-  end
-
-  defp sanitize_snapshot_connection(%{} = opts) do
-    Map.drop(opts, [
-      :password,
-      :passfile,
-      :ssl_key,
-      :sslkey,
-      :ssl_cert,
-      :sslcert,
-      :ssl_root_cert,
-      :sslrootcert,
-      :ssl_opts,
-      :secret,
-      :token,
-      :api_key,
-      "password",
-      "passfile",
-      "ssl_key",
-      "sslkey",
-      "ssl_cert",
-      "sslcert",
-      "ssl_root_cert",
-      "sslrootcert",
-      "ssl_opts",
-      "secret",
-      "token",
-      "api_key"
-    ])
-  end
-
-  defp sanitize_snapshot_connection(other), do: other
 
   @doc false
   def normalize_datetime(%DateTime{} = value), do: value

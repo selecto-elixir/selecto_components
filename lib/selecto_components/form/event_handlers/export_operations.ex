@@ -2,7 +2,7 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
   @moduledoc """
   Event handlers for exporting query results.
 
-  Supports immediate download for JSON and CSV exports from the current query
+  Supports immediate download and one-off email delivery from the current query
   result set.
   """
 
@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
     quote do
       alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Exporter
+      alias SelectoComponents.ScheduledExports.Service, as: ScheduledExportService
       import SelectoComponents.Form.ErrorHandling
 
       @max_export_payload_bytes 6_000_000
@@ -57,6 +58,60 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
         end)
       end
 
+      @doc """
+      Send current query results as an email attachment using the configured
+      delivery adapter.
+      """
+      def handle_event("send_export_email", params, socket) do
+        with_error_handling(socket, "send_export_email", fn ->
+          query_results = socket.assigns[:query_results]
+          view_mode = socket.assigns[:applied_view] || socket.assigns.view_config.view_mode
+
+          case socket.assigns[:export_delivery_module] do
+            nil ->
+              {:noreply,
+               put_flash(socket, :error, export_error_message(:missing_delivery_adapter))}
+
+            false ->
+              {:noreply,
+               put_flash(socket, :error, export_error_message(:missing_delivery_adapter))}
+
+            delivery_module ->
+              delivery = %{
+                channel: :email,
+                email: %{
+                  recipients: Map.get(params, "recipients"),
+                  subject_template: Map.get(params, "subject"),
+                  body_template: Map.get(params, "body")
+                }
+              }
+
+              case ScheduledExportService.deliver_now(delivery_module, query_results, delivery,
+                     format: Map.get(params, "format", "csv"),
+                     view_mode: view_mode,
+                     view_config: socket.assigns[:view_config],
+                     path: Map.get(socket.assigns, :path) || Map.get(socket.assigns, :my_path),
+                     delivery_opts: [
+                       current_user_id: Map.get(socket.assigns, :current_user_id),
+                       tenant_context: Map.get(socket.assigns, :tenant_context),
+                       path: Map.get(socket.assigns, :path) || Map.get(socket.assigns, :my_path)
+                     ]
+                   ) do
+                {:ok, result} ->
+                  {:noreply,
+                   put_flash(
+                     socket,
+                     :info,
+                     "Email export sent: #{result.export.filename}"
+                   )}
+
+                {:error, reason} ->
+                  {:noreply, put_flash(socket, :error, export_error_message(reason))}
+              end
+          end
+        end)
+      end
+
       defp export_error_message(:no_results) do
         error =
           ErrorBuilder.build("No query results to export yet.",
@@ -76,6 +131,55 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
             category: :validation,
             code: :unsupported_export_format,
             operation: "export_data"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message(:missing_delivery_adapter) do
+        error =
+          ErrorBuilder.build("Email export requires `export_delivery_module` to be assigned.",
+            stage: :export,
+            category: :configuration,
+            code: :missing_export_delivery_adapter,
+            operation: "send_export_email"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message(:missing_recipients) do
+        error =
+          ErrorBuilder.build("Enter at least one email recipient.",
+            stage: :export,
+            category: :validation,
+            code: :missing_export_recipients,
+            operation: "send_export_email"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message({:invalid_recipients, invalid_recipients}) do
+        error =
+          ErrorBuilder.build(
+            "Invalid recipient email(s): #{Enum.join(invalid_recipients, ", ")}",
+            stage: :export,
+            category: :validation,
+            code: :invalid_export_recipients,
+            operation: "send_export_email"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
+      defp export_error_message(:payload_too_large) do
+        error =
+          ErrorBuilder.build("Email export is too large to attach directly.",
+            stage: :export,
+            category: :validation,
+            code: :email_export_payload_too_large,
+            operation: "send_export_email"
           )
 
         error.summary <> ": " <> error.user_message

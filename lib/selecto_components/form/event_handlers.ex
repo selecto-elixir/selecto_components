@@ -68,6 +68,7 @@ defmodule SelectoComponents.Form.EventHandlers do
 
    ### ExportOperations
    - `export_data` - Export current results (CSV/JSON)
+   - `send_export_email` - Email current results via configured delivery adapter
 
   ## Adding New Event Handlers
 

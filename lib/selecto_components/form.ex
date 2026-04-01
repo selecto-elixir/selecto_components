@@ -26,6 +26,8 @@ defmodule SelectoComponents.Form do
         field_filters: FilterRendering.build_filter_list(assigns.selecto),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
         use_exported_views: Map.get(assigns, :exported_view_module, false),
+        use_export_delivery: Map.get(assigns, :export_delivery_module, false),
+        use_scheduled_exports: Map.get(assigns, :scheduled_export_module, false),
         form:
           Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form(as: "view_config")
       )
@@ -274,9 +276,71 @@ defmodule SelectoComponents.Form do
               </.sc_button>
             </div>
 
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Email delivery and scheduled exports are planned next.
+            <div :if={@use_export_delivery} class="space-y-4 rounded-xl border border-base-300 bg-base-200/40 p-4">
+              <div>
+                <h4 class="text-sm font-semibold text-base-content">Send Current Results by Email</h4>
+                <p class="text-xs text-base-content/60">
+                  Uses the current query results and sends them through the configured host-app delivery adapter.
+                </p>
+              </div>
+
+              <div class="grid gap-4 lg:grid-cols-2">
+                <div class="space-y-2 lg:col-span-2">
+                  <label class="text-sm font-medium text-base-content/80" for={"export-email-recipients-#{@id}"}>Recipients</label>
+                  <input id={"export-email-recipients-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="ops@example.com, finance@example.com" />
+                  <p class="text-xs text-base-content/60">Separate recipients with commas, semicolons, or new lines.</p>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-base-content/80" for={"export-email-format-#{@id}"}>Format</label>
+                  <select id={"export-email-format-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+                    <option value="csv" selected>CSV</option>
+                    <option value="json">JSON</option>
+                  </select>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-base-content/80" for={"export-email-subject-#{@id}"}>Subject</label>
+                  <input id={"export-email-subject-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Current Selecto export" />
+                </div>
+
+                <div class="space-y-2 lg:col-span-2">
+                  <label class="text-sm font-medium text-base-content/80" for={"export-email-body-#{@id}"}>Body</label>
+                  <textarea id={"export-email-body-#{@id}"} rows="4" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Attached is the latest export."></textarea>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-xs text-base-content/60">This first slice sends the already-loaded result set rather than re-running the query.</p>
+                <button type="button" data-export-email-button="true" data-recipients-input={"export-email-recipients-#{@id}"} data-format-input={"export-email-format-#{@id}"} data-subject-input={"export-email-subject-#{@id}"} data-body-input={"export-email-body-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+                  Send Email Export
+                </button>
+              </div>
+            </div>
+
+            <p :if={!@use_export_delivery} class="text-xs text-gray-500 dark:text-gray-400">
+              Assign `export_delivery_module` in the host LiveView to enable one-off email delivery.
             </p>
+
+            <.live_component
+              :if={@use_scheduled_exports}
+              module={SelectoComponents.ScheduledExports.Manager}
+              id="scheduled_exports_manager"
+              scheduled_export_module={Map.get(assigns, :scheduled_export_module)}
+              scheduled_export_context={
+                Map.get(assigns, :scheduled_export_context) ||
+                  SelectoComponents.Tenant.scoped_context(
+                    Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
+                    Map.get(assigns, :tenant_context)
+                  )
+              }
+              current_user_id={Map.get(assigns, :current_user_id)}
+              selecto={@selecto}
+              views={@views}
+              view_config={@view_config}
+              path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
+              tenant_context={Map.get(assigns, :tenant_context)}
+            />
 
             <.live_component
               :if={@use_exported_views}
@@ -373,6 +437,9 @@ defmodule SelectoComponents.Form do
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ExportDownloads">
         export default {
           mounted() {
+            this.bindEmailExportButton();
+            this.bindScheduledExportButton();
+
             this.handleEvent("selecto_export_download", (payload) => {
               const filename = payload.filename || "selecto_export.txt";
               const mimeType = payload.mime_type || "text/plain;charset=utf-8";
@@ -390,6 +457,91 @@ defmodule SelectoComponents.Form do
 
               setTimeout(() => URL.revokeObjectURL(url), 0);
             });
+          },
+
+          updated() {
+            this.bindEmailExportButton();
+            this.bindScheduledExportButton();
+          },
+
+          destroyed() {
+            if (this.emailExportCleanup) {
+              this.emailExportCleanup();
+            }
+
+            if (this.scheduledExportCleanup) {
+              this.scheduledExportCleanup();
+            }
+          },
+
+          bindEmailExportButton() {
+            if (this.emailExportCleanup) {
+              this.emailExportCleanup();
+              this.emailExportCleanup = null;
+            }
+
+            const button = this.el.querySelector("[data-export-email-button='true']");
+
+            if (!button) {
+              return;
+            }
+
+            const handler = (event) => {
+              event.preventDefault();
+
+              const recipients = document.getElementById(button.dataset.recipientsInput)?.value || "";
+              const format = document.getElementById(button.dataset.formatInput)?.value || "csv";
+              const subject = document.getElementById(button.dataset.subjectInput)?.value || "";
+              const body = document.getElementById(button.dataset.bodyInput)?.value || "";
+
+              this.pushEvent("send_export_email", {
+                recipients,
+                format,
+                subject,
+                body
+              });
+            };
+
+            button.addEventListener("click", handler);
+            this.emailExportCleanup = () => button.removeEventListener("click", handler);
+          },
+
+          bindScheduledExportButton() {
+            if (this.scheduledExportCleanup) {
+              this.scheduledExportCleanup();
+              this.scheduledExportCleanup = null;
+            }
+
+            const button = this.el.querySelector("[data-create-scheduled-export='true']");
+
+            if (!button) {
+              return;
+            }
+
+            const handler = (event) => {
+              event.preventDefault();
+
+              const payload = {
+                name: document.getElementById(button.dataset.nameInput)?.value || "",
+                export_format: document.getElementById(button.dataset.formatInput)?.value || "csv",
+                recipients: document.getElementById(button.dataset.recipientsInput)?.value || "",
+                subject_template: document.getElementById(button.dataset.subjectInput)?.value || "",
+                body_template: document.getElementById(button.dataset.bodyInput)?.value || "",
+                schedule: {
+                  enabled: document.getElementById(button.dataset.enabledInput)?.checked || false,
+                  kind: document.getElementById(button.dataset.kindInput)?.value || "daily",
+                  time: document.getElementById(button.dataset.timeInput)?.value || "07:00",
+                  timezone: document.getElementById(button.dataset.timezoneInput)?.value || "Etc/UTC",
+                  day_of_week: document.getElementById(button.dataset.dayOfWeekInput)?.value || "1",
+                  day_of_month: document.getElementById(button.dataset.dayOfMonthInput)?.value || "1"
+                }
+              };
+
+              this.pushEventTo(button.dataset.target, "create_scheduled_export", payload);
+            };
+
+            button.addEventListener("click", handler);
+            this.scheduledExportCleanup = () => button.removeEventListener("click", handler);
           }
         }
       </script>
