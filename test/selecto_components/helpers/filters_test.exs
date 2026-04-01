@@ -24,6 +24,27 @@ defmodule SelectoComponents.Helpers.FiltersTest do
     Selecto.configure(domain, nil)
   end
 
+  defp text_search_selecto do
+    domain = %{
+      name: "FiltersTextSearchTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :search_document],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: "id", name: "ID"},
+          search_document: %{type: :tsvector, colid: "search_document", name: "Search Document"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   defp datetime_selecto do
     domain = %{
       name: "FiltersDateTimeTest",
@@ -46,6 +67,25 @@ defmodule SelectoComponents.Helpers.FiltersTest do
   end
 
   describe "filter_recurse/3 text prefix buckets" do
+    test "preserves explicit text search mode config" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "search_document",
+            "comp" => "TEXT_SEARCH",
+            "value" => "wireless charger",
+            "mode" => "boolean"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(text_search_selecto(), filters, "filters")
+
+      assert {"search_document", {:text_search, "wireless charger", [mode: :boolean]}} = filter
+    end
+
     test "builds an Other-bucket raw sql filter" do
       filters = %{
         "filters" => [

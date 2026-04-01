@@ -1,4 +1,57 @@
 defmodule SelectoComponents.Helpers do
+  def text_search_mode_options(adapter) do
+    case Selecto.AdapterSupport.adapter_name(adapter) do
+      :mysql ->
+        [
+          {"natural", "Natural Language"},
+          {"websearch", "Web Style"},
+          {"plain", "Plain Tokens"},
+          {"boolean", "Boolean"},
+          {"query_expansion", "Query Expansion"}
+        ]
+
+      :sqlite ->
+        [
+          {"websearch", "Default MATCH"},
+          {"boolean", "Boolean"},
+          {"phrase", "Phrase"}
+        ]
+
+      _ ->
+        [
+          {"websearch", "Web Style"},
+          {"plain", "Plain Tokens"},
+          {"phrase", "Phrase"},
+          {"boolean", "Boolean"},
+          {"natural", "Natural Language"}
+        ]
+    end
+  end
+
+  def default_text_search_mode(adapter) do
+    case Selecto.AdapterSupport.adapter_name(adapter) do
+      :mysql -> "natural"
+      :sqlite -> "websearch"
+      _ -> "websearch"
+    end
+  end
+
+  def text_search_help_text(adapter) do
+    case Selecto.AdapterSupport.adapter_name(adapter) do
+      :mysql ->
+        "Native text search with natural-language, boolean, or query-expansion modes."
+
+      :sqlite ->
+        "FTS-backed text search with MATCH syntax, including phrase and boolean-style queries when supported."
+
+      :postgresql ->
+        "Full-text search with web-style, plain, phrase, or boolean query modes."
+
+      _ ->
+        "Text search behavior is adapter-specific. Supported modes depend on the active database adapter."
+    end
+  end
+
   def datetime_grouping_format_options() do
     [
       {"YYYY-MM-DD", "Day"},

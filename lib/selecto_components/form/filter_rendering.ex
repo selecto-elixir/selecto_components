@@ -674,6 +674,27 @@ defmodule SelectoComponents.Form.FilterRendering do
   - Exclusions: "matrix -reloaded" excludes documents with "reloaded"
   """
   def render_text_search_filter(assigns) do
+    current_mode =
+      case normalize_string(assigns.filter_value["mode"]) do
+        "" ->
+          SelectoComponents.Helpers.default_text_search_mode(Map.get(assigns.selecto, :adapter))
+
+        mode ->
+          mode
+      end
+
+    assigns =
+      assigns
+      |> Map.put(
+        :text_search_mode_options,
+        SelectoComponents.Helpers.text_search_mode_options(Map.get(assigns.selecto, :adapter))
+      )
+      |> Map.put(
+        :text_search_help_text,
+        SelectoComponents.Helpers.text_search_help_text(Map.get(assigns.selecto, :adapter))
+      )
+      |> Map.put(:current_text_search_mode, current_mode)
+
     ~H"""
     <div class="grid grid-cols-1 gap-2">
       <div class="flex items-center gap-2">
@@ -694,8 +715,16 @@ defmodule SelectoComponents.Form.FilterRendering do
           phx-debounce="300"
         />
       </div>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
+        <label class="text-xs font-medium text-gray-600">Search Mode</label>
+        <select name={"filters[#{@uuid}][mode]"} class="sc-select">
+          <%= for {value, label} <- @text_search_mode_options do %>
+            <option value={value} selected={@current_text_search_mode == value}>{label}</option>
+          <% end %>
+        </select>
+      </div>
       <div class="text-xs text-gray-500">
-        Full-text search supports phrases in quotes, OR for alternatives, and - to exclude terms
+        {@text_search_help_text}
       </div>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />

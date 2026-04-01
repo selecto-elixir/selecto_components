@@ -132,7 +132,16 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp make_text_search_filter(filter) do
-    {Map.get(filter, "filter"), {:text_search, Map.get(filter, "value")}}
+    filter_field = Map.get(filter, "filter")
+    query = Map.get(filter, "value")
+
+    case Map.get(filter, "mode") do
+      mode when mode in [nil, "", "websearch"] ->
+        {filter_field, {:text_search, query}}
+
+      mode ->
+        {filter_field, {:text_search, query, [mode: String.to_atom(mode)]}}
+    end
   end
 
   defp _make_string_filter(filter) do

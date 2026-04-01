@@ -1,7 +1,13 @@
 defmodule SelectoComponents.Form.FilterRenderingTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias SelectoComponents.Form.FilterRendering
+
+  defmodule TestMySQLAdapter do
+    def name, do: :mysql
+  end
 
   describe "is_date_shortcut/1" do
     test "recognizes valid date shortcuts" do
@@ -206,6 +212,25 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       # The build_filter_list function should only return columns/filters from the schema
       # This prevents arbitrary field names from being used in queries
+    end
+  end
+
+  describe "text search rendering" do
+    test "renders adapter-aware generic text search help and mode options" do
+      html =
+        render_component(&FilterRendering.render_text_search_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          filter_value: %{"filter" => "search_document", "value" => "wireless charger"},
+          selecto: %{adapter: TestMySQLAdapter}
+        })
+
+      assert html =~ "Search Mode"
+      assert html =~ "Natural Language"
+      assert html =~ "Query Expansion"
+      assert html =~ "Native text search"
+      refute html =~ "websearch_to_tsquery"
     end
   end
 
