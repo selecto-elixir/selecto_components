@@ -76,6 +76,34 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
     end
   end
 
+  defmodule SnapshotRunner do
+    def render_snapshot(snapshot, _opts) do
+      send(self(), {:render_snapshot, snapshot})
+
+      {:ok,
+       %{
+         selecto: %{},
+         views: [],
+         query_results: {
+           [["Order A", 10], ["Order B", 12]],
+           ["title", "quantity"],
+           []
+         },
+         view_meta: %{},
+         applied_view: Map.get(snapshot.params, "view_mode", "detail"),
+         executed: true,
+         execution_error: nil,
+         last_query_info: %{timing: 25},
+         params: snapshot.params,
+         used_params: snapshot.params
+       }, %{row_count: 2, payload_bytes: 512, execution_time_ms: 25}}
+    end
+  end
+
+  defmodule FailingSnapshotRunner do
+    def render_snapshot(_snapshot, _opts), do: {:error, :query_failed}
+  end
+
   setup do
     start_supervised!(%{
       id: @export_store,
@@ -175,6 +203,104 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
                %{
                  channel: :email,
                  email: %{recipients: ["ops@example.com"]}
-               }, max_attachment_bytes: 8)
+               },
+               max_attachment_bytes: 8
+             )
+  end
+
+  test "run_scheduled_export executes a saved snapshot and records run metadata" do
+    assigns = %{
+      selecto: %{domain: %{name: "orders"}, postgrex_opts: [], adapter: Selecto.DB.PostgreSQL},
+      view_config: %{view_mode: "detail", filters: [], views: %{detail: %{selected: []}}},
+      views: [{:detail, SelectoComponents.Views.Detail, "Detail", %{}}],
+      path: "/orders",
+      scheduled_export_context: "tenant:1:/orders",
+      current_user_id: "9",
+      tenant_context: %{tenant_id: 1}
+    }
+
+    {:ok, scheduled_export} =
+      Service.create(Adapter, assigns, %{
+        "name" => "Daily Orders",
+        "export_format" => "csv",
+        "recipients" => ["ops@example.com", "finance@example.com"],
+        "schedule" => %{
+          "enabled" => true,
+          "kind" => "daily",
+          "time" => "06:00",
+          "timezone" => "Etc/UTC"
+        }
+      })
+
+    assert {:ok, result} =
+             Service.run_scheduled_export(Adapter, scheduled_export.public_id,
+               delivery_adapter: DeliveryAdapter,
+               snapshot_runner: SnapshotRunner,
+               delivery_opts: [notify: self()]
+             )
+
+    assert_receive {:render_snapshot, snapshot}
+    assert snapshot.context == "tenant:1:/orders"
+    assert_receive {:deliver_email, export_payload, _delivery_config}
+    assert export_payload.attachment.filename =~ ".csv"
+
+    assert result.payload_bytes > 0
+    assert result.row_count == 2
+    assert result.execution_time_ms == 25
+    assert result.run.status == :ok
+
+    updated_export = Adapter.get_scheduled_export_by_public_id(scheduled_export.public_id, [])
+    assert updated_export.last_status == :ok
+    assert is_nil(updated_export.last_error)
+    assert %DateTime{} = updated_export.last_run_at
+    assert %DateTime{} = updated_export.next_run_at
+
+    runs = Agent.get(@run_store, &Map.values(&1))
+    assert length(runs) == 1
+    [run] = runs
+    assert run.status == :ok
+    assert run.delivery_count == 2
+    assert run.row_count == 2
+  end
+
+  test "run_scheduled_export records failures on the run and definition" do
+    assigns = %{
+      selecto: %{domain: %{name: "orders"}, postgrex_opts: [], adapter: Selecto.DB.PostgreSQL},
+      view_config: %{view_mode: "detail", filters: [], views: %{detail: %{selected: []}}},
+      views: [{:detail, SelectoComponents.Views.Detail, "Detail", %{}}],
+      path: "/orders",
+      scheduled_export_context: "tenant:1:/orders",
+      current_user_id: "9",
+      tenant_context: %{tenant_id: 1}
+    }
+
+    {:ok, scheduled_export} =
+      Service.create(Adapter, assigns, %{
+        "name" => "Broken Orders",
+        "export_format" => "csv",
+        "recipients" => ["ops@example.com"],
+        "schedule" => %{
+          "enabled" => true,
+          "kind" => "daily",
+          "time" => "06:00",
+          "timezone" => "Etc/UTC"
+        }
+      })
+
+    assert {:error, :query_failed} =
+             Service.run_scheduled_export(Adapter, scheduled_export,
+               delivery_adapter: DeliveryAdapter,
+               snapshot_runner: FailingSnapshotRunner
+             )
+
+    updated_export = Adapter.get_scheduled_export_by_public_id(scheduled_export.public_id, [])
+    assert updated_export.last_status == :failed
+    assert updated_export.last_error == ":query_failed"
+
+    runs = Agent.get(@run_store, &Map.values(&1)) |> Enum.sort_by(& &1.id)
+    assert length(runs) == 1
+    [run] = runs
+    assert run.status == :failed
+    assert run.error_message == ":query_failed"
   end
 end

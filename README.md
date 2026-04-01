@@ -263,6 +263,62 @@ Then wire a single public route:
 live "/selecto/exported/:public_id", ExportedViewLive
 ```
 
+### Email And Scheduled Exports
+
+`SelectoComponents.Form` can also optionally expose one-off email delivery and
+scheduled export definition management.
+
+Add these assigns to the LiveView that already uses `SelectoComponents.Form`:
+
+```elixir
+assign(socket,
+  export_delivery_module: MyApp.ExportDelivery,
+  scheduled_export_module: MyApp.ScheduledExports,
+  scheduled_export_context: scoped_context
+)
+```
+
+Your host app modules should implement:
+
+- `SelectoComponents.ExportDelivery`
+- `SelectoComponents.ScheduledExports`
+
+With those assigns in place, the Export tab can:
+
+- send the currently loaded results as an email attachment
+- create and manage scheduled export definitions
+- show next run, last run, status, and recipient metadata
+
+Execution is intentionally host-app-owned. `selecto_components` does not ship a
+built-in scheduler. The recommended pattern is Oban:
+
+```elixir
+defmodule MyApp.Workers.RunScheduledExport do
+  use Oban.Worker, queue: :exports, max_attempts: 5
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"public_id" => public_id}}) do
+    case SelectoComponents.ScheduledExports.Service.run_scheduled_export(
+           MyApp.ScheduledExports,
+           public_id,
+           delivery_adapter: MyApp.ExportDelivery
+         ) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+end
+```
+
+Typical host-app flow:
+
+1. A cron job queries `SelectoComponents.ScheduledExports.Service.due/3`.
+2. It enqueues one worker job per due export.
+3. Each worker calls `run_scheduled_export/3`.
+
+That keeps retries, uniqueness, and visibility in the host app while leaving
+`selecto_components` scheduler-neutral.
+
 ### Filter Processing and Rendering
 
 Filter processing has been expanded for more consistent operator support across
