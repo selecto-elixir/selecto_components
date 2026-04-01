@@ -1200,7 +1200,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 </th>
                 <%= for col_value <- @grid_data.col_headers do %>
                   <th class="sticky top-0 z-20 bg-gray-50 px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:bg-gray-800 dark:text-gray-100">
-                    {format_group_value(col_value, @grid_data.col_coldef)}
+                    <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef))}>
+                      {format_group_value(col_value, @grid_data.col_coldef)}
+                    </span>
                   </th>
                 <% end %>
               </tr>
@@ -1208,7 +1210,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
               <tr :for={row_value <- @grid_data.row_headers}>
                 <td class="sticky left-0 z-10 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-[1px_0_0_0_rgba(229,231,235,1)] dark:bg-gray-900 dark:text-gray-100 dark:shadow-[1px_0_0_0_rgba(55,65,81,1)]">
-                  {format_group_value(row_value, @grid_data.row_coldef)}
+                  <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef))}>
+                    {format_group_value(row_value, @grid_data.row_coldef)}
+                  </span>
                 </td>
                 <td
                   :for={col_value <- @grid_data.col_headers}
@@ -1220,7 +1224,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     {build_filter_attrs([row_value, col_value], @group_by, 2)}
                     class="cursor-pointer whitespace-nowrap hover:underline"
                   >
-                    {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                    <span class={null_grid_text_class(format_value(Map.get(@grid_data.cells, {row_value, col_value})))}>
+                      {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                    </span>
                   </div>
                 </td>
               </tr>
@@ -1409,6 +1415,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       _ -> format_value(value)
     end
   end
+
+  defp null_grid_text_class("[NULL]"), do: "text-gray-400 dark:text-gray-500"
+  defp null_grid_text_class(_value), do: nil
 
   defp weekday_name(value) do
     case parse_int(value) do

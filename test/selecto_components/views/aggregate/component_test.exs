@@ -230,6 +230,41 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     refute html =~ ~s(phx-click="set_aggregate_page")
   end
 
+  test "aggregate grid renders null buckets with subdued text" do
+    assigns = %{
+      id: "aggregate-grid-null-style-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[["[NULL]", "A", 3], [2002, "A", 5]], [], ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-null-style-run", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ ~r/<span class="text-gray-400 dark:text-gray-500">\s*\[NULL\]\s*<\/span>/
+  end
+
   test "grid view renders all rows instead of paginating" do
     query_rows =
       1..150
