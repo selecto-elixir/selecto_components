@@ -436,16 +436,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
       # Bucket formats
       "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        # Generate CASE expression for age buckets in group by
-        field_with_alias =
-          if String.contains?(to_string(col.colid), ".") do
-            # For qualified names like "category.updated_at", extract just the column part
-            # and use the pivot table alias "t"
-            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
-            "t.#{column}"
-          else
-            "selecto_root.#{col.colid}"
-          end
+        # Generate CASE expression for age buckets in group by.
+        # Joined fields need their fully-qualified reference, not the pivot alias.
+        field_with_alias = aggregate_field_ref(col.colid)
 
         alias SelectoComponents.Helpers.BucketParser
 
@@ -459,16 +452,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         {:raw_sql, case_sql}
 
       "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        # Generate CASE expression for custom date buckets
-        field_with_alias =
-          if String.contains?(to_string(col.colid), ".") do
-            # For qualified names like "category.updated_at", extract just the column part
-            # and use the pivot table alias "t"
-            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
-            "t.#{column}"
-          else
-            "selecto_root.#{col.colid}"
-          end
+        field_with_alias = aggregate_field_ref(col.colid)
 
         alias SelectoComponents.Helpers.BucketParser
 
@@ -482,13 +466,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         {:raw_sql, case_sql}
 
       "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        field_with_alias =
-          if String.contains?(to_string(col.colid), ".") do
-            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
-            "t.#{column}"
-          else
-            "selecto_root.#{col.colid}"
-          end
+        field_with_alias = aggregate_field_ref(col.colid)
 
         alias SelectoComponents.Helpers.BucketParser
 
@@ -505,6 +483,11 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         # Default to day format
         {:to_char, {col.colid, "YYYY-MM-DD"}}
     end
+  end
+
+  defp aggregate_field_ref(colid) do
+    colid_str = to_string(colid)
+    if String.contains?(colid_str, "."), do: colid_str, else: "selecto_root." <> colid_str
   end
 
   def aggregates(aggregates, columns) do

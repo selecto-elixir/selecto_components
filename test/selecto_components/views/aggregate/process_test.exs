@@ -126,4 +126,31 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert sql =~ "EXTRACT(YEAR FROM selecto_root.created_at)"
     assert sql =~ "CASE WHEN"
   end
+
+  test "group by preserves joined field references for datetime year buckets" do
+    columns = %{
+      "delivery_team.inserted_at" => %{
+        name: "Delivery Team Inserted At",
+        type: :utc_datetime,
+        colid: "delivery_team.inserted_at"
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "delivery_team.inserted_at",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5"
+          }
+        },
+        columns,
+        nil
+      )
+
+    assert {:field, {:raw_sql, sql}, "Delivery Team Inserted At"} = selector
+    assert sql =~ "EXTRACT(YEAR FROM delivery_team.inserted_at)"
+    refute sql =~ "EXTRACT(YEAR FROM t.inserted_at)"
+  end
 end
