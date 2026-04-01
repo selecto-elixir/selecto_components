@@ -14,7 +14,9 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     {:ok,
      assign(socket,
        scheduled_exports: [],
-       loaded_context: nil
+       loaded_context: nil,
+       form: default_form(),
+       editing_public_id: nil
      )}
   end
 
@@ -43,83 +45,88 @@ defmodule SelectoComponents.ScheduledExports.Manager do
         <div class="grid gap-4 xl:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-name-#{@id}"}>Name</label>
-            <input id={"scheduled-export-name-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly revenue grid" />
+            <input id={"scheduled-export-name-#{@id}"} value={@form.name} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly revenue grid" />
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-format-#{@id}"}>Format</label>
             <select id={"scheduled-export-format-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
-              <option value="csv" selected>CSV</option>
-              <option value="json">JSON</option>
-              <option value="tsv">TSV</option>
-              <option value="xlsx">XLSX</option>
+              <option value="csv" selected={@form.export_format == "csv"}>CSV</option>
+              <option value="json" selected={@form.export_format == "json"}>JSON</option>
+              <option value="tsv" selected={@form.export_format == "tsv"}>TSV</option>
+              <option value="xlsx" selected={@form.export_format == "xlsx"}>XLSX</option>
             </select>
           </div>
 
           <div class="space-y-2 xl:col-span-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-recipients-#{@id}"}>Recipients</label>
-            <textarea id={"scheduled-export-recipients-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="ops@example.com\nfinance@example.com"></textarea>
+            <textarea id={"scheduled-export-recipients-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="ops@example.com\nfinance@example.com"><%= @form.recipients_text %></textarea>
             <p class="text-xs text-base-content/60">Separate recipients with commas, semicolons, or new lines.</p>
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-subject-#{@id}"}>Subject</label>
-            <input id={"scheduled-export-subject-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly export" />
+            <input id={"scheduled-export-subject-#{@id}"} value={@form.subject_template} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly export" />
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-kind-#{@id}"}>Cadence</label>
             <select id={"scheduled-export-kind-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
-              <option value="daily" selected>Daily</option>
-              <option value="hourly">Hourly</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
+              <option value="daily" selected={@form.kind == "daily"}>Daily</option>
+              <option value="hourly" selected={@form.kind == "hourly"}>Hourly</option>
+              <option value="weekly" selected={@form.kind == "weekly"}>Weekly</option>
+              <option value="monthly" selected={@form.kind == "monthly"}>Monthly</option>
             </select>
           </div>
 
           <div class="space-y-2 xl:col-span-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-body-#{@id}"}>Body</label>
-            <textarea id={"scheduled-export-body-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Attached is the latest export."></textarea>
+            <textarea id={"scheduled-export-body-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Attached is the latest export."><%= @form.body_template %></textarea>
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-time-#{@id}"}>Time</label>
-            <input id={"scheduled-export-time-#{@id}"} value="07:00" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="07:00" />
+            <input id={"scheduled-export-time-#{@id}"} value={@form.time} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="07:00" />
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-timezone-#{@id}"}>Timezone</label>
-            <input id={"scheduled-export-timezone-#{@id}"} value="Etc/UTC" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="America/New_York" />
+            <input id={"scheduled-export-timezone-#{@id}"} value={@form.timezone} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="America/New_York" />
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-day-of-week-#{@id}"}>Day of Week</label>
             <select id={"scheduled-export-day-of-week-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
-              <option value="1" selected>Monday</option>
-              <option value="2">Tuesday</option>
-              <option value="3">Wednesday</option>
-              <option value="4">Thursday</option>
-              <option value="5">Friday</option>
-              <option value="6">Saturday</option>
-              <option value="7">Sunday</option>
+              <option value="1" selected={@form.day_of_week == "1"}>Monday</option>
+              <option value="2" selected={@form.day_of_week == "2"}>Tuesday</option>
+              <option value="3" selected={@form.day_of_week == "3"}>Wednesday</option>
+              <option value="4" selected={@form.day_of_week == "4"}>Thursday</option>
+              <option value="5" selected={@form.day_of_week == "5"}>Friday</option>
+              <option value="6" selected={@form.day_of_week == "6"}>Saturday</option>
+              <option value="7" selected={@form.day_of_week == "7"}>Sunday</option>
             </select>
           </div>
 
           <div class="space-y-2">
             <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-day-of-month-#{@id}"}>Day of Month</label>
-            <input id={"scheduled-export-day-of-month-#{@id}"} value="1" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="1" />
+            <input id={"scheduled-export-day-of-month-#{@id}"} value={@form.day_of_month} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="1" />
           </div>
         </div>
 
         <div class="mt-4 flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 text-sm text-base-content/70">
-            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked class="rounded border border-base-300" />
+            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked={@form.enabled} class="rounded border border-base-300" />
             <label for={"scheduled-export-enabled-#{@id}"}>Enable schedule immediately</label>
           </div>
 
-          <button type="button" data-create-scheduled-export="true" data-target={@myself} data-name-input={"scheduled-export-name-#{@id}"} data-format-input={"scheduled-export-format-#{@id}"} data-recipients-input={"scheduled-export-recipients-#{@id}"} data-subject-input={"scheduled-export-subject-#{@id}"} data-body-input={"scheduled-export-body-#{@id}"} data-kind-input={"scheduled-export-kind-#{@id}"} data-time-input={"scheduled-export-time-#{@id}"} data-timezone-input={"scheduled-export-timezone-#{@id}"} data-day-of-week-input={"scheduled-export-day-of-week-#{@id}"} data-day-of-month-input={"scheduled-export-day-of-month-#{@id}"} data-enabled-input={"scheduled-export-enabled-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
-            Create Scheduled Export
-          </button>
+          <div class="flex items-center gap-2">
+            <button :if={@editing_public_id} type="button" phx-click="cancel_edit_scheduled_export" phx-target={@myself} class="inline-flex items-center rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-base-content shadow-sm transition hover:bg-base-200">
+              Cancel
+            </button>
+            <button type="button" data-create-scheduled-export="true" data-target={@myself} data-public-id={@editing_public_id} data-name-input={"scheduled-export-name-#{@id}"} data-format-input={"scheduled-export-format-#{@id}"} data-recipients-input={"scheduled-export-recipients-#{@id}"} data-subject-input={"scheduled-export-subject-#{@id}"} data-body-input={"scheduled-export-body-#{@id}"} data-kind-input={"scheduled-export-kind-#{@id}"} data-time-input={"scheduled-export-time-#{@id}"} data-timezone-input={"scheduled-export-timezone-#{@id}"} data-day-of-week-input={"scheduled-export-day-of-week-#{@id}"} data-day-of-month-input={"scheduled-export-day-of-month-#{@id}"} data-enabled-input={"scheduled-export-enabled-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+              {if @editing_public_id, do: "Update Scheduled Export", else: "Create Scheduled Export"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -157,6 +164,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
             </div>
 
             <div class="flex flex-wrap gap-2 xl:max-w-[340px] xl:justify-end">
+              <button type="button" phx-click="edit_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">Edit</button>
               <button type="button" phx-click="toggle_scheduled_export_disabled" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">{if schedule_enabled?(scheduled_export), do: "Pause", else: "Enable"}</button>
               <button type="button" phx-click="delete_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} data-confirm="Delete this scheduled export?" class="rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-sm font-medium text-error transition hover:bg-error/20">Delete</button>
             </div>
@@ -169,28 +177,38 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   @impl true
   def handle_event("create_scheduled_export", %{"scheduled_export" => params}, socket) do
-    case Service.create(adapter(socket), socket.assigns, params, service_opts(socket)) do
-      {:ok, _scheduled_export} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Scheduled export created")
-         |> reload_scheduled_exports()}
+    upsert_scheduled_export(socket, params)
+  end
 
+  def handle_event("create_scheduled_export", params, socket) when is_map(params) do
+    handle_event("create_scheduled_export", %{"scheduled_export" => params}, socket)
+  end
+
+  @impl true
+  def handle_event("edit_scheduled_export", %{"id" => public_id}, socket) do
+    with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id) do
+      {:noreply,
+       assign(socket,
+         form: form_from_scheduled_export(scheduled_export),
+         editing_public_id: public_id
+       )}
+    else
       {:error, reason} ->
         {:noreply,
          put_flash(
            socket,
            :error,
            scheduled_export_error_message(reason,
-             code: :create_scheduled_export_failed,
-             operation: "create_scheduled_export"
+             code: :edit_scheduled_export_failed,
+             operation: "edit_scheduled_export"
            )
          )}
     end
   end
 
-  def handle_event("create_scheduled_export", params, socket) when is_map(params) do
-    handle_event("create_scheduled_export", %{"scheduled_export" => params}, socket)
+  @impl true
+  def handle_event("cancel_edit_scheduled_export", _params, socket) do
+    {:noreply, assign(socket, form: default_form(), editing_public_id: nil)}
   end
 
   def handle_event("toggle_scheduled_export_disabled", %{"id" => public_id}, socket) do
@@ -227,6 +245,8 @@ defmodule SelectoComponents.ScheduledExports.Manager do
       {:noreply,
        socket
        |> put_flash(:info, "Scheduled export deleted")
+       |> assign(:form, default_form())
+       |> assign(:editing_public_id, nil)
        |> reload_scheduled_exports()}
     else
       {:error, reason} ->
@@ -304,6 +324,68 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     }
   end
 
+  defp upsert_scheduled_export(socket, params) do
+    case Map.get(params, "public_id") do
+      public_id when is_binary(public_id) and public_id != "" ->
+        update_scheduled_export(socket, public_id, params)
+
+      _ ->
+        create_scheduled_export(socket, params)
+    end
+  end
+
+  defp create_scheduled_export(socket, params) do
+    case Service.create(adapter(socket), socket.assigns, params, service_opts(socket)) do
+      {:ok, _scheduled_export} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Scheduled export created")
+         |> assign(:form, default_form())
+         |> assign(:editing_public_id, nil)
+         |> reload_scheduled_exports()}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           scheduled_export_error_message(reason,
+             code: :create_scheduled_export_failed,
+             operation: "create_scheduled_export"
+           )
+         )}
+    end
+  end
+
+  defp update_scheduled_export(socket, public_id, params) do
+    with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         {:ok, _updated_export} <-
+           Service.update(
+             adapter(socket),
+             scheduled_export,
+             ScheduledExports.build_update_attrs(scheduled_export, params),
+             service_opts(socket)
+           ) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Scheduled export updated")
+       |> assign(:form, default_form())
+       |> assign(:editing_public_id, nil)
+       |> reload_scheduled_exports()}
+    else
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           scheduled_export_error_message(reason,
+             code: :update_scheduled_export_failed,
+             operation: "update_scheduled_export"
+           )
+         )}
+    end
+  end
+
   defp adapter(socket), do: Map.fetch!(socket.assigns, :scheduled_export_module)
 
   defp adapter_opts(socket) do
@@ -312,6 +394,48 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   defp service_opts(socket) do
     [adapter_opts: adapter_opts(socket)]
+  end
+
+  defp default_form do
+    %{
+      name: "",
+      export_format: "csv",
+      recipients_text: "",
+      subject_template: "",
+      body_template: "",
+      kind: "daily",
+      time: "07:00",
+      timezone: "Etc/UTC",
+      day_of_week: "1",
+      day_of_month: "1",
+      enabled: true
+    }
+  end
+
+  defp form_from_scheduled_export(scheduled_export) do
+    schedule = ScheduledExports.field(scheduled_export, :schedule, %{})
+
+    email =
+      scheduled_export
+      |> ScheduledExports.field(:delivery, %{})
+      |> ScheduledExports.field(:email, %{})
+
+    %{
+      name: ScheduledExports.field(scheduled_export, :name, ""),
+      export_format: ScheduledExports.field(scheduled_export, :export_format, "csv"),
+      recipients_text:
+        email
+        |> ScheduledExports.field(:recipients, [])
+        |> Enum.join("\n"),
+      subject_template: ScheduledExports.field(email, :subject_template, "") || "",
+      body_template: ScheduledExports.field(email, :body_template, "") || "",
+      kind: schedule |> ScheduledExports.field(:kind, :daily) |> to_string(),
+      time: ScheduledExports.field(schedule, :time, "07:00"),
+      timezone: ScheduledExports.field(schedule, :timezone, "Etc/UTC"),
+      day_of_week: schedule |> ScheduledExports.field(:day_of_week, 1) |> to_string(),
+      day_of_month: schedule |> ScheduledExports.field(:day_of_month, 1) |> to_string(),
+      enabled: schedule |> ScheduledExports.field(:enabled, false)
+    }
   end
 
   defp schedule_enabled?(scheduled_export) do

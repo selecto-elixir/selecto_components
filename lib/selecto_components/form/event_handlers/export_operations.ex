@@ -2,8 +2,8 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
   @moduledoc """
   Event handlers for exporting query results.
 
-  Supports immediate download and one-off email delivery from the current query
-  result set.
+      Supports immediate download and one-off email delivery from the current query
+      result set.
   """
 
   defmacro __using__(_opts) do
@@ -20,7 +20,9 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
 
       Supported formats:
       - `csv`
+      - `tsv`
       - `json`
+      - `xlsx`
       """
       def handle_event("export_data", %{"format" => format}, socket) do
         with_error_handling(socket, "export_data", fn ->

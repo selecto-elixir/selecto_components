@@ -187,6 +187,39 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
     assert delivery_config.email.recipients == ["ops@example.com", "finance@example.com"]
   end
 
+  test "deliver_now supports xlsx attachments" do
+    query_results = {
+      [["Order A", 10], ["Order B", 12]],
+      ["title", "quantity"],
+      []
+    }
+
+    delivery = %{
+      channel: :email,
+      email: %{
+        recipients: ["ops@example.com"],
+        subject_template: "Daily orders",
+        body_template: "Attached."
+      }
+    }
+
+    assert {:ok, result} =
+             Service.deliver_now(DeliveryAdapter, query_results, delivery,
+               format: "xlsx",
+               view_mode: "detail",
+               path: "/orders",
+               delivery_opts: [notify: self()]
+             )
+
+    assert result.export.mime_type ==
+             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    assert_receive {:deliver_email, export_payload, _delivery_config}
+    assert export_payload.attachment.filename =~ ".xlsx"
+    assert export_payload.attachment.content == result.export.content
+    assert <<"PK", _::binary>> = result.export.content
+  end
+
   test "deliver_now rejects invalid recipients and oversized payloads" do
     query_results = {[[String.duplicate("a", 64)]], ["value"], []}
 

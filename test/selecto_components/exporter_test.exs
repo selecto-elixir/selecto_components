@@ -60,6 +60,32 @@ defmodule SelectoComponents.ExporterTest do
     assert export.content =~ "safe value"
   end
 
+  test "builds TSV export with escaped values" do
+    query_results =
+      {
+        [
+          ["Simple", 1901],
+          ["Has\tTab", 1902],
+          ["Has \"Quote\"", 1903]
+        ],
+        ["title", "release_year"],
+        ["Title", "Release Year"]
+      }
+
+    assert {:ok, export} =
+             Exporter.build("tsv", query_results,
+               view_mode: "detail",
+               exported_at: @exported_at
+             )
+
+    assert export.filename == "selecto_detail_20260225_120000.tsv"
+    assert export.mime_type == "text/tab-separated-values;charset=utf-8"
+    assert export.browser_content_encoding == "utf8"
+    assert export.content =~ "title\trelease_year"
+    assert export.content =~ "\"Has\tTab\"\t1902"
+    assert export.content =~ "\"Has \"\"Quote\"\"\"\t1903"
+  end
+
   test "builds JSON export from map rows" do
     query_results =
       {
@@ -164,6 +190,32 @@ defmodule SelectoComponents.ExporterTest do
              %{"Year" => 2001, "A" => 3, "B" => 5},
              %{"Year" => 2002, "A" => 2, "B" => nil}
            ]
+  end
+
+  test "builds XLSX export" do
+    query_results =
+      {
+        [
+          ["Film A", 1901],
+          ["Film B", 1902]
+        ],
+        ["title", "release_year"],
+        []
+      }
+
+    assert {:ok, export} =
+             Exporter.build("xlsx", query_results,
+               view_mode: :detail,
+               exported_at: @exported_at
+             )
+
+    assert export.filename == "selecto_detail_20260225_120000.xlsx"
+    assert export.mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert export.browser_content_encoding == "base64"
+    assert is_binary(export.content)
+    assert byte_size(export.content) > 0
+    assert <<"PK", _::binary>> = export.content
+    assert Base.decode64!(export.browser_content) == export.content
   end
 
   test "returns no_results error for invalid query_results" do

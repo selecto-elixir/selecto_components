@@ -271,8 +271,14 @@ defmodule SelectoComponents.Form do
               <.sc_button type="button" phx-click="export_data" phx-value-format="csv">
                 Download CSV
               </.sc_button>
+              <.sc_button type="button" phx-click="export_data" phx-value-format="tsv">
+                Download TSV
+              </.sc_button>
               <.sc_button type="button" phx-click="export_data" phx-value-format="json">
                 Download JSON
+              </.sc_button>
+              <.sc_button type="button" phx-click="export_data" phx-value-format="xlsx">
+                Download XLSX
               </.sc_button>
             </div>
 
@@ -295,7 +301,9 @@ defmodule SelectoComponents.Form do
                   <label class="text-sm font-medium text-base-content/80" for={"export-email-format-#{@id}"}>Format</label>
                   <select id={"export-email-format-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
                     <option value="csv" selected>CSV</option>
+                    <option value="tsv">TSV</option>
                     <option value="json">JSON</option>
+                    <option value="xlsx">XLSX</option>
                   </select>
                 </div>
 
@@ -443,9 +451,25 @@ defmodule SelectoComponents.Form do
             this.handleEvent("selecto_export_download", (payload) => {
               const filename = payload.filename || "selecto_export.txt";
               const mimeType = payload.mime_type || "text/plain;charset=utf-8";
-              const content = payload.content || "";
+              const encoding = payload.browser_content_encoding || "utf8";
+              const content = payload.browser_content || payload.content || "";
 
-              const blob = new Blob([content], { type: mimeType });
+              let blobContent;
+
+              if (encoding === "base64") {
+                const decoded = atob(content);
+                const bytes = new Uint8Array(decoded.length);
+
+                for (let index = 0; index < decoded.length; index += 1) {
+                  bytes[index] = decoded.charCodeAt(index);
+                }
+
+                blobContent = bytes;
+              } else {
+                blobContent = content;
+              }
+
+              const blob = new Blob([blobContent], { type: mimeType });
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
 
@@ -522,6 +546,7 @@ defmodule SelectoComponents.Form do
               event.preventDefault();
 
               const payload = {
+                public_id: button.dataset.publicId || "",
                 name: document.getElementById(button.dataset.nameInput)?.value || "",
                 export_format: document.getElementById(button.dataset.formatInput)?.value || "csv",
                 recipients: document.getElementById(button.dataset.recipientsInput)?.value || "",

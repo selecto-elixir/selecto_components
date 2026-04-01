@@ -62,6 +62,33 @@ defmodule SelectoComponents.ScheduledExports do
   end
 
   @doc """
+  Build normalized update attrs for an existing scheduled export definition.
+  """
+  @spec build_update_attrs(map(), map()) :: map()
+  def build_update_attrs(scheduled_export, attrs)
+      when is_map(scheduled_export) and is_map(attrs) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    schedule = normalize_schedule(schedule_attrs(attrs))
+    enabled? = field(schedule, :enabled, false)
+
+    %{
+      name: normalize_name(field(attrs, :name, field(scheduled_export, :name, ""))),
+      export_format:
+        normalize_export_format(
+          field(attrs, :export_format, field(scheduled_export, :export_format, "csv"))
+        ),
+      delivery: normalize_delivery(delivery_attrs(attrs)),
+      schedule: schedule,
+      next_run_at: next_run_at(schedule, now),
+      disabled_at:
+        if(enabled?,
+          do: nil,
+          else: field(scheduled_export, :disabled_at, now)
+        )
+    }
+  end
+
+  @doc """
   Build attributes for a scheduled export run record.
   """
   @spec build_run_attrs(map(), atom(), map()) :: map()
