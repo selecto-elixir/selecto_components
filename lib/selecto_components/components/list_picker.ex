@@ -36,7 +36,7 @@ defmodule SelectoComponents.Components.ListPicker do
         id={"#{@component_dom_id}-filter"}
         phx-hook=".ListPickerFilter"
         data-list-picker-root
-        class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(12rem,40%)] items-start gap-3"
+        class="grid min-w-0 grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] items-start gap-3"
       >
         <section class="min-w-0 space-y-2">
           <div class="min-w-0 text-base-content">

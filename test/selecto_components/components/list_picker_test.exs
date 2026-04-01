@@ -24,10 +24,10 @@ defmodule SelectoComponents.Components.ListPickerTest do
     Map.merge(base, overrides)
   end
 
-  test "renders a two-pane layout where available yields space first" do
+  test "renders a two-pane layout where available stays narrow and selected expands" do
     html = render_component(ListPicker, base_assigns())
 
-    assert html =~ "grid-cols-[minmax(0,1fr)_minmax(12rem,40%)]"
+    assert html =~ "grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
