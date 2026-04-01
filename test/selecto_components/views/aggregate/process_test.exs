@@ -107,4 +107,23 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
            ) ==
              [{:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}]
   end
+
+  test "group by supports datetime year buckets" do
+    columns = %{
+      "created_at" => %{name: "Created At", type: :utc_datetime, colid: :created_at}
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{"field" => "created_at", "format" => "year_buckets", "bucket_ranges" => "*/5"}
+        },
+        columns,
+        nil
+      )
+
+    assert {:field, {:raw_sql, sql}, "Created At"} = selector
+    assert sql =~ "EXTRACT(YEAR FROM selecto_root.created_at)"
+    assert sql =~ "CASE WHEN"
+  end
 end

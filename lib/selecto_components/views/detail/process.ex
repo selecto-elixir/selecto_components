@@ -401,6 +401,18 @@ defmodule SelectoComponents.Views.Detail.Process do
 
         {:field, {:raw_sql, case_sql}, alias_name}
 
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = detail_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
+          )
+
+        {:field, {:raw_sql, case_sql}, alias_name}
+
       _ ->
         to_char_format = Map.get(date_formats, format)
 

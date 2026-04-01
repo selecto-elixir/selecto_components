@@ -19,6 +19,11 @@ defmodule SelectoComponents.Helpers.BucketParserTest do
   end
 
   describe "option parsing" do
+    test "exposes year bucket datetime option label" do
+      assert {"year_buckets", "Year Buckets"} in SelectoComponents.Helpers.datetime_grouping_format_options()
+      assert SelectoComponents.Helpers.datetime_bucket_placeholder("year_buckets") =~ "*/5"
+    end
+
     test "parses and clamps prefix length" do
       assert BucketParser.parse_prefix_length("2") == 2
       assert BucketParser.parse_prefix_length(4) == 4

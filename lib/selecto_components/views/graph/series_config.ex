@@ -44,23 +44,19 @@ defmodule SelectoComponents.Views.Graph.SeriesConfig do
             class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>
-            <%= for {value, label} <- SelectoComponents.Helpers.aggregate_datetime_format_options() do %>
+            <%= for {value, label} <- SelectoComponents.Helpers.datetime_grouping_format_options() do %>
               <option value={value} selected={Map.get(@config, "format") == value}>{label}</option>
             <% end %>
           </select>
         </div>
 
-        <div :if={Map.get(@config, "format") in ["age_buckets", "custom_buckets"]}>
+        <div :if={Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"]}>
           <label class="block text-xs font-medium text-gray-600 mb-1">Bucket Ranges</label>
           <input
             name={"#{@prefix}[bucket_ranges]"}
             type="text"
             value={Map.get(@config, "bucket_ranges", "")}
-            placeholder={
-              if Map.get(@config, "format") == "age_buckets",
-                do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
-                else: "e.g., today, yesterday, 2-7, 8+"
-            }
+            placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
             class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>

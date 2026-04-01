@@ -226,6 +226,18 @@ defmodule SelectoComponents.Views.Graph.Process do
 
         {:raw_sql, case_sql}
 
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = graph_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
+          )
+
+        {:raw_sql, case_sql}
+
       _ ->
         col.colid
     end

@@ -481,6 +481,26 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
         {:raw_sql, case_sql}
 
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias =
+          if String.contains?(to_string(col.colid), ".") do
+            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
+            "t.#{column}"
+          else
+            "selecto_root.#{col.colid}"
+          end
+
+        alias SelectoComponents.Helpers.BucketParser
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
+          )
+
+        {:raw_sql, case_sql}
+
       _ ->
         # Default to day format
         {:to_char, {col.colid, "YYYY-MM-DD"}}
@@ -801,6 +821,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       "max" -> "Max"
       "buckets" -> "Buckets"
       "age_buckets" -> "Age Buckets"
+      "year_buckets" -> "Year Buckets"
       "true_count" -> "True Count"
       "false_count" -> "False Count"
       value -> SelectoComponents.Helpers.aggregate_datetime_format_label(value)

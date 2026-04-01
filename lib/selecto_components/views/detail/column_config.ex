@@ -100,21 +100,17 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                   <.sc_select
                     name={"#{@prefix}[format]"}
                     value={Map.get(@config, "format")}
-                    options={SelectoComponents.Helpers.aggregate_datetime_format_options()}
+                    options={SelectoComponents.Helpers.datetime_grouping_format_options()}
                   />
                 </label>
 
-                <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets"] do %>
+                <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"] do %>
                   <label>
                     Bucket Ranges
                     <.sc_input
                       name={"#{@prefix}[bucket_ranges]"}
                       value={Map.get(@config, "bucket_ranges", "")}
-                      placeholder={
-                        if Map.get(@config, "format") == "age_buckets",
-                          do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
-                          else: "e.g., today, yesterday, 2-7, 8+"
-                      }
+                      placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
                     />
                   </label>
                 <% end %>

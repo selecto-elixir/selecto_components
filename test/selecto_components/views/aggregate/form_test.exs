@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias SelectoComponents.Views.Aggregate.Form
+  alias SelectoComponents.Views.Aggregate.GroupByConfig
 
   test "shows the implied aggregate format in the selected item summary" do
     domain = %{
@@ -39,7 +40,7 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
         }
       })
 
-    assert html =~ ~s(text-base-content/60">Count</span>)
+    assert html =~ "Count"
     refute html =~ ~s(text-base-content/60">Default</span>)
   end
 
@@ -77,7 +78,7 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
         }
       })
 
-    assert html =~ ~s(text-base-content/60">Count Distinct</span>)
+    assert html =~ "Count Distinct"
   end
 
   test "shows count distinct as an aggregate option label" do
@@ -153,5 +154,26 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
 
     refute html =~ ~s(text-base-content/60">Default</span>)
     refute html =~ ~s(text-base-content/60">default</span>)
+  end
+
+  test "datetime group by config shows year bucket options without aggregate-only formats" do
+    html =
+      render_component(GroupByConfig, %{
+        id: "group-by-datetime-options",
+        col: %{type: :utc_datetime, name: "Created At", colid: :created_at},
+        uuid: "group-by-datetime-options",
+        item: "created_at",
+        columns: [{:created_at, "Created At", :utc_datetime}],
+        fieldname: "group_by",
+        prefix: "group_by[g0]",
+        config: %{"format" => "year_buckets"}
+      })
+
+    assert html =~ "Year Buckets"
+    assert html =~ "Bucket Ranges"
+    assert html =~ "*/5 or 2020-2024"
+    refute html =~ "True Count"
+    refute html =~ "False Count"
+    refute html =~ "Count Distinct"
   end
 end

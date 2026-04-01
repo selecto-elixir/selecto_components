@@ -202,7 +202,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       # Bucket range patterns
       String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
-        handle_bucket_range(value, field_conf, context.is_age_bucket)
+        handle_bucket_range(value, field_conf, context)
 
       # Default datetime handling
       field_conf != nil ->
@@ -305,55 +305,79 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp handle_bucket_range(value, field_conf, is_age_bucket) do
-    if is_age_bucket && field_conf &&
-         Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-      # Age buckets on date fields - convert to date ranges
-      today = Date.utc_today()
+  defp handle_bucket_range(value, field_conf, %{format: format, is_age_bucket: is_age_bucket}) do
+    cond do
+      format in ["year_buckets", :year_buckets] && field_conf &&
+          Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] ->
+        handle_year_bucket_range(value)
 
-      cond do
-        # Range like "1-10" or "0-10"
-        String.match?(value, ~r/^(\d+)-(\d+)$/) ->
-          [min_days_str, max_days_str] = String.split(value, "-")
-          max_days = String.to_integer(max_days_str)
-          min_days = String.to_integer(min_days_str)
-          start_date = Date.add(today, -(max_days + 1))
-          end_date = Date.add(today, -min_days)
-          {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+      is_age_bucket && field_conf &&
+          Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] ->
+        handle_age_bucket_range(value)
 
-        # Open-ended range like "11+"
-        String.match?(value, ~r/^(\d+)\+$/) ->
-          days = value |> String.replace("+", "") |> String.to_integer()
-          cutoff_date = Date.add(today, -days)
-          {"<=", Date.to_iso8601(cutoff_date), ""}
+      true ->
+        handle_numeric_bucket_range(value)
+    end
+  end
 
-        # "Other" bucket
-        value == "Other" ->
-          {"=", "", ""}
+  defp handle_age_bucket_range(value) do
+    today = Date.utc_today()
 
-        true ->
-          {"=", value, ""}
-      end
-    else
-      # Numeric buckets
-      cond do
-        # Range like "1-10"
-        String.match?(value, ~r/^(\d+)-(\d+)$/) ->
-          [min_str, max_str] = String.split(value, "-")
-          {"BETWEEN", min_str, max_str}
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_days_str, max_days_str] = String.split(value, "-")
+        max_days = String.to_integer(max_days_str)
+        min_days = String.to_integer(min_days_str)
+        start_date = Date.add(today, -(max_days + 1))
+        end_date = Date.add(today, -min_days)
+        {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
-        # Open-ended range like "11+"
-        String.match?(value, ~r/^(\d+)\+$/) ->
-          min_str = String.replace(value, "+", "")
-          {">=", min_str, ""}
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        days = value |> String.replace("+", "") |> String.to_integer()
+        cutoff_date = Date.add(today, -days)
+        {"<=", Date.to_iso8601(cutoff_date), ""}
 
-        # "Other" bucket
-        value == "Other" ->
-          {"=", "", ""}
+      value == "Other" ->
+        {"=", "", ""}
 
-        true ->
-          {"=", value, ""}
-      end
+      true ->
+        {"=", value, ""}
+    end
+  end
+
+  defp handle_year_bucket_range(value) do
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_year, max_year] = String.split(value, "-")
+        {"DATE_BETWEEN", "#{min_year}-01-01", "#{String.to_integer(max_year) + 1}-01-01"}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        min_year = String.replace(value, "+", "")
+        {">=", "#{min_year}-01-01", ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
+    end
+  end
+
+  defp handle_numeric_bucket_range(value) do
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_str, max_str] = String.split(value, "-")
+        {"BETWEEN", min_str, max_str}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        min_str = String.replace(value, "+", "")
+        {">=", min_str, ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
     end
   end
 

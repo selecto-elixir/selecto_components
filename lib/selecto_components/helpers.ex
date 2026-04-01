@@ -1,20 +1,12 @@
 defmodule SelectoComponents.Helpers do
-  def aggregate_datetime_format_options() do
+  def datetime_grouping_format_options() do
     [
-      {"count", "Count"},
-      {"count_distinct", "Count Distinct"},
-      {"sum", "Sum"},
-      {"avg", "Average"},
-      {"min", "Min"},
-      {"max", "Max"},
-      {"buckets", "Buckets"},
-      {"true_count", "True Count"},
-      {"false_count", "False Count"},
       {"YYYY-MM-DD", "Day"},
       {"YYYY-WW", "Week"},
       {"YYYY-MM", "Month"},
       {"YYYY-Q", "Quarter"},
       {"YYYY", "Year"},
+      {"year_buckets", "Year Buckets"},
       {"MM", "Month of Year"},
       {"DD", "Day of Month"},
       {"D", "Day of Week"},
@@ -23,6 +15,8 @@ defmodule SelectoComponents.Helpers do
       {"custom_buckets", "Custom Date Buckets"}
     ]
   end
+
+  def aggregate_datetime_format_options, do: datetime_grouping_format_options()
 
   def date_formats() do
     %{
@@ -40,20 +34,26 @@ defmodule SelectoComponents.Helpers do
     }
   end
 
-  def aggregate_datetime_format_label(format) when is_atom(format) do
+  def datetime_grouping_format_label(format) when is_atom(format) do
     format
     |> Atom.to_string()
-    |> aggregate_datetime_format_label()
+    |> datetime_grouping_format_label()
   end
 
-  def aggregate_datetime_format_label(format) when is_binary(format) do
-    Enum.find_value(aggregate_datetime_format_options(), format, fn
+  def datetime_grouping_format_label(format) when is_binary(format) do
+    Enum.find_value(datetime_grouping_format_options(), format, fn
       {^format, label} -> label
       _ -> nil
     end)
   end
 
-  def aggregate_datetime_format_label(format), do: to_string(format)
+  def aggregate_datetime_format_label(format) do
+    datetime_grouping_format_label(format) || to_string(format)
+  end
+
+  def datetime_bucket_placeholder("age_buckets"), do: "e.g., 0, 1-7, 8-30, 31-90, 91+"
+  def datetime_bucket_placeholder("year_buckets"), do: "e.g., */5 or 2020-2024, 2025-2029"
+  def datetime_bucket_placeholder(_), do: "e.g., today, yesterday, 2-7, 8+"
 
   def build_initial_state(list) do
     list

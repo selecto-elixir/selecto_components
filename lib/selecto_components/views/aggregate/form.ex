@@ -284,8 +284,11 @@ defmodule SelectoComponents.Views.Aggregate.Form do
       "custom_buckets" ->
         "custom buckets"
 
+      "year_buckets" ->
+        "year buckets"
+
       value ->
-        format_summary_label(value)
+        SelectoComponents.Helpers.datetime_grouping_format_label(value)
     end
   end
 
