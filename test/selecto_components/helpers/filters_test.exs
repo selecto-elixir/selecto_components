@@ -66,6 +66,31 @@ defmodule SelectoComponents.Helpers.FiltersTest do
     Selecto.configure(domain, nil)
   end
 
+  defp epoch_datetime_selecto do
+    domain = %{
+      name: "FiltersEpochDateTimeTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :occurred_at_epoch],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          occurred_at_epoch: %{
+            type: :integer,
+            presentation_type: :utc_datetime,
+            datetime_storage: :unix_ms
+          }
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   describe "filter_recurse/3 text prefix buckets" do
     test "preserves explicit text search mode config" do
       filters = %{
@@ -227,6 +252,48 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert {:raw_sql_filter, iodata} = filter
       sql = IO.iodata_to_binary(iodata)
       assert sql =~ "IN (1)"
+    end
+
+    test "coerces epoch-backed datetime shortcuts to epoch integers" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "occurred_at_epoch",
+            "comp" => "SHORTCUT",
+            "value" => "today"
+          }
+        ]
+      }
+
+      [{"occurred_at_epoch", {:between, start_epoch, end_epoch}}] =
+        Filters.filter_recurse(epoch_datetime_selecto(), filters, "filters")
+
+      assert is_integer(start_epoch)
+      assert is_integer(end_epoch)
+      assert end_epoch > start_epoch
+    end
+
+    test "uses epoch-aware SQL extraction for weekday filters" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "occurred_at_epoch",
+            "comp" => "SHORTCUT",
+            "value" => "monday"
+          }
+        ]
+      }
+
+      [filter] = Filters.filter_recurse(epoch_datetime_selecto(), filters, "filters")
+
+      assert {:raw_sql_filter, iodata} = filter
+      sql = IO.iodata_to_binary(iodata)
+      assert sql =~ "TO_TIMESTAMP((selecto_root.occurred_at_epoch) / 1000.0)"
+      assert sql =~ "EXTRACT(ISODOW FROM"
     end
   end
 end

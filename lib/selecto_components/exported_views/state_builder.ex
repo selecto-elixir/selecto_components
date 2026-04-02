@@ -23,7 +23,7 @@ defmodule SelectoComponents.ExportedViews.StateBuilder do
       selecto
       |> Selecto.columns()
       |> Enum.map(fn {key, col} ->
-        {key, col.name, col.type}
+        {key, col.name, Selecto.Temporal.date_like_type(col) || col.type}
       end)
 
     %{

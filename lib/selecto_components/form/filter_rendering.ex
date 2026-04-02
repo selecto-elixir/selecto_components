@@ -58,9 +58,20 @@ defmodule SelectoComponents.Form.FilterRendering do
     # Determine the field type
     field_type =
       cond do
-        filter_def && Map.has_key?(filter_def, :type) -> Map.get(filter_def, :type)
-        column_def && Map.has_key?(column_def, :type) -> Map.get(column_def, :type)
-        true -> :string
+        filter_def && Selecto.Temporal.date_like?(filter_def) ->
+          Selecto.Temporal.date_like_type(filter_def)
+
+        column_def && Selecto.Temporal.date_like?(column_def) ->
+          Selecto.Temporal.date_like_type(column_def)
+
+        filter_def && Map.has_key?(filter_def, :type) ->
+          Map.get(filter_def, :type)
+
+        column_def && Map.has_key?(column_def, :type) ->
+          Map.get(column_def, :type)
+
+        true ->
+          :string
       end
 
     # Check if this is a custom filter with a component
@@ -199,7 +210,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               <input
                 type="date"
                 name={"filters[#{@uuid}][value_start]"}
-                value={format_datetime_value(@filter_value["value_start"], :date)}
+                value={format_datetime_value(@filter_value["value_start"], @column_def || @filter_def || :date)}
                 class="sc-input"
                 placeholder="Start"
                 phx-debounce="300"
@@ -207,7 +218,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               <input
                 type="date"
                 name={"filters[#{@uuid}][value_end]"}
-                value={format_datetime_value(@filter_value["value_end"], :date)}
+                value={format_datetime_value(@filter_value["value_end"], @column_def || @filter_def || :date)}
                 class="sc-input"
                 placeholder="End (exclusive)"
                 phx-debounce="300"
@@ -385,7 +396,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             <input
               type="date"
               name={"filters[#{@uuid}][value]"}
-              value={format_datetime_value(@filter_value["value"], :date)}
+                value={format_datetime_value(@filter_value["value"], @column_def || @filter_def || :date)}
               class="sc-input col-span-2"
             />
           <% @current_comp in ["IS NULL", "IS NOT NULL"] -> %>
@@ -396,7 +407,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             <input
               type={if @field_type == :date, do: "date", else: "datetime-local"}
               name={"filters[#{@uuid}][value]"}
-              value={format_datetime_value(@filter_value["value"], @field_type)}
+              value={format_datetime_value(@filter_value["value"], @column_def || @filter_def || @field_type)}
               class="sc-input col-span-2"
               disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
@@ -744,6 +755,27 @@ defmodule SelectoComponents.Form.FilterRendering do
   """
   def format_datetime_value(nil, _type), do: ""
   def format_datetime_value("", _type), do: ""
+
+  def format_datetime_value(value, %{} = field_conf) do
+    field_conf
+    |> Selecto.Temporal.to_display_temporal(value)
+    |> case do
+      %Date{} = date ->
+        format_datetime_value(Date.to_iso8601(date), :date)
+
+      %NaiveDateTime{} = dt ->
+        format_datetime_value(NaiveDateTime.to_iso8601(dt), :naive_datetime)
+
+      %DateTime{} = dt ->
+        format_datetime_value(DateTime.to_iso8601(dt), :utc_datetime)
+
+      other ->
+        format_datetime_value(
+          other,
+          Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type)
+        )
+    end
+  end
 
   def format_datetime_value(value, :date) when is_binary(value) do
     # Try to parse and format as YYYY-MM-DD

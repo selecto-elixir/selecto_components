@@ -179,7 +179,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
             x when is_function(x) -> {:row, col.group_by_filter_select.(e), alias}
           end
         else
-          case col.type do
+          case Selecto.Temporal.date_like_type(col) || col.type do
             x when x in [:naive_datetime, :utc_datetime, :date] ->
               {:field, datetime_gb_proc(col, e), alias}
 

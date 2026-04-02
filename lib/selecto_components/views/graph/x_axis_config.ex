@@ -16,7 +16,13 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
 
     assigns = assign(assigns, :col, col)
     assigns = assign(assigns, :config, config)
-    assigns = assign(assigns, :col_type_label, format_type(Map.get(col, :type, :string)))
+
+    assigns =
+      assign(
+        assigns,
+        :col_type_label,
+        format_type(Selecto.Temporal.date_like_type(col) || Map.get(col, :type, :string))
+      )
 
     ~H"""
     <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
@@ -38,7 +44,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         </div>
 
         <!-- Datetime Formatting (if applicable) -->
-        <div :if={Map.get(@col, :type, :string) in [:naive_datetime, :utc_datetime, :date]}>
+        <div :if={(Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string)) in [:naive_datetime, :utc_datetime, :date]}>
           <label class="block text-xs font-medium text-gray-600 mb-1">Date Format</label>
           <select
             name={"#{@prefix}[format]"}

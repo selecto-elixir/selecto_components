@@ -132,6 +132,21 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert result == "2024-01-15T10:30"
     end
 
+    test "formats epoch-backed datetime values for date and datetime inputs" do
+      date_field = %{type: :integer, presentation_type: :date, datetime_storage: :unix_ms}
+
+      datetime_field = %{
+        type: :integer,
+        presentation_type: :utc_datetime,
+        datetime_storage: :unix_ms
+      }
+
+      assert FilterRendering.format_datetime_value(1_705_276_800_000, date_field) == "2024-01-15"
+
+      assert FilterRendering.format_datetime_value(1_705_316_400_000, datetime_field) ==
+               "2024-01-15T11:00"
+    end
+
     test "prevents SQL injection in datetime formatting" do
       malicious_dates = [
         "2024-01-01'; DROP TABLE users--",

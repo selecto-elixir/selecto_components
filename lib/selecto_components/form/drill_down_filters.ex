@@ -182,7 +182,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       # YYYY-MM-DD format
       String.match?(value, ~r/^\d{4}-\d{2}-\d{2}$/) ->
-        if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+        if field_conf && Selecto.Temporal.date_like?(field_conf) do
           {"DATE=", value, ""}
         else
           {"=", value, ""}
@@ -243,7 +243,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_week_of_year_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       {"WEEK_OF_YEAR", value, ""}
     else
       {"=", value, ""}
@@ -308,11 +308,11 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp handle_bucket_range(value, field_conf, %{format: format, is_age_bucket: is_age_bucket}) do
     cond do
       format in ["year_buckets", :year_buckets] && field_conf &&
-          Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] ->
+          Selecto.Temporal.date_like?(field_conf) ->
         handle_year_bucket_range(value)
 
       is_age_bucket && field_conf &&
-          Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] ->
+          Selecto.Temporal.date_like?(field_conf) ->
         handle_age_bucket_range(value)
 
       true ->
@@ -429,7 +429,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp parse_boolean(_value, default), do: default
 
   defp handle_month_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       [year_str, month_str] = String.split(value, "-")
       {year, _} = Integer.parse(year_str)
       {month, _} = Integer.parse(month_str)
@@ -445,7 +445,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_year_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       {year, _} = Integer.parse(value)
       start_date = Date.new!(year, 1, 1)
       end_date = Date.new!(year + 1, 1, 1)
@@ -457,7 +457,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_quarter_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       [year_str, quarter_str] = String.split(value, "-")
       {year, _} = Integer.parse(year_str)
       {quarter, _} = Integer.parse(quarter_str)
@@ -480,7 +480,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_datetime_field(value, field_conf) do
-    field_type = Map.get(field_conf, :type, :string)
+    field_type =
+      Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type, :string)
 
     case field_type do
       x when x in [:utc_datetime, :naive_datetime] ->
@@ -506,7 +507,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       if conf != nil do
         field_type = Map.get(conf, :type, :string)
 
-        case field_type do
+        case Selecto.Temporal.date_like_type(conf) || field_type do
           x when x in [:utc_datetime, :naive_datetime] ->
             {v1, v2} = Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
             {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v1, "value2" => v2}}

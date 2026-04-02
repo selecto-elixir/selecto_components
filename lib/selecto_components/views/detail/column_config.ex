@@ -55,7 +55,10 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
           end
       end
 
-    col_type = Map.get(assigns[:col] || %{}, :type, :string)
+    col_type =
+      Selecto.Temporal.date_like_type(assigns[:col] || %{}) ||
+        Map.get(assigns[:col] || %{}, :type, :string)
+
     configure_component = Map.get(assigns[:col] || %{}, :configure_component)
 
     show_options =
@@ -84,7 +87,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
         <div :if={@show_options}>
           <div class="font-medium text-sm text-gray-700">Options:</div>
           <div class="pl-2">
-            <%= case Map.get(@col, :type, :string) do%>
+            <%= case Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string) do%>
               <% x when x in [:int, :id] -> %>
                 <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
 

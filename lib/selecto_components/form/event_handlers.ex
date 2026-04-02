@@ -152,7 +152,7 @@ defmodule SelectoComponents.Form.EventHandlers do
         columns_list =
           raw_columns
           |> Enum.map(fn {key, col} ->
-            {key, col.name, col.type}
+            {key, col.name, Selecto.Temporal.date_like_type(col) || col.type}
           end)
 
         [
