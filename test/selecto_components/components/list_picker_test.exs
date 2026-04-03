@@ -44,8 +44,8 @@ defmodule SelectoComponents.Components.ListPickerTest do
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
     assert html =~ ">Selected<"
-    assert html =~ ~s(data-type-icon="TXT")
-    assert html =~ ~s(data-type-icon="CAL")
+    assert html =~ ~s(data-type-icon="Text")
+    assert html =~ ~s(data-type-icon="Date")
   end
 
   test "renders empty selected state in the always-visible selected pane" do

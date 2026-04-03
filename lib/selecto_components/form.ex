@@ -54,7 +54,6 @@ defmodule SelectoComponents.Form do
           errors={Map.get(assigns, :component_errors, [])}
         />
         
-    <!-- View Config Manager for saving/loading view configurations -->
         <.live_component
           :if={Map.get(assigns, :saved_view_config_module)}
           module={SelectoComponents.ViewConfigManager}
@@ -70,122 +69,122 @@ defmodule SelectoComponents.Form do
           current_user_id={Map.get(assigns, :current_user_id)}
           parent_id={@myself}
         />
-        
-    <!-- Main Navigation Tabs -->
-        <div class="mb-4 flex border-b" style="border-color: var(--sc-surface-border)">
-          <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={@active_tab == "view" or @active_tab == nil}
-              aria-controls="main-tabpanel-view"
-              id="main-tab-view"
-              phx-click={JS.push("set_active_tab", value: %{tab: "view"})}
-              class={[
-                "px-4 py-2 text-sm font-medium",
-                if @active_tab == "view" or @active_tab == nil do
-                  Theme.slot(@theme, :tab_active)
-                else
-                  Theme.slot(@theme, :tab_inactive)
-                end
-              ]}
-            >
-              View
-            </button>
 
-            <button
-              type="button"
-              role="tab"
-              aria-selected={@active_tab == "filter"}
-              aria-controls="main-tabpanel-filter"
-              id="main-tab-filter"
-              phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}
-              class={[
-                "px-4 py-2 text-sm font-medium",
-                if @active_tab == "filter" do
-                  Theme.slot(@theme, :tab_active)
-                else
-                  Theme.slot(@theme, :tab_inactive)
-                end
-              ]}
-            >
-              Filters
-            </button>
+        <!-- Main Navigation Tabs -->
+          <div class="mb-4 flex border-b" style="border-color: var(--sc-surface-border)">
+            <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={@active_tab == "view" or @active_tab == nil}
+                aria-controls="main-tabpanel-view"
+                id="main-tab-view"
+                phx-click={JS.push("set_active_tab", value: %{tab: "view"})}
+                class={[
+                  "px-4 py-2 text-sm font-medium",
+                  if @active_tab == "view" or @active_tab == nil do
+                    Theme.slot(@theme, :tab_active)
+                  else
+                    Theme.slot(@theme, :tab_inactive)
+                  end
+                ]}
+              >
+                View
+              </button>
 
-            <button
-              :if={@use_saved_views}
-              type="button"
-              role="tab"
-              aria-selected={@active_tab == "save"}
-              aria-controls="main-tabpanel-save"
-              id="main-tab-save"
-              phx-click={JS.push("set_active_tab", value: %{tab: "save"})}
-              class={[
-                "px-4 py-2 text-sm font-medium",
-                if @active_tab == "save" do
-                  Theme.slot(@theme, :tab_active)
-                else
-                  Theme.slot(@theme, :tab_inactive)
-                end
-              ]}
-            >
-              Save View
-            </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={@active_tab == "filter"}
+                aria-controls="main-tabpanel-filter"
+                id="main-tab-filter"
+                phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}
+                class={[
+                  "px-4 py-2 text-sm font-medium",
+                  if @active_tab == "filter" do
+                    Theme.slot(@theme, :tab_active)
+                  else
+                    Theme.slot(@theme, :tab_inactive)
+                  end
+                ]}
+              >
+                Filters
+              </button>
 
-            <button
-              type="button"
-              role="tab"
-              aria-selected={@active_tab == "export"}
-              aria-controls="main-tabpanel-export"
-              id="main-tab-export"
-              phx-click={JS.push("set_active_tab", value: %{tab: "export"})}
-              class={[
-                "px-4 py-2 text-sm font-medium",
-                if @active_tab == "export" do
-                  Theme.slot(@theme, :tab_active)
-                else
-                  Theme.slot(@theme, :tab_inactive)
-                end
-              ]}
-            >
-              Export
-            </button>
+              <button
+                :if={@use_saved_views}
+                type="button"
+                role="tab"
+                aria-selected={@active_tab == "save"}
+                aria-controls="main-tabpanel-save"
+                id="main-tab-save"
+                phx-click={JS.push("set_active_tab", value: %{tab: "save"})}
+                class={[
+                  "px-4 py-2 text-sm font-medium",
+                  if @active_tab == "save" do
+                    Theme.slot(@theme, :tab_active)
+                  else
+                    Theme.slot(@theme, :tab_inactive)
+                  end
+                ]}
+              >
+                Save View
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={@active_tab == "export"}
+                aria-controls="main-tabpanel-export"
+                id="main-tab-export"
+                phx-click={JS.push("set_active_tab", value: %{tab: "export"})}
+                class={[
+                  "px-4 py-2 text-sm font-medium",
+                  if @active_tab == "export" do
+                    Theme.slot(@theme, :tab_active)
+                  else
+                    Theme.slot(@theme, :tab_inactive)
+                  end
+                ]}
+              >
+                Export
+              </button>
+            </div>
           </div>
-        </div>
-        
-    <!-- Tab Content Panels -->
-        <div
-          role="tabpanel"
-          id="main-tabpanel-view"
-          aria-labelledby="main-tab-view"
-          class={
-            if @active_tab == "view" or @active_tab == nil do
-              Theme.slot(@theme, :panel) <> " p-3"
-            else
-              "hidden"
-            end
-          }
-        >
-          <.live_component
-            module={SelectoComponents.Components.Tabs}
-            id="view_mode"
-            fieldname="view_mode"
-            view_mode={@view_config.view_mode}
-            options={@views}
+
+          <!-- Tab Content Panels -->
+          <div
+            role="tabpanel"
+            id="main-tabpanel-view"
+            aria-labelledby="main-tab-view"
+            class={
+              if @active_tab == "view" or @active_tab == nil do
+                Theme.slot(@theme, :panel) <> " p-3"
+              else
+                "hidden"
+              end
+            }
           >
-            <:section :let={{id, _mod, _, _} = view}>
-              <.live_component
-                module={ViewRuntime.form_component(view)}
-                id={"view_#{id}_form"}
-                theme={@theme}
-                columns={@columns}
-                view_config={@view_config}
-                view={view}
-                selecto={@selecto}
-              />
-            </:section>
-          </.live_component>
-        </div>
+            <.live_component
+              module={SelectoComponents.Components.Tabs}
+              id="view_mode"
+              fieldname="view_mode"
+              view_mode={@view_config.view_mode}
+              options={@views}
+            >
+              <:section :let={{id, _mod, _, _} = view}>
+                <.live_component
+                  module={ViewRuntime.form_component(view)}
+                  id={"view_#{id}_form"}
+                  theme={@theme}
+                  columns={@columns}
+                  view_config={@view_config}
+                  view={view}
+                  selecto={@selecto}
+                />
+              </:section>
+            </.live_component>
+          </div>
 
         <div
           role="tabpanel"
@@ -377,7 +376,6 @@ defmodule SelectoComponents.Form do
             />
           </div>
         </div>
-
         <.sc_button theme={@theme}>Submit</.sc_button>
       </.form>
 

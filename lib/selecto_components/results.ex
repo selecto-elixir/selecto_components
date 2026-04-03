@@ -19,12 +19,6 @@ defmodule SelectoComponents.Results do
       |> Map.put(:theme, Theme.resolve_theme(assigns))
       |> Map.put_new(:theme_stylesheet, Theme.stylesheet())
 
-    if Mix.env() == :dev do
-      IO.puts(
-        "[theme-debug][Results] theme_id=#{inspect(assigns[:theme_id])} selecto_theme=#{inspect(assigns[:selecto_theme])} resolved=#{assigns.theme.id} applied_view=#{inspect(assigns[:applied_view])}"
-      )
-    end
-
     assigns =
       case assigns.applied_view do
         nil ->

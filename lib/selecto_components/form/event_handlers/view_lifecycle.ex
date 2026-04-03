@@ -40,6 +40,15 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         {:noreply, assign(socket, active_tab: Map.get(params, "tab"))}
       end
 
+      def handle_event("toggle_show_view_configurator", _params, socket) do
+        {:noreply,
+         assign(
+           socket,
+           :show_view_configurator,
+           !Map.get(socket.assigns, :show_view_configurator, false)
+         )}
+      end
+
       @doc """
       Handles form validation events without executing the query.
 
@@ -135,7 +144,11 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
               params = %{"saved_view" => view.name}
               socket = assign(socket, :current_detail_page, 0)
-              {:noreply, ParamsState.state_to_url(params, socket)}
+
+              {:noreply,
+               socket
+               |> assign(:show_view_configurator, false)
+               |> ParamsState.state_to_url(params)}
           end
         end)
       end
@@ -168,7 +181,11 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           # Commit the current validated form state; URL is updated only after submit.
           socket = ParamsState.view_from_params(committed_params, socket)
-          {:noreply, ParamsState.state_to_url(committed_params, socket)}
+
+          {:noreply,
+           socket
+           |> assign(:show_view_configurator, false)
+           |> ParamsState.state_to_url(committed_params)}
         end)
       end
 
@@ -229,7 +246,10 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
                   socket
                 )
 
-              {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
+              {:noreply,
+               socket
+               |> assign(:show_view_configurator, false)
+               |> put_flash(:info, "View configuration loaded: #{config.name}")}
           end
         end)
       end

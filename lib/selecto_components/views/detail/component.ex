@@ -46,10 +46,6 @@ defmodule SelectoComponents.Views.Detail.Component do
       |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
       |> assign(:columns_config, init_columns_config(columns))
 
-    if Mix.env() == :dev do
-      IO.puts("[theme-debug][Detail.Component] update theme=#{socket.assigns.theme.id}")
-    end
-
     {:ok, socket}
   end
 

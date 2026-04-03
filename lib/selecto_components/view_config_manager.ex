@@ -8,11 +8,14 @@ defmodule SelectoComponents.ViewConfigManager do
   alias Phoenix.LiveView.JS
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Theme
 
   @impl true
   def mount(socket) do
     {:ok,
      assign(socket,
+       compact: false,
+       theme: Theme.default_theme(:light),
        show_save_dialog: false,
        show_load_menu: false,
        saved_configs: [],
@@ -45,10 +48,13 @@ defmodule SelectoComponents.ViewConfigManager do
 
   @impl true
   def render(assigns) do
+    assigns =
+      assigns |> Map.put_new(:compact, false) |> Map.put_new(:theme, Theme.default_theme(:light))
+
     ~H"""
-    <div class="mb-4 p-4 bg-base-200 border border-base-300 rounded-lg">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-medium text-base-content">
+    <div class={if @compact, do: "flex items-center gap-2", else: Theme.slot(@theme, :panel) <> " mb-4 p-4"} style={if @compact, do: nil, else: "background: var(--sc-surface-bg-alt);"}>
+      <div class="flex items-center justify-between gap-2">
+        <h3 :if={!@compact} class="text-lg font-medium" style="color: var(--sc-text-primary);">
           View Configuration - {get_view_type_label(@view_config.view_mode)} Mode
         </h3>
         <div class="flex items-center gap-2">
@@ -58,7 +64,7 @@ defmodule SelectoComponents.ViewConfigManager do
               type="button"
               phx-click="toggle_load_menu"
               phx-target={@myself}
-              class="inline-flex items-center px-3 py-2 border border-base-300 shadow-sm text-sm leading-4 font-medium rounded-md text-base-content/80 bg-base-100 hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm leading-4 shadow-sm"}
             >
               <svg
                 class="-ml-0.5 mr-2 h-4 w-4"
@@ -94,15 +100,16 @@ defmodule SelectoComponents.ViewConfigManager do
     <!-- Load dropdown menu -->
             <div
               :if={@show_load_menu}
-              class="origin-top-left absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-base-100 ring-1 ring-base-300/60 divide-y divide-base-300 z-50"
+              class="origin-top-left absolute left-0 z-50 mt-2 w-56 divide-y rounded-md shadow-lg"
+              style="background: var(--sc-surface-bg); border: 1px solid var(--sc-surface-border);"
               phx-click-away={JS.push("hide_load_menu", target: @myself)}
             >
               <div class="py-1">
-                <div class="px-3 py-2 text-xs text-base-content/60 uppercase tracking-wider">
+                <div class="px-3 py-2 text-xs uppercase tracking-wider" style="color: var(--sc-text-muted);">
                   {get_view_type_label(@view_config.view_mode)} Views
                 </div>
                 <%= if Enum.empty?(@saved_configs) do %>
-                  <div class="px-3 py-2 text-sm text-base-content/60 italic">
+                  <div class="px-3 py-2 text-sm italic" style="color: var(--sc-text-muted);">
                     No saved {String.downcase(get_view_type_label(@view_config.view_mode))} views
                   </div>
                 <% else %>
@@ -112,13 +119,14 @@ defmodule SelectoComponents.ViewConfigManager do
                       phx-click="load_view_config"
                       phx-value-name={config.name}
                       phx-target={@myself}
-                      class="w-full text-left px-4 py-2 text-sm text-base-content/80 hover:bg-base-200 hover:text-base-content"
+                      class="w-full px-4 py-2 text-left text-sm"
+                      style="color: var(--sc-text-secondary);"
                     >
                       <div class="font-medium">{config.name}</div>
                       <%= if config.description do %>
-                        <div class="text-xs text-base-content/60 mt-1">{config.description}</div>
+                        <div class="mt-1 text-xs" style="color: var(--sc-text-muted);">{config.description}</div>
                       <% end %>
-                      <div class="text-xs text-base-content/50 mt-1">
+                      <div class="mt-1 text-xs" style="color: var(--sc-text-muted); opacity: 0.85;">
                         Updated {format_time_ago(config.updated_at)}
                         <%= if config.user_id do %>
                           • Private
@@ -137,7 +145,7 @@ defmodule SelectoComponents.ViewConfigManager do
           <button
             type="button"
             phx-click={JS.push("show_save_dialog", target: @myself)}
-            class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class={Theme.slot(@theme, :button_primary) <> " px-3 py-2 text-sm leading-4 shadow-sm"}
           >
             <svg
               class="-ml-0.5 mr-2 h-4 w-4"
