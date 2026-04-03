@@ -1,7 +1,9 @@
 defmodule SelectoComponents.Views.Detail.Form do
   use Phoenix.LiveComponent
+  import SelectoComponents.Components.Common
   alias SelectoComponents.Views.Detail.Options
   alias SelectoComponents.Views.Detail.RowActions
+  alias SelectoComponents.Theme
 
   @detail_per_page_options [30, 60, 100]
 
@@ -62,6 +64,7 @@ defmodule SelectoComponents.Views.Detail.Form do
 
     assigns =
       assigns
+      |> assign_new(:theme, fn -> Theme.default_theme(:light) end)
       |> Map.put(:selected_items_converted, selected_items)
       |> Map.put(:order_by_items_converted, order_by_items)
       |> Map.put(:detail_per_page, per_page)
@@ -82,6 +85,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="selected"
+        theme={@theme}
         fieldname="selected"
         available={@columns}
         view={@view}
@@ -108,6 +112,7 @@ defmodule SelectoComponents.Views.Detail.Form do
             fieldname="selected"
             prefix={"selected[#{param_key}]"}
             config={config}
+            theme={@theme}
           />
         </:item_form>
       </.live_component>
@@ -115,6 +120,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="order_by"
+        theme={@theme}
         fieldname="order_by"
         available={@columns}
         view={@view}
@@ -138,17 +144,15 @@ defmodule SelectoComponents.Views.Detail.Form do
             fieldname="order_by"
             prefix={"order_by[#{param_key}]"}
             config={config}
+            theme={@theme}
           />
         </:item_form>
       </.live_component>
-      <div class="mt-4 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+      <div class={Theme.slot(@theme, :panel) <> " mt-4 px-3 py-2"} style="background: var(--sc-surface-bg-alt);">
         <div class="grid gap-3 md:grid-cols-3">
           <label class="block text-sm">
-            <span class="text-xs font-medium text-base-content/80">Rows Per Page</span>
-            <select
-              name="per_page"
-              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
-            >
+            <span class="text-xs font-medium" style="color: var(--sc-text-secondary);">Rows Per Page</span>
+            <.sc_select_with_slot theme={@theme} name="per_page" class="mt-1 w-full">
               <option
                 :for={i <- @detail_per_page_options}
                 selected={@detail_per_page == to_string(i)}
@@ -156,15 +160,12 @@ defmodule SelectoComponents.Views.Detail.Form do
               >
                 {i}
               </option>
-            </select>
+            </.sc_select_with_slot>
           </label>
 
           <label class="block text-sm">
-            <span class="text-xs font-medium text-base-content/80">Max Rows Returned</span>
-            <select
-              name="max_rows"
-              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
-            >
+            <span class="text-xs font-medium" style="color: var(--sc-text-secondary);">Max Rows Returned</span>
+            <.sc_select_with_slot theme={@theme} name="max_rows" class="mt-1 w-full">
               <option
                 :for={option <- @detail_max_rows_options}
                 selected={@detail_max_rows == to_string(option)}
@@ -172,15 +173,12 @@ defmodule SelectoComponents.Views.Detail.Form do
               >
                 {if option == "all", do: "All", else: option}
               </option>
-            </select>
+            </.sc_select_with_slot>
           </label>
 
           <label class="block text-sm">
-            <span class="text-xs font-medium text-base-content/80">Count Strategy</span>
-            <select
-              name="count_mode"
-              class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
-            >
+            <span class="text-xs font-medium" style="color: var(--sc-text-secondary);">Count Strategy</span>
+            <.sc_select_with_slot theme={@theme} name="count_mode" class="mt-1 w-full">
               <option
                 :for={option <- @detail_count_mode_options}
                 selected={@detail_count_mode == to_string(option)}
@@ -193,21 +191,22 @@ defmodule SelectoComponents.Views.Detail.Form do
                   other -> other
                 end}
               </option>
-            </select>
+            </.sc_select_with_slot>
           </label>
         </div>
       </div>
 
-      <div class="mt-4 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+      <div class={Theme.slot(@theme, :panel) <> " mt-4 px-3 py-2"} style="background: var(--sc-surface-bg-alt);">
         <label class="block text-sm">
-          <span class="text-xs font-medium text-base-content/80">Row Click Action</span>
-          <select
+          <span class="text-xs font-medium" style="color: var(--sc-text-secondary);">Row Click Action</span>
+          <.sc_select_with_slot
+            theme={@theme}
             id={@detail_row_click_action_dom_id}
             name="row_click_action"
             value={@detail_row_click_action}
             phx-change="set_row_click_action"
             phx-target={@myself}
-            class="mt-1 select select-bordered select-sm w-full border-base-300 bg-base-100 text-base-content"
+            class="mt-1 w-full"
           >
             <option value="" selected={@detail_row_click_action == ""}>None</option>
             <option
@@ -217,20 +216,20 @@ defmodule SelectoComponents.Views.Detail.Form do
             >
               {action.name}
             </option>
-          </select>
+          </.sc_select_with_slot>
         </label>
 
-        <div :if={@selected_row_action} class="mt-3 space-y-1 text-xs text-base-content/70">
+        <div :if={@selected_row_action} class="mt-3 space-y-1 text-xs" style="color: var(--sc-text-secondary);">
           <div>
-            <span class="font-medium text-base-content/80">Type:</span>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Type:</span>
             {row_action_type_label(@selected_row_action.type)}
           </div>
           <div :if={@selected_row_action.description}>
-            <span class="font-medium text-base-content/80">Description:</span>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Description:</span>
             {@selected_row_action.description}
           </div>
           <div>
-            <span class="font-medium text-base-content/80">Required fields:</span>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Required fields:</span>
             {required_fields_label(@selected_row_action.required_fields)}
           </div>
         </div>
@@ -244,9 +243,10 @@ defmodule SelectoComponents.Views.Detail.Form do
             name="prevent_denormalization"
             value="true"
             checked={@detail_prevent_denormalization}
-            class="rounded border-base-300 bg-base-100 text-primary"
+            class="rounded"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           />
-          <span class="text-sm text-base-content/80">
+          <span class="text-sm" style="color: var(--sc-text-secondary);">
             Prevent Denormalization (show related data in nested tables)
           </span>
         </label>

@@ -5,6 +5,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   use Phoenix.LiveComponent
 
+  alias SelectoComponents.Theme
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ExportedViews
   alias SelectoComponents.ExportedViews.Service
@@ -18,7 +19,8 @@ defmodule SelectoComponents.ExportedViews.Manager do
        snippets: nil,
        snippets_view_id: nil,
        form: default_form(),
-       loaded_context: nil
+       loaded_context: nil,
+       theme: Theme.default_theme(:light)
      )}
   end
 
@@ -35,24 +37,24 @@ defmodule SelectoComponents.ExportedViews.Manager do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="space-y-6 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+    <div class={Theme.slot(@theme, :panel) <> " space-y-6 p-4"} style="background: var(--sc-surface-bg);">
       <div class="space-y-2">
-        <h3 class="text-base font-semibold text-base-content">Exported Views</h3>
-        <p class="text-sm text-base-content/70">
+        <h3 class="text-base font-semibold" style="color: var(--sc-text-primary);">Exported Views</h3>
+        <p class="text-sm" style="color: var(--sc-text-secondary);">
           Create signed iframe exports for aggregate, detail, and graph views with 3, 6, or 12 hour cache windows.
         </p>
       </div>
 
-      <div id={"exported-view-form-#{@id}"} class="space-y-4">
+      <div id={"exported-view-form-#{@id}"} class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"} style="background: var(--sc-surface-bg-alt);">
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_180px]">
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"exported-view-name-#{@id}"}>Name</label>
-            <input id={"exported-view-name-#{@id}"} value={@form.name} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Executive detail snapshot" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"exported-view-name-#{@id}"}>Name</label>
+            <input id={"exported-view-name-#{@id}"} value={@form.name} class={Theme.slot(@theme, :input)} placeholder="Executive detail snapshot" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"exported-view-ttl-#{@id}"}>Cache TTL</label>
-            <select id={"exported-view-ttl-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"exported-view-ttl-#{@id}"}>Cache TTL</label>
+            <select id={"exported-view-ttl-#{@id}"} class={Theme.slot(@theme, :select)}>
               <option value="3" selected={to_string(@form.cache_ttl_hours) == "3"}>3 hours</option>
               <option value="6" selected={to_string(@form.cache_ttl_hours) == "6"}>6 hours</option>
               <option value="12" selected={to_string(@form.cache_ttl_hours) == "12"}>12 hours</option>
@@ -61,14 +63,14 @@ defmodule SelectoComponents.ExportedViews.Manager do
         </div>
 
         <div class="mt-4 space-y-2">
-          <label class="text-sm font-medium text-base-content/80" for={"exported-view-ip-#{@id}"}>IP allowlist</label>
+          <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"exported-view-ip-#{@id}"}>IP allowlist</label>
           <textarea id={"exported-view-ip-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="203.0.113.8\n10.0.0.0/24"><%= @form.ip_allowlist_text %></textarea>
-          <p class="text-xs text-base-content/60">Leave blank for unrestricted access. Use one IP or CIDR per line.</p>
+          <p class="text-xs" style="color: var(--sc-text-muted);">Leave blank for unrestricted access. Use one IP or CIDR per line.</p>
         </div>
 
         <div class="mt-4 flex items-center justify-between gap-3">
-          <p class="text-xs text-base-content/60">The current active view snapshot is saved and cached immediately.</p>
-          <button type="button" id={"exported-view-create-#{@id}"} phx-hook="CreateExportedView" data-target={@myself} data-name-input={"exported-view-name-#{@id}"} data-ttl-input={"exported-view-ttl-#{@id}"} data-ip-input={"exported-view-ip-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+          <p class="text-xs" style="color: var(--sc-text-muted);">The current active view snapshot is saved and cached immediately.</p>
+          <button type="button" id={"exported-view-create-#{@id}"} phx-hook="CreateExportedView" data-target={@myself} data-name-input={"exported-view-name-#{@id}"} data-ttl-input={"exported-view-ttl-#{@id}"} data-ip-input={"exported-view-ip-#{@id}"} class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}>
             Create Exported View
           </button>
         </div>
@@ -76,24 +78,24 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-3">
-          <h4 class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/60">Managed Exports</h4>
-          <span class="text-xs text-base-content/60">{@exported_views |> length()} total</span>
+          <h4 class="text-sm font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">Managed Exports</h4>
+          <span class="text-xs" style="color: var(--sc-text-muted);">{@exported_views |> length()} total</span>
         </div>
 
-        <div :if={@exported_views == []} class="rounded-xl border border-dashed border-base-300 bg-base-200/50 px-4 py-6 text-sm text-base-content/70">
+        <div :if={@exported_views == []} class="rounded-xl border border-dashed px-4 py-6 text-sm" style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 60%, var(--sc-surface-bg)); color: var(--sc-text-secondary);">
           No exported views yet.
         </div>
 
-        <div :for={view <- @exported_views} class="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+        <div :for={view <- @exported_views} class={Theme.slot(@theme, :panel) <> " p-4"} style="background: var(--sc-surface-bg);">
           <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
-                <h5 class="text-base font-semibold text-base-content">{ExportedViews.field(view, :name, "Untitled export")}</h5>
+                <h5 class="text-base font-semibold" style="color: var(--sc-text-primary);">{ExportedViews.field(view, :name, "Untitled export")}</h5>
                 <span class={status_badge_class(ExportedViews.cache_status(view))}>{status_label(ExportedViews.cache_status(view))}</span>
-                <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70">{String.capitalize(to_string(ExportedViews.field(view, :view_type, "detail")))}</span>
+                <span class="rounded-full px-2.5 py-1 text-xs font-medium" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);">{String.capitalize(to_string(ExportedViews.field(view, :view_type, "detail")))}</span>
               </div>
 
-              <div class="grid gap-2 text-sm text-base-content/70 md:grid-cols-2 xl:grid-cols-3">
+              <div class="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3" style="color: var(--sc-text-secondary);">
                 <div>Execution: {format_execution_time(ExportedViews.field(view, :last_execution_time_ms))}</div>
                 <div>Rows: {format_integer(ExportedViews.field(view, :last_row_count))}</div>
                 <div>Payload: {format_bytes(ExportedViews.field(view, :last_payload_bytes))}</div>
@@ -102,7 +104,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
                 <div>Accesses: {format_integer(ExportedViews.field(view, :access_count, 0))}</div>
               </div>
 
-              <div class="space-y-1 text-xs text-base-content/60">
+              <div class="space-y-1 text-xs" style="color: var(--sc-text-muted);">
                 <div>Public ID: <span class="font-mono">{ExportedViews.field(view, :public_id, "-")}</span></div>
                 <div>Signature version: {ExportedViews.field(view, :signature_version, 1)}</div>
                 <div>IP allowlist: {present_allowlist(ExportedViews.field(view, :ip_allowlist_text))}</div>
@@ -111,46 +113,46 @@ defmodule SelectoComponents.ExportedViews.Manager do
             </div>
 
             <div class="flex flex-wrap gap-2 xl:max-w-[340px] xl:justify-end">
-              <button type="button" phx-click="regen_exported_view" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">Regen</button>
-              <button type="button" phx-click="toggle_exported_view_disabled" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">{if ExportedViews.disabled?(view), do: "Enable", else: "Disable"}</button>
-              <button type="button" phx-click="rotate_exported_view_signature" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">Rotate token</button>
-              <button type="button" phx-click="show_exported_view_snippets" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">Use</button>
-              <button type="button" phx-click="delete_exported_view" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} data-confirm="Delete this exported view?" class="rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-sm font-medium text-error transition hover:bg-error/20">Delete</button>
+              <button type="button" phx-click="regen_exported_view" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>Regen</button>
+              <button type="button" phx-click="toggle_exported_view_disabled" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>{if ExportedViews.disabled?(view), do: "Enable", else: "Disable"}</button>
+              <button type="button" phx-click="rotate_exported_view_signature" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>Rotate token</button>
+              <button type="button" phx-click="show_exported_view_snippets" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>Use</button>
+              <button type="button" phx-click="delete_exported_view" phx-value-id={ExportedViews.field(view, :public_id)} phx-target={@myself} data-confirm="Delete this exported view?" class={Theme.slot(@theme, :button_danger) <> " px-3 py-2 text-sm"}>Delete</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div :if={@snippets} class="space-y-4 rounded-xl border border-base-300 bg-base-200/40 p-4">
+      <div :if={@snippets} class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"} style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 70%, var(--sc-surface-bg));">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <h4 class="text-sm font-semibold text-base-content">Use This Export</h4>
-            <p class="text-xs text-base-content/60">Signed iframe snippets for HTML, JS, Vue, and React.</p>
+            <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">Use This Export</h4>
+            <p class="text-xs" style="color: var(--sc-text-muted);">Signed iframe snippets for HTML, JS, Vue, and React.</p>
           </div>
-          <button type="button" phx-click="clear_exported_view_snippets" phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium text-base-content transition hover:bg-base-200">Close</button>
+          <button type="button" phx-click="clear_exported_view_snippets" phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-xs"}>Close</button>
         </div>
 
         <div class="space-y-3">
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">Embed URL</label>
-            <textarea rows="2" readonly class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content shadow-sm"><%= @snippets.embed_url %></textarea>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">Embed URL</label>
+            <textarea rows="2" readonly class={Theme.slot(@theme, :input) <> " font-mono text-xs"}><%= @snippets.embed_url %></textarea>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">HTML</label>
-            <textarea rows="6" readonly class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content shadow-sm"><%= @snippets.html %></textarea>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">HTML</label>
+            <textarea rows="6" readonly class={Theme.slot(@theme, :input) <> " font-mono text-xs"}><%= @snippets.html %></textarea>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">JavaScript</label>
-            <textarea rows="8" readonly class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content shadow-sm"><%= @snippets.javascript %></textarea>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">JavaScript</label>
+            <textarea rows="8" readonly class={Theme.slot(@theme, :input) <> " font-mono text-xs"}><%= @snippets.javascript %></textarea>
           </div>
           <div class="grid gap-3 xl:grid-cols-2">
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">Vue</label>
-              <textarea rows="10" readonly class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content shadow-sm"><%= @snippets.vue %></textarea>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">Vue</label>
+              <textarea rows="10" readonly class={Theme.slot(@theme, :input) <> " font-mono text-xs"}><%= @snippets.vue %></textarea>
             </div>
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">React</label>
-              <textarea rows="10" readonly class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content shadow-sm"><%= @snippets.react %></textarea>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">React</label>
+              <textarea rows="10" readonly class={Theme.slot(@theme, :input) <> " font-mono text-xs"}><%= @snippets.react %></textarea>
             </div>
           </div>
         </div>

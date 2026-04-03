@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
   use Phoenix.LiveComponent
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
 
   # slot :type, :atom
   # slot :uuid, :string
@@ -61,7 +62,10 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
           end
       end
 
-    assigns = Map.put(assigns, :display_name, display_name)
+    assigns =
+      assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
+      |> Map.put(:display_name, display_name)
 
     ~H"""
     <div class="space-y-2">
@@ -74,6 +78,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
         <div class="font-medium text-sm text-gray-700">Alias:</div>
         <div class="pl-2">
           <.sc_input
+            theme={@theme}
             name={"#{@prefix}[alias]"}
             value={Map.get(@config, "alias", "")}
             placeholder="Alias"
@@ -101,6 +106,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -130,6 +136,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <label>
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder="e.g., 0-10, 11-50, 51-100, 101+ or */10"
@@ -140,6 +147,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -167,6 +175,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <label>
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder="e.g., 0-10, 11-50, 51-100, 101+ or */10"
@@ -177,6 +186,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -191,6 +201,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -204,6 +215,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -219,6 +231,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 <label>
                   Bucket Ranges (days)
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder="e.g., 0, 1-7, 8-30, 31-90, 91+"

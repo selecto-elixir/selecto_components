@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Views.Aggregate.Form do
   use Phoenix.LiveComponent
+  import SelectoComponents.Components.Common
   alias SelectoComponents.Views.Aggregate.Options
+  alias SelectoComponents.Theme
 
   # Helper function to extract field from formatted date tuples
   defp get_field_for_item(selecto, item) do
@@ -35,7 +37,9 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     aggregate_grid_color_scale = get_aggregate_grid_color_scale(assigns.view_config)
 
     assigns =
-      assign(assigns,
+      assigns
+      |> assign_new(:theme, fn -> Theme.default_theme(:light) end)
+      |> assign(
         aggregate_view: aggregate_view,
         aggregate_per_page: aggregate_per_page,
         aggregate_grid: aggregate_grid,
@@ -47,67 +51,62 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
     ~H"""
     <div>
-      <div class="mb-3 rounded-md border border-base-300 bg-base-200 px-3 py-2">
-        <label for="aggregate_per_page" class="text-xs font-medium text-base-content/80">
+      <div class={Theme.slot(@theme, :panel) <> " mb-3 px-3 py-2"} style="background: var(--sc-surface-bg-alt);">
+        <label for="aggregate_per_page" class="text-xs font-medium" style="color: var(--sc-text-secondary);">
           Aggregate Rows/Page
         </label>
-        <select
-          id="aggregate_per_page"
-          name="aggregate_per_page"
-          class="mt-1 select select-bordered select-sm w-36 border-base-300 bg-base-100 text-base-content"
-        >
+        <.sc_select_with_slot theme={@theme} id="aggregate_per_page" name="aggregate_per_page" class="mt-1 w-36">
           <%= for option <- @aggregate_per_page_options do %>
             <option value={to_string(option)} selected={@aggregate_per_page == to_string(option)}>
               {if option == "all", do: "All", else: option}
             </option>
           <% end %>
-        </select>
+        </.sc_select_with_slot>
 
-        <label class="mt-3 inline-flex items-center gap-2 text-sm text-base-content/80">
+        <label class="mt-3 inline-flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
           <input type="hidden" name="aggregate_grid" value="false" />
           <input
             type="checkbox"
             name="aggregate_grid"
             value="true"
             checked={@aggregate_grid}
-            class="checkbox checkbox-sm border-base-300 bg-base-100 text-primary"
+            class="checkbox checkbox-sm"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           />
           Grid view (2 group-by + 1 aggregate)
         </label>
 
-        <label class="mt-3 inline-flex items-center gap-2 text-sm text-base-content/80">
+        <label class="mt-3 inline-flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
           <input type="hidden" name="aggregate_grid_colorize" value="false" />
           <input
             type="checkbox"
             name="aggregate_grid_colorize"
             value="true"
             checked={@aggregate_grid_colorize}
-            class="checkbox checkbox-sm border-base-300 bg-base-100 text-primary"
+            class="checkbox checkbox-sm"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           />
           Colorize grid cells
         </label>
 
         <div class="mt-3 flex flex-wrap items-center gap-3">
-          <label for="aggregate_grid_color_scale" class="text-xs font-medium text-base-content/80">
+          <label for="aggregate_grid_color_scale" class="text-xs font-medium" style="color: var(--sc-text-secondary);">
             Grid Color Scale
           </label>
-          <select
-            id="aggregate_grid_color_scale"
-            name="aggregate_grid_color_scale"
-            class="select select-bordered select-sm w-32 border-base-300 bg-base-100 text-base-content"
-          >
+          <.sc_select_with_slot theme={@theme} id="aggregate_grid_color_scale" name="aggregate_grid_color_scale" class="w-32">
             <%= for option <- @aggregate_grid_color_scale_options do %>
               <option value={option} selected={@aggregate_grid_color_scale == option}>
                 {String.capitalize(option)}
               </option>
             <% end %>
-          </select>
+          </.sc_select_with_slot>
         </div>
       </div>
       Group By
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="group_by"
+        theme={@theme}
         fieldname="group_by"
         view={@view}
         available={
@@ -134,6 +133,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             fieldname="group_by"
             prefix={ "group_by[#{id}]" }
             config={config}
+            theme={@theme}
           />
         </:item_form>
       </.live_component>
@@ -141,6 +141,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="aggregate"
+        theme={@theme}
         fieldname="aggregate"
         view={@view}
         available={@columns}
@@ -164,6 +165,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             fieldname="aggregate"
             prefix={ "aggregate[#{id}]" }
             config={config}
+            theme={@theme}
           />
         </:item_form>
       </.live_component>

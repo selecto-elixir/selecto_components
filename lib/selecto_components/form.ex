@@ -177,6 +177,7 @@ defmodule SelectoComponents.Form do
               <.live_component
                 module={ViewRuntime.form_component(view)}
                 id={"view_#{id}_form"}
+                theme={@theme}
                 columns={@columns}
                 view_config={@view_config}
                 view={view}
@@ -217,6 +218,7 @@ defmodule SelectoComponents.Form do
           <.live_component
             module={SelectoComponents.Components.TreeBuilder}
             id={"#{@id}_tree_builder_#{FilterRendering.hash_filter_structure(@view_config.filters)}"}
+            theme={@theme}
             available={FilterRendering.build_filter_list(@selecto)}
             filters={@view_config.filters}
           >
@@ -246,7 +248,7 @@ defmodule SelectoComponents.Form do
             </p>
             <div class="flex items-center gap-2">
               <label for="save_as" class="text-sm font-medium">Save As:</label>
-              <.sc_input name="save_as" id="save_as" placeholder="Enter view name..." class="flex-1" />
+              <.sc_input name="save_as" id="save_as" placeholder="Enter view name..." class="flex-1" theme={@theme} />
             </div>
           </div>
         </div>
@@ -265,43 +267,43 @@ defmodule SelectoComponents.Form do
         >
           <h3 class="text-base-content font-medium mb-2">Export Options</h3>
           <div class="space-y-6">
-            <p class="text-sm text-gray-600 dark:text-gray-400">
+            <p class="text-sm" style="color: var(--sc-text-secondary);">
               Export current query results now:
             </p>
 
             <div class="flex flex-wrap gap-2">
-              <.sc_button type="button" phx-click="export_data" phx-value-format="csv">
+              <.sc_button type="button" phx-click="export_data" phx-value-format="csv" theme={@theme}>
                 Download CSV
               </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="tsv">
+              <.sc_button type="button" phx-click="export_data" phx-value-format="tsv" theme={@theme}>
                 Download TSV
               </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="json">
+              <.sc_button type="button" phx-click="export_data" phx-value-format="json" theme={@theme}>
                 Download JSON
               </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="xlsx">
+              <.sc_button type="button" phx-click="export_data" phx-value-format="xlsx" theme={@theme}>
                 Download XLSX
               </.sc_button>
             </div>
 
-            <div :if={@use_export_delivery} class="space-y-4 rounded-xl border border-base-300 bg-base-200/40 p-4">
+            <div :if={@use_export_delivery} class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"} style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 70%, var(--sc-surface-bg));">
               <div>
-                <h4 class="text-sm font-semibold text-base-content">Send Current Results by Email</h4>
-                <p class="text-xs text-base-content/60">
+                <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">Send Current Results by Email</h4>
+                <p class="text-xs" style="color: var(--sc-text-muted);">
                   Uses the current query results and sends them through the configured host-app delivery adapter.
                 </p>
               </div>
 
               <div class="grid gap-4 lg:grid-cols-2">
                 <div class="space-y-2 lg:col-span-2">
-                  <label class="text-sm font-medium text-base-content/80" for={"export-email-recipients-#{@id}"}>Recipients</label>
-                  <input id={"export-email-recipients-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="ops@example.com, finance@example.com" />
-                  <p class="text-xs text-base-content/60">Separate recipients with commas, semicolons, or new lines.</p>
+                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-recipients-#{@id}"}>Recipients</label>
+                  <input id={"export-email-recipients-#{@id}"} class={Theme.slot(@theme, :input)} placeholder="ops@example.com, finance@example.com" />
+                  <p class="text-xs" style="color: var(--sc-text-muted);">Separate recipients with commas, semicolons, or new lines.</p>
                 </div>
 
                 <div class="space-y-2">
-                  <label class="text-sm font-medium text-base-content/80" for={"export-email-format-#{@id}"}>Format</label>
-                  <select id={"export-email-format-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-format-#{@id}"}>Format</label>
+                  <select id={"export-email-format-#{@id}"} class={Theme.slot(@theme, :select)}>
                     <option value="csv" selected>CSV</option>
                     <option value="tsv">TSV</option>
                     <option value="json">JSON</option>
@@ -310,19 +312,19 @@ defmodule SelectoComponents.Form do
                 </div>
 
                 <div class="space-y-2">
-                  <label class="text-sm font-medium text-base-content/80" for={"export-email-subject-#{@id}"}>Subject</label>
-                  <input id={"export-email-subject-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Current Selecto export" />
+                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-subject-#{@id}"}>Subject</label>
+                  <input id={"export-email-subject-#{@id}"} class={Theme.slot(@theme, :input)} placeholder="Current Selecto export" />
                 </div>
 
                 <div class="space-y-2 lg:col-span-2">
-                  <label class="text-sm font-medium text-base-content/80" for={"export-email-body-#{@id}"}>Body</label>
-                  <textarea id={"export-email-body-#{@id}"} rows="4" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Attached is the latest export."></textarea>
+                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-body-#{@id}"}>Body</label>
+                  <textarea id={"export-email-body-#{@id}"} rows="4" class={Theme.slot(@theme, :input)} placeholder="Attached is the latest export."></textarea>
                 </div>
               </div>
 
               <div class="flex items-center justify-between gap-3">
-                <p class="text-xs text-base-content/60">This first slice sends the already-loaded result set rather than re-running the query.</p>
-                <button type="button" data-export-email-button="true" data-recipients-input={"export-email-recipients-#{@id}"} data-format-input={"export-email-format-#{@id}"} data-subject-input={"export-email-subject-#{@id}"} data-body-input={"export-email-body-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+                <p class="text-xs" style="color: var(--sc-text-muted);">This first slice sends the already-loaded result set rather than re-running the query.</p>
+                <button type="button" data-export-email-button="true" data-recipients-input={"export-email-recipients-#{@id}"} data-format-input={"export-email-format-#{@id}"} data-subject-input={"export-email-subject-#{@id}"} data-body-input={"export-email-body-#{@id}"} class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}>
                   Send Email Export
                 </button>
               </div>
@@ -376,7 +378,7 @@ defmodule SelectoComponents.Form do
           </div>
         </div>
 
-        <.sc_button>Submit</.sc_button>
+        <.sc_button theme={@theme}>Submit</.sc_button>
       </.form>
 
       <%!-- Render modal if enabled and triggered --%>
@@ -696,7 +698,15 @@ defmodule SelectoComponents.Form do
   defp build_column_list(selecto) do
     Map.values(Selecto.columns(selecto))
     |> Enum.sort(fn a, b -> a.name <= b.name end)
-    |> Enum.map(fn c -> {c.colid, c.name, Map.get(c, :format)} end)
+    |> Enum.map(fn c ->
+      {c.colid, c.name,
+       %{
+         type: Selecto.Temporal.date_like_type(c) || Map.get(c, :type),
+         format: Map.get(c, :format),
+         icon: Map.get(c, :icon),
+         icon_family: Map.get(c, :icon_family)
+       }}
+    end)
   end
 
   # defp build_available_fields(selecto) do

@@ -359,7 +359,7 @@ defmodule SelectoComponents.Form.FilterRendering do
                 pattern="^-?\d+(-\d+)?-?$"
                 phx-debounce="500"
               />
-              <div class="text-xs text-gray-500 self-center">
+              <div class="self-center text-xs" style="color: var(--sc-text-muted);">
                 <span class="font-semibold">Examples:</span> 1 = yesterday,
                 3-7 = 3-7 days ago,
                 -30 = over 30 days ago,
@@ -400,7 +400,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               class="sc-input col-span-2"
             />
           <% @current_comp in ["IS NULL", "IS NOT NULL"] -> %>
-            <div class="col-span-2 text-gray-500 text-sm self-center">
+            <div class="col-span-2 self-center text-sm" style="color: var(--sc-text-muted);">
               No value needed
             </div>
           <% true -> %>
@@ -519,7 +519,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               phx-debounce="300"
               disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
-            <div class="text-xs text-blue-600 mt-1">
+            <div class="mt-1 text-xs" style="color: var(--sc-accent);">
               💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
             </div>
           </div>
@@ -537,7 +537,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       <% end %>
 
       <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
-        <div class="col-span-3 flex items-center gap-2 text-sm text-gray-700">
+        <div class="col-span-3 flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
           <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
           <input
             type="checkbox"
@@ -545,12 +545,13 @@ defmodule SelectoComponents.Form.FilterRendering do
             name={"filters[#{@uuid}][exclude_articles]"}
             value="true"
             checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           /> Ignore leading articles (a, an, the)
         </div>
       <% end %>
 
       <%= if @is_text_field and @current_comp not in ["IS NULL", "IS NOT NULL"] do %>
-        <div class="col-span-3 flex items-center gap-2 text-sm text-gray-700">
+        <div class="col-span-3 flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
           <input type="hidden" name={"filters[#{@uuid}][ignore_case]"} value="false" />
           <input
             type="checkbox"
@@ -558,6 +559,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             name={"filters[#{@uuid}][ignore_case]"}
             value="true"
             checked={@ignore_case_checked}
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           /> Case insensitive
         </div>
       <% end %>

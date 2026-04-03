@@ -6,9 +6,11 @@ defmodule SelectoComponents.Filter.FilterSets do
 
   use Phoenix.LiveComponent
   import Phoenix.Component
+  import SelectoComponents.Components.Common
   require Logger
 
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Theme
 
   @max_shared_filters_param_bytes 32_768
   @max_shared_filters_compressed_bytes 24_576
@@ -16,16 +18,19 @@ defmodule SelectoComponents.Filter.FilterSets do
   @max_shared_filter_entries 500
 
   def render(assigns) do
+    assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
+
     ~H"""
     <div class="filter-sets-component">
       <!-- Main Controls -->
       <div class="flex items-center gap-2">
-        <select
+        <.sc_select_with_slot
+          theme={@theme}
           id={"filter-set-select-#{@id}"}
           name={"filter-set-select-#{@id}"}
           phx-change="load_filter_set"
           phx-target={@myself}
-          class="select select-bordered select-sm"
+          class="min-w-[15rem]"
         >
           <option value="">-- Select Filter Set --</option>
 
@@ -52,12 +57,12 @@ defmodule SelectoComponents.Filter.FilterSets do
               </option>
             </optgroup>
           <% end %>
-        </select>
+        </.sc_select_with_slot>
 
         <button
           phx-click="toggle_save_dialog"
           phx-target={@myself}
-          class="btn btn-sm btn-primary"
+          class={Theme.slot(@theme, :button_primary) <> " px-3 py-2 text-sm"}
           title="Save current filters"
         >
           Save
@@ -66,7 +71,7 @@ defmodule SelectoComponents.Filter.FilterSets do
         <button
           phx-click="toggle_manage_dialog"
           phx-target={@myself}
-          class="btn btn-sm btn-secondary"
+          class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}
           title="Manage filter sets"
         >
           Manage

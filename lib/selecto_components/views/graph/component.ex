@@ -5,10 +5,18 @@ defmodule SelectoComponents.Views.Graph.Component do
   use Phoenix.LiveComponent
   require Logger
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Theme
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
-    socket = assign(socket, assigns)
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
+
+    if Mix.env() == :dev do
+      IO.puts("[theme-debug][Graph.Component] update theme=#{socket.assigns.theme.id}")
+    end
 
     # Add a timestamp to force re-rendering if data changed
     socket = assign(socket, :last_update, System.system_time(:microsecond))
@@ -40,7 +48,7 @@ defmodule SelectoComponents.Views.Graph.Component do
     assigns = assign(assigns, :error_info, ErrorBuilder.normalize(assigns[:execution_error]))
 
     ~H"""
-    <div class="flex items-center justify-center min-h-64 bg-error/15 rounded-lg border border-error/40 p-6">
+    <div class="flex min-h-64 items-center justify-center rounded-lg border p-6" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
       <div class="text-center max-w-2xl">
         <div class="text-4xl mb-3 text-error">⚠️</div>
         <div class="font-semibold text-error text-lg mb-2">{@error_info.summary}</div>
@@ -54,7 +62,7 @@ defmodule SelectoComponents.Views.Graph.Component do
           <summary class="cursor-pointer text-sm text-error hover:text-error">
             Debug Details
           </summary>
-          <pre class="bg-base-200 p-2 rounded mt-2 text-xs overflow-x-auto text-base-content"><%= inspect(@error_info.debug, pretty: true) %></pre>
+          <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);"><%= inspect(@error_info.debug, pretty: true) %></pre>
         </details>
       </div>
     </div>
@@ -63,7 +71,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_loading_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-base-200 rounded-lg border border-base-300">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-surface-bg-alt); border-color: var(--sc-surface-border); color: var(--sc-accent);">
       <div class="text-center">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
         <div class="text-primary italic">Loading chart...</div>
@@ -74,7 +82,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_no_results_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-error/15 rounded-lg border border-error/40">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
       <div class="text-center text-error">
         <div class="text-4xl mb-2">📊</div>
         <div class="font-semibold">No Data Available</div>
@@ -86,7 +94,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_unknown_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-warning/15 rounded-lg border border-warning/40">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: color-mix(in srgb, var(--sc-accent-soft) 45%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
       <div class="text-center text-warning">
         <div class="font-semibold">Unknown Chart State</div>
         <div class="text-sm mt-1">
@@ -116,7 +124,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       )
 
     ~H"""
-    <div class="bg-base-100 rounded-lg border border-base-300 p-6">
+    <div class="rounded-lg border p-6" style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);">
       <!-- Chart Header with Title and Controls -->
       <div class="flex items-center justify-between mb-6">
         <div>
@@ -127,7 +135,7 @@ defmodule SelectoComponents.Views.Graph.Component do
         <div class="flex items-center gap-2">
           <button
             data-export
-            class="inline-flex items-center rounded border border-base-300 bg-base-100 px-3 py-1 text-xs leading-4 font-medium text-base-content/80 shadow-sm hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            class={Theme.slot(@theme, :button_secondary) <> " px-3 py-1 text-xs leading-4 shadow-sm"}
           >
             📥 Export
           </button>
@@ -235,12 +243,12 @@ defmodule SelectoComponents.Views.Graph.Component do
       </script>
       
     <!-- Chart Legend/Summary -->
-      <div class="mt-4 text-sm text-base-content/70">
+      <div class="mt-4 text-sm" style="color: var(--sc-text-secondary);">
         <div class="flex items-center justify-between">
           <span>
             {chart_summary(@chart_data, @chart_type)}
           </span>
-          <span class="text-xs text-base-content/60">
+          <span class="text-xs" style="color: var(--sc-text-muted);">
             Click data points to drill down
           </span>
         </div>

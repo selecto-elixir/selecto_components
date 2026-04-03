@@ -44,15 +44,9 @@ defmodule SelectoComponents.Theme do
   @spec resolve_theme(map()) :: ThemeSpec.t()
   def resolve_theme(assigns) when is_map(assigns) do
     cond do
-      match?(%ThemeSpec{}, Map.get(assigns, :theme)) ->
-        normalize_theme_spec(Map.fetch!(assigns, :theme))
-
-      is_map(Map.get(assigns, :theme)) ->
-        build_theme_spec(Map.get(assigns, :theme_id, "custom"), Map.get(assigns, :theme))
-
       resolver = Map.get(assigns, :theme_resolver) ->
         resolver.resolve_theme(%{
-          theme_id: Map.get(assigns, :theme_id),
+          theme_id: Map.get(assigns, :theme_id) || Map.get(assigns, :selecto_theme),
           tenant_context: Map.get(assigns, :tenant_context),
           current_user: Map.get(assigns, :current_user),
           current_user_id: Map.get(assigns, :current_user_id),
@@ -62,8 +56,20 @@ defmodule SelectoComponents.Theme do
         })
         |> normalize_theme_spec()
 
+      Map.get(assigns, :theme_id) || Map.get(assigns, :selecto_theme) ->
+        default_theme(Map.get(assigns, :theme_id) || Map.get(assigns, :selecto_theme))
+
+      match?(%ThemeSpec{}, Map.get(assigns, :theme)) ->
+        normalize_theme_spec(Map.fetch!(assigns, :theme))
+
+      is_map(Map.get(assigns, :theme)) ->
+        build_theme_spec(Map.get(assigns, :theme_id, "custom"), Map.get(assigns, :theme))
+
       true ->
-        theme_id = Map.get(assigns, :theme_id) || Map.get(assigns, :theme) || :light
+        theme_id =
+          Map.get(assigns, :theme_id) || Map.get(assigns, :selecto_theme) ||
+            Map.get(assigns, :theme) || :light
+
         default_theme(theme_id)
     end
   end

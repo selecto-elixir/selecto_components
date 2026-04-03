@@ -6,6 +6,7 @@ defmodule SelectoComponents.Components.SqlDebug do
 
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.Theme
 
   @doc """
   Renders SQL debug information if in dev mode.
@@ -19,21 +20,24 @@ defmodule SelectoComponents.Components.SqlDebug do
   attr(:params, :list, default: [])
   attr(:expanded, :boolean, default: false)
   attr(:execution_time, :integer, default: nil)
+  attr(:theme, :any, default: nil)
 
   def sql_debug(assigns) do
     # Only show in development mode
     if Mix.env() == :dev && assigns.sql do
       assigns =
         assigns
+        |> Map.put_new(:theme, Theme.default_theme(:light))
         |> Map.put(:formatted_sql, format_sql(assigns.sql))
         |> Map.put(:debug_id, "sql_debug_#{:erlang.unique_integer([:positive])}")
 
       ~H"""
-      <div class="sql-debug-container mt-4 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
-        <div class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
+      <div class="sql-debug-container mt-4 mb-4 rounded-lg border" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);">
+        <div class="flex items-center justify-between rounded-t-lg border-b px-4 py-2" style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg));">
           <button
             type="button"
-            class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
+            class="flex items-center text-sm font-medium"
+            style="color: var(--sc-text-secondary);"
             phx-click={toggle_debug(@debug_id)}
           >
             <svg
@@ -46,13 +50,13 @@ defmodule SelectoComponents.Components.SqlDebug do
             </svg>
             SQL Debug
             <%= if @execution_time do %>
-              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(<%= @execution_time %>ms)</span>
+              <span class="ml-2 text-xs" style="color: var(--sc-text-muted);">(<%= @execution_time %>ms)</span>
             <% end %>
           </button>
           
           <button
             type="button"
-            class="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500"
+            class={Theme.slot(@theme, :button_secondary) <> " px-2 py-1 text-xs"}
             phx-click={copy_to_clipboard(@debug_id <> "_sql")}
           >
             Copy SQL
@@ -62,19 +66,19 @@ defmodule SelectoComponents.Components.SqlDebug do
         <div id={@debug_id} class={if @expanded, do: "block", else: "hidden"}>
           <div class="p-4">
             <div class="mb-3">
-              <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1">Query</h4>
-              <pre id={@debug_id <> "_sql"} class="sql-code bg-gray-900 dark:bg-gray-800 text-gray-100 dark:text-gray-200 p-3 rounded overflow-x-auto text-xs"><%= @formatted_sql %></pre>
+              <h4 class="mb-1 text-xs font-semibold uppercase" style="color: var(--sc-text-muted);">Query</h4>
+              <pre id={@debug_id <> "_sql"} class="sql-code overflow-x-auto rounded p-3 text-xs" style="background: #111827; color: #f3f4f6;"><%= @formatted_sql %></pre>
             </div>
             
             <%= if @params && length(@params) > 0 do %>
               <div>
-                <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1">Parameters</h4>
-                <div class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-2">
+                <h4 class="mb-1 text-xs font-semibold uppercase" style="color: var(--sc-text-muted);">Parameters</h4>
+                <div class="rounded border p-2" style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
                   <ul class="text-xs font-mono">
                     <%= for {param, idx} <- Enum.with_index(@params, 1) do %>
                       <li class="py-1">
-                        <span class="text-gray-500 dark:text-gray-400">$<%= idx %>:</span>
-                        <span class="text-gray-900 dark:text-gray-200"><%= inspect(param) %></span>
+                        <span style="color: var(--sc-text-muted);">$<%= idx %>:</span>
+                        <span style="color: var(--sc-text-primary);"><%= inspect(param) %></span>
                       </li>
                     <% end %>
                   </ul>
@@ -94,11 +98,14 @@ defmodule SelectoComponents.Components.SqlDebug do
   Renders a simplified inline SQL display
   """
   attr(:sql, :string, required: true)
+  attr(:theme, :any, default: nil)
 
   def sql_inline(assigns) do
     if Mix.env() == :dev do
+      assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
+
       ~H"""
-      <span class="sql-inline font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">
+      <span class="sql-inline rounded px-1 py-0.5 font-mono text-xs" style="color: var(--sc-text-secondary); background: var(--sc-surface-bg-alt);">
         <%= truncate_sql(@sql) %>
       </span>
       """

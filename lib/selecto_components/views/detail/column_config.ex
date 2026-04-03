@@ -2,6 +2,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string
@@ -67,6 +68,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
 
     assigns =
       assigns
+      |> assign_new(:theme, fn -> Theme.default_theme(:light) end)
       |> Map.put(:display_name, display_name)
       |> Map.put(:show_options, show_options)
 
@@ -80,7 +82,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
         <div>
           <div class="font-medium text-sm text-gray-700">Alias:</div>
           <div class="pl-2">
-            <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
+            <.sc_input theme={@theme} name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
           </div>
         </div>
 
@@ -93,7 +95,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
 
               <% x when x in [:float, :decimal] -> %>
                 <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
-                <label><.sc_select name={"#{@prefix}[decimal_places]"}
+                <label><.sc_select theme={@theme} name={"#{@prefix}[decimal_places]"}
                   options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
@@ -101,6 +103,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
               <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
                 <label>Format
                   <.sc_select
+                    theme={@theme}
                     name={"#{@prefix}[format]"}
                     value={Map.get(@config, "format")}
                     options={SelectoComponents.Helpers.datetime_grouping_format_options()}
@@ -111,6 +114,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                   <label>
                     Bucket Ranges
                     <.sc_input
+                      theme={@theme}
                       name={"#{@prefix}[bucket_ranges]"}
                       value={Map.get(@config, "bucket_ranges", "")}
                       placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}

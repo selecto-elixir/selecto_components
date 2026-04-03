@@ -5,6 +5,7 @@ defmodule SelectoComponents.Results do
   alias SelectoComponents.Debug.ProductionConfig
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Theme
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   def render(assigns) do
@@ -15,6 +16,14 @@ defmodule SelectoComponents.Results do
       |> Map.put_new(:applied_view, nil)
       |> Map.put_new(:executed, false)
       |> Map.put_new(:query_results, nil)
+      |> Map.put(:theme, Theme.resolve_theme(assigns))
+      |> Map.put_new(:theme_stylesheet, Theme.stylesheet())
+
+    if Mix.env() == :dev do
+      IO.puts(
+        "[theme-debug][Results] theme_id=#{inspect(assigns[:theme_id])} selecto_theme=#{inspect(assigns[:selecto_theme])} resolved=#{assigns.theme.id} applied_view=#{inspect(assigns[:applied_view])}"
+      )
+    end
 
     assigns =
       case assigns.applied_view do
@@ -46,10 +55,12 @@ defmodule SelectoComponents.Results do
     assigns = Map.put(assigns, :normalized_execution_error, normalize_execution_error(assigns))
 
     ~H"""
-    <div>
+    <div id={"selecto-results-#{@id}-#{@theme.id}"} data-selecto-theme={@theme.id} style={Theme.style_attr(@theme)} class={Theme.slot(@theme, :root)}>
+      <style><%= Phoenix.HTML.raw(@theme_stylesheet) %></style>
       <div
         :if={@normalized_execution_error && !@applied_view}
-        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        class="mb-4 rounded-lg border px-4 py-3"
+        style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"
       >
         <strong class="font-bold">{@normalized_execution_error.summary}:</strong>
@@ -63,13 +74,14 @@ defmodule SelectoComponents.Results do
         <%= if Mix.env() == :dev && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
           <details class="mt-2">
             <summary class="cursor-pointer text-sm">Debug Details</summary>
-            <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
+            <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: color-mix(in srgb, var(--sc-danger-soft) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
           </details>
         <% end %>
       </div>
       <div
         :if={@has_component_errors && !@applied_view}
-        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        class="mb-4 rounded-lg border px-4 py-3"
+        style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"
       >
         <strong class="font-bold">View Error:</strong>
@@ -90,7 +102,8 @@ defmodule SelectoComponents.Results do
       <div :if={@applied_view && @component_module}>
         <.live_component
           module={@component_module}
-          id={"view_results_#{@applied_view}"}
+          id={"view_results_#{@applied_view}_#{@theme.id}"}
+          theme={@theme}
           selecto={@selecto}
           query_results={@query_results}
           view_meta={@view_meta}

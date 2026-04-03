@@ -2,6 +2,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string
@@ -61,7 +62,10 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
           end
       end
 
-    assigns = Map.put(assigns, :display_name, display_name)
+    assigns =
+      assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
+      |> Map.put(:display_name, display_name)
 
     ~H"""
     <div class="space-y-2">
@@ -74,6 +78,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
         <div class="font-medium text-sm text-gray-700">Alias:</div>
         <div class="pl-2">
           <.sc_input
+            theme={@theme}
             name={"#{@prefix}[alias]"}
             value={Map.get(@config, "alias", "")}
             placeholder="Alias"
@@ -103,6 +108,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[{"default", "Default"}, {"buckets", "Buckets"}]}
@@ -112,6 +118,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                 <label>
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder="e.g., 1, 2-5, 6-14, 15+ or */10"
@@ -122,6 +129,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={SelectoComponents.Helpers.datetime_grouping_format_options()}
@@ -131,6 +139,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                 <label>
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
@@ -141,6 +150,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
               <label>
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -154,6 +164,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                 <label>
                   Prefix Length
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[prefix_length]"}
                     value={Map.get(@config, "prefix_length", "2")}
                     type="number"

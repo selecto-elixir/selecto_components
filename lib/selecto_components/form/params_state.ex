@@ -459,7 +459,13 @@ defmodule SelectoComponents.Form.ParamsState do
       columns_list =
         raw_columns
         |> Enum.map(fn {key, col} ->
-          {key, col.name, Selecto.Temporal.date_like_type(col) || col.type}
+          {key, col.name,
+           %{
+             type: Selecto.Temporal.date_like_type(col) || col.type,
+             format: Map.get(col, :format),
+             icon: Map.get(col, :icon),
+             icon_family: Map.get(col, :icon_family)
+           }}
         end)
 
       # Create columns lookup map for the process functions

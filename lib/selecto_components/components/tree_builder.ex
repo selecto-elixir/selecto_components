@@ -5,6 +5,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
   # filters
 
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
 
   @impl true
   def mount(socket) do
@@ -15,39 +16,42 @@ defmodule SelectoComponents.Components.TreeBuilder do
   def update(assigns, socket) do
     # When the component ID changes, Phoenix will remount the component entirely
     # This ensures all form fields are properly recreated
-    {:ok, assign(socket, assigns)}
+    {:ok, assign(socket, Map.put_new(assigns, :theme, Theme.default_theme(:light)))}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="tree-builder-component">
+    <div class="tree-builder-component" style="color: var(--sc-text-primary);">
       <div class="">
         <div phx-hook=".TreeBuilder" id={"tree-builder-#{@id}"} class="grid grid-cols-2 gap-1 h-80" data-filter="">
 
-          <div class="text-base-content">Available Filter Columns. Double Click or Drag to build area.
-            <input type="text" id={"filter-input-#{@id}"} placeholder="Filter Available Items" class="sc-input" />
-            <button id={"clear-filter-#{@id}"} class="sc-x-button hidden">×</button>
+          <div style="color: var(--sc-text-primary);">Available Filter Columns. Double Click or Drag to build area.
+            <input type="text" id={"filter-input-#{@id}"} placeholder="Filter Available Items" class={Theme.slot(@theme, :input)} />
+            <button id={"clear-filter-#{@id}"} class={[Theme.slot(@theme, :button_danger), "hidden", "h-7", "w-7"]}>×</button>
           </div>
-          <div class="text-base-content">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
+          <div style="color: var(--sc-text-primary);">Build Area. All top level filters are AND'd together and AND'd with the required filters from the domain.</div>
 
-          <div class="flex flex-col gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100" id={"available-items-#{@id}"}>
+          <div class={Theme.slot(@theme, :panel) <> " flex flex-col gap-1 overflow-auto p-1"} style="background: var(--sc-surface-bg-alt);" id={"available-items-#{@id}"}>
 
 
 
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+            <div class="max-w-100 min-h-10 cursor-pointer rounded-md border p-1 filterable-item"
+              style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true" data-item-id="__AND__" id={"#{@id}-__AND__"}>AND group</div>
-            <div class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+            <div class="max-w-100 min-h-10 cursor-pointer rounded-md border p-1 filterable-item"
+              style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true" data-item-id="__OR__" id={"#{@id}-__OR__"}>OR group</div>
 
 
             <div :for={{{id, name}, idx} <- Enum.with_index(@available)}
-              class="max-w-100 bg-base-200 border-solid border rounded-md border-base-300 p-1 hover:bg-base-300 min-h-10 text-base-content cursor-pointer filterable-item"
+              class="max-w-100 min-h-10 cursor-pointer rounded-md border p-1 filterable-item"
+              style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true" data-item-id={id}
               id={"#{@id}-available-#{id}-#{idx}"}><%= name %></div>
 
           </div>
-          <div class="grid grid-cols-1 gap-1 border-solid border rounded-md border-base-300 overflow-auto p-1 bg-base-100 drop-zone" data-drop-zone="filters">
+          <div class={Theme.slot(@theme, :panel) <> " grid grid-cols-1 gap-1 overflow-auto p-1 drop-zone"} style="background: var(--sc-surface-bg);" data-drop-zone="filters">
             <%= render_area(%{ available: @available, filters: Enum.with_index(@filters), section: "filters", index: 0, conjunction: "AND", filter_form: @filter_form, component_id: @id }) %>
           </div>
         </div>
@@ -321,7 +325,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
     assigns = Map.put(assigns, :filter_key, filter_key)
 
     ~H"""
-      <div class="border-solid border border-4 rounded-xl border-primary p-1 pb-8 bg-base-100 drop-zone"
+      <div class="rounded-xl border p-1 pb-8 drop-zone"
+      style="border-width: 4px; border-color: var(--sc-accent); background: var(--sc-surface-bg);"
       data-drop-zone={@section}
       id={@filter_key}>
 
@@ -330,7 +335,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               Enum.filter(@filters, fn
                 {{_uuid, section, _conf}, _i} -> section == @section
               end) do %>
-          <div class="p-2 pl-6 pr-10 border-solid border border-base-300 bg-base-100 text-base-content relative"
+          <div class="relative border p-2 pl-6 pr-10"
+               style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
                id={uuid}>
 
             <%= case {uuid, s_section, config} do %>
@@ -346,8 +352,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 </div>
 
               <% {uuid, section, fv} -> %>
-                <div class="p-2 pl-6 border-solid border rounded-md border-base-300 bg-base-100">
-                  <div class="text-sm font-medium text-gray-600 mb-1">
+                <div class="rounded-md border p-2 pl-6" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);">
+                  <div class="mb-1 text-sm font-medium" style="color: var(--sc-text-secondary);">
                     <%= get_filter_name(@available, fv["filter"]) %>
                   </div>
                   <div id={"filter-form-#{uuid}"}>

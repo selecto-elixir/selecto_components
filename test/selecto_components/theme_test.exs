@@ -61,6 +61,45 @@ defmodule SelectoComponents.ThemeTest do
     assert select_html =~ "sc-select"
   end
 
+  test "shared controls honor runtime slot overrides when a theme is passed" do
+    theme = %ThemeSpec{
+      id: "custom-slots",
+      mode: :light,
+      tokens: %{},
+      slots: %{
+        button_primary: "tenant-btn-primary",
+        button_secondary: "tenant-btn-secondary",
+        input: "tenant-input",
+        select: "tenant-select",
+        button_danger: "tenant-danger"
+      }
+    }
+
+    button_html =
+      render_component(&Common.sc_button/1, %{
+        theme: theme,
+        variant: :primary,
+        inner_block: [%{inner_block: fn _, _ -> "Save" end}]
+      })
+
+    input_html = render_component(&Common.sc_input/1, %{theme: theme, name: "title"})
+
+    select_html =
+      render_component(&Common.sc_select/1, %{
+        theme: theme,
+        name: "status",
+        options: [{"open", "Open"}],
+        value: "open"
+      })
+
+    danger_html = render_component(&Common.sc_x_button/1, %{theme: theme})
+
+    assert button_html =~ "tenant-btn-primary"
+    assert input_html =~ "tenant-input"
+    assert select_html =~ "tenant-select"
+    assert danger_html =~ "tenant-danger"
+  end
+
   test "resolved theme exposes scoped css vars and semantic slots for form roots" do
     theme = Theme.resolve_theme(%{theme_resolver: Resolver, tenant_context: %{tenant_id: 7}})
 
