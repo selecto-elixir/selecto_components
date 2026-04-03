@@ -859,6 +859,8 @@ defmodule SelectoComponents.Form do
 
   defp scalar_filter_values(filter) do
     cond do
+      is_list(Map.get(filter, "selected_values")) -> Map.get(filter, "selected_values")
+      is_list(Map.get(filter, :selected_values)) -> Map.get(filter, :selected_values)
       is_list(Map.get(filter, "selected_ids")) -> Map.get(filter, "selected_ids")
       is_list(Map.get(filter, :selected_ids)) -> Map.get(filter, :selected_ids)
       true -> split_filter_values(Map.get(filter, "value") || Map.get(filter, :value))

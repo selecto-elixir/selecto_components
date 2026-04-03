@@ -264,7 +264,7 @@ defmodule SelectoComponents.Form.ParamsState do
         }
 
       filter_map when is_map(filter_map) ->
-        Map.merge(filter_map, %{
+        Map.merge(normalize_filter_storage_state(filter_map), %{
           "uuid" => uuid,
           "section" => section,
           "index" => to_string(index)
@@ -323,6 +323,9 @@ defmodule SelectoComponents.Form.ParamsState do
     value = Map.get(filter, "value") || Map.get(filter, :value)
 
     case comp do
+      comp when comp in ["IN", "NOT IN"] ->
+        normalize_in_filter_state(filter, value)
+
       "SHORTCUT" ->
         shortcut =
           if SelectoComponents.Form.FilterRendering.is_date_shortcut(value),
@@ -378,13 +381,93 @@ defmodule SelectoComponents.Form.ParamsState do
         filter
         |> Map.put("value_start", start_value)
         |> Map.put("value_end", end_value)
+        |> Map.delete("selected_values")
+        |> Map.delete("pending_values")
 
       _ ->
         filter
+        |> Map.delete("selected_values")
+        |> Map.delete("pending_values")
     end
   end
 
   defp normalize_filter_form_state(filter), do: filter
+
+  defp normalize_in_filter_state(filter, value) do
+    selected_values =
+      filter
+      |> selected_filter_values_from_state(value)
+      |> merge_pending_filter_values(
+        Map.get(filter, "pending_values") || Map.get(filter, :pending_values)
+      )
+
+    filter
+    |> Map.put("selected_values", selected_values)
+    |> Map.put("value", Enum.join(selected_values, ","))
+    |> Map.delete("pending_values")
+    |> Map.delete("selected_ids")
+  end
+
+  defp selected_filter_values_from_state(filter, fallback_value) do
+    cond do
+      is_list(Map.get(filter, "selected_values")) ->
+        Map.get(filter, "selected_values")
+
+      is_list(Map.get(filter, :selected_values)) ->
+        Map.get(filter, :selected_values)
+
+      is_list(Map.get(filter, "selected_ids")) ->
+        Map.get(filter, "selected_ids")
+
+      is_list(Map.get(filter, :selected_ids)) ->
+        Map.get(filter, :selected_ids)
+
+      true ->
+        fallback_value
+    end
+    |> parse_filter_values()
+  end
+
+  defp merge_pending_filter_values(selected_values, pending_values) do
+    pending_values = parse_pending_filter_values(pending_values)
+
+    (selected_values ++ pending_values)
+    |> Enum.uniq()
+  end
+
+  defp parse_pending_filter_values(value) when is_binary(value) do
+    value
+    |> String.split(~r/\r\n|\n|\r/, trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_pending_filter_values(_value), do: []
+
+  defp parse_filter_values(values) when is_list(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_filter_values(values) when is_binary(values) do
+    values
+    |> String.split(~r/\r\n|\n|\r|,/, trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_filter_values(_values), do: []
+
+  defp normalize_filter_storage_state(filter) when is_map(filter) do
+    filter
+    |> normalize_filter_form_state()
+    |> Map.delete("selected_values")
+    |> Map.delete("pending_values")
+  end
+
+  defp normalize_filter_storage_state(filter), do: filter
 
   defp normalize_numeric_choice(value, min_value, max_value, default) do
     case Integer.parse(to_string(value || "")) do

@@ -249,6 +249,33 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "standard filter IN rendering" do
+    test "renders textarea, selected checkboxes, and uncheck all for string IN filters" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :string,
+          filter_value: %{
+            "filter" => "status",
+            "comp" => "IN",
+            "selected_values" => ["open", "closed", "paused"]
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :string},
+          filter_def: %{type: :string}
+        })
+
+      assert html =~ ~s(name="filters[f1][pending_values]")
+      assert html =~ ~s(phx-click="toggle_filter_selected_value")
+      assert html =~ "Uncheck all"
+      assert html =~ "open"
+      assert html =~ "closed"
+      assert html =~ "paused"
+    end
+  end
+
   describe "Security notes" do
     test "documents security measures for filter rendering" do
       # Security measures in FilterRendering:
@@ -265,5 +292,26 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       assert true, "Security measures documented"
     end
+  end
+
+  defp render_selecto do
+    domain = %{
+      name: "FilterRenderingRenderTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: :id, name: "ID"},
+          status: %{type: :string, colid: :status, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
   end
 end

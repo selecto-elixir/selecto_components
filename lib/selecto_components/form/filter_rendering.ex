@@ -462,10 +462,13 @@ defmodule SelectoComponents.Form.FilterRendering do
     assigns =
       assigns
       |> Map.put(:is_multi_select_id, is_multi_select_id)
+      |> Map.put(:supports_manual_in_values, supports_manual_in_values?(assigns.field_type))
       |> Map.put(:operator_options, operator_options)
       |> Map.put(:current_comp, current_comp)
       |> Map.put(:between_start, between_start)
       |> Map.put(:between_end, between_end)
+      |> Map.put(:selected_in_values, selected_in_values(assigns.filter_value))
+      |> Map.put(:pending_in_values, value_for(assigns.filter_value, "pending_values") || "")
       |> Map.put(
         :ignore_case_checked,
         Map.get(assigns.filter_value, "ignore_case", "false") in [
@@ -506,6 +509,93 @@ defmodule SelectoComponents.Form.FilterRendering do
               class="sc-input"
               phx-debounce="300"
             />
+          </div>
+        <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
+          <div
+            id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @pending_in_values})}"}
+            class="col-span-2 space-y-2"
+          >
+            <textarea
+              id={"filter-pending-values-#{@uuid}"}
+              name={"filters[#{@uuid}][pending_values]"}
+              rows="3"
+              placeholder="Paste one value per line"
+              class="sc-input min-h-24 resize-y"
+              phx-debounce="300"
+              phx-hook=".FilterPendingValuesSync"
+              data-pending-value={@pending_in_values}
+            >{@pending_in_values}</textarea>
+
+            <input
+              type="hidden"
+              name={"filters[#{@uuid}][value]"}
+              value={Enum.join(@selected_in_values, ",")}
+            />
+
+            <%= if @selected_in_values != [] do %>
+              <div class="rounded-md border p-2" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <p class="text-xs font-medium" style="color: var(--sc-text-secondary);">
+                    {length(@selected_in_values)} selected value{if(length(@selected_in_values) == 1, do: "", else: "s")}
+                  </p>
+
+                  <button
+                    type="button"
+                    phx-click="clear_filter_selected_values"
+                    phx-value-filter-uuid={@uuid}
+                    class="text-xs font-medium underline-offset-2 hover:underline"
+                    style="color: var(--sc-accent);"
+                  >
+                    Uncheck all
+                  </button>
+                </div>
+
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1">
+                  <button
+                    :for={selected_value <- @selected_in_values}
+                    id={"filter-selected-value-#{@uuid}-#{:erlang.phash2(selected_value)}"}
+                    type="button"
+                    phx-click="toggle_filter_selected_value"
+                    phx-value-filter-uuid={@uuid}
+                    phx-value-item={selected_value}
+                    class="flex w-full items-start gap-2 rounded px-2 py-1 text-left text-sm"
+                    style="color: var(--sc-text-primary);"
+                  >
+                    <input
+                      type="checkbox"
+                      checked
+                      disabled
+                      style="margin-top: 0.15rem;"
+                    />
+                    <span class="break-all">{selected_value}</span>
+                  </button>
+                </div>
+              </div>
+            <% else %>
+              <p class="text-xs" style="color: var(--sc-text-muted);">
+                Paste values above to add them as selectable items.
+              </p>
+            <% end %>
+
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".FilterPendingValuesSync">
+              export default {
+                syncFromServer() {
+                  const pendingValue = this.el.dataset.pendingValue || "";
+
+                  if (this.el.value !== pendingValue) {
+                    this.el.value = pendingValue;
+                  }
+                },
+
+                mounted() {
+                  this.syncFromServer();
+                },
+
+                updated() {
+                  this.syncFromServer();
+                }
+              };
+            </script>
           </div>
         <% @is_multi_select_id -> %>
           <%!-- Multi-select ID filter input with helpful placeholder --%>
@@ -586,6 +676,8 @@ defmodule SelectoComponents.Form.FilterRendering do
           [
             {"=", "Equals"},
             {"!=", "Not Equals"},
+            {"IN", "Is One Of"},
+            {"NOT IN", "Is Not One Of"},
             {">", "Greater Than"},
             {">=", "Greater or Equal"},
             {"<", "Less Than"},
@@ -609,6 +701,8 @@ defmodule SelectoComponents.Form.FilterRendering do
           [
             {"=", "Equals"},
             {"!=", "Not Equals"},
+            {"IN", "Is One Of"},
+            {"NOT IN", "Is Not One Of"},
             {"STARTS", "Begins With"},
             {"LIKE", "Contains"},
             {"NOT LIKE", "Does Not Contain"},
@@ -640,6 +734,31 @@ defmodule SelectoComponents.Form.FilterRendering do
       _ -> false
     end
   end
+
+  defp supports_manual_in_values?(field_type),
+    do: field_type in [:id, :integer, :float, :decimal, :string, :text, :citext, :custom_column]
+
+  defp selected_in_values(filter_value) when is_map(filter_value) do
+    cond do
+      is_list(Map.get(filter_value, "selected_values")) ->
+        Map.get(filter_value, "selected_values")
+        |> Enum.map(&to_string/1)
+        |> Enum.reject(&(&1 == ""))
+
+      is_list(Map.get(filter_value, :selected_values)) ->
+        Map.get(filter_value, :selected_values)
+        |> Enum.map(&to_string/1)
+        |> Enum.reject(&(&1 == ""))
+
+      true ->
+        (value_for(filter_value, "value") || "")
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp selected_in_values(_filter_value), do: []
 
   defp schema_module_for_join(:selecto_root, selecto) do
     case get_in(Selecto.domain(selecto), [:source, :schema_module]) do

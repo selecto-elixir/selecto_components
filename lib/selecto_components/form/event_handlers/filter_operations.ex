@@ -169,6 +169,109 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
 
         {:noreply, socket}
       end
+
+      def handle_event("toggle_filter_selected_value", params, socket) do
+        filter_uuid = Map.get(params, "filter-uuid")
+        selected_value = String.trim(Map.get(params, "item", ""))
+
+        if selected_value == "" do
+          {:noreply, socket}
+        else
+          updated_filters =
+            Enum.map(socket.assigns.view_config.filters, fn
+              {uuid, section, filter_config} = filter_tuple when is_map(filter_config) ->
+                if to_string(uuid) == to_string(filter_uuid) do
+                  current_values =
+                    current_filter_selected_values(filter_config)
+
+                  new_values =
+                    if selected_value in current_values do
+                      List.delete(current_values, selected_value)
+                    else
+                      current_values ++ [selected_value]
+                    end
+
+                  {uuid, section,
+                   filter_config
+                   |> Map.put("selected_values", new_values)
+                   |> Map.put("value", Enum.join(new_values, ","))}
+                else
+                  filter_tuple
+                end
+
+              other_filter ->
+                other_filter
+            end)
+
+          {:noreply,
+           socket
+           |> ParamsState.assign_view_config(%{
+             socket.assigns.view_config
+             | filters: updated_filters
+           })
+           |> assign(skip_next_validation: true)}
+        end
+      end
+
+      def handle_event("clear_filter_selected_values", params, socket) do
+        filter_uuid = Map.get(params, "filter-uuid")
+
+        updated_filters =
+          Enum.map(socket.assigns.view_config.filters, fn
+            {uuid, section, filter_config} = filter_tuple when is_map(filter_config) ->
+              if to_string(uuid) == to_string(filter_uuid) do
+                {uuid, section,
+                 filter_config
+                 |> Map.put("selected_values", [])
+                 |> Map.put("value", "")}
+              else
+                filter_tuple
+              end
+
+            other_filter ->
+              other_filter
+          end)
+
+        {:noreply,
+         socket
+         |> ParamsState.assign_view_config(%{
+           socket.assigns.view_config
+           | filters: updated_filters
+         })
+         |> assign(skip_next_validation: true)}
+      end
+
+      defp current_filter_selected_values(filter_config) when is_map(filter_config) do
+        cond do
+          is_list(Map.get(filter_config, "selected_values")) ->
+            Map.get(filter_config, "selected_values")
+
+          is_list(Map.get(filter_config, :selected_values)) ->
+            Map.get(filter_config, :selected_values)
+
+          true ->
+            Map.get(filter_config, "value") || Map.get(filter_config, :value) || ""
+        end
+        |> parse_filter_selected_values()
+      end
+
+      defp current_filter_selected_values(_filter_config), do: []
+
+      defp parse_filter_selected_values(values) when is_list(values) do
+        values
+        |> Enum.map(&to_string/1)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+      end
+
+      defp parse_filter_selected_values(values) when is_binary(values) do
+        values
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+      end
+
+      defp parse_filter_selected_values(_values), do: []
     end
   end
 end

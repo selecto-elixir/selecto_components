@@ -642,7 +642,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   <div class="mb-1 text-sm font-medium" style="color: var(--sc-text-secondary);">
                     <%= get_filter_name(@available, fv["filter"]) %>
                   </div>
-                  <div id={"filter-form-#{uuid}"}>
+                  <div id={filter_form_dom_id(uuid, fv)}>
                     <%= render_slot(@filter_form, {uuid, index, section, fv}) %>
                   </div>
                 </div>
@@ -658,5 +658,34 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
       </div>
     """
+  end
+
+  defp filter_form_dom_id(uuid, filter_value) do
+    case normalize_filter_comp(filter_value) do
+      comp when comp in ["IN", "NOT IN"] ->
+        "filter-form-#{uuid}-#{:erlang.phash2(in_filter_dom_state(filter_value))}"
+
+      _ ->
+        "filter-form-#{uuid}"
+    end
+  end
+
+  defp normalize_filter_comp(filter_value) when is_map(filter_value) do
+    filter_value
+    |> Map.get("comp", Map.get(filter_value, :comp, ""))
+    |> to_string()
+    |> String.upcase()
+  end
+
+  defp normalize_filter_comp(_filter_value), do: ""
+
+  defp in_filter_dom_state(filter_value) do
+    %{
+      value: Map.get(filter_value, "value", Map.get(filter_value, :value)),
+      selected_values:
+        Map.get(filter_value, "selected_values", Map.get(filter_value, :selected_values, [])),
+      pending_values:
+        Map.get(filter_value, "pending_values", Map.get(filter_value, :pending_values, ""))
+    }
   end
 end
