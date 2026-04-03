@@ -14,8 +14,31 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Detail View"
     assert html =~ "Toggle View Controller"
     assert html =~ "1 applied filter"
-    assert html =~ "Status"
+    assert html =~ "Status = open"
     assert html =~ ~s(aria-hidden="true")
+  end
+
+  test "compacts multi-value filter summaries in the controller header" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: false,
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{"filter" => "status", "comp" => "IN", "value" => "open,closed,paused"}}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ "Status in open, closed, ..."
   end
 
   test "renders controller body when expanded" do

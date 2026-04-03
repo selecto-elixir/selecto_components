@@ -663,12 +663,46 @@ defmodule SelectoComponents.Form do
   defp applied_filters(selecto, filters) do
     filters
     |> Enum.reduce([], fn
-      {_uuid, _section, %{} = filter}, acc -> [filter_label(selecto, filter) | acc]
-      [_, _, %{} = filter], acc -> [filter_label(selecto, filter) | acc]
+      {_uuid, _section, %{} = filter}, acc -> [filter_summary(selecto, filter) | acc]
+      [_, _, %{} = filter], acc -> [filter_summary(selecto, filter) | acc]
       _, acc -> acc
     end)
     |> Enum.reject(&is_nil/1)
     |> Enum.reverse()
+  end
+
+  defp filter_summary(selecto, filter) do
+    label = filter_label(selecto, filter)
+    comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
+
+    case {label, comp, filter_value_summary(filter)} do
+      {nil, _comp, _value} ->
+        nil
+
+      {label, comp, nil} ->
+        summarize_filter_without_value(label, comp)
+
+      {label, "BETWEEN", value} ->
+        "#{label} = #{value}"
+
+      {label, "IN", value} ->
+        "#{label} in #{value}"
+
+      {label, "NOT IN", value} ->
+        "#{label} not in #{value}"
+
+      {label, "TEXT_SEARCH", value} ->
+        "#{label} ~ #{value}"
+
+      {label, comp, value} when comp in ["STARTS", "ENDS", "CONTAINS", "TEXT_PREFIX"] ->
+        "#{label} ~ #{value}"
+
+      {label, comp, value} when comp in ["=", "!=", "<", ">", "<=", ">="] ->
+        "#{label} #{comp} #{value}"
+
+      {label, _comp, value} ->
+        "#{label} = #{value}"
+    end
   end
 
   defp filter_label(selecto, filter) do
@@ -713,6 +747,167 @@ defmodule SelectoComponents.Form do
     |> List.last()
     |> Phoenix.Naming.humanize()
   end
+
+  defp normalize_summary_comp(nil), do: "="
+
+  defp normalize_summary_comp(comp) when is_atom(comp) do
+    comp |> Atom.to_string() |> normalize_summary_comp()
+  end
+
+  defp normalize_summary_comp(comp) when is_binary(comp) do
+    comp
+    |> String.trim()
+    |> String.upcase()
+    |> case do
+      "" -> "="
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_summary_comp(_comp), do: "="
+
+  defp summarize_filter_without_value(label, comp)
+       when comp in ["IS NULL", "NULL", "IS_EMPTY", "POLYMORPHIC"] do
+    "#{label} is empty"
+  end
+
+  defp summarize_filter_without_value(label, comp)
+       when comp in ["IS NOT NULL", "NOT_NULL", "IS_NOT_EMPTY"] do
+    "#{label} has value"
+  end
+
+  defp summarize_filter_without_value(label, _comp), do: label
+
+  defp filter_value_summary(filter) do
+    cond do
+      polymorphic_filter?(filter) ->
+        polymorphic_value_summary(filter)
+
+      between_filter?(filter) ->
+        between_value_summary(filter)
+
+      true ->
+        filter
+        |> scalar_filter_values()
+        |> compact_filter_values()
+    end
+  end
+
+  defp polymorphic_filter?(filter) do
+    normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp)) == "POLYMORPHIC" or
+      is_map(Map.get(filter, "polymorphic_selection")) or
+      is_map(Map.get(filter, :polymorphic_selection))
+  end
+
+  defp between_filter?(filter) do
+    normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp)) == "BETWEEN"
+  end
+
+  defp polymorphic_value_summary(filter) do
+    selection =
+      Map.get(filter, "polymorphic_selection") || Map.get(filter, :polymorphic_selection) || %{}
+
+    values =
+      selection
+      |> Map.get("values", Map.get(selection, :values, %{}))
+      |> Enum.map(fn {entity_type, raw_values} ->
+        ids = raw_values |> split_filter_values() |> compact_filter_values(1)
+
+        if ids in [nil, ""] do
+          to_string(entity_type)
+        else
+          "#{entity_type}: #{ids}"
+        end
+      end)
+
+    selected_types =
+      selection
+      |> Map.get("types", Map.get(selection, :types, []))
+      |> Enum.map(&to_string/1)
+
+    (values ++
+       Enum.reject(
+         selected_types,
+         &Enum.member?(
+           Enum.map(values, fn value -> value |> String.split(":", parts: 2) |> hd() end),
+           &1
+         )
+       ))
+    |> compact_filter_values()
+  end
+
+  defp between_value_summary(filter) do
+    start_value =
+      Map.get(filter, "value_start") || Map.get(filter, :value_start) || Map.get(filter, "value") ||
+        Map.get(filter, :value)
+
+    end_value =
+      Map.get(filter, "value_end") || Map.get(filter, :value_end) || Map.get(filter, "value2") ||
+        Map.get(filter, :value2)
+
+    case Enum.reject([start_value, end_value], &blank_filter_value?/1) do
+      [] ->
+        nil
+
+      [single] ->
+        normalize_filter_value(single)
+
+      [start_value, end_value] ->
+        "#{normalize_filter_value(start_value)} to #{normalize_filter_value(end_value)}"
+    end
+  end
+
+  defp scalar_filter_values(filter) do
+    cond do
+      is_list(Map.get(filter, "selected_ids")) -> Map.get(filter, "selected_ids")
+      is_list(Map.get(filter, :selected_ids)) -> Map.get(filter, :selected_ids)
+      true -> split_filter_values(Map.get(filter, "value") || Map.get(filter, :value))
+    end
+  end
+
+  defp split_filter_values(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&blank_filter_value?/1)
+  end
+
+  defp split_filter_values(value) when is_list(value) do
+    value
+    |> Enum.map(&normalize_filter_value/1)
+    |> Enum.reject(&blank_filter_value?/1)
+  end
+
+  defp split_filter_values(value) when is_nil(value), do: []
+  defp split_filter_values(value), do: [normalize_filter_value(value)]
+
+  defp compact_filter_values(values, limit \\ 2)
+
+  defp compact_filter_values(values, limit) when is_list(values) do
+    values =
+      values
+      |> Enum.map(&normalize_filter_value/1)
+      |> Enum.reject(&blank_filter_value?/1)
+
+    case values do
+      [] -> nil
+      values when length(values) <= limit -> Enum.join(values, ", ")
+      values -> Enum.take(values, limit) |> Enum.join(", ") |> Kernel.<>(", ...")
+    end
+  end
+
+  defp compact_filter_values(value, _limit), do: normalize_filter_value(value)
+
+  defp normalize_filter_value(value) when is_binary(value), do: String.trim(value)
+
+  defp normalize_filter_value(value) when is_atom(value),
+    do: value |> Atom.to_string() |> Phoenix.Naming.humanize()
+
+  defp normalize_filter_value(value), do: to_string(value)
+
+  defp blank_filter_value?(value) when value in [nil, ""], do: true
+  defp blank_filter_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_filter_value?(_value), do: false
 
   @impl true
   def handle_event("datetime-filter-change", params, socket) do
