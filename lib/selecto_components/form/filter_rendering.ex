@@ -926,8 +926,23 @@ defmodule SelectoComponents.Form.FilterRendering do
     |> List.flatten()
     |> Enum.sort(fn a, b -> a.name <= b.name end)
     |> Enum.map(fn
-      %{colid: id} = c -> {id, c.name}
-      %{id: id} = c -> {id, c.name}
+      %{colid: id} = c ->
+        {id, c.name,
+         %{
+           type: Selecto.Temporal.date_like_type(c) || Map.get(c, :type),
+           format: Map.get(c, :format),
+           icon: Map.get(c, :icon),
+           icon_family: Map.get(c, :icon_family)
+         }}
+
+      %{id: id} = c ->
+        {id, c.name,
+         %{
+           type: Selecto.Temporal.date_like_type(c) || Map.get(c, :type),
+           format: Map.get(c, :format),
+           icon: Map.get(c, :icon),
+           icon_family: Map.get(c, :icon_family)
+         }}
     end)
   end
 
