@@ -194,9 +194,15 @@ defmodule SelectoComponents.Form.FilterRendering do
             Relative Days
           </option>
           <option value="WEEKDAY_SUN1" selected={@current_comp == "WEEKDAY_SUN1"}>Day of Week</option>
-          <option value="WEEK_OF_YEAR" selected={@current_comp == "WEEK_OF_YEAR"}>Week of Year</option>
-          <option value="MONTH_OF_YEAR" selected={@current_comp == "MONTH_OF_YEAR"}>Month of Year</option>
-          <option value="DAY_OF_MONTH" selected={@current_comp == "DAY_OF_MONTH"}>Day of Month</option>
+          <option value="WEEK_OF_YEAR" selected={@current_comp == "WEEK_OF_YEAR"}>
+            Week of Year
+          </option>
+          <option value="MONTH_OF_YEAR" selected={@current_comp == "MONTH_OF_YEAR"}>
+            Month of Year
+          </option>
+          <option value="DAY_OF_MONTH" selected={@current_comp == "DAY_OF_MONTH"}>
+            Day of Month
+          </option>
           <option value="HOUR_OF_DAY" selected={@current_comp == "HOUR_OF_DAY"}>Hour of Day</option>
           <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
           <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>
@@ -210,7 +216,12 @@ defmodule SelectoComponents.Form.FilterRendering do
               <input
                 type="date"
                 name={"filters[#{@uuid}][value_start]"}
-                value={format_datetime_value(@filter_value["value_start"], @column_def || @filter_def || :date)}
+                value={
+                  format_datetime_value(
+                    @filter_value["value_start"],
+                    @column_def || @filter_def || :date
+                  )
+                }
                 class="sc-input"
                 placeholder="Start"
                 phx-debounce="300"
@@ -218,7 +229,12 @@ defmodule SelectoComponents.Form.FilterRendering do
               <input
                 type="date"
                 name={"filters[#{@uuid}][value_end]"}
-                value={format_datetime_value(@filter_value["value_end"], @column_def || @filter_def || :date)}
+                value={
+                  format_datetime_value(
+                    @filter_value["value_end"],
+                    @column_def || @filter_def || :date
+                  )
+                }
                 class="sc-input"
                 placeholder="End (exclusive)"
                 phx-debounce="300"
@@ -368,13 +384,27 @@ defmodule SelectoComponents.Form.FilterRendering do
             </div>
           <% @current_comp == "WEEKDAY_SUN1" -> %>
             <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
-              <option value="1" selected={to_string(value_for(@filter_value, "value")) == "1"}>Sunday</option>
-              <option value="2" selected={to_string(value_for(@filter_value, "value")) == "2"}>Monday</option>
-              <option value="3" selected={to_string(value_for(@filter_value, "value")) == "3"}>Tuesday</option>
-              <option value="4" selected={to_string(value_for(@filter_value, "value")) == "4"}>Wednesday</option>
-              <option value="5" selected={to_string(value_for(@filter_value, "value")) == "5"}>Thursday</option>
-              <option value="6" selected={to_string(value_for(@filter_value, "value")) == "6"}>Friday</option>
-              <option value="7" selected={to_string(value_for(@filter_value, "value")) == "7"}>Saturday</option>
+              <option value="1" selected={to_string(value_for(@filter_value, "value")) == "1"}>
+                Sunday
+              </option>
+              <option value="2" selected={to_string(value_for(@filter_value, "value")) == "2"}>
+                Monday
+              </option>
+              <option value="3" selected={to_string(value_for(@filter_value, "value")) == "3"}>
+                Tuesday
+              </option>
+              <option value="4" selected={to_string(value_for(@filter_value, "value")) == "4"}>
+                Wednesday
+              </option>
+              <option value="5" selected={to_string(value_for(@filter_value, "value")) == "5"}>
+                Thursday
+              </option>
+              <option value="6" selected={to_string(value_for(@filter_value, "value")) == "6"}>
+                Friday
+              </option>
+              <option value="7" selected={to_string(value_for(@filter_value, "value")) == "7"}>
+                Saturday
+              </option>
             </select>
           <% @current_comp == "WEEK_OF_YEAR" -> %>
             <input
@@ -396,7 +426,9 @@ defmodule SelectoComponents.Form.FilterRendering do
             <input
               type="date"
               name={"filters[#{@uuid}][value]"}
-                value={format_datetime_value(@filter_value["value"], @column_def || @filter_def || :date)}
+              value={
+                format_datetime_value(@filter_value["value"], @column_def || @filter_def || :date)
+              }
               class="sc-input col-span-2"
             />
           <% @current_comp in ["IS NULL", "IS NOT NULL"] -> %>
@@ -407,7 +439,12 @@ defmodule SelectoComponents.Form.FilterRendering do
             <input
               type={if @field_type == :date, do: "date", else: "datetime-local"}
               name={"filters[#{@uuid}][value]"}
-              value={format_datetime_value(@filter_value["value"], @column_def || @filter_def || @field_type)}
+              value={
+                format_datetime_value(
+                  @filter_value["value"],
+                  @column_def || @filter_def || @field_type
+                )
+              }
               class="sc-input col-span-2"
               disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
@@ -479,6 +516,15 @@ defmodule SelectoComponents.Form.FilterRendering do
             "Y",
             "y"
           ],
+        promote_checked:
+          Map.get(assigns.filter_value, "promote", "false") in [
+            true,
+            "true",
+            "on",
+            "1",
+            "Y",
+            "y"
+          ],
         is_text_field: assigns.field_type in [:string, :text, :citext, :custom_column]
       )
 
@@ -534,10 +580,16 @@ defmodule SelectoComponents.Form.FilterRendering do
             />
 
             <%= if @selected_in_values != [] do %>
-              <div class="rounded-md border p-2" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);">
+              <div
+                class="rounded-md border p-2"
+                style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);"
+              >
                 <div class="mb-2 flex items-center justify-between gap-2">
                   <p class="text-xs font-medium" style="color: var(--sc-text-secondary);">
-                    {length(@selected_in_values)} selected value{if(length(@selected_in_values) == 1, do: "", else: "s")}
+                    {length(@selected_in_values)} selected value{if(length(@selected_in_values) == 1,
+                      do: "",
+                      else: "s"
+                    )}
                   </p>
 
                   <button
@@ -651,7 +703,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       <% end %>
 
       <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
-        <div class="col-span-3 flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
+        <div
+          class="col-span-3 flex items-center gap-2 text-sm"
+          style="color: var(--sc-text-secondary);"
+        >
           <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
           <input
             type="checkbox"
@@ -665,7 +720,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       <% end %>
 
       <%= if @is_text_field and @current_comp not in ["IS NULL", "IS NOT NULL"] do %>
-        <div class="col-span-3 flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
+        <div
+          class="col-span-3 flex items-center gap-2 text-sm"
+          style="color: var(--sc-text-secondary);"
+        >
           <input type="hidden" name={"filters[#{@uuid}][ignore_case]"} value="false" />
           <input
             type="checkbox"
@@ -675,6 +733,23 @@ defmodule SelectoComponents.Form.FilterRendering do
             checked={@ignore_case_checked}
             style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
           /> Case insensitive
+        </div>
+      <% end %>
+
+      <%= if @current_comp == "=" do %>
+        <div
+          class="col-span-3 flex items-center gap-2 text-sm"
+          style="color: var(--sc-text-secondary);"
+        >
+          <input type="hidden" name={"filters[#{@uuid}][promote]"} value="false" />
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            name={"filters[#{@uuid}][promote]"}
+            value="true"
+            checked={@promote_checked}
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+          /> Promote to View Controller
         </div>
       <% end %>
 

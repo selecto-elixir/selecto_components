@@ -1075,6 +1075,28 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(params, "48b7fb89-2970-41cf-850d-90da95985408")
   end
 
+  test "canonicalize_form_params merges promoted controller values into filters" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "status",
+          "comp" => "=",
+          "value" => "open",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => "closed"}
+      }
+    }
+
+    canonicalized = ParamsState.canonicalize_form_params(params)
+
+    assert canonicalized["filters"]["k0"]["value"] == "closed"
+    assert canonicalized["filters"]["k0"]["promote"] == "true"
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
   test "compact_url_params rewrites raw form UUID keys to compact keys" do
     params = %{
       "filters" => %{

@@ -15,7 +15,7 @@ defmodule SelectoComponents.Views.Aggregate.DrillDown do
       |> Map.put("view_mode", new_view_mode)
 
     filter_tuples = DrillDownFilters.build_filter_tuples(params, socket)
-    clicked_fields = clicked_filter_fields(params)
+    clicked_fields = clicked_filter_fields(filter_tuples)
 
     updated_filters =
       Enum.filter(socket.assigns.view_config.filters, fn
@@ -42,10 +42,23 @@ defmodule SelectoComponents.Views.Aggregate.DrillDown do
   defp normalize_view_mode(view_mode) when is_binary(view_mode), do: view_mode
   defp normalize_view_mode(_view_mode), do: "detail"
 
-  defp clicked_filter_fields(params) do
-    params
-    |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "field") end)
-    |> Enum.map(fn {_key, field_name} -> field_name end)
-    |> MapSet.new()
+  defp clicked_filter_fields(filter_tuples) do
+    filter_tuples
+    |> Enum.reduce(MapSet.new(), fn
+      {_uuid, "filters", %{} = filter}, acc ->
+        case Map.get(filter, "filter") do
+          nil -> acc
+          field_name -> MapSet.put(acc, field_name)
+        end
+
+      [_, "filters", %{} = filter], acc ->
+        case Map.get(filter, "filter") do
+          nil -> acc
+          field_name -> MapSet.put(acc, field_name)
+        end
+
+      _, acc ->
+        acc
+    end)
   end
 end

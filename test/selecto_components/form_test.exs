@@ -50,6 +50,34 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Filters"
   end
 
+  test "renders promoted equals filters as controller inputs while leaving other filters summarized" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: false,
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{"filter" => "status", "comp" => "=", "value" => "open", "promote" => "true"}},
+              {"f2", "filters", %{"filter" => "title", "comp" => "=", "value" => "launch"}}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(name="promoted_filters[f1][value]")
+    assert html =~ ~s(value="open")
+    assert html =~ "Equals"
+    assert html =~ "FormSummaryTest: Status"
+    assert html =~ "Title = launch"
+  end
+
   test "pending IN textarea text does not change remount ids while typing" do
     html_with_partial =
       render_component(

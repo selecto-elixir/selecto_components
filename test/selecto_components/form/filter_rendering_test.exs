@@ -277,6 +277,30 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "standard filter controller promotion" do
+    test "renders a promote checkbox for equals filters" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :string,
+          filter_value: %{
+            "filter" => "status",
+            "comp" => "=",
+            "value" => "open",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :string},
+          filter_def: %{type: :string}
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+    end
+  end
+
   describe "Security notes" do
     test "documents security measures for filter rendering" do
       # Security measures in FilterRendering:

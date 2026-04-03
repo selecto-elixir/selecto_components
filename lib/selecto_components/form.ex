@@ -21,6 +21,9 @@ defmodule SelectoComponents.Form do
 
   @impl true
   def render(assigns) do
+    controller_filters =
+      controller_filters(assigns.selecto, Map.get(assigns.view_config, :filters, []))
+
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
@@ -30,6 +33,11 @@ defmodule SelectoComponents.Form do
         current_view_label: current_view_label(assigns.views, assigns.view_config.view_mode),
         applied_filters:
           applied_filters(assigns.selecto, Map.get(assigns.view_config, :filters, [])),
+        promoted_filters: Enum.filter(controller_filters, & &1.editable),
+        summary_filters:
+          controller_filters
+          |> Enum.reject(& &1.editable)
+          |> Enum.map(& &1.summary),
         form_state_revision: Map.get(assigns, :form_state_revision, 0),
         theme: Theme.resolve_theme(assigns),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
@@ -49,7 +57,9 @@ defmodule SelectoComponents.Form do
       style={Theme.style_attr(@theme)}
       class={[Theme.slot(@theme, :root), Theme.slot(@theme, :panel), "border-2 p-1"]}
     >
-      <style><%= Phoenix.HTML.raw(@theme_stylesheet) %></style>
+      <style>
+        <%= Phoenix.HTML.raw(@theme_stylesheet) %>
+      </style>
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
         <input type="hidden" name="form_state_revision" value={@form_state_revision} />
         <.live_component
@@ -63,63 +73,128 @@ defmodule SelectoComponents.Form do
         <div
           id={"selecto-controller-summary-#{@id}"}
           data-selecto-controller-summary
-          class="mb-4 flex flex-col gap-3 rounded-lg border p-3 lg:flex-row lg:items-start lg:justify-between"
+          class="mb-4 rounded-lg border p-3"
           style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 55%, var(--sc-surface-bg));"
         >
-          <div class="min-w-0 space-y-3">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em]" style="color: var(--sc-text-muted);">
-                {@controller_title}
-              </p>
-              <div class="mt-1 flex flex-wrap items-center gap-2">
-                <h3 class="text-base font-semibold" style="color: var(--sc-text-primary);">
-                  {@current_view_label}
-                </h3>
-                <span
-                  class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
-                  style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
-                >
-                  {length(@applied_filters)} applied filter{if(length(@applied_filters) == 1, do: "", else: "s")}
-                </span>
-              </div>
-            </div>
+          <div class="flex items-start gap-3">
+            <button
+              type="button"
+              phx-click={JS.push("toggle_show_view_configurator")}
+              aria-expanded={to_string(@show_view_configurator)}
+              aria-controls={"selecto-controller-body-#{@id}"}
+              aria-label={
+                if @show_view_configurator do
+                  "Collapse View Controller"
+                else
+                  "Expand View Controller"
+                end
+              }
+              title={
+                if @show_view_configurator do
+                  "Collapse View Controller"
+                else
+                  "Expand View Controller"
+                end
+              }
+              class={[Theme.slot(@theme, :button_icon), "mt-0.5 h-10 w-10 shrink-0"]}
+            >
+              <svg
+                class={["h-6 w-6 transition-transform", @show_view_configurator && "rotate-90"]}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="3"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+              </svg>
+            </button>
 
-            <div class="flex flex-wrap items-center gap-2">
-              <%= if Enum.empty?(@applied_filters) do %>
-                <span class="text-sm" style="color: var(--sc-text-secondary);">
-                  No filters applied
-                </span>
-              <% else %>
-                <%= for filter_label <- Enum.take(@applied_filters, 4) do %>
-                  <span
-                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium"
-                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-secondary);"
-                  >
-                    {filter_label}
-                  </span>
-                <% end %>
-
-                <span
-                  :if={length(@applied_filters) > 4}
-                  class="text-xs font-medium"
+            <div class="min-w-0 flex-1 space-y-3">
+              <div>
+                <p
+                  class="text-xs font-semibold uppercase tracking-[0.2em]"
                   style="color: var(--sc-text-muted);"
                 >
-                  +{length(@applied_filters) - 4} more
-                </span>
-              <% end %>
+                  {@controller_title}
+                </p>
+                <div class="mt-1 flex flex-wrap items-center gap-2">
+                  <h3 class="text-base font-semibold" style="color: var(--sc-text-primary);">
+                    {@current_view_label}
+                  </h3>
+                  <span
+                    class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
+                    style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+                  >
+                    {length(@applied_filters)} applied filter{if(length(@applied_filters) == 1,
+                      do: "",
+                      else: "s"
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div :if={@promoted_filters != []} class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div
+                  :for={filter <- @promoted_filters}
+                  class="rounded-lg border p-3"
+                  style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg);"
+                >
+                  <label
+                    for={"promoted-filter-value-#{filter.uuid}"}
+                    class="mb-1 block text-xs font-semibold tracking-[0.08em]"
+                    style="color: var(--sc-text-muted);"
+                  >
+                    {filter.label}
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      id={"promoted-filter-value-#{filter.uuid}"}
+                      type="text"
+                      name={"promoted_filters[#{filter.uuid}][value]"}
+                      value={filter.value}
+                      class={Theme.slot(@theme, :input)}
+                      phx-debounce="300"
+                    />
+                    <span
+                      class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+                      style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+                    >
+                      Equals
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                :if={Enum.empty?(@applied_filters) or @summary_filters != []}
+                class="flex flex-wrap items-center gap-2"
+              >
+                <%= if Enum.empty?(@applied_filters) do %>
+                  <span class="text-sm" style="color: var(--sc-text-secondary);">
+                    No filters applied
+                  </span>
+                <% else %>
+                  <%= for filter_label <- Enum.take(@summary_filters, 4) do %>
+                    <span
+                      class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium"
+                      style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-secondary);"
+                    >
+                      {filter_label}
+                    </span>
+                  <% end %>
+
+                  <span
+                    :if={length(@summary_filters) > 4}
+                    class="text-xs font-medium"
+                    style="color: var(--sc-text-muted);"
+                  >
+                    +{length(@summary_filters) - 4} more
+                  </span>
+                <% end %>
+              </div>
             </div>
           </div>
-
-          <button
-            type="button"
-            phx-click={JS.push("toggle_show_view_configurator")}
-            aria-expanded={to_string(@show_view_configurator)}
-            aria-controls={"selecto-controller-body-#{@id}"}
-            class="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition"
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
-          >
-            Toggle View Controller
-          </button>
         </div>
 
         <div
@@ -128,22 +203,6 @@ defmodule SelectoComponents.Form do
           aria-hidden={to_string(!@show_view_configurator)}
           class={if @show_view_configurator, do: "", else: "hidden"}
         >
-          <.live_component
-            :if={Map.get(assigns, :saved_view_config_module)}
-            module={SelectoComponents.ViewConfigManager}
-            id="view_config_manager"
-            view_config={@view_config}
-            saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
-            saved_view_context={
-              SelectoComponents.Tenant.scoped_context(
-                Map.get(assigns, :saved_view_context),
-                Map.get(assigns, :tenant_context)
-              )
-            }
-            current_user_id={Map.get(assigns, :current_user_id)}
-            parent_id={@myself}
-          />
-
           <div class="mb-4 flex border-b" style="border-color: var(--sc-surface-border)">
             <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
               <button
@@ -238,6 +297,22 @@ defmodule SelectoComponents.Form do
             }
           >
             <.live_component
+              :if={Map.get(assigns, :saved_view_config_module)}
+              module={SelectoComponents.ViewConfigManager}
+              id="view_config_manager"
+              view_config={@view_config}
+              saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
+              saved_view_context={
+                SelectoComponents.Tenant.scoped_context(
+                  Map.get(assigns, :saved_view_context),
+                  Map.get(assigns, :tenant_context)
+                )
+              }
+              current_user_id={Map.get(assigns, :current_user_id)}
+              parent_id={@myself}
+            />
+
+            <.live_component
               module={SelectoComponents.Components.Tabs}
               id="view_mode"
               fieldname="view_mode"
@@ -258,196 +333,280 @@ defmodule SelectoComponents.Form do
             </.live_component>
           </div>
 
-        <div
-          role="tabpanel"
-          id="main-tabpanel-filter"
-          aria-labelledby="main-tab-filter"
-          class={
-            if @active_tab == "filter" do
-              Theme.slot(@theme, :panel) <> " p-3"
-            else
-              "hidden"
-            end
-          }
-        >
-          <!-- Filter Sets Component -->
-          <.live_component
-            :if={Map.get(assigns, :filter_sets_adapter)}
-            module={SelectoComponents.Filter.FilterSets}
-            id="filter_sets"
-            user_id={Map.get(assigns, :user_id)}
-            domain={
-              SelectoComponents.Tenant.scoped_context(
-                Map.get(assigns, :domain) || Map.get(assigns, :path),
-                Map.get(assigns, :tenant_context)
-              )
+          <div
+            role="tabpanel"
+            id="main-tabpanel-filter"
+            aria-labelledby="main-tab-filter"
+            class={
+              if @active_tab == "filter" do
+                Theme.slot(@theme, :panel) <> " p-3"
+              else
+                "hidden"
+              end
             }
-            current_filters={@view_config.filters}
-            filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
-          />
+          >
+            <!-- Filter Sets Component -->
+            <.live_component
+              :if={Map.get(assigns, :filter_sets_adapter)}
+              module={SelectoComponents.Filter.FilterSets}
+              id="filter_sets"
+              user_id={Map.get(assigns, :user_id)}
+              domain={
+                SelectoComponents.Tenant.scoped_context(
+                  Map.get(assigns, :domain) || Map.get(assigns, :path),
+                  Map.get(assigns, :tenant_context)
+                )
+              }
+              current_filters={@view_config.filters}
+              filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
+            />
 
-          <.live_component
+            <.live_component
               module={SelectoComponents.Components.TreeBuilder}
               id={"#{@id}_tree_builder_#{FilterRendering.hash_filter_structure(@view_config.filters)}"}
               theme={@theme}
               available={FilterRendering.build_filter_list(@selecto)}
               filters={@view_config.filters}
+            >
+              <:filter_form :let={{uuid, index, section, filter_value}}>
+                {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
+              </:filter_form>
+            </.live_component>
+          </div>
+
+          <div
+            :if={@use_saved_views}
+            role="tabpanel"
+            id="main-tabpanel-save"
+            aria-labelledby="main-tab-save"
+            class={
+              if @active_tab == "save" do
+                Theme.slot(@theme, :panel) <> " p-3"
+              else
+                "hidden"
+              end
+            }
           >
-            <:filter_form :let={{uuid, index, section, filter_value}}>
-              {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
-            </:filter_form>
-          </.live_component>
-        </div>
+            <h3 class="text-base-content font-medium mb-2">Save View Configuration</h3>
+            <div class="space-y-4">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                Save your current view configuration for later use.
+              </p>
+              <div class="flex items-center gap-2">
+                <label for="save_as" class="text-sm font-medium">Save As:</label>
+                <.sc_input
+                  name="save_as"
+                  id="save_as"
+                  placeholder="Enter view name..."
+                  class="flex-1"
+                  theme={@theme}
+                />
+              </div>
+            </div>
+          </div>
 
-        <div
-          :if={@use_saved_views}
-          role="tabpanel"
-          id="main-tabpanel-save"
-          aria-labelledby="main-tab-save"
-          class={
-            if @active_tab == "save" do
-              Theme.slot(@theme, :panel) <> " p-3"
-            else
-              "hidden"
-            end
-          }
-        >
-          <h3 class="text-base-content font-medium mb-2">Save View Configuration</h3>
-          <div class="space-y-4">
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-              Save your current view configuration for later use.
-            </p>
-            <div class="flex items-center gap-2">
-              <label for="save_as" class="text-sm font-medium">Save As:</label>
-              <.sc_input name="save_as" id="save_as" placeholder="Enter view name..." class="flex-1" theme={@theme} />
+          <div
+            role="tabpanel"
+            id="main-tabpanel-export"
+            aria-labelledby="main-tab-export"
+            class={
+              if @active_tab == "export" do
+                Theme.slot(@theme, :panel) <> " p-3"
+              else
+                "hidden"
+              end
+            }
+          >
+            <h3 class="text-base-content font-medium mb-2">Export Options</h3>
+            <div class="space-y-6">
+              <p class="text-sm" style="color: var(--sc-text-secondary);">
+                Export current query results now:
+              </p>
+
+              <div class="flex flex-wrap gap-2">
+                <.sc_button
+                  type="button"
+                  phx-click="export_data"
+                  phx-value-format="csv"
+                  theme={@theme}
+                >
+                  Download CSV
+                </.sc_button>
+                <.sc_button
+                  type="button"
+                  phx-click="export_data"
+                  phx-value-format="tsv"
+                  theme={@theme}
+                >
+                  Download TSV
+                </.sc_button>
+                <.sc_button
+                  type="button"
+                  phx-click="export_data"
+                  phx-value-format="json"
+                  theme={@theme}
+                >
+                  Download JSON
+                </.sc_button>
+                <.sc_button
+                  type="button"
+                  phx-click="export_data"
+                  phx-value-format="xlsx"
+                  theme={@theme}
+                >
+                  Download XLSX
+                </.sc_button>
+              </div>
+
+              <div
+                :if={@use_export_delivery}
+                class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"}
+                style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 70%, var(--sc-surface-bg));"
+              >
+                <div>
+                  <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">
+                    Send Current Results by Email
+                  </h4>
+                  <p class="text-xs" style="color: var(--sc-text-muted);">
+                    Uses the current query results and sends them through the configured host-app delivery adapter.
+                  </p>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-2">
+                  <div class="space-y-2 lg:col-span-2">
+                    <label
+                      class="text-sm font-medium"
+                      style="color: var(--sc-text-secondary);"
+                      for={"export-email-recipients-#{@id}"}
+                    >
+                      Recipients
+                    </label>
+                    <input
+                      id={"export-email-recipients-#{@id}"}
+                      class={Theme.slot(@theme, :input)}
+                      placeholder="ops@example.com, finance@example.com"
+                    />
+                    <p class="text-xs" style="color: var(--sc-text-muted);">
+                      Separate recipients with commas, semicolons, or new lines.
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label
+                      class="text-sm font-medium"
+                      style="color: var(--sc-text-secondary);"
+                      for={"export-email-format-#{@id}"}
+                    >
+                      Format
+                    </label>
+                    <select id={"export-email-format-#{@id}"} class={Theme.slot(@theme, :select)}>
+                      <option value="csv" selected>CSV</option>
+                      <option value="tsv">TSV</option>
+                      <option value="json">JSON</option>
+                      <option value="xlsx">XLSX</option>
+                    </select>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label
+                      class="text-sm font-medium"
+                      style="color: var(--sc-text-secondary);"
+                      for={"export-email-subject-#{@id}"}
+                    >
+                      Subject
+                    </label>
+                    <input
+                      id={"export-email-subject-#{@id}"}
+                      class={Theme.slot(@theme, :input)}
+                      placeholder="Current Selecto export"
+                    />
+                  </div>
+
+                  <div class="space-y-2 lg:col-span-2">
+                    <label
+                      class="text-sm font-medium"
+                      style="color: var(--sc-text-secondary);"
+                      for={"export-email-body-#{@id}"}
+                    >
+                      Body
+                    </label>
+                    <textarea
+                      id={"export-email-body-#{@id}"}
+                      rows="4"
+                      class={Theme.slot(@theme, :input)}
+                      placeholder="Attached is the latest export."
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-xs" style="color: var(--sc-text-muted);">
+                    This first slice sends the already-loaded result set rather than re-running the query.
+                  </p>
+                  <button
+                    type="button"
+                    data-export-email-button="true"
+                    data-recipients-input={"export-email-recipients-#{@id}"}
+                    data-format-input={"export-email-format-#{@id}"}
+                    data-subject-input={"export-email-subject-#{@id}"}
+                    data-body-input={"export-email-body-#{@id}"}
+                    class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}
+                  >
+                    Send Email Export
+                  </button>
+                </div>
+              </div>
+
+              <p :if={!@use_export_delivery} class="text-xs text-gray-500 dark:text-gray-400">
+                Assign `export_delivery_module` in the host LiveView to enable one-off email delivery.
+              </p>
+
+              <.live_component
+                :if={@use_scheduled_exports}
+                module={SelectoComponents.ScheduledExports.Manager}
+                id="scheduled_exports_manager"
+                scheduled_export_module={Map.get(assigns, :scheduled_export_module)}
+                scheduled_export_context={
+                  Map.get(assigns, :scheduled_export_context) ||
+                    SelectoComponents.Tenant.scoped_context(
+                      Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
+                      Map.get(assigns, :tenant_context)
+                    )
+                }
+                current_user_id={Map.get(assigns, :current_user_id)}
+                selecto={@selecto}
+                views={@views}
+                view_config={@view_config}
+                path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
+                tenant_context={Map.get(assigns, :tenant_context)}
+              />
+
+              <.live_component
+                :if={@use_exported_views}
+                module={SelectoComponents.ExportedViews.Manager}
+                id="exported_views_manager"
+                exported_view_module={Map.get(assigns, :exported_view_module)}
+                exported_view_context={
+                  Map.get(assigns, :exported_view_context) ||
+                    SelectoComponents.Tenant.scoped_context(
+                      Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
+                      Map.get(assigns, :tenant_context)
+                    )
+                }
+                exported_view_endpoint={Map.get(assigns, :exported_view_endpoint)}
+                exported_view_base_url={Map.get(assigns, :exported_view_base_url)}
+                current_user_id={Map.get(assigns, :current_user_id)}
+                selecto={@selecto}
+                views={@views}
+                view_config={@view_config}
+                path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
+                tenant_context={Map.get(assigns, :tenant_context)}
+              />
             </div>
           </div>
         </div>
 
-        <div
-          role="tabpanel"
-          id="main-tabpanel-export"
-          aria-labelledby="main-tab-export"
-          class={
-            if @active_tab == "export" do
-              Theme.slot(@theme, :panel) <> " p-3"
-            else
-              "hidden"
-            end
-          }
-        >
-          <h3 class="text-base-content font-medium mb-2">Export Options</h3>
-          <div class="space-y-6">
-            <p class="text-sm" style="color: var(--sc-text-secondary);">
-              Export current query results now:
-            </p>
-
-            <div class="flex flex-wrap gap-2">
-              <.sc_button type="button" phx-click="export_data" phx-value-format="csv" theme={@theme}>
-                Download CSV
-              </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="tsv" theme={@theme}>
-                Download TSV
-              </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="json" theme={@theme}>
-                Download JSON
-              </.sc_button>
-              <.sc_button type="button" phx-click="export_data" phx-value-format="xlsx" theme={@theme}>
-                Download XLSX
-              </.sc_button>
-            </div>
-
-            <div :if={@use_export_delivery} class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"} style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 70%, var(--sc-surface-bg));">
-              <div>
-                <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">Send Current Results by Email</h4>
-                <p class="text-xs" style="color: var(--sc-text-muted);">
-                  Uses the current query results and sends them through the configured host-app delivery adapter.
-                </p>
-              </div>
-
-              <div class="grid gap-4 lg:grid-cols-2">
-                <div class="space-y-2 lg:col-span-2">
-                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-recipients-#{@id}"}>Recipients</label>
-                  <input id={"export-email-recipients-#{@id}"} class={Theme.slot(@theme, :input)} placeholder="ops@example.com, finance@example.com" />
-                  <p class="text-xs" style="color: var(--sc-text-muted);">Separate recipients with commas, semicolons, or new lines.</p>
-                </div>
-
-                <div class="space-y-2">
-                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-format-#{@id}"}>Format</label>
-                  <select id={"export-email-format-#{@id}"} class={Theme.slot(@theme, :select)}>
-                    <option value="csv" selected>CSV</option>
-                    <option value="tsv">TSV</option>
-                    <option value="json">JSON</option>
-                    <option value="xlsx">XLSX</option>
-                  </select>
-                </div>
-
-                <div class="space-y-2">
-                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-subject-#{@id}"}>Subject</label>
-                  <input id={"export-email-subject-#{@id}"} class={Theme.slot(@theme, :input)} placeholder="Current Selecto export" />
-                </div>
-
-                <div class="space-y-2 lg:col-span-2">
-                  <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-email-body-#{@id}"}>Body</label>
-                  <textarea id={"export-email-body-#{@id}"} rows="4" class={Theme.slot(@theme, :input)} placeholder="Attached is the latest export."></textarea>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-xs" style="color: var(--sc-text-muted);">This first slice sends the already-loaded result set rather than re-running the query.</p>
-                <button type="button" data-export-email-button="true" data-recipients-input={"export-email-recipients-#{@id}"} data-format-input={"export-email-format-#{@id}"} data-subject-input={"export-email-subject-#{@id}"} data-body-input={"export-email-body-#{@id}"} class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}>
-                  Send Email Export
-                </button>
-              </div>
-            </div>
-
-            <p :if={!@use_export_delivery} class="text-xs text-gray-500 dark:text-gray-400">
-              Assign `export_delivery_module` in the host LiveView to enable one-off email delivery.
-            </p>
-
-            <.live_component
-              :if={@use_scheduled_exports}
-              module={SelectoComponents.ScheduledExports.Manager}
-              id="scheduled_exports_manager"
-              scheduled_export_module={Map.get(assigns, :scheduled_export_module)}
-              scheduled_export_context={
-                Map.get(assigns, :scheduled_export_context) ||
-                  SelectoComponents.Tenant.scoped_context(
-                    Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
-                    Map.get(assigns, :tenant_context)
-                  )
-              }
-              current_user_id={Map.get(assigns, :current_user_id)}
-              selecto={@selecto}
-              views={@views}
-              view_config={@view_config}
-              path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
-              tenant_context={Map.get(assigns, :tenant_context)}
-            />
-
-            <.live_component
-              :if={@use_exported_views}
-              module={SelectoComponents.ExportedViews.Manager}
-              id="exported_views_manager"
-              exported_view_module={Map.get(assigns, :exported_view_module)}
-              exported_view_context={
-                Map.get(assigns, :exported_view_context) ||
-                  SelectoComponents.Tenant.scoped_context(
-                    Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
-                    Map.get(assigns, :tenant_context)
-                  )
-              }
-              exported_view_endpoint={Map.get(assigns, :exported_view_endpoint)}
-              exported_view_base_url={Map.get(assigns, :exported_view_base_url)}
-              current_user_id={Map.get(assigns, :current_user_id)}
-              selecto={@selecto}
-              views={@views}
-              view_config={@view_config}
-              path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
-              tenant_context={Map.get(assigns, :tenant_context)}
-            />
-          </div>
-        </div>
+        <div class="mt-4 flex justify-end">
           <.sc_button theme={@theme}>Submit</.sc_button>
         </div>
       </.form>
@@ -492,7 +651,9 @@ defmodule SelectoComponents.Form do
                 title_template={Map.get(@modal_detail_data, :title_template)}
                 component_module={Map.get(@modal_detail_data, :component_module)}
                 component_assigns={Map.get(@modal_detail_data, :component_assigns, %{})}
-                component_assigns_template={Map.get(@modal_detail_data, :component_assigns_template, %{})}
+                component_assigns_template={
+                  Map.get(@modal_detail_data, :component_assigns_template, %{})
+                }
                 size={Map.get(@modal_detail_data, :size, :xl)}
                 navigation_enabled={Map.get(@modal_detail_data, :navigation_enabled, true)}
               />
@@ -660,6 +821,97 @@ defmodule SelectoComponents.Form do
     end
   end
 
+  defp controller_filters(selecto, filters) do
+    filters
+    |> Enum.reduce([], fn
+      {uuid, _section, %{} = filter}, acc ->
+        case controller_filter_data(selecto, uuid, filter) do
+          nil -> acc
+          filter_data -> [filter_data | acc]
+        end
+
+      [uuid, _section, %{} = filter], acc ->
+        case controller_filter_data(selecto, uuid, filter) do
+          nil -> acc
+          filter_data -> [filter_data | acc]
+        end
+
+      _, acc ->
+        acc
+    end)
+    |> Enum.reverse()
+  end
+
+  defp controller_filter_data(selecto, uuid, filter) do
+    label = filter_label(selecto, filter)
+    comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
+    summary = filter_summary(selecto, filter)
+
+    case {label, summary} do
+      {nil, _summary} ->
+        nil
+
+      {_label, nil} ->
+        nil
+
+      {label, summary} ->
+        %{
+          uuid: to_string(uuid),
+          label: controller_filter_label(selecto, filter, label),
+          summary: summary,
+          value: controller_filter_value(filter),
+          editable: promoted_filter?(filter) and comp == "="
+        }
+    end
+  end
+
+  defp controller_filter_label(selecto, filter, label) do
+    display_label =
+      case normalize_controller_filter_label(label, filter) do
+        nil -> humanize_filter_id(Map.get(filter, "filter") || Map.get(filter, :filter))
+        normalized -> normalized
+      end
+
+    case controller_domain_name(selecto) do
+      nil -> display_label
+      domain_name -> "#{domain_name}: #{display_label}"
+    end
+  end
+
+  defp normalize_controller_filter_label(nil, _filter), do: nil
+
+  defp normalize_controller_filter_label(label, filter) when is_binary(label) do
+    fallback = humanize_filter_id(Map.get(filter, "filter") || Map.get(filter, :filter))
+
+    cond do
+      String.trim(label) == "" ->
+        fallback
+
+      label == String.upcase(label) and is_binary(fallback) and fallback != "" ->
+        fallback
+
+      true ->
+        label
+    end
+  end
+
+  defp normalize_controller_filter_label(_label, filter) do
+    humanize_filter_id(Map.get(filter, "filter") || Map.get(filter, :filter))
+  end
+
+  defp controller_domain_name(selecto) do
+    case Selecto.domain(selecto) do
+      %{name: name} when is_binary(name) ->
+        case String.trim(name) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   defp applied_filters(selecto, filters) do
     filters
     |> Enum.reduce([], fn
@@ -791,6 +1043,14 @@ defmodule SelectoComponents.Form do
         |> scalar_filter_values()
         |> compact_filter_values()
     end
+  end
+
+  defp controller_filter_value(filter) do
+    Map.get(filter, "value") || Map.get(filter, :value) || ""
+  end
+
+  defp promoted_filter?(filter) do
+    Map.get(filter, "promote", Map.get(filter, :promote)) in [true, "true", "on", "1", "Y", "y"]
   end
 
   defp polymorphic_filter?(filter) do

@@ -1907,6 +1907,8 @@ defmodule SelectoComponents.Form.ParamsState do
   defp detail_param_atom("prevent_denormalization"), do: :prevent_denormalization
 
   def canonicalize_form_params(params) when is_map(params) do
+    params = merge_promoted_filter_params(params)
+
     row_click_action =
       normalize_optional_scalar(get_map_value(params, "row_click_action_ui")) ||
         normalize_optional_scalar(get_map_value(params, "row_click_action"))
@@ -1919,6 +1921,38 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def canonicalize_form_params(params), do: params
+
+  defp merge_promoted_filter_params(params) when not is_map(params), do: params
+
+  defp merge_promoted_filter_params(params) do
+    case {Map.get(params, "filters"), Map.get(params, "promoted_filters")} do
+      {filters, promoted_filters} when is_map(filters) and is_map(promoted_filters) ->
+        merged_filters =
+          Enum.reduce(promoted_filters, filters, fn
+            {uuid, promoted_values}, acc when is_binary(uuid) and is_map(promoted_values) ->
+              current_filter = Map.get(acc, uuid, %{})
+
+              Map.put(
+                acc,
+                uuid,
+                Map.merge(
+                  current_filter,
+                  Map.take(promoted_values, ["value", "value_start", "value_end", "value2"])
+                )
+              )
+
+            _, acc ->
+              acc
+          end)
+
+        params
+        |> Map.put("filters", merged_filters)
+        |> Map.delete("promoted_filters")
+
+      _ ->
+        params
+    end
+  end
 
   @doc """
   Normalize submitted form params so submit uses the browser form state as truth.

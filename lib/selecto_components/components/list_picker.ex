@@ -35,564 +35,622 @@ defmodule SelectoComponents.Components.ListPicker do
       |> assign(component_dom_id: "list-picker-#{assigns.id}")
 
     ~H"""
-      <div
-        id={"#{@component_dom_id}-filter"}
-        phx-hook=".ListPickerFilter"
-        data-list-picker-root
-        class="grid min-w-0 grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] items-start gap-3"
-      >
-        <section class="min-w-0 space-y-2">
-          <div class="min-w-0" style="color: var(--sc-text-primary);">
-            <div class="text-sm font-semibold">Available</div>
+    <div
+      id={"#{@component_dom_id}-filter"}
+      phx-hook=".ListPickerFilter"
+      data-list-picker-root
+      class="grid min-w-0 grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] items-start gap-3"
+    >
+      <section class="min-w-0 space-y-2">
+        <div class="min-w-0" style="color: var(--sc-text-primary);">
+          <div class="text-sm font-semibold">Available</div>
 
-            <div class="mt-2 flex items-center gap-1">
-              <input data-filter-input placeholder="Filter Available Items" class={Theme.slot(@theme, :input) <> " min-w-0 flex-1"}/>
-              <div class="relative">
-                <button data-type-filter-toggle class={[Theme.slot(@theme, :button_secondary), "h-7", "w-8", "px-0"]} type="button" title="Filter by type" aria-expanded="false">
-                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M3.75 4.5A.75.75 0 0 1 4.5 3.75h11a.75.75 0 0 1 .56 1.25L12 9.57v4.18a.75.75 0 0 1-.38.65l-2 1.14A.75.75 0 0 1 8.5 14.9V9.57L3.94 5a.75.75 0 0 1-.19-.5Z" />
-                  </svg>
-                </button>
-                <div data-type-filter-menu class="absolute right-0 z-20 mt-2 hidden min-w-[12rem] rounded-xl border p-3 shadow-lg" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);">
-                  <div class="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">Show types</div>
-                  <div class="space-y-2">
-                    <label :for={type_filter <- @type_filters} class="flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
-                      <input data-type-filter-checkbox type="checkbox" value={type_filter.key} class="checkbox checkbox-sm" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);" />
-                      <.type_badge type={%{icon: String.to_atom(type_filter.key)}} />
-                      <span class="flex-1">{type_filter.label}</span>
-                      <span class="text-xs" style="color: var(--sc-text-muted);">{type_filter.count}</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <button data-filter-clear class={[Theme.slot(@theme, :button_danger), "hidden", "h-7", "w-7"]} type="button" title="Clear filter">
-                <span aria-hidden="true" class="text-base leading-none">×</span>
-              </button>
-            </div>
-          </div>
-
-          <div class={Theme.slot(@theme, :panel) <> " flex h-96 min-w-0 flex-col gap-1 overflow-auto p-2"} style="background: var(--sc-surface-bg-alt);">
-            <div
-              :for={{id, name, field_type} <- @available}
-              data-picker-action="add"
-              data-view-id={@view_id}
-              data-list-id={@fieldname}
-              data-item-id={id}
-              data-type-key={normalize_icon_key(field_type)}
-              data-available-item
-              class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
-            >
-              <div class="flex items-start gap-2">
-                <.type_badge type={field_type} />
-                <span class="block break-words">{name}</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id={@component_dom_id}
-          phx-hook=".ListPickerSortable"
-          data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
-          class={Theme.slot(@theme, :panel) <> " flex min-w-0 flex-col gap-3 p-2"}
-          style="background: var(--sc-surface-bg);"
-        >
-          <div class="min-w-0" style="color: var(--sc-text-primary);">
-            <div class="text-sm font-semibold">Selected</div>
-          </div>
-
-          <div class="min-h-0 flex-1 space-y-2 overflow-auto xl:h-96">
-            <button
-              id={"#{@component_dom_id}-reorder-button"}
-              type="button"
-              class="hidden"
-              data-picker-action="reorder"
-              data-view-id={@view_id}
-              data-list-id={@fieldname}
-              data-item-id=""
-              data-target-item-id=""
+          <div class="mt-2 flex items-center gap-1">
+            <input
+              data-filter-input
+              placeholder="Filter Available Items"
+              class={Theme.slot(@theme, :input) <> " min-w-0 flex-1"}
             />
+            <div class="relative">
+              <button
+                data-type-filter-toggle
+                class={[Theme.slot(@theme, :button_secondary), "h-8", "w-8", "px-0"]}
+                type="button"
+                title="Filter by type"
+                aria-expanded="false"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M3.75 4.5A.75.75 0 0 1 4.5 3.75h11a.75.75 0 0 1 .56 1.25L12 9.57v4.18a.75.75 0 0 1-.38.65l-2 1.14A.75.75 0 0 1 8.5 14.9V9.57L3.94 5a.75.75 0 0 1-.19-.5Z" />
+                </svg>
+              </button>
+              <div
+                data-type-filter-menu
+                class="absolute right-0 z-20 mt-2 hidden min-w-[12rem] rounded-xl border p-3 shadow-lg"
+                style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+              >
+                <div
+                  class="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em]"
+                  style="color: var(--sc-text-muted);"
+                >
+                  Show types
+                </div>
+                <div class="space-y-2">
+                  <label
+                    :for={type_filter <- @type_filters}
+                    class="flex items-center gap-2 text-sm"
+                    style="color: var(--sc-text-secondary);"
+                  >
+                    <input
+                      data-type-filter-checkbox
+                      type="checkbox"
+                      value={type_filter.key}
+                      class="checkbox checkbox-sm"
+                      style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+                    />
+                    <.type_badge type={%{icon: String.to_atom(type_filter.key)}} />
+                    <span class="flex-1">{type_filter.label}</span>
+                    <span class="text-xs" style="color: var(--sc-text-muted);">
+                      {type_filter.count}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <button
+              data-filter-clear
+              class={[Theme.slot(@theme, :button_danger), "hidden", "h-7", "w-7"]}
+              type="button"
+              title="Clear filter"
+            >
+              <span aria-hidden="true" class="text-base leading-none">×</span>
+            </button>
+          </div>
+        </div>
 
-            <div :if={Enum.empty?(@selected_items)} class="rounded-lg border border-dashed px-4 py-6 text-center text-sm" style="border-color: var(--sc-surface-border); color: var(--sc-text-muted);">
-              Pick items from the available list to add them here.
+        <div
+          class={Theme.slot(@theme, :panel) <> " flex h-96 min-w-0 flex-col gap-1 overflow-auto p-2"}
+          style="background: var(--sc-surface-bg-alt);"
+        >
+          <div
+            :for={{id, name, field_type} <- @available}
+            data-picker-action="add"
+            data-view-id={@view_id}
+            data-list-id={@fieldname}
+            data-item-id={id}
+            data-type-key={normalize_icon_key(field_type)}
+            data-available-item
+            class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+          >
+            <div class="flex items-start gap-2">
+              <.type_badge type={field_type} />
+              <span class="block break-words">{name}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id={@component_dom_id}
+        phx-hook=".ListPickerSortable"
+        data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
+        class={Theme.slot(@theme, :panel) <> " flex min-w-0 flex-col gap-3 p-2"}
+        style="background: var(--sc-surface-bg);"
+      >
+        <div class="min-w-0" style="color: var(--sc-text-primary);">
+          <div class="text-sm font-semibold">Selected</div>
+        </div>
+
+        <div class="min-h-0 flex-1 space-y-2 overflow-auto xl:h-96">
+          <button
+            id={"#{@component_dom_id}-reorder-button"}
+            type="button"
+            class="hidden"
+            data-picker-action="reorder"
+            data-view-id={@view_id}
+            data-list-id={@fieldname}
+            data-item-id=""
+            data-target-item-id=""
+          />
+
+          <div
+            :if={Enum.empty?(@selected_items)}
+            class="rounded-lg border border-dashed px-4 py-6 text-center text-sm"
+            style="border-color: var(--sc-surface-border); color: var(--sc-text-muted);"
+          >
+            Pick items from the available list to add them here.
+          </div>
+
+          <div
+            :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
+            id={"#{@component_dom_id}-item-#{id}"}
+            phx-hook=".ListPickerEditor"
+            draggable="true"
+            data-picker-item-id={id}
+            class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
+            style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+          >
+            <% selected_type = selected_item_type(@available, item) %>
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                class="cursor-grab active:cursor-grabbing"
+                style="color: var(--sc-text-muted);"
+                title="Drag to reorder"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                </svg>
+              </button>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex min-w-0 items-center gap-2 text-sm">
+                  <.type_badge type={selected_type} />
+                  <div class="min-w-0 flex-1 truncate font-medium">
+                    <%= if @item_summary != [] do %>
+                      {render_slot(@item_summary, {id, item, conf, index})}
+                    <% else %>
+                      <span class="truncate">{item}</span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  data-editor-toggle
+                  class={[Theme.slot(@theme, :button_secondary), "h-7", "px-2", "text-xs"]}
+                >
+                  <span data-editor-open-label>Edit</span>
+                  <span data-editor-close-label class="hidden">Close</span>
+                </button>
+                <.sc_x_button
+                  theme={@theme}
+                  data-picker-action="remove"
+                  data-view-id={@view_id}
+                  data-list-id={@fieldname}
+                  data-item-id={id}
+                />
+              </div>
             </div>
 
             <div
-              :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-              id={"#{@component_dom_id}-item-#{id}"}
-              phx-hook=".ListPickerEditor"
-              draggable="true"
-              data-picker-item-id={id}
-              class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
-              style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+              data-editor-content
+              class="mt-3 hidden border-t pt-3"
+              style="border-color: var(--sc-surface-border);"
             >
-              <% selected_type = selected_item_type(@available, item) %>
-              <div class="flex items-center gap-3">
-                <button type="button" class="cursor-grab active:cursor-grabbing" style="color: var(--sc-text-muted);" title="Drag to reorder">
-                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
-                  </svg>
-                </button>
-
-                <div class="min-w-0 flex-1">
-                  <div class="flex min-w-0 items-center gap-2 text-sm">
-                    <.type_badge type={selected_type} />
-                    <div class="min-w-0 flex-1 truncate font-medium">
-                      <%= if @item_summary != [] do %>
-                        <%= render_slot(@item_summary, {id, item, conf, index}) %>
-                      <% else %>
-                        <span class="truncate"><%= item %></span>
-                      <% end %>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    data-editor-toggle
-                    class={[Theme.slot(@theme, :button_secondary), "h-7", "px-2", "text-xs"]}
-                  >
-                    <span data-editor-open-label>Edit</span>
-                    <span data-editor-close-label class="hidden">Close</span>
-                  </button>
-                  <.sc_x_button theme={@theme} data-picker-action="remove" data-view-id={@view_id} data-list-id={@fieldname} data-item-id={id}/>
-                </div>
-              </div>
-
-              <div data-editor-content class="mt-3 hidden border-t pt-3" style="border-color: var(--sc-surface-border);">
-                <%= render_slot(@item_form, {id, item, conf, index}) %>
-              </div>
+              {render_slot(@item_form, {id, item, conf, index})}
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerSortable">
-          export default {
-            mounted() {
-              this.draggedItemId = null;
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerSortable">
+        export default {
+          mounted() {
+            this.draggedItemId = null;
 
-              const reorderButtonId = this.el.dataset.reorderButtonId;
-              const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
+            const reorderButtonId = this.el.dataset.reorderButtonId;
+            const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
 
-              const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
+            const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
 
-              const clearDropIndicators = () => {
-                itemElements().forEach((item) => {
-                  item.classList.remove('ring-2', 'ring-primary/40');
-                });
-              };
+            const clearDropIndicators = () => {
+              itemElements().forEach((item) => {
+                item.classList.remove('ring-2', 'ring-primary/40');
+              });
+            };
 
-              const bindItem = (item) => {
-                if (item.dataset.sortableBound === 'true') {
+            const bindItem = (item) => {
+              if (item.dataset.sortableBound === 'true') {
+                return;
+              }
+
+              item.dataset.sortableBound = 'true';
+
+              item.addEventListener('dragstart', (event) => {
+                this.draggedItemId = item.dataset.pickerItemId;
+                item.classList.add('opacity-60');
+
+                if (event.dataTransfer) {
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', this.draggedItemId || '');
+                }
+              });
+
+              item.addEventListener('dragend', () => {
+                item.classList.remove('opacity-60');
+                clearDropIndicators();
+              });
+
+              item.addEventListener('dragover', (event) => {
+                if (!this.draggedItemId || this.draggedItemId === item.dataset.pickerItemId) {
                   return;
                 }
 
-                item.dataset.sortableBound = 'true';
+                event.preventDefault();
+                clearDropIndicators();
+                item.classList.add('ring-2', 'ring-primary/40');
+              });
 
-                item.addEventListener('dragstart', (event) => {
-                  this.draggedItemId = item.dataset.pickerItemId;
-                  item.classList.add('opacity-60');
+              item.addEventListener('dragleave', () => {
+                item.classList.remove('ring-2', 'ring-primary/40');
+              });
 
-                  if (event.dataTransfer) {
-                    event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData('text/plain', this.draggedItemId || '');
-                  }
+              item.addEventListener('drop', (event) => {
+                event.preventDefault();
+
+                const targetItemId = item.dataset.pickerItemId;
+
+                clearDropIndicators();
+
+                if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
+                  return;
+                }
+
+                reorderButton.dataset.itemId = this.draggedItemId;
+                reorderButton.dataset.targetItemId = targetItemId;
+
+                const root = this.el.closest('[data-list-picker-root]');
+                const form = root?.closest('form');
+
+                this.pushEventTo(this.el, 'reorder', {
+                  view: reorderButton.dataset.viewId,
+                  'list-id': reorderButton.dataset.listId,
+                  item: this.draggedItemId,
+                  'target-item': targetItemId,
+                  form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
                 });
+              });
+            };
 
-                item.addEventListener('dragend', () => {
-                  item.classList.remove('opacity-60');
-                  clearDropIndicators();
-                });
+            this.bindItems = () => {
+              itemElements().forEach(bindItem);
+            };
 
-                item.addEventListener('dragover', (event) => {
-                  if (!this.draggedItemId || this.draggedItemId === item.dataset.pickerItemId) {
-                    return;
-                  }
+            this.bindItems();
+          },
 
-                  event.preventDefault();
-                  clearDropIndicators();
-                  item.classList.add('ring-2', 'ring-primary/40');
-                });
-
-                item.addEventListener('dragleave', () => {
-                  item.classList.remove('ring-2', 'ring-primary/40');
-                });
-
-                item.addEventListener('drop', (event) => {
-                  event.preventDefault();
-
-                  const targetItemId = item.dataset.pickerItemId;
-
-                  clearDropIndicators();
-
-                  if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
-                    return;
-                  }
-
-                  reorderButton.dataset.itemId = this.draggedItemId;
-                  reorderButton.dataset.targetItemId = targetItemId;
-
-                  const root = this.el.closest('[data-list-picker-root]');
-                  const form = root?.closest('form');
-
-                  this.pushEventTo(this.el, 'reorder', {
-                    view: reorderButton.dataset.viewId,
-                    'list-id': reorderButton.dataset.listId,
-                    item: this.draggedItemId,
-                    'target-item': targetItemId,
-                    form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-                  });
-                });
-              };
-
-              this.bindItems = () => {
-                itemElements().forEach(bindItem);
-              };
-
+          updated() {
+            if (this.bindItems) {
               this.bindItems();
-            },
+            }
+          }
+        };
+      </script>
 
-            updated() {
-              if (this.bindItems) {
-                this.bindItems();
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerFilter">
+        export default {
+          persistKey() {
+            return this.el.id || 'list-picker-filter';
+          },
+
+          typePersistKey() {
+            return `${this.persistKey()}::type-filters`;
+          },
+
+          readPersistedFilter() {
+            const store = window.__selectoListPickerFilterValues || {};
+            return store[this.persistKey()] || '';
+          },
+
+          readPersistedTypeFilters() {
+            const store = window.__selectoListPickerTypeFilters || {};
+            return store[this.typePersistKey()] || [];
+          },
+
+          writePersistedFilter(value) {
+            window.__selectoListPickerFilterValues = window.__selectoListPickerFilterValues || {};
+            window.__selectoListPickerFilterValues[this.persistKey()] = value || '';
+          },
+
+          writePersistedTypeFilters(values) {
+            window.__selectoListPickerTypeFilters = window.__selectoListPickerTypeFilters || {};
+            window.__selectoListPickerTypeFilters[this.typePersistKey()] = values || [];
+          },
+
+          mounted() {
+            this.filterValue = this.readPersistedFilter();
+            this.selectedTypeFilters = this.readPersistedTypeFilters();
+            this.filterWasFocused = false;
+
+            this.bindActionHandlers();
+            this.bindFilter();
+            this.bindTypeFilters();
+            this.applyFilter();
+          },
+
+          beforeUpdate() {
+            this.filterWasFocused = document.activeElement === this.filterInput;
+            this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+            this.writePersistedFilter(this.filterValue);
+          },
+
+          updated() {
+            this.bindActionHandlers();
+            this.bindFilter();
+            this.bindTypeFilters();
+            this.applyFilter();
+
+            if (this.filterWasFocused && this.filterInput) {
+              this.filterInput.focus();
+
+              if (this.filterInput.setSelectionRange) {
+                const length = this.filterInput.value.length;
+                this.filterInput.setSelectionRange(length, length);
               }
             }
-          };
-        </script>
+          },
 
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerFilter">
-          export default {
-            persistKey() {
-              return this.el.id || 'list-picker-filter';
-            },
+          destroyed() {
+            if (this.filterInput && this.handleFilterInput) {
+              this.filterInput.removeEventListener('input', this.handleFilterInput);
+              this.filterInput.removeEventListener('keydown', this.handleFilterKeydown);
+            }
 
-            typePersistKey() {
-              return `${this.persistKey()}::type-filters`;
-            },
+            if (this.clearButton && this.handleClearClick) {
+              this.clearButton.removeEventListener('click', this.handleClearClick);
+            }
 
-            readPersistedFilter() {
-              const store = window.__selectoListPickerFilterValues || {};
-              return store[this.persistKey()] || '';
-            },
+            if (this.typeFilterToggle && this.handleTypeFilterToggle) {
+              this.typeFilterToggle.removeEventListener('click', this.handleTypeFilterToggle);
+            }
 
-            readPersistedTypeFilters() {
-              const store = window.__selectoListPickerTypeFilters || {};
-              return store[this.typePersistKey()] || [];
-            },
+            if (this.typeFilterMenu && this.handleTypeFilterDocumentClick) {
+              document.removeEventListener('click', this.handleTypeFilterDocumentClick);
+            }
 
-            writePersistedFilter(value) {
-              window.__selectoListPickerFilterValues = window.__selectoListPickerFilterValues || {};
-              window.__selectoListPickerFilterValues[this.persistKey()] = value || '';
-            },
+            if (this.typeFilterCheckboxes && this.handleTypeFilterChange) {
+              this.typeFilterCheckboxes.forEach((checkbox) => {
+                checkbox.removeEventListener('change', this.handleTypeFilterChange);
+              });
+            }
 
-            writePersistedTypeFilters(values) {
-              window.__selectoListPickerTypeFilters = window.__selectoListPickerTypeFilters || {};
-              window.__selectoListPickerTypeFilters[this.typePersistKey()] = values || [];
-            },
+            if (this.handleActionClick) {
+              this.el.removeEventListener('click', this.handleActionClick);
+            }
 
-            mounted() {
-              this.filterValue = this.readPersistedFilter();
-              this.selectedTypeFilters = this.readPersistedTypeFilters();
-              this.filterWasFocused = false;
+            this.writePersistedFilter(this.filterValue || '');
+            this.writePersistedTypeFilters(this.selectedTypeFilters || []);
+          },
 
-              this.bindActionHandlers();
-              this.bindFilter();
-              this.bindTypeFilters();
-              this.applyFilter();
-            },
+          bindActionHandlers() {
+            if (this.actionsBound) {
+              return;
+            }
 
-            beforeUpdate() {
-              this.filterWasFocused = document.activeElement === this.filterInput;
+            this.actionsBound = true;
+            this.handleActionClick = (event) => {
+              const trigger = event.target.closest('[data-picker-action]');
+
+              if (!trigger || !this.el.contains(trigger)) {
+                return;
+              }
+
+              const action = trigger.dataset.pickerAction;
+
+              if (!['add', 'remove'].includes(action)) {
+                return;
+              }
+
+              event.preventDefault();
+
+              const form = this.el.closest('form');
               this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
               this.writePersistedFilter(this.filterValue);
-            },
 
-            updated() {
-              this.bindActionHandlers();
-              this.bindFilter();
-              this.bindTypeFilters();
-              this.applyFilter();
+              this.pushEventTo(this.el, action, {
+                view: trigger.dataset.viewId,
+                'list-id': trigger.dataset.listId,
+                item: trigger.dataset.itemId,
+                form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+              });
+            };
 
-              if (this.filterWasFocused && this.filterInput) {
-                this.filterInput.focus();
+            this.el.addEventListener('click', this.handleActionClick);
+          },
 
-                if (this.filterInput.setSelectionRange) {
-                  const length = this.filterInput.value.length;
-                  this.filterInput.setSelectionRange(length, length);
-                }
-              }
-            },
+          bindFilter() {
+            const filterInput = this.el.querySelector('[data-filter-input]');
+            const clearButton = this.el.querySelector('[data-filter-clear]');
 
-            destroyed() {
+            if (this.filterInput !== filterInput) {
               if (this.filterInput && this.handleFilterInput) {
                 this.filterInput.removeEventListener('input', this.handleFilterInput);
                 this.filterInput.removeEventListener('keydown', this.handleFilterKeydown);
               }
 
-              if (this.clearButton && this.handleClearClick) {
-                this.clearButton.removeEventListener('click', this.handleClearClick);
-              }
+              this.filterInput = filterInput;
 
-              if (this.typeFilterToggle && this.handleTypeFilterToggle) {
-                this.typeFilterToggle.removeEventListener('click', this.handleTypeFilterToggle);
-              }
+              if (this.filterInput) {
+                this.filterInput.value = this.filterValue || '';
 
-              if (this.typeFilterMenu && this.handleTypeFilterDocumentClick) {
-                document.removeEventListener('click', this.handleTypeFilterDocumentClick);
-              }
+                this.handleFilterInput = () => {
+                  this.filterValue = this.filterInput.value;
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                };
 
-              if (this.typeFilterCheckboxes && this.handleTypeFilterChange) {
-                this.typeFilterCheckboxes.forEach((checkbox) => {
-                  checkbox.removeEventListener('change', this.handleTypeFilterChange);
-                });
-              }
-
-              if (this.handleActionClick) {
-                this.el.removeEventListener('click', this.handleActionClick);
-              }
-
-              this.writePersistedFilter(this.filterValue || '');
-              this.writePersistedTypeFilters(this.selectedTypeFilters || []);
-            },
-
-            bindActionHandlers() {
-              if (this.actionsBound) {
-                return;
-              }
-
-              this.actionsBound = true;
-              this.handleActionClick = (event) => {
-                const trigger = event.target.closest('[data-picker-action]');
-
-                if (!trigger || !this.el.contains(trigger)) {
-                  return;
-                }
-
-                const action = trigger.dataset.pickerAction;
-
-                if (!['add', 'remove'].includes(action)) {
-                  return;
-                }
-
-                event.preventDefault();
-
-                const form = this.el.closest('form');
-                this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
-                this.writePersistedFilter(this.filterValue);
-
-                this.pushEventTo(this.el, action, {
-                  view: trigger.dataset.viewId,
-                  'list-id': trigger.dataset.listId,
-                  item: trigger.dataset.itemId,
-                  form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-                });
-              };
-
-              this.el.addEventListener('click', this.handleActionClick);
-            },
-
-            bindFilter() {
-              const filterInput = this.el.querySelector('[data-filter-input]');
-              const clearButton = this.el.querySelector('[data-filter-clear]');
-
-              if (this.filterInput !== filterInput) {
-                if (this.filterInput && this.handleFilterInput) {
-                  this.filterInput.removeEventListener('input', this.handleFilterInput);
-                  this.filterInput.removeEventListener('keydown', this.handleFilterKeydown);
-                }
-
-                this.filterInput = filterInput;
-
-                if (this.filterInput) {
-                  this.filterInput.value = this.filterValue || '';
-
-                  this.handleFilterInput = () => {
-                    this.filterValue = this.filterInput.value;
-                    this.writePersistedFilter(this.filterValue);
-                    this.applyFilter();
-                  };
-
-                  this.handleFilterKeydown = (event) => {
-                    if (event.key === 'Escape') {
-                      this.filterValue = '';
-                      this.filterInput.value = '';
-                      this.writePersistedFilter(this.filterValue);
-                      this.applyFilter();
-                    }
-                  };
-
-                  this.filterInput.addEventListener('input', this.handleFilterInput);
-                  this.filterInput.addEventListener('keydown', this.handleFilterKeydown);
-                }
-              }
-
-              if (this.clearButton !== clearButton) {
-                if (this.clearButton && this.handleClearClick) {
-                  this.clearButton.removeEventListener('click', this.handleClearClick);
-                }
-
-                this.clearButton = clearButton;
-
-                if (this.clearButton) {
-                  this.handleClearClick = () => {
-                    if (!this.filterInput) {
-                      return;
-                    }
-
+                this.handleFilterKeydown = (event) => {
+                  if (event.key === 'Escape') {
                     this.filterValue = '';
                     this.filterInput.value = '';
                     this.writePersistedFilter(this.filterValue);
                     this.applyFilter();
-                    this.filterInput.focus();
-                  };
-
-                  this.clearButton.addEventListener('click', this.handleClearClick);
-                }
-              }
-            },
-
-            bindTypeFilters() {
-              this.typeFilterToggle = this.el.querySelector('[data-type-filter-toggle]');
-              this.typeFilterMenu = this.el.querySelector('[data-type-filter-menu]');
-              this.typeFilterCheckboxes = Array.from(this.el.querySelectorAll('[data-type-filter-checkbox]'));
-
-              if (this.typeFilterToggle && !this.handleTypeFilterToggle) {
-                this.handleTypeFilterToggle = (event) => {
-                  event.preventDefault();
-                  this.typeFilterMenu?.classList.toggle('hidden');
-                  this.typeFilterToggle.setAttribute(
-                    'aria-expanded',
-                    this.typeFilterMenu?.classList.contains('hidden') ? 'false' : 'true'
-                  );
+                  }
                 };
 
-                this.typeFilterToggle.addEventListener('click', this.handleTypeFilterToggle);
-              }
-
-              if (!this.handleTypeFilterDocumentClick) {
-                this.handleTypeFilterDocumentClick = (event) => {
-                  if (!this.typeFilterMenu || this.typeFilterMenu.classList.contains('hidden')) {
-                    return;
-                  }
-
-                  if (this.typeFilterMenu.contains(event.target) || this.typeFilterToggle?.contains(event.target)) {
-                    return;
-                  }
-
-                  this.typeFilterMenu.classList.add('hidden');
-                  this.typeFilterToggle?.setAttribute('aria-expanded', 'false');
-                };
-
-                document.addEventListener('click', this.handleTypeFilterDocumentClick);
-              }
-
-              this.handleTypeFilterChange = () => {
-                this.selectedTypeFilters = this.typeFilterCheckboxes
-                  .filter((checkbox) => checkbox.checked)
-                  .map((checkbox) => checkbox.value);
-
-                this.writePersistedTypeFilters(this.selectedTypeFilters);
-                this.applyFilter();
-              };
-
-              this.typeFilterCheckboxes.forEach((checkbox) => {
-                checkbox.checked = this.selectedTypeFilters.includes(checkbox.value);
-                checkbox.removeEventListener('change', this.handleTypeFilterChange);
-                checkbox.addEventListener('change', this.handleTypeFilterChange);
-              });
-            },
-
-            applyFilter() {
-              const filterValue = (this.filterValue || '').trim().toUpperCase();
-              const items = this.el.querySelectorAll('[data-available-item]');
-              const typeFilters = this.selectedTypeFilters || [];
-
-              items.forEach((item) => {
-                const text = item.textContent.toUpperCase();
-                const typeKey = item.dataset.typeKey || 'unknown';
-                const textMatch = !filterValue || text.includes(filterValue);
-                const typeMatch = typeFilters.length === 0 || typeFilters.includes(typeKey);
-
-                item.style.display = textMatch && typeMatch ? '' : 'none';
-              });
-
-              if (this.filterInput && this.filterInput.value !== (this.filterValue || '')) {
-                this.filterInput.value = this.filterValue || '';
-              }
-
-              if (this.clearButton) {
-                this.clearButton.classList.toggle('hidden', filterValue === '' && typeFilters.length === 0);
+                this.filterInput.addEventListener('input', this.handleFilterInput);
+                this.filterInput.addEventListener('keydown', this.handleFilterKeydown);
               }
             }
-          };
-        </script>
 
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerEditor">
-          export default {
-            mounted() {
-              this.open = false;
+            if (this.clearButton !== clearButton) {
+              if (this.clearButton && this.handleClearClick) {
+                this.clearButton.removeEventListener('click', this.handleClearClick);
+              }
 
-              this.applyState = () => {
-                const content = this.el.querySelector('[data-editor-content]');
-                const openLabel = this.el.querySelector('[data-editor-open-label]');
-                const closeLabel = this.el.querySelector('[data-editor-close-label]');
+              this.clearButton = clearButton;
 
-                if (content) {
-                  content.classList.toggle('hidden', !this.open);
-                }
+              if (this.clearButton) {
+                this.handleClearClick = () => {
+                  if (!this.filterInput) {
+                    return;
+                  }
 
-                if (openLabel) {
-                  openLabel.classList.toggle('hidden', this.open);
-                }
+                  this.filterValue = '';
+                  this.filterInput.value = '';
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                  this.filterInput.focus();
+                };
 
-                if (closeLabel) {
-                  closeLabel.classList.toggle('hidden', !this.open);
-                }
+                this.clearButton.addEventListener('click', this.handleClearClick);
+              }
+            }
+          },
+
+          bindTypeFilters() {
+            this.typeFilterToggle = this.el.querySelector('[data-type-filter-toggle]');
+            this.typeFilterMenu = this.el.querySelector('[data-type-filter-menu]');
+            this.typeFilterCheckboxes = Array.from(this.el.querySelectorAll('[data-type-filter-checkbox]'));
+
+            if (this.typeFilterToggle && !this.handleTypeFilterToggle) {
+              this.handleTypeFilterToggle = (event) => {
+                event.preventDefault();
+                this.typeFilterMenu?.classList.toggle('hidden');
+                this.typeFilterToggle.setAttribute(
+                  'aria-expanded',
+                  this.typeFilterMenu?.classList.contains('hidden') ? 'false' : 'true'
+                );
               };
 
-              this.setOpen = (nextOpen) => {
-                this.open = nextOpen;
-                this.applyState();
-              };
+              this.typeFilterToggle.addEventListener('click', this.handleTypeFilterToggle);
+            }
 
-              this.handleClick = (event) => {
-                if (event.target.closest('[data-editor-toggle]')) {
-                  event.preventDefault();
-                  this.setOpen(!this.open);
-                }
-              };
-
-              this.handleDocumentClick = (event) => {
-                if (!this.open || this.el.contains(event.target)) {
+            if (!this.handleTypeFilterDocumentClick) {
+              this.handleTypeFilterDocumentClick = (event) => {
+                if (!this.typeFilterMenu || this.typeFilterMenu.classList.contains('hidden')) {
                   return;
                 }
 
-                this.setOpen(false);
+                if (this.typeFilterMenu.contains(event.target) || this.typeFilterToggle?.contains(event.target)) {
+                  return;
+                }
+
+                this.typeFilterMenu.classList.add('hidden');
+                this.typeFilterToggle?.setAttribute('aria-expanded', 'false');
               };
 
-              this.el.addEventListener('click', this.handleClick);
-              document.addEventListener('click', this.handleDocumentClick);
-              this.applyState();
-            },
-
-            updated() {
-              this.applyState();
-            },
-
-            destroyed() {
-              if (this.handleClick) {
-                this.el.removeEventListener('click', this.handleClick);
-              }
-
-              if (this.handleDocumentClick) {
-                document.removeEventListener('click', this.handleDocumentClick);
-              }
+              document.addEventListener('click', this.handleTypeFilterDocumentClick);
             }
-          };
-        </script>
-      </div>
+
+            this.handleTypeFilterChange = () => {
+              this.selectedTypeFilters = this.typeFilterCheckboxes
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.value);
+
+              this.writePersistedTypeFilters(this.selectedTypeFilters);
+              this.applyFilter();
+            };
+
+            this.typeFilterCheckboxes.forEach((checkbox) => {
+              checkbox.checked = this.selectedTypeFilters.includes(checkbox.value);
+              checkbox.removeEventListener('change', this.handleTypeFilterChange);
+              checkbox.addEventListener('change', this.handleTypeFilterChange);
+            });
+          },
+
+          applyFilter() {
+            const filterValue = (this.filterValue || '').trim().toUpperCase();
+            const items = this.el.querySelectorAll('[data-available-item]');
+            const typeFilters = this.selectedTypeFilters || [];
+
+            items.forEach((item) => {
+              const text = item.textContent.toUpperCase();
+              const typeKey = item.dataset.typeKey || 'unknown';
+              const textMatch = !filterValue || text.includes(filterValue);
+              const typeMatch = typeFilters.length === 0 || typeFilters.includes(typeKey);
+
+              item.style.display = textMatch && typeMatch ? '' : 'none';
+            });
+
+            if (this.filterInput && this.filterInput.value !== (this.filterValue || '')) {
+              this.filterInput.value = this.filterValue || '';
+            }
+
+            if (this.clearButton) {
+              this.clearButton.classList.toggle('hidden', filterValue === '' && typeFilters.length === 0);
+            }
+          }
+        };
+      </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ListPickerEditor">
+        export default {
+          mounted() {
+            this.open = false;
+
+            this.applyState = () => {
+              const content = this.el.querySelector('[data-editor-content]');
+              const openLabel = this.el.querySelector('[data-editor-open-label]');
+              const closeLabel = this.el.querySelector('[data-editor-close-label]');
+
+              if (content) {
+                content.classList.toggle('hidden', !this.open);
+              }
+
+              if (openLabel) {
+                openLabel.classList.toggle('hidden', this.open);
+              }
+
+              if (closeLabel) {
+                closeLabel.classList.toggle('hidden', !this.open);
+              }
+            };
+
+            this.setOpen = (nextOpen) => {
+              this.open = nextOpen;
+              this.applyState();
+            };
+
+            this.handleClick = (event) => {
+              if (event.target.closest('[data-editor-toggle]')) {
+                event.preventDefault();
+                this.setOpen(!this.open);
+              }
+            };
+
+            this.handleDocumentClick = (event) => {
+              if (!this.open || this.el.contains(event.target)) {
+                return;
+              }
+
+              this.setOpen(false);
+            };
+
+            this.el.addEventListener('click', this.handleClick);
+            document.addEventListener('click', this.handleDocumentClick);
+            this.applyState();
+          },
+
+          updated() {
+            this.applyState();
+          },
+
+          destroyed() {
+            if (this.handleClick) {
+              this.el.removeEventListener('click', this.handleClick);
+            }
+
+            if (this.handleDocumentClick) {
+              document.removeEventListener('click', this.handleDocumentClick);
+            }
+          }
+        };
+      </script>
+    </div>
     """
   end
 
