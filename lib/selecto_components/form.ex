@@ -82,7 +82,7 @@ defmodule SelectoComponents.Form do
           align-items: center;
           border-radius: 9999px;
           padding: 0.125rem 0.45rem;
-          background: color-mix(in srgb, white 18%, transparent);
+          background: color-mix(in srgb, white 14%, transparent);
           font-size: 0.6875rem;
           font-weight: 700;
           letter-spacing: 0.08em;
@@ -91,34 +91,13 @@ defmodule SelectoComponents.Form do
 
         [data-selecto-submit-button="true"][data-dirty="true"] {
           color: var(--sc-accent-contrast);
-          border-color: color-mix(in srgb, var(--sc-accent) 82%, white);
-          background:
-            linear-gradient(
-              135deg,
-              color-mix(in srgb, var(--sc-accent-hover) 78%, #0f172a),
-              var(--sc-accent)
-            );
+          border-color: color-mix(in srgb, var(--sc-accent) 72%, var(--sc-surface-border));
+          background: color-mix(in srgb, var(--sc-accent) 94%, white);
           box-shadow:
-            0 0 0 3px color-mix(in srgb, var(--sc-accent) 22%, transparent),
-            0 14px 28px -18px color-mix(in srgb, var(--sc-accent) 70%, transparent),
-            var(--sc-shadow-md);
-          transform: translateY(-1px);
-          animation: sc-submit-glow 1.8s ease-in-out infinite;
-        }
-
-        [data-selecto-submit-button="true"][data-dirty="true"]::after {
-          content: "";
-          position: absolute;
-          inset: -45%;
-          pointer-events: none;
-          background:
-            linear-gradient(
-              110deg,
-              transparent 34%,
-              rgba(255, 255, 255, 0.34) 50%,
-              transparent 66%
-            );
-          animation: sc-submit-sheen 2.1s ease-in-out infinite;
+            0 0 0 2px color-mix(in srgb, var(--sc-accent) 14%, transparent),
+            0 8px 18px -14px color-mix(in srgb, var(--sc-accent) 36%, transparent),
+            var(--sc-shadow-sm);
+          animation: sc-submit-glow 2.6s ease-in-out infinite;
         }
 
         [data-selecto-submit-button="true"][data-dirty="true"] [data-selecto-submit-badge="true"] {
@@ -129,35 +108,21 @@ defmodule SelectoComponents.Form do
           0%,
           100% {
             box-shadow:
-              0 0 0 3px color-mix(in srgb, var(--sc-accent) 18%, transparent),
-              0 14px 28px -18px color-mix(in srgb, var(--sc-accent) 58%, transparent),
-              var(--sc-shadow-md);
+              0 0 0 2px color-mix(in srgb, var(--sc-accent) 12%, transparent),
+              0 8px 18px -14px color-mix(in srgb, var(--sc-accent) 28%, transparent),
+              var(--sc-shadow-sm);
           }
 
           50% {
             box-shadow:
-              0 0 0 5px color-mix(in srgb, var(--sc-accent) 28%, transparent),
-              0 18px 34px -18px color-mix(in srgb, var(--sc-accent) 74%, transparent),
-              var(--sc-shadow-md);
-          }
-        }
-
-        @keyframes sc-submit-sheen {
-          from {
-            transform: translateX(-130%);
-          }
-
-          to {
-            transform: translateX(130%);
+              0 0 0 3px color-mix(in srgb, var(--sc-accent) 18%, transparent),
+              0 10px 20px -14px color-mix(in srgb, var(--sc-accent) 38%, transparent),
+              var(--sc-shadow-sm);
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
           [data-selecto-submit-button="true"][data-dirty="true"] {
-            animation: none;
-          }
-
-          [data-selecto-submit-button="true"][data-dirty="true"]::after {
             animation: none;
           }
         }
