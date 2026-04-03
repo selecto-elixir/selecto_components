@@ -278,22 +278,63 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
   end
 
   describe "standard filter controller promotion" do
-    test "renders a promote checkbox for equals filters" do
+    test "renders a promote checkbox for non-equals standard filters" do
       html =
         render_component(&FilterRendering.render_standard_filter/1, %{
           uuid: "f1",
           section: "filters",
           index: 0,
-          field_type: :string,
+          field_type: :integer,
           filter_value: %{
-            "filter" => "status",
-            "comp" => "=",
-            "value" => "open",
+            "filter" => "estimate",
+            "comp" => "BETWEEN",
+            "value_start" => "3",
+            "value_end" => "8",
             "promote" => "true"
           },
           selecto: render_selecto(),
-          column_def: %{type: :string},
-          filter_def: %{type: :string}
+          column_def: %{type: :integer},
+          filter_def: %{type: :integer}
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+    end
+
+    test "renders a promote checkbox for datetime filters" do
+      html =
+        render_component(&FilterRendering.render_datetime_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :date,
+          filter_value: %{
+            "filter" => "due_on",
+            "comp" => "SHORTCUT",
+            "value" => "today",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :date},
+          filter_def: %{type: :date}
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+    end
+
+    test "renders a promote checkbox for text search filters" do
+      html =
+        render_component(&FilterRendering.render_text_search_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          filter_value: %{
+            "filter" => "search",
+            "value" => "launch pad",
+            "promote" => "true"
+          },
+          selecto: render_selecto()
         })
 
       assert html =~ ~s(name="filters[f1][promote]")

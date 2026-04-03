@@ -141,28 +141,12 @@ defmodule SelectoComponents.Form do
                   style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg);"
                 >
                   <label
-                    for={"promoted-filter-value-#{filter.uuid}"}
                     class="mb-1 block text-xs font-semibold tracking-[0.08em]"
                     style="color: var(--sc-text-muted);"
                   >
                     {filter.label}
                   </label>
-                  <div class="flex items-center gap-2">
-                    <input
-                      id={"promoted-filter-value-#{filter.uuid}"}
-                      type="text"
-                      name={"promoted_filters[#{filter.uuid}][value]"}
-                      value={filter.value}
-                      class={Theme.slot(@theme, :input)}
-                      phx-debounce="300"
-                    />
-                    <span
-                      class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
-                      style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
-                    >
-                      Equals
-                    </span>
-                  </div>
+                  <.controller_filter_editor filter={filter} theme={@theme} />
                 </div>
               </div>
 
@@ -846,6 +830,7 @@ defmodule SelectoComponents.Form do
     label = filter_label(selecto, filter)
     comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
     summary = filter_summary(selecto, filter)
+    render_kind = controller_filter_render_kind(selecto, filter, comp)
 
     case {label, summary} do
       {nil, _summary} ->
@@ -859,10 +844,222 @@ defmodule SelectoComponents.Form do
           uuid: to_string(uuid),
           label: controller_filter_label(selecto, filter, label),
           summary: summary,
+          comp: comp,
           value: controller_filter_value(filter),
-          editable: promoted_filter?(filter) and comp == "="
+          value_start: controller_filter_start_value(filter),
+          value_end: controller_filter_end_value(filter),
+          mode: controller_filter_mode(selecto, filter, render_kind),
+          list_value: controller_filter_list_value(filter),
+          field_type: controller_filter_field_type(selecto, filter),
+          field_conf: controller_filter_field_conf(selecto, filter),
+          render_kind: render_kind,
+          text_search_mode_options: controller_filter_mode_options(selecto, render_kind),
+          editable: promoted_filter?(filter) and render_kind != :unsupported
         }
     end
+  end
+
+  attr :filter, :map, required: true
+  attr :theme, :map, required: true
+
+  defp controller_filter_editor(assigns) do
+    assigns = assign(assigns, :comp_label, controller_filter_badge_label(assigns.filter))
+
+    case assigns.filter.render_kind do
+      :datetime -> controller_datetime_filter_editor(assigns)
+      :text_search -> controller_text_search_filter_editor(assigns)
+      _ -> controller_standard_filter_editor(assigns)
+    end
+  end
+
+  attr :filter, :map, required: true
+  attr :theme, :map, required: true
+
+  defp controller_standard_filter_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <span
+        class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+        style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+      >
+        {@comp_label}
+      </span>
+
+      <%= cond do %>
+        <% @filter.comp == "BETWEEN" -> %>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              id={"promoted-filter-value-start-#{@filter.uuid}"}
+              type="text"
+              name={"promoted_filters[#{@filter.uuid}][value_start]"}
+              value={@filter.value_start}
+              placeholder="Start"
+              class={Theme.slot(@theme, :input)}
+              phx-debounce="300"
+            />
+            <input
+              id={"promoted-filter-value-end-#{@filter.uuid}"}
+              type="text"
+              name={"promoted_filters[#{@filter.uuid}][value_end]"}
+              value={@filter.value_end}
+              placeholder="End"
+              class={Theme.slot(@theme, :input)}
+              phx-debounce="300"
+            />
+          </div>
+        <% @filter.comp in ["IN", "NOT IN"] -> %>
+          <textarea
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            rows="3"
+            placeholder="Enter one value per line or use commas"
+            class={Theme.slot(@theme, :input) <> " min-h-24 resize-y"}
+            phx-debounce="300"
+          >{@filter.list_value}</textarea>
+        <% @filter.comp in ["IS NULL", "IS NOT NULL"] -> %>
+          <p class="text-sm" style="color: var(--sc-text-muted);">
+            No value needed for this filter.
+          </p>
+        <% true -> %>
+          <input
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            type="text"
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            value={@filter.value}
+            class={Theme.slot(@theme, :input)}
+            phx-debounce="300"
+          />
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :filter, :map, required: true
+  attr :theme, :map, required: true
+
+  defp controller_datetime_filter_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <span
+        class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+        style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+      >
+        {@comp_label}
+      </span>
+
+      <%= cond do %>
+        <% @filter.comp in ["BETWEEN", "DATE_BETWEEN"] -> %>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              id={"promoted-filter-value-start-#{@filter.uuid}"}
+              type={
+                if @filter.comp == "DATE_BETWEEN" or @filter.field_type == :date,
+                  do: "date",
+                  else: "datetime-local"
+              }
+              name={"promoted_filters[#{@filter.uuid}][value_start]"}
+              value={FilterRendering.format_datetime_value(@filter.value_start, @filter.field_conf)}
+              class={Theme.slot(@theme, :input)}
+              phx-debounce="300"
+            />
+            <input
+              id={"promoted-filter-value-end-#{@filter.uuid}"}
+              type={
+                if @filter.comp == "DATE_BETWEEN" or @filter.field_type == :date,
+                  do: "date",
+                  else: "datetime-local"
+              }
+              name={"promoted_filters[#{@filter.uuid}][value_end]"}
+              value={FilterRendering.format_datetime_value(@filter.value_end, @filter.field_conf)}
+              class={Theme.slot(@theme, :input)}
+              phx-debounce="300"
+            />
+          </div>
+        <% @filter.comp == "WEEKDAY_SUN1" -> %>
+          <select
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            class="sc-select"
+          >
+            <%= for {value, label} <- controller_weekday_options() do %>
+              <option value={value} selected={to_string(@filter.value) == value}>{label}</option>
+            <% end %>
+          </select>
+        <% @filter.comp in ["MONTH_OF_YEAR", "DAY_OF_MONTH", "HOUR_OF_DAY"] -> %>
+          <input
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            type="number"
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            value={@filter.value}
+            class={Theme.slot(@theme, :input)}
+            phx-debounce="300"
+          />
+        <% @filter.comp in ["IS NULL", "IS NOT NULL"] -> %>
+          <p class="text-sm" style="color: var(--sc-text-muted);">
+            No value needed for this filter.
+          </p>
+        <% @filter.comp in ["DATE=", "DATE!="] -> %>
+          <input
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            type="date"
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            value={FilterRendering.format_datetime_value(@filter.value, :date)}
+            class={Theme.slot(@theme, :input)}
+            phx-debounce="300"
+          />
+        <% @filter.comp in ["SHORTCUT", "RELATIVE", "WEEK_OF_YEAR"] -> %>
+          <input
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            type="text"
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            value={@filter.value}
+            class={Theme.slot(@theme, :input)}
+            phx-debounce="300"
+          />
+        <% true -> %>
+          <input
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            type={if @filter.field_type == :date, do: "date", else: "datetime-local"}
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            value={FilterRendering.format_datetime_value(@filter.value, @filter.field_conf)}
+            class={Theme.slot(@theme, :input)}
+            phx-debounce="300"
+          />
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :filter, :map, required: true
+  attr :theme, :map, required: true
+
+  defp controller_text_search_filter_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <span
+        class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+        style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+      >
+        {@comp_label}
+      </span>
+
+      <input
+        id={"promoted-filter-value-#{@filter.uuid}"}
+        type="text"
+        name={"promoted_filters[#{@filter.uuid}][value]"}
+        value={@filter.value}
+        placeholder="Search query"
+        class={Theme.slot(@theme, :input)}
+        phx-debounce="300"
+      />
+
+      <select name={"promoted_filters[#{@filter.uuid}][mode]"} class="sc-select">
+        <%= for {value, label} <- @filter.text_search_mode_options do %>
+          <option value={value} selected={@filter.mode == value}>{label}</option>
+        <% end %>
+      </select>
+    </div>
+    """
   end
 
   defp controller_filter_label(selecto, filter, label) do
@@ -1049,8 +1246,209 @@ defmodule SelectoComponents.Form do
     Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
+  defp controller_filter_start_value(filter) do
+    Map.get(filter, "value_start") || Map.get(filter, :value_start) || Map.get(filter, "value") ||
+      Map.get(filter, :value) || ""
+  end
+
+  defp controller_filter_end_value(filter) do
+    Map.get(filter, "value_end") || Map.get(filter, :value_end) || Map.get(filter, "value2") ||
+      Map.get(filter, :value2) || ""
+  end
+
+  defp controller_filter_list_value(filter) do
+    filter
+    |> controller_filter_value()
+    |> to_string()
+    |> String.split(~r/[\r\n,]+/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp controller_filter_mode(selecto, filter, :text_search) do
+    case Map.get(filter, "mode") || Map.get(filter, :mode) do
+      nil ->
+        SelectoComponents.Helpers.default_text_search_mode(Map.get(selecto, :adapter))
+
+      "" ->
+        SelectoComponents.Helpers.default_text_search_mode(Map.get(selecto, :adapter))
+
+      mode ->
+        to_string(mode)
+    end
+  end
+
+  defp controller_filter_mode(_selecto, _filter, _render_kind), do: nil
+
+  defp controller_filter_mode_options(selecto, :text_search) do
+    SelectoComponents.Helpers.text_search_mode_options(Map.get(selecto, :adapter))
+  end
+
+  defp controller_filter_mode_options(_selecto, _render_kind), do: []
+
   defp promoted_filter?(filter) do
     Map.get(filter, "promote", Map.get(filter, :promote)) in [true, "true", "on", "1", "Y", "y"]
+  end
+
+  defp controller_filter_render_kind(selecto, filter, comp) do
+    cond do
+      controller_filter_custom_component?(selecto, filter) ->
+        :unsupported
+
+      controller_filter_multi_select?(selecto, filter) ->
+        :unsupported
+
+      polymorphic_filter?(filter) ->
+        :unsupported
+
+      controller_filter_field_type(selecto, filter) == :tsvector ->
+        :text_search
+
+      controller_datetime_filter?(selecto, filter, comp) ->
+        :datetime
+
+      true ->
+        :standard
+    end
+  end
+
+  defp controller_filter_custom_component?(selecto, filter) do
+    case controller_filter_definition(selecto, filter) do
+      %{type: :component, component: component} when not is_nil(component) -> true
+      _ -> false
+    end
+  end
+
+  defp controller_filter_multi_select?(selecto, filter) do
+    case controller_filter_field_conf(selecto, filter) do
+      %{join_mode: join_mode, filter_type: :multi_select_id}
+      when join_mode in [:lookup, :star, :tag] ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp controller_filter_field_type(selecto, filter) do
+    filter_def = controller_filter_definition(selecto, filter)
+    column_def = controller_filter_column_definition(selecto, filter, filter_def)
+
+    cond do
+      filter_def && Selecto.Temporal.date_like?(filter_def) ->
+        Selecto.Temporal.date_like_type(filter_def)
+
+      column_def && Selecto.Temporal.date_like?(column_def) ->
+        Selecto.Temporal.date_like_type(column_def)
+
+      filter_def && Map.has_key?(filter_def, :type) ->
+        Map.get(filter_def, :type)
+
+      column_def && Map.has_key?(column_def, :type) ->
+        Map.get(column_def, :type)
+
+      true ->
+        :string
+    end
+  end
+
+  defp controller_filter_field_conf(selecto, filter) do
+    filter_def = controller_filter_definition(selecto, filter)
+    column_def = controller_filter_column_definition(selecto, filter, filter_def)
+
+    filter_def || column_def || controller_filter_field_type(selecto, filter)
+  end
+
+  defp controller_filter_definition(selecto, filter) do
+    filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
+
+    case Selecto.filters(selecto) do
+      filters when is_map(filters) -> Map.get(filters, filter_id)
+      _ -> nil
+    end
+  end
+
+  defp controller_filter_column_definition(selecto, filter, filter_def) do
+    if filter_def == nil do
+      filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
+
+      Selecto.columns(selecto)
+      |> Enum.find_value(fn {_key, col} ->
+        if col.colid == filter_id or to_string(col.colid) == filter_id, do: col, else: nil
+      end)
+    else
+      filter_def
+    end
+  end
+
+  defp controller_datetime_filter?(selecto, filter, comp) do
+    field_conf = controller_filter_field_conf(selecto, filter)
+
+    (is_map(field_conf) and Selecto.Temporal.date_like?(field_conf)) or
+      controller_filter_field_type(selecto, filter) in [:date, :naive_datetime, :utc_datetime] or
+      comp in [
+        "DATE=",
+        "DATE!=",
+        "DATE_BETWEEN",
+        "SHORTCUT",
+        "RELATIVE",
+        "WEEKDAY",
+        "WEEKDAY_SUN1",
+        "WEEK_OF_YEAR",
+        "MONTH_OF_YEAR",
+        "DAY_OF_MONTH",
+        "HOUR_OF_DAY"
+      ]
+  end
+
+  defp controller_filter_comp_label(comp) do
+    case comp do
+      "=" -> "Equals"
+      "!=" -> "Not Equals"
+      "IN" -> "Is One Of"
+      "NOT IN" -> "Is Not One Of"
+      ">" -> "Greater Than"
+      ">=" -> "Greater or Equal"
+      "<" -> "Less Than"
+      "<=" -> "Less or Equal"
+      "BETWEEN" -> "Between"
+      "DATE=" -> "Date Equals"
+      "DATE!=" -> "Date Not Equals"
+      "DATE_BETWEEN" -> "Date Between"
+      "SHORTCUT" -> "Quick Select"
+      "RELATIVE" -> "Relative Days"
+      "WEEKDAY_SUN1" -> "Day of Week"
+      "WEEK_OF_YEAR" -> "Week of Year"
+      "MONTH_OF_YEAR" -> "Month of Year"
+      "DAY_OF_MONTH" -> "Day of Month"
+      "HOUR_OF_DAY" -> "Hour of Day"
+      "LIKE" -> "Contains"
+      "NOT LIKE" -> "Does Not Contain"
+      "STARTS" -> "Begins With"
+      "ENDS" -> "Ends With"
+      "CONTAINS" -> "Contains"
+      "TEXT_PREFIX" -> "Text Prefix"
+      "TEXT_SEARCH" -> "Text Search"
+      "IS NULL" -> "Is Empty"
+      "IS NOT NULL" -> "Is Not Empty"
+      _ -> comp
+    end
+  end
+
+  defp controller_filter_badge_label(%{render_kind: :text_search}), do: "Text Search"
+  defp controller_filter_badge_label(filter), do: controller_filter_comp_label(filter.comp)
+
+  defp controller_weekday_options do
+    [
+      {"1", "Sunday"},
+      {"2", "Monday"},
+      {"3", "Tuesday"},
+      {"4", "Wednesday"},
+      {"5", "Thursday"},
+      {"6", "Friday"},
+      {"7", "Saturday"}
+    ]
   end
 
   defp polymorphic_filter?(filter) do

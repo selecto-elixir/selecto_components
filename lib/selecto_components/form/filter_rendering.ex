@@ -125,7 +125,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           render_multiselect_filter(assign(assigns, :join_mode_config, join_mode_config))
 
         field_type in [:naive_datetime, :utc_datetime, :date] or
-            datetime_comp?(value_for(filter_value, "comp")) ->
+            date_specific_datetime_comp?(value_for(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
         field_type == :tsvector ->
@@ -165,7 +165,8 @@ defmodule SelectoComponents.Form.FilterRendering do
         is_relative: is_relative,
         filter_value: filter_value,
         current_comp: current_comp,
-        current_value: current_value
+        current_value: current_value,
+        promote_checked: promote_checked?(filter_value)
       )
 
     ~H"""
@@ -455,6 +456,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
+      <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
     </div>
     """
   end
@@ -736,22 +738,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         </div>
       <% end %>
 
-      <%= if @current_comp == "=" do %>
-        <div
-          class="col-span-3 flex items-center gap-2 text-sm"
-          style="color: var(--sc-text-secondary);"
-        >
-          <input type="hidden" name={"filters[#{@uuid}][promote]"} value="false" />
-          <input
-            type="checkbox"
-            class="checkbox checkbox-sm"
-            name={"filters[#{@uuid}][promote]"}
-            value="true"
-            checked={@promote_checked}
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
-          /> Promote to View Controller
-        </div>
-      <% end %>
+      <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
@@ -921,7 +908,8 @@ defmodule SelectoComponents.Form.FilterRendering do
           SelectoComponents.Helpers.text_search_mode_options(Map.get(assigns.selecto, :adapter)),
         text_search_help_text:
           SelectoComponents.Helpers.text_search_help_text(Map.get(assigns.selecto, :adapter)),
-        current_text_search_mode: current_mode
+        current_text_search_mode: current_mode,
+        promote_checked: promote_checked?(assigns.filter_value)
       )
 
     ~H"""
@@ -960,6 +948,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
+      <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
     </div>
     """
   end
@@ -1052,7 +1041,7 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   def is_relative_date(_), do: false
 
-  defp datetime_comp?(comp) when is_binary(comp) do
+  defp date_specific_datetime_comp?(comp) when is_binary(comp) do
     comp in [
       "DATE=",
       "DATE!=",
@@ -1064,13 +1053,24 @@ defmodule SelectoComponents.Form.FilterRendering do
       "WEEK_OF_YEAR",
       "MONTH_OF_YEAR",
       "DAY_OF_MONTH",
-      "HOUR_OF_DAY",
-      "IS NULL",
-      "IS NOT NULL"
+      "HOUR_OF_DAY"
     ]
   end
 
-  defp datetime_comp?(_), do: false
+  defp date_specific_datetime_comp?(_), do: false
+
+  defp promote_checked?(filter_value) when is_map(filter_value) do
+    Map.get(filter_value, "promote", Map.get(filter_value, :promote, "false")) in [
+      true,
+      "true",
+      "on",
+      "1",
+      "Y",
+      "y"
+    ]
+  end
+
+  defp promote_checked?(_filter_value), do: false
 
   defp value_for(map, key) when is_map(map) and is_binary(key) do
     atom_key =
@@ -1462,6 +1462,28 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   defp parse_filter_ids(_), do: []
+
+  attr :uuid, :string, required: true
+  attr :checked, :boolean, required: true
+
+  defp promote_checkbox(assigns) do
+    ~H"""
+    <div
+      class="col-span-3 flex items-center gap-2 text-sm"
+      style="color: var(--sc-text-secondary);"
+    >
+      <input type="hidden" name={"filters[#{@uuid}][promote]"} value="false" />
+      <input
+        type="checkbox"
+        class="checkbox checkbox-sm"
+        name={"filters[#{@uuid}][promote]"}
+        value="true"
+        checked={@checked}
+        style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+      /> Promote to View Controller
+    </div>
+    """
+  end
 
   defp find_polymorphic_config(selecto, filter_id, column_def) do
     # Check if column_def already has polymorphic join_mode

@@ -1932,12 +1932,21 @@ defmodule SelectoComponents.Form.ParamsState do
             {uuid, promoted_values}, acc when is_binary(uuid) and is_map(promoted_values) ->
               current_filter = Map.get(acc, uuid, %{})
 
+              normalized_values =
+                normalize_promoted_filter_values(current_filter, promoted_values)
+
               Map.put(
                 acc,
                 uuid,
                 Map.merge(
                   current_filter,
-                  Map.take(promoted_values, ["value", "value_start", "value_end", "value2"])
+                  Map.take(normalized_values, [
+                    "value",
+                    "value_start",
+                    "value_end",
+                    "value2",
+                    "mode"
+                  ])
                 )
               )
 
@@ -1953,6 +1962,33 @@ defmodule SelectoComponents.Form.ParamsState do
         params
     end
   end
+
+  defp normalize_promoted_filter_values(current_filter, promoted_values) do
+    comp =
+      current_filter
+      |> get_map_value("comp", "=")
+      |> to_string()
+      |> String.trim()
+      |> String.upcase()
+
+    case {comp, Map.get(promoted_values, "value")} do
+      {comp, value} when comp in ["IN", "NOT IN"] and is_binary(value) ->
+        Map.put(promoted_values, "value", normalize_promoted_multi_value(value))
+
+      _ ->
+        promoted_values
+    end
+  end
+
+  defp normalize_promoted_multi_value(value) when is_binary(value) do
+    value
+    |> String.split(~r/[\r\n,]+/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(",")
+  end
+
+  defp normalize_promoted_multi_value(value), do: value
 
   @doc """
   Normalize submitted form params so submit uses the browser form state as truth.

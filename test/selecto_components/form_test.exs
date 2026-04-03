@@ -12,7 +12,7 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(data-selecto-controller-body)
     assert html =~ "View Controller"
     assert html =~ "Detail View"
-    assert html =~ "Toggle View Controller"
+    assert html =~ "Expand View Controller"
     assert html =~ "1 applied filter"
     assert html =~ "Status = open"
     assert html =~ ~s(aria-hidden="true")
@@ -76,6 +76,58 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Equals"
     assert html =~ "FormSummaryTest: Status"
     assert html =~ "Title = launch"
+  end
+
+  test "renders promoted non-equals filters with operator-specific controller editors" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: false,
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "estimate",
+                 "comp" => "BETWEEN",
+                 "value_start" => "3",
+                 "value_end" => "8",
+                 "promote" => "true"
+               }},
+              {"f2", "filters",
+               %{
+                 "filter" => "status",
+                 "comp" => "IN",
+                 "value" => "open,closed",
+                 "promote" => "true"
+               }},
+              {"f3", "filters",
+               %{
+                 "filter" => "search",
+                 "comp" => "TEXT_SEARCH",
+                 "value" => "launch pad",
+                 "mode" => "phrase",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(name="promoted_filters[f1][value_start]")
+    assert html =~ ~s(name="promoted_filters[f1][value_end]")
+    assert html =~ "Between"
+    assert html =~ ~s(name="promoted_filters[f2][value]")
+    assert html =~ "open\nclosed"
+    assert html =~ "Is One Of"
+    assert html =~ ~s(name="promoted_filters[f3][value]")
+    assert html =~ ~s(name="promoted_filters[f3][mode]")
+    assert html =~ "Text Search"
   end
 
   test "pending IN textarea text does not change remount ids while typing" do
@@ -145,18 +197,48 @@ defmodule SelectoComponents.FormTest do
     assert partial_in_values_id == full_in_values_id
   end
 
+  test "string IS NULL filters keep the standard operator list instead of switching to datetime controls" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: true,
+          active_tab: "filter",
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters", %{"filter" => "status", "comp" => "IS NULL"}}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ "Equals"
+    assert html =~ "Is One Of"
+    assert html =~ "Is Empty"
+    refute html =~ "Date Equals"
+    refute html =~ "Quick Select"
+  end
+
   defp base_assigns(overrides) do
     domain = %{
       name: "FormSummaryTest",
       source: %{
         source_table: "work_items",
         primary_key: :id,
-        fields: [:id, :status, :title],
+        fields: [:id, :status, :title, :estimate, :due_on, :search],
         redact_fields: [],
         columns: %{
           id: %{type: :integer, name: "ID", colid: :id},
           status: %{type: :string, name: "Status", colid: :status},
-          title: %{type: :string, name: "Title", colid: :title}
+          title: %{type: :string, name: "Title", colid: :title},
+          estimate: %{type: :integer, name: "Estimate", colid: :estimate},
+          due_on: %{type: :date, name: "Due On", colid: :due_on},
+          search: %{type: :tsvector, name: "Search", colid: :search}
         },
         associations: %{}
       },
