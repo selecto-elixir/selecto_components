@@ -50,6 +50,25 @@ defmodule SelectoComponents.Form.FilterOperationsTest do
            ]
   end
 
+  test "commit_filter_pending_values promotes pending textarea values into selected values" do
+    socket = socket_with_filter(%{"selected_values" => ["open"], "value" => "open"})
+
+    {:noreply, updated_socket} =
+      TestLive.handle_event(
+        "commit_filter_pending_values",
+        %{"filter-uuid" => "f1", "pending-values" => "closed\npaused"},
+        socket
+      )
+
+    assert updated_socket.assigns.view_config.filters == [
+             {"f1", "filters",
+              %{
+                "selected_values" => ["open", "closed", "paused"],
+                "value" => "open,closed,paused"
+              }}
+           ]
+  end
+
   defp socket_with_filter(filter_config) do
     %Phoenix.LiveView.Socket{
       assigns: %{

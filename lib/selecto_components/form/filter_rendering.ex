@@ -85,10 +85,8 @@ defmodule SelectoComponents.Form.FilterRendering do
 
       assigns =
         assigns
-        |> Map.merge(component_assigns)
-        |> Map.put(:section, section)
-        |> Map.put(:index, index)
-        |> Map.put(:filter_value, filter_value)
+        |> assign(component_assigns)
+        |> assign(section: section, index: index, filter_value: filter_value)
 
       ~H"""
       <div>
@@ -102,7 +100,7 @@ defmodule SelectoComponents.Form.FilterRendering do
     else
       # Render the default filter form based on field type
       assigns =
-        Map.merge(assigns, %{
+        assign(assigns, %{
           uuid: uuid,
           section: section,
           index: index,
@@ -121,10 +119,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       # Render different forms based on field type or join_mode
       cond do
         polymorphic_config ->
-          render_polymorphic_filter(Map.put(assigns, :polymorphic_config, polymorphic_config))
+          render_polymorphic_filter(assign(assigns, :polymorphic_config, polymorphic_config))
 
         join_mode_config ->
-          render_multiselect_filter(Map.put(assigns, :join_mode_config, join_mode_config))
+          render_multiselect_filter(assign(assigns, :join_mode_config, join_mode_config))
 
         field_type in [:naive_datetime, :utc_datetime, :date] or
             datetime_comp?(value_for(filter_value, "comp")) ->
@@ -162,11 +160,13 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     assigns =
       assigns
-      |> Map.put(:is_shortcut, is_shortcut)
-      |> Map.put(:is_relative, is_relative)
-      |> Map.put(:filter_value, filter_value)
-      |> Map.put(:current_comp, current_comp)
-      |> Map.put(:current_value, current_value)
+      |> assign(
+        is_shortcut: is_shortcut,
+        is_relative: is_relative,
+        filter_value: filter_value,
+        current_comp: current_comp,
+        current_value: current_value
+      )
 
     ~H"""
     <div class="space-y-2">
@@ -461,26 +461,26 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     assigns =
       assigns
-      |> Map.put(:is_multi_select_id, is_multi_select_id)
-      |> Map.put(:supports_manual_in_values, supports_manual_in_values?(assigns.field_type))
-      |> Map.put(:operator_options, operator_options)
-      |> Map.put(:current_comp, current_comp)
-      |> Map.put(:between_start, between_start)
-      |> Map.put(:between_end, between_end)
-      |> Map.put(:selected_in_values, selected_in_values(assigns.filter_value))
-      |> Map.put(:pending_in_values, value_for(assigns.filter_value, "pending_values") || "")
-      |> Map.put(
-        :ignore_case_checked,
-        Map.get(assigns.filter_value, "ignore_case", "false") in [
-          true,
-          "true",
-          "on",
-          "1",
-          "Y",
-          "y"
-        ]
+      |> assign(
+        is_multi_select_id: is_multi_select_id,
+        supports_manual_in_values: supports_manual_in_values?(assigns.field_type),
+        operator_options: operator_options,
+        current_comp: current_comp,
+        between_start: between_start,
+        between_end: between_end,
+        selected_in_values: selected_in_values(assigns.filter_value),
+        pending_in_values: value_for(assigns.filter_value, "pending_values") || "",
+        ignore_case_checked:
+          Map.get(assigns.filter_value, "ignore_case", "false") in [
+            true,
+            "true",
+            "on",
+            "1",
+            "Y",
+            "y"
+          ],
+        is_text_field: assigns.field_type in [:string, :text, :citext, :custom_column]
       )
-      |> Map.put(:is_text_field, assigns.field_type in [:string, :text, :citext, :custom_column])
 
     ~H"""
     <div class="grid grid-cols-3 gap-2">
@@ -512,7 +512,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           </div>
         <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
           <div
-            id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @pending_in_values})}"}
+            id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @current_comp})}"}
             class="col-span-2 space-y-2"
           >
             <textarea
@@ -524,6 +524,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               phx-debounce="300"
               phx-hook=".FilterPendingValuesSync"
               data-pending-value={@pending_in_values}
+              data-filter-uuid={@uuid}
             >{@pending_in_values}</textarea>
 
             <input
@@ -565,6 +566,8 @@ defmodule SelectoComponents.Form.FilterRendering do
                       type="checkbox"
                       checked
                       disabled
+                      aria-hidden="true"
+                      class="pointer-events-none"
                       style="margin-top: 0.15rem;"
                     />
                     <span class="break-all">{selected_value}</span>
@@ -579,6 +582,19 @@ defmodule SelectoComponents.Form.FilterRendering do
 
             <script :type={Phoenix.LiveView.ColocatedHook} name=".FilterPendingValuesSync">
               export default {
+                commitPendingValues() {
+                  const pendingValue = this.el.value || "";
+
+                  if (pendingValue.trim() === "") {
+                    return;
+                  }
+
+                  this.pushEvent("commit_filter_pending_values", {
+                    "filter-uuid": this.el.dataset.filterUuid,
+                    "pending-values": pendingValue
+                  });
+                },
+
                 syncFromServer() {
                   const pendingValue = this.el.dataset.pendingValue || "";
 
@@ -588,11 +604,19 @@ defmodule SelectoComponents.Form.FilterRendering do
                 },
 
                 mounted() {
+                  this.onBlur = () => this.commitPendingValues();
+                  this.el.addEventListener("blur", this.onBlur);
                   this.syncFromServer();
                 },
 
                 updated() {
                   this.syncFromServer();
+                },
+
+                destroyed() {
+                  if (this.onBlur) {
+                    this.el.removeEventListener("blur", this.onBlur);
+                  }
                 }
               };
             </script>
@@ -817,15 +841,13 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     assigns =
       assigns
-      |> Map.put(
-        :text_search_mode_options,
-        SelectoComponents.Helpers.text_search_mode_options(Map.get(assigns.selecto, :adapter))
+      |> assign(
+        text_search_mode_options:
+          SelectoComponents.Helpers.text_search_mode_options(Map.get(assigns.selecto, :adapter)),
+        text_search_help_text:
+          SelectoComponents.Helpers.text_search_help_text(Map.get(assigns.selecto, :adapter)),
+        current_text_search_mode: current_mode
       )
-      |> Map.put(
-        :text_search_help_text,
-        SelectoComponents.Helpers.text_search_help_text(Map.get(assigns.selecto, :adapter))
-      )
-      |> Map.put(:current_text_search_mode, current_mode)
 
     ~H"""
     <div class="grid grid-cols-1 gap-2">
@@ -1182,11 +1204,13 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     assigns =
       assigns
-      |> Map.put(:options, options)
-      |> Map.put(:selected_ids, selected_ids)
-      |> Map.put(:join_mode, join_mode)
-      |> Map.put(:current_comp, current_comp)
-      |> Map.put(:display_field, display_field)
+      |> assign(
+        options: options,
+        selected_ids: selected_ids,
+        join_mode: join_mode,
+        current_comp: current_comp,
+        display_field: display_field
+      )
 
     ~H"""
     <div class="space-y-2">
@@ -1439,11 +1463,13 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     assigns =
       assigns
-      |> Map.put(:entity_types, entity_types)
-      |> Map.put(:type_field, type_field)
-      |> Map.put(:id_field, id_field)
-      |> Map.put(:selected_types, selected_types)
-      |> Map.put(:current_selection, current_value)
+      |> assign(
+        entity_types: entity_types,
+        type_field: type_field,
+        id_field: id_field,
+        selected_types: selected_types,
+        current_selection: current_value
+      )
 
     ~H"""
     <div class="space-y-3">

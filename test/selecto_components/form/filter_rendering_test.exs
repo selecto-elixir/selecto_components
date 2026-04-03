@@ -270,6 +270,7 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ ~s(name="filters[f1][pending_values]")
       assert html =~ ~s(phx-click="toggle_filter_selected_value")
       assert html =~ "Uncheck all"
+      assert html =~ "pointer-events-none"
       assert html =~ "open"
       assert html =~ "closed"
       assert html =~ "paused"

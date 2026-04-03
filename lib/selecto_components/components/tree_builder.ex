@@ -681,11 +681,10 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
   defp in_filter_dom_state(filter_value) do
     %{
+      comp: Map.get(filter_value, "comp", Map.get(filter_value, :comp)),
       value: Map.get(filter_value, "value", Map.get(filter_value, :value)),
       selected_values:
-        Map.get(filter_value, "selected_values", Map.get(filter_value, :selected_values, [])),
-      pending_values:
-        Map.get(filter_value, "pending_values", Map.get(filter_value, :pending_values, ""))
+        Map.get(filter_value, "selected_values", Map.get(filter_value, :selected_values, []))
     }
   end
 end

@@ -394,7 +394,7 @@ defmodule SelectoComponents.Form.ParamsState do
   defp normalize_filter_form_state(filter), do: filter
 
   defp normalize_in_filter_state(filter, value) do
-    selected_values =
+    {selected_values, pending_values} =
       filter
       |> selected_filter_values_from_state(value)
       |> merge_pending_filter_values(
@@ -404,8 +404,8 @@ defmodule SelectoComponents.Form.ParamsState do
     filter
     |> Map.put("selected_values", selected_values)
     |> Map.put("value", Enum.join(selected_values, ","))
-    |> Map.delete("pending_values")
     |> Map.delete("selected_ids")
+    |> maybe_put_pending_values(pending_values)
   end
 
   defp selected_filter_values_from_state(filter, fallback_value) do
@@ -429,20 +429,47 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp merge_pending_filter_values(selected_values, pending_values) do
-    pending_values = parse_pending_filter_values(pending_values)
+    {committed_values, remaining_pending_values} = parse_pending_filter_values(pending_values)
 
-    (selected_values ++ pending_values)
-    |> Enum.uniq()
+    {
+      (selected_values ++ committed_values)
+      |> Enum.uniq(),
+      remaining_pending_values
+    }
   end
 
   defp parse_pending_filter_values(value) when is_binary(value) do
-    value
-    |> String.split(~r/\r\n|\n|\r/, trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
+    normalized_value = String.replace(value, ~r/\r\n|\r/, "\n")
+
+    cond do
+      normalized_value == "" ->
+        {[], ""}
+
+      String.contains?(normalized_value, "\n") ->
+        commit_pending_lines(normalized_value)
+
+      true ->
+        {[], normalized_value}
+    end
   end
 
-  defp parse_pending_filter_values(_value), do: []
+  defp parse_pending_filter_values(_value), do: {[], ""}
+
+  defp commit_pending_lines(normalized_value) do
+    committed_values =
+      normalized_value
+      |> String.split("\n")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    {committed_values, ""}
+  end
+
+  defp maybe_put_pending_values(filter, pending_values) when pending_values in [nil, ""],
+    do: Map.delete(filter, "pending_values")
+
+  defp maybe_put_pending_values(filter, pending_values),
+    do: Map.put(filter, "pending_values", pending_values)
 
   defp parse_filter_values(values) when is_list(values) do
     values

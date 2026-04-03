@@ -241,6 +241,51 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
          |> assign(skip_next_validation: true)}
       end
 
+      def handle_event("commit_filter_pending_values", params, socket) do
+        filter_uuid = Map.get(params, "filter-uuid")
+        pending_values = Map.get(params, "pending-values", "")
+
+        if String.trim(pending_values) == "" do
+          {:noreply, socket}
+        else
+          updated_filters =
+            Enum.map(socket.assigns.view_config.filters, fn
+              {uuid, section, filter_config} = filter_tuple when is_map(filter_config) ->
+                if to_string(uuid) == to_string(filter_uuid) do
+                  current_values = current_filter_selected_values(filter_config)
+
+                  new_values =
+                    (current_values ++
+                       parse_filter_selected_values(
+                         pending_values
+                         |> String.split(~r/\r\n|\n|\r/)
+                         |> Enum.map(&String.trim/1)
+                         |> Enum.reject(&(&1 == ""))
+                       ))
+                    |> Enum.uniq()
+
+                  {uuid, section,
+                   filter_config
+                   |> Map.put("selected_values", new_values)
+                   |> Map.put("value", Enum.join(new_values, ","))
+                   |> Map.delete("pending_values")}
+                else
+                  filter_tuple
+                end
+
+              other_filter ->
+                other_filter
+            end)
+
+          {:noreply,
+           socket
+           |> ParamsState.assign_view_config(%{
+             socket.assigns.view_config
+             | filters: updated_filters
+           })}
+        end
+      end
+
       defp current_filter_selected_values(filter_config) when is_map(filter_config) do
         cond do
           is_list(Map.get(filter_config, "selected_values")) ->

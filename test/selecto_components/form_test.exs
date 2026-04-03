@@ -50,6 +50,73 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Filters"
   end
 
+  test "pending IN textarea text does not change remount ids while typing" do
+    html_with_partial =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: true,
+          active_tab: "filter",
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "title",
+                 "comp" => "IN",
+                 "value" => "",
+                 "pending_values" => "a"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    html_with_full =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: true,
+          active_tab: "filter",
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "title",
+                 "comp" => "IN",
+                 "value" => "",
+                 "pending_values" => "alpha"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    [partial_filter_form_id] =
+      Regex.run(~r/id="(filter-form-f1-\d+)"/, html_with_partial, capture: :all_but_first)
+
+    [full_filter_form_id] =
+      Regex.run(~r/id="(filter-form-f1-\d+)"/, html_with_full, capture: :all_but_first)
+
+    [partial_in_values_id] =
+      Regex.run(~r/id="(filter-in-values-f1-\d+)"/, html_with_partial, capture: :all_but_first)
+
+    [full_in_values_id] =
+      Regex.run(~r/id="(filter-in-values-f1-\d+)"/, html_with_full, capture: :all_but_first)
+
+    assert partial_filter_form_id == full_filter_form_id
+    assert partial_in_values_id == full_in_values_id
+  end
+
   defp base_assigns(overrides) do
     domain = %{
       name: "FormSummaryTest",

@@ -53,8 +53,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       Handles form validation events without executing the query.
 
       This allows users to configure aggregates, filters, and other view settings
-      without triggering immediate query execution. Respects skip_next_validation
-      flag to prevent validation after filter add/remove operations.
+      without triggering immediate query execution. Clears skip_next_validation
+      if present so the next real user edit is still processed.
 
       ## Parameters
       - params: Form parameters from phx-change event
@@ -64,17 +64,20 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       `{:noreply, socket}` with updated view_config
       """
       def handle_event("view-validate", params, socket) do
-        # Check if we should skip this validation (e.g., after filter add/remove)
+        # Ignore validations while a submit-driven URL patch is still in flight.
         cond do
           socket.assigns[:validation_locked_until_patch] ->
             {:noreply, socket}
 
-          socket.assigns[:skip_next_validation] ->
-            # Clear the flag and skip processing
-            {:noreply, assign(socket, skip_next_validation: false)}
-
           true ->
             with_error_handling(socket, "view-validate", fn ->
+              socket =
+                if socket.assigns[:skip_next_validation] do
+                  assign(socket, skip_next_validation: false)
+                else
+                  socket
+                end
+
               # Process all parameters including view-specific configs (aggregates, group_by, etc.)
               socket = ParamsState.form_params_to_state(params, socket)
 

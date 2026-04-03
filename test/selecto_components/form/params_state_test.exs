@@ -875,6 +875,51 @@ defmodule SelectoComponents.Form.ParamsStateTest do
            ]
   end
 
+  test "form_params_to_state keeps an unfinished single-line IN value as pending text" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        }
+      )
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "status",
+          "comp" => "IN",
+          "value" => "",
+          "pending_values" => "alpha",
+          "index" => "0",
+          "section" => "filters"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.filters == [
+             {"f1", "filters",
+              %{
+                "comp" => "IN",
+                "filter" => "status",
+                "index" => "0",
+                "pending_values" => "alpha",
+                "section" => "filters",
+                "selected_values" => [],
+                "value" => ""
+              }}
+           ]
+  end
+
   test "view_config_to_saved_params includes all view configurations" do
     view_config = %{
       view_mode: "detail",
