@@ -10,14 +10,15 @@ defmodule SelectoComponents.Results do
 
   def render(assigns) do
     assigns =
-      assigns
-      |> Map.put_new(:component_module, nil)
-      |> Map.put_new(:execution_error, nil)
-      |> Map.put_new(:applied_view, nil)
-      |> Map.put_new(:executed, false)
-      |> Map.put_new(:query_results, nil)
-      |> Map.put(:theme, Theme.resolve_theme(assigns))
-      |> Map.put_new(:theme_stylesheet, Theme.stylesheet())
+      assign(assigns,
+        component_module: Map.get(assigns, :component_module),
+        execution_error: Map.get(assigns, :execution_error),
+        applied_view: Map.get(assigns, :applied_view),
+        executed: Map.get(assigns, :executed, false),
+        query_results: Map.get(assigns, :query_results),
+        theme: Theme.resolve_theme(assigns),
+        theme_stylesheet: Map.get(assigns, :theme_stylesheet, Theme.stylesheet())
+      )
 
     assigns =
       case assigns.applied_view do
@@ -32,9 +33,10 @@ defmodule SelectoComponents.Results do
 
           case view_tuple do
             {_id, _module, _name, opt} ->
-              assigns
-              |> Map.put(:component_module, ViewRuntime.result_component(view_tuple))
-              |> Map.put(:view_opts, opt)
+              assign(assigns,
+                component_module: ViewRuntime.result_component(view_tuple),
+                view_opts: opt
+              )
 
             nil ->
               assigns
@@ -43,14 +45,25 @@ defmodule SelectoComponents.Results do
 
     # Check debug permissions using params and session from socket
     show_debug = should_show_debug?(assigns)
-    assigns = Map.put(assigns, :show_debug, show_debug)
     has_component_errors = match?([_ | _], Map.get(assigns, :component_errors, []))
-    assigns = Map.put(assigns, :has_component_errors, has_component_errors)
-    assigns = Map.put(assigns, :normalized_execution_error, normalize_execution_error(assigns))
+
+    assigns =
+      assign(assigns,
+        show_debug: show_debug,
+        has_component_errors: has_component_errors,
+        normalized_execution_error: normalize_execution_error(assigns)
+      )
 
     ~H"""
-    <div id={"selecto-results-#{@id}-#{@theme.id}"} data-selecto-theme={@theme.id} style={Theme.style_attr(@theme)} class={Theme.slot(@theme, :root)}>
-      <style><%= Phoenix.HTML.raw(@theme_stylesheet) %></style>
+    <div
+      id={"selecto-results-#{@id}-#{@theme.id}"}
+      data-selecto-theme={@theme.id}
+      style={Theme.style_attr(@theme)}
+      class={Theme.slot(@theme, :root)}
+    >
+      <style>
+        <%= Phoenix.HTML.raw(@theme_stylesheet) %>
+      </style>
       <div
         :if={@normalized_execution_error && !@applied_view}
         class="mb-4 rounded-lg border px-4 py-3"
@@ -68,7 +81,10 @@ defmodule SelectoComponents.Results do
         <%= if Mix.env() == :dev && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
           <details class="mt-2">
             <summary class="cursor-pointer text-sm">Debug Details</summary>
-            <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: color-mix(in srgb, var(--sc-danger-soft) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
+            <pre
+              class="mt-2 overflow-x-auto rounded p-2 text-xs"
+              style="background: color-mix(in srgb, var(--sc-danger-soft) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+            ><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
           </details>
         <% end %>
       </div>
