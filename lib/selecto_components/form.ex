@@ -39,6 +39,9 @@ defmodule SelectoComponents.Form do
           |> Enum.reject(& &1.editable)
           |> Enum.map(& &1.summary),
         form_state_revision: Map.get(assigns, :form_state_revision, 0),
+        view_config_dirty?: Map.get(assigns, :view_config_dirty?, false),
+        applied_form_state_revision:
+          Map.get(assigns, :applied_form_state_revision, Map.get(assigns, :form_state_revision, 0)),
         theme: Theme.resolve_theme(assigns),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
         use_exported_views: Map.get(assigns, :exported_view_module, false),
@@ -60,7 +63,111 @@ defmodule SelectoComponents.Form do
       <style>
         <%= Phoenix.HTML.raw(@theme_stylesheet) %>
       </style>
-      <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
+      <style>
+        [data-selecto-submit-button="true"] {
+          position: relative;
+          isolation: isolate;
+          overflow: hidden;
+          min-width: 8.75rem;
+          box-shadow: var(--sc-shadow-sm);
+        }
+
+        [data-selecto-submit-button="true"] > * {
+          position: relative;
+          z-index: 1;
+        }
+
+        [data-selecto-submit-badge="true"] {
+          display: none;
+          align-items: center;
+          border-radius: 9999px;
+          padding: 0.125rem 0.45rem;
+          background: color-mix(in srgb, white 18%, transparent);
+          font-size: 0.6875rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        [data-selecto-submit-button="true"][data-dirty="true"] {
+          color: var(--sc-accent-contrast);
+          border-color: color-mix(in srgb, var(--sc-accent) 82%, white);
+          background:
+            linear-gradient(
+              135deg,
+              color-mix(in srgb, var(--sc-accent-hover) 78%, #0f172a),
+              var(--sc-accent)
+            );
+          box-shadow:
+            0 0 0 3px color-mix(in srgb, var(--sc-accent) 22%, transparent),
+            0 14px 28px -18px color-mix(in srgb, var(--sc-accent) 70%, transparent),
+            var(--sc-shadow-md);
+          transform: translateY(-1px);
+          animation: sc-submit-glow 1.8s ease-in-out infinite;
+        }
+
+        [data-selecto-submit-button="true"][data-dirty="true"]::after {
+          content: "";
+          position: absolute;
+          inset: -45%;
+          pointer-events: none;
+          background:
+            linear-gradient(
+              110deg,
+              transparent 34%,
+              rgba(255, 255, 255, 0.34) 50%,
+              transparent 66%
+            );
+          animation: sc-submit-sheen 2.1s ease-in-out infinite;
+        }
+
+        [data-selecto-submit-button="true"][data-dirty="true"] [data-selecto-submit-badge="true"] {
+          display: inline-flex;
+        }
+
+        @keyframes sc-submit-glow {
+          0%,
+          100% {
+            box-shadow:
+              0 0 0 3px color-mix(in srgb, var(--sc-accent) 18%, transparent),
+              0 14px 28px -18px color-mix(in srgb, var(--sc-accent) 58%, transparent),
+              var(--sc-shadow-md);
+          }
+
+          50% {
+            box-shadow:
+              0 0 0 5px color-mix(in srgb, var(--sc-accent) 28%, transparent),
+              0 18px 34px -18px color-mix(in srgb, var(--sc-accent) 74%, transparent),
+              var(--sc-shadow-md);
+          }
+        }
+
+        @keyframes sc-submit-sheen {
+          from {
+            transform: translateX(-130%);
+          }
+
+          to {
+            transform: translateX(130%);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          [data-selecto-submit-button="true"][data-dirty="true"] {
+            animation: none;
+          }
+
+          [data-selecto-submit-button="true"][data-dirty="true"]::after {
+            animation: none;
+          }
+        }
+      </style>
+      <.form
+        id={"selecto-view-form-#{@id}"}
+        for={@form}
+        phx-change="view-validate"
+        phx-submit="view-apply"
+      >
         <input type="hidden" name="form_state_revision" value={@form_state_revision} />
         <.live_component
           :if={Map.get(assigns, :execution_error) || Map.get(assigns, :component_errors, [])}
@@ -591,7 +698,15 @@ defmodule SelectoComponents.Form do
         </div>
 
         <div class="mt-4 flex justify-end">
-          <.sc_button theme={@theme}>Submit</.sc_button>
+          <.sc_button
+            id={"selecto-submit-#{@id}"}
+            theme={@theme}
+            data-selecto-submit-button="true"
+            data-dirty={to_string(@view_config_dirty?)}
+          >
+            <span>Submit</span>
+            <span data-selecto-submit-badge="true" aria-hidden="true">Unsaved</span>
+          </.sc_button>
         </div>
       </.form>
 
@@ -1007,7 +1122,21 @@ defmodule SelectoComponents.Form do
             class={Theme.slot(@theme, :input)}
             phx-debounce="300"
           />
-        <% @filter.comp in ["SHORTCUT", "RELATIVE", "WEEK_OF_YEAR"] -> %>
+        <% @filter.comp == "SHORTCUT" -> %>
+          <select
+            id={"promoted-filter-value-#{@filter.uuid}"}
+            name={"promoted_filters[#{@filter.uuid}][value]"}
+            class="sc-select"
+          >
+            <%= for {group_label, options} <- controller_shortcut_option_groups() do %>
+              <optgroup label={group_label}>
+                <%= for {value, label} <- options do %>
+                  <option value={value} selected={@filter.value == value}>{label}</option>
+                <% end %>
+              </optgroup>
+            <% end %>
+          </select>
+        <% @filter.comp in ["RELATIVE", "WEEK_OF_YEAR"] -> %>
           <input
             id={"promoted-filter-value-#{@filter.uuid}"}
             type="text"
@@ -1448,6 +1577,73 @@ defmodule SelectoComponents.Form do
       {"5", "Thursday"},
       {"6", "Friday"},
       {"7", "Saturday"}
+    ]
+  end
+
+  defp controller_shortcut_option_groups do
+    [
+      {"Days",
+       [
+         {"today", "Today"},
+         {"yesterday", "Yesterday"},
+         {"tomorrow", "Tomorrow"}
+       ]},
+      {"Weeks",
+       [
+         {"this_week", "This Week"},
+         {"last_week", "Last Week"},
+         {"next_week", "Next Week"},
+         {"weekdays", "Weekdays (Mon-Fri)"},
+         {"weekends", "Weekends (Sat-Sun)"}
+       ]},
+      {"Specific Weekday",
+       [
+         {"monday", "Mondays"},
+         {"tuesday", "Tuesdays"},
+         {"wednesday", "Wednesdays"},
+         {"thursday", "Thursdays"},
+         {"friday", "Fridays"},
+         {"saturday", "Saturdays"},
+         {"sunday", "Sundays"}
+       ]},
+      {"Months",
+       [
+         {"this_month", "This Month"},
+         {"last_month", "Last Month"},
+         {"next_month", "Next Month"},
+         {"mtd", "Month to Date"}
+       ]},
+      {"Quarters",
+       [
+         {"this_quarter", "This Quarter"},
+         {"last_quarter", "Last Quarter"},
+         {"next_quarter", "Next Quarter"},
+         {"qtd", "Quarter to Date"}
+       ]},
+      {"Years",
+       [
+         {"this_year", "This Year"},
+         {"last_year", "Last Year"},
+         {"next_year", "Next Year"},
+         {"ytd", "Year to Date"}
+       ]},
+      {"Relative Periods",
+       [
+         {"last_7_days", "Last 7 Days"},
+         {"last_30_days", "Last 30 Days"},
+         {"last_60_days", "Last 60 Days"},
+         {"last_90_days", "Last 90 Days"},
+         {"next_7_days", "Next 7 Days"},
+         {"next_30_days", "Next 30 Days"}
+       ]},
+      {"Year Comparisons",
+       [
+         {"last_ytd", "Last Year YTD (same period)"},
+         {"ytd_vs_last", "This Year and Last Year YTD"},
+         {"qtd_vs_last", "This Quarter and Last Quarter QTD"},
+         {"mtd_vs_last", "This Month and Last Month MTD"},
+         {"mtd_vs_last_year", "This Month MTD and Last Year's MTD"}
+       ]}
     ]
   end
 

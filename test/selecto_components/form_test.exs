@@ -50,6 +50,24 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Filters"
   end
 
+  test "renders the submit button in its dirty state when the view config has pending edits" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: true,
+          form_state_revision: 6,
+          applied_form_state_revision: 4,
+          view_config_dirty?: true
+        })
+      )
+
+    assert html =~ ~s(id="selecto-view-form-form-summary-test")
+    assert html =~ ~s(data-selecto-submit-button="true")
+    assert html =~ ~s(data-dirty="true")
+    assert html =~ "Unsaved"
+  end
+
   test "renders promoted equals filters as controller inputs while leaving other filters summarized" do
     html =
       render_component(
@@ -109,6 +127,13 @@ defmodule SelectoComponents.FormTest do
                  "value" => "launch pad",
                  "mode" => "phrase",
                  "promote" => "true"
+               }},
+              {"f4", "filters",
+               %{
+                 "filter" => "due_on",
+                 "comp" => "SHORTCUT",
+                 "value" => "this_month",
+                 "promote" => "true"
                }}
             ],
             views: %{
@@ -128,6 +153,10 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(name="promoted_filters[f3][value]")
     assert html =~ ~s(name="promoted_filters[f3][mode]")
     assert html =~ "Text Search"
+    assert html =~ ~s(name="promoted_filters[f4][value]")
+    assert html =~ ~s(<optgroup label="Days">)
+    assert html =~ ~s(<option value="this_month" selected>)
+    refute html =~ ~s(type="text" name="promoted_filters[f4][value]")
   end
 
   test "pending IN textarea text does not change remount ids while typing" do

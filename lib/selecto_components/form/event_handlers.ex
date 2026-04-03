@@ -161,6 +161,12 @@ defmodule SelectoComponents.Form.EventHandlers do
              }}
           end)
 
+        initial_view_config = %{
+          view_mode: default_view_mode,
+          views: view_configs,
+          filters: []
+        }
+
         [
           selecto: selecto,
           views: views,
@@ -172,14 +178,13 @@ defmodule SelectoComponents.Form.EventHandlers do
           detail_page_cache: nil,
           aggregate_page_cache: nil,
           form_state_revision: 0,
+          applied_form_state_revision: 0,
+          applied_view_config: initial_view_config,
+          view_config_dirty?: false,
           validation_locked_until_patch: false,
           applied_view: nil,
           active_tab: "view",
-          view_config: %{
-            view_mode: default_view_mode,
-            views: view_configs,
-            filters: []
-          },
+          view_config: initial_view_config,
           view_meta: %{}
         ]
       end
