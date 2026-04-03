@@ -26,6 +26,8 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
 
   defmacro __using__(_opts) do
     quote do
+      alias SelectoComponents.Form.ParamsState
+
       @doc """
       Handles adding a filter via drag-and-drop.
 
@@ -63,11 +65,12 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
         updated_filters = socket.assigns.view_config.filters ++ new_filter_item
 
         socket =
-          assign(socket,
-            view_config: %{
-              socket.assigns.view_config
-              | filters: updated_filters
-            },
+          socket
+          |> ParamsState.assign_view_config(%{
+            socket.assigns.view_config
+            | filters: updated_filters
+          })
+          |> assign(
             # Set a flag to skip query execution on next validation
             skip_next_validation: true
           )
@@ -97,8 +100,12 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
           end)
 
         socket =
-          assign(socket,
-            view_config: %{socket.assigns.view_config | filters: updated_filters},
+          socket
+          |> ParamsState.assign_view_config(%{
+            socket.assigns.view_config
+            | filters: updated_filters
+          })
+          |> assign(
             # Set a flag to skip query execution on next validation
             skip_next_validation: true
           )
@@ -153,10 +160,12 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
           end)
 
         socket =
-          assign(socket,
-            view_config: %{socket.assigns.view_config | filters: updated_filters},
-            skip_next_validation: true
-          )
+          socket
+          |> ParamsState.assign_view_config(%{
+            socket.assigns.view_config
+            | filters: updated_filters
+          })
+          |> assign(skip_next_validation: true)
 
         {:noreply, socket}
       end

@@ -25,27 +25,33 @@ defmodule SelectoComponents.Form do
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         field_filters: FilterRendering.build_filter_list(assigns.selecto),
+        controller_title: Map.get(assigns, :controller_title, "View Controller"),
+        show_view_configurator: Map.get(assigns, :show_view_configurator, true),
+        current_view_label: current_view_label(assigns.views, assigns.view_config.view_mode),
+        applied_filters:
+          applied_filters(assigns.selecto, Map.get(assigns.view_config, :filters, [])),
+        form_state_revision: Map.get(assigns, :form_state_revision, 0),
         theme: Theme.resolve_theme(assigns),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
         use_exported_views: Map.get(assigns, :exported_view_module, false),
         use_export_delivery: Map.get(assigns, :export_delivery_module, false),
         use_scheduled_exports: Map.get(assigns, :scheduled_export_module, false),
         theme_stylesheet: Theme.stylesheet(),
-        form:
-          Ecto.Changeset.cast({%{}, %{}}, assigns.view_config, []) |> to_form(as: "view_config")
+        form: to_form(%{}, as: "view_config")
       )
 
     ~H"""
     <div
       id={"selecto-form-#{@id}"}
       phx-hook=".ExportDownloads"
+      data-selecto-form
       data-selecto-theme={@theme.id}
       style={Theme.style_attr(@theme)}
       class={[Theme.slot(@theme, :root), Theme.slot(@theme, :panel), "border-2 p-1"]}
     >
       <style><%= Phoenix.HTML.raw(@theme_stylesheet) %></style>
       <.form for={@form} phx-change="view-validate" phx-submit="view-apply">
-        <!-- Comprehensive Error Display Component -->
+        <input type="hidden" name="form_state_revision" value={@form_state_revision} />
         <.live_component
           :if={Map.get(assigns, :execution_error) || Map.get(assigns, :component_errors, [])}
           module={ErrorDisplay}
@@ -53,24 +59,91 @@ defmodule SelectoComponents.Form do
           error={Map.get(assigns, :execution_error)}
           errors={Map.get(assigns, :component_errors, [])}
         />
-        
-        <.live_component
-          :if={Map.get(assigns, :saved_view_config_module)}
-          module={SelectoComponents.ViewConfigManager}
-          id="view_config_manager"
-          view_config={@view_config}
-          saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
-          saved_view_context={
-            SelectoComponents.Tenant.scoped_context(
-              Map.get(assigns, :saved_view_context),
-              Map.get(assigns, :tenant_context)
-            )
-          }
-          current_user_id={Map.get(assigns, :current_user_id)}
-          parent_id={@myself}
-        />
 
-        <!-- Main Navigation Tabs -->
+        <div
+          id={"selecto-controller-summary-#{@id}"}
+          data-selecto-controller-summary
+          class="mb-4 flex flex-col gap-3 rounded-lg border p-3 lg:flex-row lg:items-start lg:justify-between"
+          style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 55%, var(--sc-surface-bg));"
+        >
+          <div class="min-w-0 space-y-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em]" style="color: var(--sc-text-muted);">
+                {@controller_title}
+              </p>
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                <h3 class="text-base font-semibold" style="color: var(--sc-text-primary);">
+                  {@current_view_label}
+                </h3>
+                <span
+                  class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
+                  style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+                >
+                  {length(@applied_filters)} applied filter{if(length(@applied_filters) == 1, do: "", else: "s")}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <%= if Enum.empty?(@applied_filters) do %>
+                <span class="text-sm" style="color: var(--sc-text-secondary);">
+                  No filters applied
+                </span>
+              <% else %>
+                <%= for filter_label <- Enum.take(@applied_filters, 4) do %>
+                  <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium"
+                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-secondary);"
+                  >
+                    {filter_label}
+                  </span>
+                <% end %>
+
+                <span
+                  :if={length(@applied_filters) > 4}
+                  class="text-xs font-medium"
+                  style="color: var(--sc-text-muted);"
+                >
+                  +{length(@applied_filters) - 4} more
+                </span>
+              <% end %>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            phx-click={JS.push("toggle_show_view_configurator")}
+            aria-expanded={to_string(@show_view_configurator)}
+            aria-controls={"selecto-controller-body-#{@id}"}
+            class="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+          >
+            Toggle View Controller
+          </button>
+        </div>
+
+        <div
+          id={"selecto-controller-body-#{@id}"}
+          data-selecto-controller-body
+          aria-hidden={to_string(!@show_view_configurator)}
+          class={if @show_view_configurator, do: "", else: "hidden"}
+        >
+          <.live_component
+            :if={Map.get(assigns, :saved_view_config_module)}
+            module={SelectoComponents.ViewConfigManager}
+            id="view_config_manager"
+            view_config={@view_config}
+            saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
+            saved_view_context={
+              SelectoComponents.Tenant.scoped_context(
+                Map.get(assigns, :saved_view_context),
+                Map.get(assigns, :tenant_context)
+              )
+            }
+            current_user_id={Map.get(assigns, :current_user_id)}
+            parent_id={@myself}
+          />
+
           <div class="mb-4 flex border-b" style="border-color: var(--sc-surface-border)">
             <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
               <button
@@ -152,7 +225,6 @@ defmodule SelectoComponents.Form do
             </div>
           </div>
 
-          <!-- Tab Content Panels -->
           <div
             role="tabpanel"
             id="main-tabpanel-view"
@@ -215,11 +287,11 @@ defmodule SelectoComponents.Form do
           />
 
           <.live_component
-            module={SelectoComponents.Components.TreeBuilder}
-            id={"#{@id}_tree_builder_#{FilterRendering.hash_filter_structure(@view_config.filters)}"}
-            theme={@theme}
-            available={FilterRendering.build_filter_list(@selecto)}
-            filters={@view_config.filters}
+              module={SelectoComponents.Components.TreeBuilder}
+              id={"#{@id}_tree_builder_#{FilterRendering.hash_filter_structure(@view_config.filters)}"}
+              theme={@theme}
+              available={FilterRendering.build_filter_list(@selecto)}
+              filters={@view_config.filters}
           >
             <:filter_form :let={{uuid, index, section, filter_value}}>
               {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
@@ -376,7 +448,8 @@ defmodule SelectoComponents.Form do
             />
           </div>
         </div>
-        <.sc_button theme={@theme}>Submit</.sc_button>
+          <.sc_button theme={@theme}>Submit</.sc_button>
+        </div>
       </.form>
 
       <%!-- Render modal if enabled and triggered --%>
@@ -574,6 +647,71 @@ defmodule SelectoComponents.Form do
       </script>
     </div>
     """
+  end
+
+  defp current_view_label(views, view_mode) do
+    normalized_view_mode = to_string(view_mode || "detail")
+
+    case Enum.find(views, fn {id, _module, _name, _opts} ->
+           Atom.to_string(id) == normalized_view_mode
+         end) do
+      {_id, _module, name, _opts} when is_binary(name) -> name
+      _ -> normalized_view_mode |> Phoenix.Naming.humanize() |> Kernel.<>(" View")
+    end
+  end
+
+  defp applied_filters(selecto, filters) do
+    filters
+    |> Enum.reduce([], fn
+      {_uuid, _section, %{} = filter}, acc -> [filter_label(selecto, filter) | acc]
+      [_, _, %{} = filter], acc -> [filter_label(selecto, filter) | acc]
+      _, acc -> acc
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reverse()
+  end
+
+  defp filter_label(selecto, filter) do
+    filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
+
+    filter_label_from_selecto(selecto, filter_id) || humanize_filter_id(filter_id)
+  end
+
+  defp filter_label_from_selecto(_selecto, nil), do: nil
+
+  defp filter_label_from_selecto(selecto, filter_id) do
+    filter_key = normalize_filter_lookup_key(filter_id)
+
+    case Map.get(Selecto.filters(selecto) || %{}, filter_key) do
+      %{name: name} when is_binary(name) ->
+        name
+
+      _ ->
+        case Map.get(Selecto.columns(selecto) || %{}, filter_key) do
+          %{name: name} when is_binary(name) -> name
+          _ -> nil
+        end
+    end
+  end
+
+  defp normalize_filter_lookup_key(filter_id) when is_binary(filter_id) do
+    try do
+      String.to_existing_atom(filter_id)
+    rescue
+      ArgumentError -> filter_id
+    end
+  end
+
+  defp normalize_filter_lookup_key(filter_id), do: filter_id
+
+  defp humanize_filter_id(nil), do: nil
+
+  defp humanize_filter_id(filter_id) do
+    filter_id
+    |> to_string()
+    |> String.split(".")
+    |> List.last()
+    |> Phoenix.Naming.humanize()
   end
 
   @impl true

@@ -746,6 +746,91 @@ defmodule SelectoComponents.Form.ParamsStateTest do
            }
   end
 
+  test "form_params_to_state preserves existing aggregate lists when submit payload omits them" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{
+              group_by: [{"g1", "status", %{"alias" => "Status", "index" => "0"}}],
+              aggregate: [
+                {"a1", "id", %{"alias" => "Count", "function" => "count", "index" => "0"}}
+              ],
+              per_page: "100"
+            },
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        },
+        form_state_revision: 2
+      )
+
+    params = %{
+      "view_mode" => "aggregate",
+      "aggregate_per_page" => "200",
+      "form_state_revision" => "1"
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.aggregate.group_by == [
+             {"g1", "status", %{"alias" => "Status", "index" => "0"}}
+           ]
+
+    assert updated.assigns.view_config.views.aggregate.aggregate == [
+             {"a1", "id", %{"alias" => "Count", "function" => "count", "index" => "0"}}
+           ]
+
+    assert updated.assigns.view_config.views.aggregate.per_page == "200"
+  end
+
+  test "form_params_to_state keeps server-side removals when submit payload is stale" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{
+              group_by: [],
+              aggregate: [],
+              per_page: "100"
+            },
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        },
+        form_state_revision: 2
+      )
+
+    stale_params = %{
+      "view_mode" => "aggregate",
+      "aggregate_per_page" => "100",
+      "form_state_revision" => "1",
+      "group_by" => %{
+        "k0" => %{"field" => "status", "alias" => "Status", "index" => "0", "uuid" => "g1"}
+      },
+      "aggregate" => %{
+        "k0" => %{
+          "field" => "id",
+          "alias" => "Count",
+          "function" => "count",
+          "index" => "0",
+          "uuid" => "a1"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(stale_params, socket)
+
+    assert updated.assigns.view_config.views.aggregate.group_by == []
+    assert updated.assigns.view_config.views.aggregate.aggregate == []
+  end
+
   test "view_config_to_saved_params includes all view configurations" do
     view_config = %{
       view_mode: "detail",

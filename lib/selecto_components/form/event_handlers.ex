@@ -171,6 +171,8 @@ defmodule SelectoComponents.Form.EventHandlers do
           query_results: [],
           detail_page_cache: nil,
           aggregate_page_cache: nil,
+          form_state_revision: 0,
+          validation_locked_until_patch: false,
           applied_view: nil,
           active_tab: "view",
           view_config: %{
@@ -197,7 +199,8 @@ defmodule SelectoComponents.Form.EventHandlers do
       """
       @impl true
       def handle_info({:view_set, view}, socket) do
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
+        {:noreply,
+         ParamsState.assign_view_config(socket, %{socket.assigns.view_config | view_mode: view})}
       end
     end
   end

@@ -65,18 +65,23 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       """
       def handle_event("view-validate", params, socket) do
         # Check if we should skip this validation (e.g., after filter add/remove)
-        if socket.assigns[:skip_next_validation] do
-          # Clear the flag and skip processing
-          {:noreply, assign(socket, skip_next_validation: false)}
-        else
-          with_error_handling(socket, "view-validate", fn ->
-            # Process all parameters including view-specific configs (aggregates, group_by, etc.)
-            socket = ParamsState.form_params_to_state(params, socket)
-
-            # Don't execute view on validation - only on submit
-            # This allows users to configure aggregates without immediate updates
+        cond do
+          socket.assigns[:validation_locked_until_patch] ->
             {:noreply, socket}
-          end)
+
+          socket.assigns[:skip_next_validation] ->
+            # Clear the flag and skip processing
+            {:noreply, assign(socket, skip_next_validation: false)}
+
+          true ->
+            with_error_handling(socket, "view-validate", fn ->
+              # Process all parameters including view-specific configs (aggregates, group_by, etc.)
+              socket = ParamsState.form_params_to_state(params, socket)
+
+              # Don't execute view on validation - only on submit
+              # This allows users to configure aggregates without immediate updates
+              {:noreply, socket}
+            end)
         end
       end
 
@@ -146,9 +151,12 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
               socket = assign(socket, :current_detail_page, 0)
 
               {:noreply,
-               socket
-               |> assign(:show_view_configurator, false)
-               |> ParamsState.state_to_url(params)}
+               ParamsState.state_to_url(
+                 params,
+                 socket
+                 |> assign(:validation_locked_until_patch, true)
+                 |> assign(:show_view_configurator, false)
+               )}
           end
         end)
       end
@@ -183,9 +191,12 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
           socket = ParamsState.view_from_params(committed_params, socket)
 
           {:noreply,
-           socket
-           |> assign(:show_view_configurator, false)
-           |> ParamsState.state_to_url(committed_params)}
+           ParamsState.state_to_url(
+             committed_params,
+             socket
+             |> assign(:validation_locked_until_patch, true)
+             |> assign(:show_view_configurator, false)
+           )}
         end)
       end
 

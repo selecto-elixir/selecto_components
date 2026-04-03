@@ -50,7 +50,11 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
-        socket = assign(socket, :params, params)
+        socket =
+          socket
+          |> assign(:params, params)
+          |> assign(:validation_locked_until_patch, false)
+
         socket = ParamsState.clear_query_caches(socket)
 
         with_error_handling(socket, "load_saved_view", fn ->
@@ -83,18 +87,18 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
             socket = normalize_query_results(socket)
             saved_params = socket.assigns.saved_view_module.decode_view(view)
             socket = ParamsState.saved_params_to_state(saved_params, socket)
+            committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
 
-            {:noreply,
-             ParamsState.view_from_params(
-               ParamsState.view_config_to_params(socket.assigns.view_config),
-               socket
-             )}
+            {:noreply, ParamsState.state_to_url(committed_params, socket, replace: true)}
           end
         end)
       end
 
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
-        socket = assign(socket, :params, params)
+        socket =
+          socket
+          |> assign(:params, params)
+          |> assign(:validation_locked_until_patch, false)
 
         # Normalize any existing query results before processing
         socket = normalize_query_results(socket)
@@ -104,7 +108,10 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
 
       ### accept default config
       def handle_params(params, _uri, socket) do
-        {:noreply, assign(socket, :params, params)}
+        {:noreply,
+         socket
+         |> assign(:params, params)
+         |> assign(:validation_locked_until_patch, false)}
       end
 
       # Normalizes query results from list format to map format.
@@ -239,6 +246,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       def handle_info({:query_executed, query_info}, socket) do
         socket =
           socket
+          |> assign(:selecto, Map.get(query_info, :selecto, socket.assigns[:selecto]))
           |> assign(:query_results, query_info.query_results)
           |> assign(:last_query_info, Map.get(query_info, :last_query_info))
           |> assign(:view_meta, Map.get(query_info, :view_meta))
@@ -266,7 +274,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       @impl true
       def handle_info({:update_view_config, updated_config}, socket) do
         # Update the view config in the parent LiveView
-        {:noreply, assign(socket, view_config: updated_config)}
+        {:noreply, ParamsState.assign_view_config(socket, updated_config)}
       end
 
       @doc """
@@ -285,9 +293,10 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       def handle_info({:filters_updated, updated_filters}, socket) do
         # Update the view config with new filters
         socket =
-          assign(socket,
-            view_config: %{socket.assigns.view_config | filters: updated_filters}
-          )
+          ParamsState.assign_view_config(socket, %{
+            socket.assigns.view_config
+            | filters: updated_filters
+          })
 
         # Don't auto-execute, wait for user to click Apply
         {:noreply, socket}

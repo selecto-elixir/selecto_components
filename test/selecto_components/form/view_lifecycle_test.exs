@@ -25,6 +25,28 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     use SelectoComponents.Form.EventHandlers.ViewLifecycle
   end
 
+  test "view validate is ignored while waiting for submit patch" do
+    original_view_config = %{
+      view_mode: "detail",
+      filters: [],
+      views: %{detail: %{selected: [{"d1", "id", %{}}], order_by: []}}
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        validation_locked_until_patch: true,
+        view_config: original_view_config
+      }
+    }
+
+    {:noreply, updated_socket} =
+      TestLive.handle_event("view-validate", %{"view_mode" => "aggregate"}, socket)
+
+    assert updated_socket.assigns.view_config == original_view_config
+    assert updated_socket.assigns.validation_locked_until_patch == true
+  end
+
   test "save tab persists all view configurations" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{

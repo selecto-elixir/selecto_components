@@ -697,6 +697,7 @@ defmodule SelectoComponents.Form.ParamsState do
             self(),
             {:query_executed,
              %{
+               selecto: selecto,
                query_results: {normalized_rows, columns, aliases},
                last_query_info: last_query_info,
                view_meta: view_meta,
@@ -1317,12 +1318,10 @@ defmodule SelectoComponents.Form.ParamsState do
   def filter_params_to_state(params, socket) do
     filters = view_filter_process(params, "filters")
 
-    Phoenix.Component.assign(socket,
-      view_config: %{
-        socket.assigns.view_config
-        | filters: filters
-      }
-    )
+    assign_view_config(socket, %{
+      socket.assigns.view_config
+      | filters: filters
+    })
   end
 
   @doc """
@@ -1348,13 +1347,13 @@ defmodule SelectoComponents.Form.ParamsState do
       |> preserve_missing_detail_view_params(existing_config, params)
 
     # Preserve existing view_config and only update what's in params
-    Phoenix.Component.assign(socket,
-      view_config:
-        Map.merge(existing_config, %{
-          filters: filters,
-          views: view_configs,
-          view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-        })
+    assign_view_config(
+      socket,
+      Map.merge(existing_config, %{
+        filters: filters,
+        views: view_configs,
+        view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+      })
     )
   end
 
@@ -1366,26 +1365,27 @@ defmodule SelectoComponents.Form.ParamsState do
   """
   def form_params_to_state(params, socket) do
     params = canonicalize_form_params(params)
-    filters = view_filter_process(params, "filters")
     existing_config = socket.assigns[:view_config] || %{}
+    stale_submit? = stale_form_submit?(params, socket)
+    filters = submitted_filters_state(params, existing_config, stale_submit?)
 
     view_configs =
       Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
         Map.put(
           acc,
           view,
-          submitted_view_state(view, view_tuple, params, existing_config, socket)
+          submitted_view_state(view, view_tuple, params, existing_config, socket, stale_submit?)
         )
       end)
       |> preserve_missing_detail_view_params(existing_config, params)
 
-    Phoenix.Component.assign(socket,
-      view_config:
-        Map.merge(existing_config, %{
-          filters: filters,
-          views: view_configs,
-          view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-        })
+    assign_view_config(
+      socket,
+      Map.merge(existing_config, %{
+        filters: filters,
+        views: view_configs,
+        view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
+      })
     )
   end
 
@@ -1407,7 +1407,7 @@ defmodule SelectoComponents.Form.ParamsState do
         views: restore_saved_views(saved_params, existing_config, socket)
       }
 
-      Phoenix.Component.assign(socket, view_config: Map.merge(existing_config, restored_config))
+      assign_view_config(socket, Map.merge(existing_config, restored_config))
     else
       params_to_state(saved_params, socket)
     end
@@ -1415,12 +1415,20 @@ defmodule SelectoComponents.Form.ParamsState do
 
   def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
 
-  defp submitted_view_state(view, view_tuple, params, existing_config, socket) do
+  defp submitted_view_state(view, view_tuple, params, existing_config, socket, stale_submit?) do
+    existing_view = get_in(existing_config, [:views, view])
+
     cond do
       view_params_present?(view, params) ->
-        ViewRuntime.param_to_state(view_tuple, params)
+        submitted_view = ViewRuntime.param_to_state(view_tuple, params)
 
-      existing_view = get_in(existing_config, [:views, view]) ->
+        if stale_submit? do
+          merge_submitted_view_state(view, submitted_view, existing_view || %{}, params)
+        else
+          submitted_view
+        end
+
+      existing_view ->
         existing_view
 
       selecto = socket.assigns[:selecto] ->
@@ -1437,6 +1445,190 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp view_params_present?(_view, _params), do: false
+
+  defp submitted_filters_state(params, existing_config, stale_submit?) do
+    existing_filters = get_map_value(existing_config, :filters, [])
+
+    if Map.has_key?(params, "filters") do
+      submitted_filters = view_filter_process(params, "filters")
+
+      if stale_submit? do
+        merge_submitted_filters(submitted_filters, existing_filters)
+      else
+        submitted_filters
+      end
+    else
+      existing_filters
+    end
+  end
+
+  def assign_view_config(socket, view_config) do
+    Phoenix.Component.assign(socket,
+      view_config: view_config,
+      form_state_revision: next_form_state_revision(socket)
+    )
+  end
+
+  defp stale_form_submit?(params, socket) do
+    case Map.get(params, "form_state_revision") do
+      nil ->
+        false
+
+      submitted_revision ->
+        normalize_form_state_revision(submitted_revision) != socket.assigns[:form_state_revision]
+    end
+  end
+
+  defp next_form_state_revision(socket) do
+    socket.assigns
+    |> Map.get(:form_state_revision, 0)
+    |> normalize_form_state_revision()
+    |> Kernel.+(1)
+  end
+
+  defp normalize_form_state_revision(value) when is_integer(value), do: value
+
+  defp normalize_form_state_revision(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} -> parsed
+      _ -> 0
+    end
+  end
+
+  defp normalize_form_state_revision(_value), do: 0
+
+  defp merge_submitted_filters([], existing_filters), do: existing_filters
+
+  defp merge_submitted_filters(submitted_filters, existing_filters) do
+    submitted_by_uuid =
+      Map.new(submitted_filters, fn {uuid, section, value} ->
+        {uuid, {section, value}}
+      end)
+
+    Enum.map(existing_filters, fn {uuid, section, value} = existing_filter ->
+      case Map.get(submitted_by_uuid, uuid) do
+        nil ->
+          existing_filter
+
+        {submitted_section, submitted_value} ->
+          {uuid, submitted_section || section, merge_filter_value(value, submitted_value)}
+      end
+    end)
+  end
+
+  defp merge_filter_value(existing_value, submitted_value)
+       when is_map(existing_value) and is_map(submitted_value) do
+    Map.merge(existing_value, submitted_value)
+  end
+
+  defp merge_filter_value(_existing_value, submitted_value), do: submitted_value
+
+  defp merge_submitted_view_state(view, submitted_view, existing_view, params) do
+    state_keys =
+      submitted_view_specs(view) |> Enum.map(fn {_type, _param_key, state_key} -> state_key end)
+
+    merged_view = Map.merge(existing_view, Map.drop(submitted_view, state_keys))
+
+    Enum.reduce(submitted_view_specs(view), merged_view, fn
+      {:list, param_key, state_key}, acc ->
+        if Map.has_key?(params, param_key) do
+          submitted_items = Map.get(submitted_view, state_key, [])
+          existing_items = Map.get(existing_view, state_key, [])
+          Map.put(acc, state_key, merge_submitted_list_items(submitted_items, existing_items))
+        else
+          Map.put(
+            acc,
+            state_key,
+            Map.get(existing_view, state_key, Map.get(submitted_view, state_key, []))
+          )
+        end
+
+      {:scalar, param_key, state_key}, acc ->
+        if Map.has_key?(params, param_key) do
+          Map.put(acc, state_key, Map.get(submitted_view, state_key))
+        else
+          Map.put(
+            acc,
+            state_key,
+            Map.get(existing_view, state_key, Map.get(submitted_view, state_key))
+          )
+        end
+    end)
+  end
+
+  defp merge_submitted_list_items([], existing_items), do: existing_items
+
+  defp merge_submitted_list_items(submitted_items, existing_items) do
+    submitted_by_uuid =
+      Map.new(submitted_items, fn item ->
+        {list_item_uuid(item), item}
+      end)
+
+    Enum.map(existing_items, fn existing_item ->
+      case Map.get(submitted_by_uuid, list_item_uuid(existing_item)) do
+        nil -> existing_item
+        submitted_item -> merge_list_item(existing_item, submitted_item)
+      end
+    end)
+  end
+
+  defp merge_list_item(
+         {uuid, field, existing_config},
+         {_submitted_uuid, _submitted_field, submitted_config}
+       )
+       when is_map(existing_config) and is_map(submitted_config) do
+    {uuid, field, Map.merge(existing_config, submitted_config)}
+  end
+
+  defp merge_list_item([uuid, field, existing_config], [
+         _submitted_uuid,
+         _submitted_field,
+         submitted_config
+       ])
+       when is_map(existing_config) and is_map(submitted_config) do
+    [uuid, field, Map.merge(existing_config, submitted_config)]
+  end
+
+  defp merge_list_item(existing_item, _submitted_item), do: existing_item
+
+  defp list_item_uuid({uuid, _field, _config}), do: uuid
+  defp list_item_uuid([uuid, _field, _config]), do: uuid
+  defp list_item_uuid(other), do: other
+
+  defp submitted_view_specs(:detail) do
+    [
+      {:list, "selected", :selected},
+      {:list, "order_by", :order_by},
+      {:scalar, "per_page", :per_page},
+      {:scalar, "max_rows", :max_rows},
+      {:scalar, "count_mode", :count_mode},
+      {:scalar, "row_click_action", :row_click_action},
+      {:scalar, "prevent_denormalization", :prevent_denormalization}
+    ]
+  end
+
+  defp submitted_view_specs(:aggregate) do
+    [
+      {:list, "group_by", :group_by},
+      {:list, "aggregate", :aggregate},
+      {:scalar, "aggregate_per_page", :per_page},
+      {:scalar, "aggregate_grid", :grid},
+      {:scalar, "aggregate_grid_colorize", :grid_colorize},
+      {:scalar, "aggregate_grid_color_scale", :grid_color_scale}
+    ]
+  end
+
+  defp submitted_view_specs(:graph) do
+    [
+      {:list, "x_axis", :x_axis},
+      {:list, "y_axis", :y_axis},
+      {:list, "series", :series},
+      {:scalar, "chart_type", :chart_type},
+      {:scalar, "options", :options}
+    ]
+  end
+
+  defp submitted_view_specs(_view), do: []
 
   defp view_param_keys(:detail),
     do: [
@@ -2064,7 +2256,7 @@ defmodule SelectoComponents.Form.ParamsState do
   @doc """
   Update the URL to include the configured view parameters.
   """
-  def state_to_url(params, socket) do
+  def state_to_url(params, socket, opts \\ []) do
     params =
       params
       |> compact_url_params()
@@ -2074,7 +2266,7 @@ defmodule SelectoComponents.Form.ParamsState do
     my_path = socket.assigns.my_path
     full_path = "#{my_path}?#{params_encoded}"
 
-    Phoenix.LiveView.push_patch(socket, to: full_path)
+    Phoenix.LiveView.push_patch(socket, Keyword.merge([to: full_path], opts))
   end
 
   defp merge_special_debug_params(params, socket) do
