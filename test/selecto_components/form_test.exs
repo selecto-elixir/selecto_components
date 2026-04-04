@@ -4,6 +4,7 @@ defmodule SelectoComponents.FormTest do
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias SelectoComponents.Form
+  alias SelectoComponents.Form.FilterRendering
 
   test "renders an always-visible controller summary when collapsed" do
     html = render_component(Form, base_assigns(%{show_view_configurator: false}))
@@ -156,6 +157,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(name="promoted_filters[f4][value]")
     assert html =~ ~s(<optgroup label="Days">)
     assert html =~ ~s(<option value="this_month" selected>)
+    assert html =~ "Preview:"
+    assert html =~ FilterRendering.date_shortcut_preview("this_month")
     refute html =~ ~s(type="text" name="promoted_filters[f4][value]")
   end
 

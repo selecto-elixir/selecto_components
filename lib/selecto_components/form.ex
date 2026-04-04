@@ -1088,19 +1088,28 @@ defmodule SelectoComponents.Form do
             phx-debounce="300"
           />
         <% @filter.comp == "SHORTCUT" -> %>
-          <select
-            id={"promoted-filter-value-#{@filter.uuid}"}
-            name={"promoted_filters[#{@filter.uuid}][value]"}
-            class="sc-select"
-          >
-            <%= for {group_label, options} <- controller_shortcut_option_groups() do %>
-              <optgroup label={group_label}>
-                <%= for {value, label} <- options do %>
-                  <option value={value} selected={@filter.value == value}>{label}</option>
-                <% end %>
-              </optgroup>
-            <% end %>
-          </select>
+          <div class="space-y-1">
+            <select
+              id={"promoted-filter-value-#{@filter.uuid}"}
+              name={"promoted_filters[#{@filter.uuid}][value]"}
+              class="sc-select w-full"
+            >
+              <%= for {group_label, options} <- controller_shortcut_option_groups() do %>
+                <optgroup label={group_label}>
+                  <%= for {value, label} <- options do %>
+                    <option value={value} selected={@filter.value == value}>{label}</option>
+                  <% end %>
+                </optgroup>
+              <% end %>
+            </select>
+            <p
+              :if={FilterRendering.date_shortcut_preview(@filter.value)}
+              class="px-1 text-xs"
+              style="color: var(--sc-text-muted);"
+            >
+              Preview: {FilterRendering.date_shortcut_preview(@filter.value)}
+            </p>
+          </div>
         <% @filter.comp in ["RELATIVE", "WEEK_OF_YEAR"] -> %>
           <input
             id={"promoted-filter-value-#{@filter.uuid}"}

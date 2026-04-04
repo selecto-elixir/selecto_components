@@ -166,12 +166,21 @@ defmodule SelectoComponents.Form.FilterRendering do
         filter_value: filter_value,
         current_comp: current_comp,
         current_value: current_value,
+        shortcut_preview: date_shortcut_preview(current_value),
         promote_checked: promote_checked?(filter_value)
       )
 
     ~H"""
     <div class="space-y-2">
-      <div class="grid grid-cols-3 gap-2">
+      <div
+        class={[
+          "grid grid-cols-3 gap-2",
+          @promote_checked && "opacity-60"
+        ]}
+        inert={@promote_checked}
+        aria-disabled={to_string(@promote_checked)}
+        data-promoted-lock={to_string(@promote_checked)}
+      >
         <select
           name={"filters[#{@uuid}][comp]"}
           class="sc-select"
@@ -242,129 +251,138 @@ defmodule SelectoComponents.Form.FilterRendering do
               />
             </div>
           <% @current_comp == "SHORTCUT" -> %>
-            <select name={"filters[#{@uuid}][value]"} class="sc-select col-span-2">
-              <optgroup label="Days">
-                <option value="today" selected={@current_value == "today"}>Today</option>
-                <option value="yesterday" selected={@current_value == "yesterday"}>
-                  Yesterday
-                </option>
-                <option value="tomorrow" selected={@current_value == "tomorrow"}>
-                  Tomorrow
-                </option>
-              </optgroup>
-              <optgroup label="Weeks">
-                <option value="this_week" selected={@current_value == "this_week"}>
-                  This Week
-                </option>
-                <option value="last_week" selected={@current_value == "last_week"}>
-                  Last Week
-                </option>
-                <option value="next_week" selected={@current_value == "next_week"}>
-                  Next Week
-                </option>
-                <option value="weekdays" selected={@current_value == "weekdays"}>
-                  Weekdays (Mon-Fri)
-                </option>
-                <option value="weekends" selected={@current_value == "weekends"}>
-                  Weekends (Sat-Sun)
-                </option>
-              </optgroup>
-              <optgroup label="Specific Weekday">
-                <option value="monday" selected={@current_value == "monday"}>Mondays</option>
-                <option value="tuesday" selected={@current_value == "tuesday"}>
-                  Tuesdays
-                </option>
-                <option value="wednesday" selected={@current_value == "wednesday"}>
-                  Wednesdays
-                </option>
-                <option value="thursday" selected={@current_value == "thursday"}>
-                  Thursdays
-                </option>
-                <option value="friday" selected={@current_value == "friday"}>Fridays</option>
-                <option value="saturday" selected={@current_value == "saturday"}>
-                  Saturdays
-                </option>
-                <option value="sunday" selected={@current_value == "sunday"}>Sundays</option>
-              </optgroup>
-              <optgroup label="Months">
-                <option value="this_month" selected={@filter_value["value"] == "this_month"}>
-                  This Month
-                </option>
-                <option value="last_month" selected={@filter_value["value"] == "last_month"}>
-                  Last Month
-                </option>
-                <option value="next_month" selected={@filter_value["value"] == "next_month"}>
-                  Next Month
-                </option>
-                <option value="mtd" selected={@filter_value["value"] == "mtd"}>Month to Date</option>
-              </optgroup>
-              <optgroup label="Quarters">
-                <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>
-                  This Quarter
-                </option>
-                <option value="last_quarter" selected={@filter_value["value"] == "last_quarter"}>
-                  Last Quarter
-                </option>
-                <option value="next_quarter" selected={@filter_value["value"] == "next_quarter"}>
-                  Next Quarter
-                </option>
-                <option value="qtd" selected={@filter_value["value"] == "qtd"}>
-                  Quarter to Date
-                </option>
-              </optgroup>
-              <optgroup label="Years">
-                <option value="this_year" selected={@filter_value["value"] == "this_year"}>
-                  This Year
-                </option>
-                <option value="last_year" selected={@filter_value["value"] == "last_year"}>
-                  Last Year
-                </option>
-                <option value="next_year" selected={@filter_value["value"] == "next_year"}>
-                  Next Year
-                </option>
-                <option value="ytd" selected={@filter_value["value"] == "ytd"}>Year to Date</option>
-              </optgroup>
-              <optgroup label="Relative Periods">
-                <option value="last_7_days" selected={@filter_value["value"] == "last_7_days"}>
-                  Last 7 Days
-                </option>
-                <option value="last_30_days" selected={@filter_value["value"] == "last_30_days"}>
-                  Last 30 Days
-                </option>
-                <option value="last_60_days" selected={@filter_value["value"] == "last_60_days"}>
-                  Last 60 Days
-                </option>
-                <option value="last_90_days" selected={@filter_value["value"] == "last_90_days"}>
-                  Last 90 Days
-                </option>
-                <option value="next_7_days" selected={@filter_value["value"] == "next_7_days"}>
-                  Next 7 Days
-                </option>
-                <option value="next_30_days" selected={@filter_value["value"] == "next_30_days"}>
-                  Next 30 Days
-                </option>
-              </optgroup>
-              <optgroup label="Year Comparisons">
-                <option value="last_ytd" selected={@filter_value["value"] == "last_ytd"}>
-                  Last Year YTD (same period)
-                </option>
-                <option value="ytd_vs_last" selected={@filter_value["value"] == "ytd_vs_last"}>
-                  This Year and Last Year YTD
-                </option>
-                <option value="qtd_vs_last" selected={@filter_value["value"] == "qtd_vs_last"}>
-                  This Quarter and Last Quarter QTD
-                </option>
-                <option value="mtd_vs_last" selected={@filter_value["value"] == "mtd_vs_last"}>
-                  This Month and Last Month MTD
-                </option>
-                <option
-                  value="mtd_vs_last_year"
-                  selected={@filter_value["value"] == "mtd_vs_last_year"}
-                >
-                  This Month MTD and Last Year's MTD
-                </option>
-              </optgroup>
-            </select>
+            <div class="col-span-2 space-y-1">
+              <select name={"filters[#{@uuid}][value]"} class="sc-select w-full">
+                <optgroup label="Days">
+                  <option value="today" selected={@current_value == "today"}>Today</option>
+                  <option value="yesterday" selected={@current_value == "yesterday"}>
+                    Yesterday
+                  </option>
+                  <option value="tomorrow" selected={@current_value == "tomorrow"}>
+                    Tomorrow
+                  </option>
+                </optgroup>
+                <optgroup label="Weeks">
+                  <option value="this_week" selected={@current_value == "this_week"}>
+                    This Week
+                  </option>
+                  <option value="last_week" selected={@current_value == "last_week"}>
+                    Last Week
+                  </option>
+                  <option value="next_week" selected={@current_value == "next_week"}>
+                    Next Week
+                  </option>
+                  <option value="weekdays" selected={@current_value == "weekdays"}>
+                    Weekdays (Mon-Fri)
+                  </option>
+                  <option value="weekends" selected={@current_value == "weekends"}>
+                    Weekends (Sat-Sun)
+                  </option>
+                </optgroup>
+                <optgroup label="Specific Weekday">
+                  <option value="monday" selected={@current_value == "monday"}>Mondays</option>
+                  <option value="tuesday" selected={@current_value == "tuesday"}>
+                    Tuesdays
+                  </option>
+                  <option value="wednesday" selected={@current_value == "wednesday"}>
+                    Wednesdays
+                  </option>
+                  <option value="thursday" selected={@current_value == "thursday"}>
+                    Thursdays
+                  </option>
+                  <option value="friday" selected={@current_value == "friday"}>Fridays</option>
+                  <option value="saturday" selected={@current_value == "saturday"}>
+                    Saturdays
+                  </option>
+                  <option value="sunday" selected={@current_value == "sunday"}>Sundays</option>
+                </optgroup>
+                <optgroup label="Months">
+                  <option value="this_month" selected={@filter_value["value"] == "this_month"}>
+                    This Month
+                  </option>
+                  <option value="last_month" selected={@filter_value["value"] == "last_month"}>
+                    Last Month
+                  </option>
+                  <option value="next_month" selected={@filter_value["value"] == "next_month"}>
+                    Next Month
+                  </option>
+                  <option value="mtd" selected={@filter_value["value"] == "mtd"}>Month to Date</option>
+                </optgroup>
+                <optgroup label="Quarters">
+                  <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>
+                    This Quarter
+                  </option>
+                  <option value="last_quarter" selected={@filter_value["value"] == "last_quarter"}>
+                    Last Quarter
+                  </option>
+                  <option value="next_quarter" selected={@filter_value["value"] == "next_quarter"}>
+                    Next Quarter
+                  </option>
+                  <option value="qtd" selected={@filter_value["value"] == "qtd"}>
+                    Quarter to Date
+                  </option>
+                </optgroup>
+                <optgroup label="Years">
+                  <option value="this_year" selected={@filter_value["value"] == "this_year"}>
+                    This Year
+                  </option>
+                  <option value="last_year" selected={@filter_value["value"] == "last_year"}>
+                    Last Year
+                  </option>
+                  <option value="next_year" selected={@filter_value["value"] == "next_year"}>
+                    Next Year
+                  </option>
+                  <option value="ytd" selected={@filter_value["value"] == "ytd"}>Year to Date</option>
+                </optgroup>
+                <optgroup label="Relative Periods">
+                  <option value="last_7_days" selected={@filter_value["value"] == "last_7_days"}>
+                    Last 7 Days
+                  </option>
+                  <option value="last_30_days" selected={@filter_value["value"] == "last_30_days"}>
+                    Last 30 Days
+                  </option>
+                  <option value="last_60_days" selected={@filter_value["value"] == "last_60_days"}>
+                    Last 60 Days
+                  </option>
+                  <option value="last_90_days" selected={@filter_value["value"] == "last_90_days"}>
+                    Last 90 Days
+                  </option>
+                  <option value="next_7_days" selected={@filter_value["value"] == "next_7_days"}>
+                    Next 7 Days
+                  </option>
+                  <option value="next_30_days" selected={@filter_value["value"] == "next_30_days"}>
+                    Next 30 Days
+                  </option>
+                </optgroup>
+                <optgroup label="Year Comparisons">
+                  <option value="last_ytd" selected={@filter_value["value"] == "last_ytd"}>
+                    Last Year YTD (same period)
+                  </option>
+                  <option value="ytd_vs_last" selected={@filter_value["value"] == "ytd_vs_last"}>
+                    This Year and Last Year YTD
+                  </option>
+                  <option value="qtd_vs_last" selected={@filter_value["value"] == "qtd_vs_last"}>
+                    This Quarter and Last Quarter QTD
+                  </option>
+                  <option value="mtd_vs_last" selected={@filter_value["value"] == "mtd_vs_last"}>
+                    This Month and Last Month MTD
+                  </option>
+                  <option
+                    value="mtd_vs_last_year"
+                    selected={@filter_value["value"] == "mtd_vs_last_year"}
+                  >
+                    This Month MTD and Last Year's MTD
+                  </option>
+                </optgroup>
+              </select>
+              <p
+                :if={@shortcut_preview}
+                class="px-1 text-xs"
+                style="color: var(--sc-text-muted);"
+              >
+                Preview: {@shortcut_preview}
+              </p>
+            </div>
           <% @current_comp == "RELATIVE" -> %>
             <div class="col-span-2 flex gap-2">
               <input
@@ -452,6 +470,14 @@ defmodule SelectoComponents.Form.FilterRendering do
         <% end %>
       </div>
 
+      <p
+        :if={@promote_checked}
+        class="text-xs"
+        style="color: var(--sc-text-muted);"
+      >
+        Edited in View Controller.
+      </p>
+
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
@@ -531,14 +557,23 @@ defmodule SelectoComponents.Form.FilterRendering do
       )
 
     ~H"""
-    <div class="grid grid-cols-3 gap-2">
-      <select name={"filters[#{@uuid}][comp]"} class="sc-select">
-        <%= for {op, label} <- @operator_options do %>
-          <option value={op} selected={@current_comp == op}>{label}</option>
-        <% end %>
-      </select>
+    <div class="space-y-2">
+      <div
+        class={[
+          "grid grid-cols-3 gap-2",
+          @promote_checked && "opacity-60"
+        ]}
+        inert={@promote_checked}
+        aria-disabled={to_string(@promote_checked)}
+        data-promoted-lock={to_string(@promote_checked)}
+      >
+        <select name={"filters[#{@uuid}][comp]"} class="sc-select">
+          <%= for {op, label} <- @operator_options do %>
+            <option value={op} selected={@current_comp == op}>{label}</option>
+          <% end %>
+        </select>
 
-      <%= cond do %>
+        <%= cond do %>
         <% @current_comp == "BETWEEN" -> %>
           <div class="col-span-2 grid grid-cols-2 gap-2">
             <input
@@ -702,41 +737,50 @@ defmodule SelectoComponents.Form.FilterRendering do
             phx-debounce="300"
             disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
           />
-      <% end %>
+        <% end %>
 
-      <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
-        <div
-          class="col-span-3 flex items-center gap-2 text-sm"
-          style="color: var(--sc-text-secondary);"
-        >
-          <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
-          <input
-            type="checkbox"
-            class="checkbox checkbox-sm"
-            name={"filters[#{@uuid}][exclude_articles]"}
-            value="true"
-            checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
-          /> Ignore leading articles (a, an, the)
-        </div>
-      <% end %>
+        <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
+          <div
+            class="col-span-3 flex items-center gap-2 text-sm"
+            style="color: var(--sc-text-secondary);"
+          >
+            <input type="hidden" name={"filters[#{@uuid}][exclude_articles]"} value="false" />
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm"
+              name={"filters[#{@uuid}][exclude_articles]"}
+              value="true"
+              checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
+              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+            /> Ignore leading articles (a, an, the)
+          </div>
+        <% end %>
 
-      <%= if @is_text_field and @current_comp not in ["IS NULL", "IS NOT NULL"] do %>
-        <div
-          class="col-span-3 flex items-center gap-2 text-sm"
-          style="color: var(--sc-text-secondary);"
-        >
-          <input type="hidden" name={"filters[#{@uuid}][ignore_case]"} value="false" />
-          <input
-            type="checkbox"
-            class="checkbox checkbox-sm"
-            name={"filters[#{@uuid}][ignore_case]"}
-            value="true"
-            checked={@ignore_case_checked}
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
-          /> Case insensitive
-        </div>
-      <% end %>
+        <%= if @is_text_field and @current_comp not in ["IS NULL", "IS NOT NULL"] do %>
+          <div
+            class="col-span-3 flex items-center gap-2 text-sm"
+            style="color: var(--sc-text-secondary);"
+          >
+            <input type="hidden" name={"filters[#{@uuid}][ignore_case]"} value="false" />
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm"
+              name={"filters[#{@uuid}][ignore_case]"}
+              value="true"
+              checked={@ignore_case_checked}
+              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+            /> Case insensitive
+          </div>
+        <% end %>
+      </div>
+
+      <p
+        :if={@promote_checked}
+        class="text-xs"
+        style="color: var(--sc-text-muted);"
+      >
+        Edited in View Controller.
+      </p>
 
       <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
 
@@ -913,36 +957,54 @@ defmodule SelectoComponents.Form.FilterRendering do
       )
 
     ~H"""
-    <div class="grid grid-cols-1 gap-2">
-      <div class="flex items-center gap-2">
-        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    <div class="space-y-2">
+      <div
+        class={[
+          "grid grid-cols-1 gap-2",
+          @promote_checked && "opacity-60"
+        ]}
+        inert={@promote_checked}
+        aria-disabled={to_string(@promote_checked)}
+        data-promoted-lock={to_string(@promote_checked)}
+      >
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          <input
+            type="text"
+            name={"filters[#{@uuid}][value]"}
+            value={@filter_value["value"]}
+            placeholder="Search... (e.g., matrix, 'the matrix', matrix OR reloaded)"
+            class="sc-input flex-1"
+            phx-debounce="300"
           />
-        </svg>
-        <input
-          type="text"
-          name={"filters[#{@uuid}][value]"}
-          value={@filter_value["value"]}
-          placeholder="Search... (e.g., matrix, 'the matrix', matrix OR reloaded)"
-          class="sc-input flex-1"
-          phx-debounce="300"
-        />
+        </div>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
+          <label class="text-xs font-medium text-gray-600">Search Mode</label>
+          <select name={"filters[#{@uuid}][mode]"} class="sc-select">
+            <%= for {value, label} <- @text_search_mode_options do %>
+              <option value={value} selected={@current_text_search_mode == value}>{label}</option>
+            <% end %>
+          </select>
+        </div>
+        <div class="text-xs text-gray-500">
+          {@text_search_help_text}
+        </div>
       </div>
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
-        <label class="text-xs font-medium text-gray-600">Search Mode</label>
-        <select name={"filters[#{@uuid}][mode]"} class="sc-select">
-          <%= for {value, label} <- @text_search_mode_options do %>
-            <option value={value} selected={@current_text_search_mode == value}>{label}</option>
-          <% end %>
-        </select>
-      </div>
-      <div class="text-xs text-gray-500">
-        {@text_search_help_text}
-      </div>
+
+      <p
+        :if={@promote_checked}
+        class="text-xs"
+        style="color: var(--sc-text-muted);"
+      >
+        Edited in View Controller.
+      </p>
 
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
@@ -1026,6 +1088,112 @@ defmodule SelectoComponents.Form.FilterRendering do
   def is_date_shortcut(_), do: false
 
   @doc """
+  Build a compact human preview for a date shortcut using the server-local date.
+  """
+  def date_shortcut_preview(shortcut, today \\ local_today())
+
+  def date_shortcut_preview(shortcut, today) when is_atom(shortcut) do
+    date_shortcut_preview(Atom.to_string(shortcut), today)
+  end
+
+  def date_shortcut_preview(shortcut, %Date{} = today) when is_binary(shortcut) do
+    case shortcut do
+      "today" -> format_date_preview(today)
+      "yesterday" -> format_date_preview(Date.add(today, -1))
+      "tomorrow" -> format_date_preview(Date.add(today, 1))
+      "this_week" -> format_date_range_preview(beginning_of_week(today), Date.add(beginning_of_week(today), 6))
+      "last_week" ->
+        start_of_week = beginning_of_week(Date.add(today, -7))
+        format_date_range_preview(start_of_week, Date.add(start_of_week, 6))
+
+      "next_week" ->
+        start_of_week = beginning_of_week(Date.add(today, 7))
+        format_date_range_preview(start_of_week, Date.add(start_of_week, 6))
+
+      "weekdays" -> "Every Mon-Fri"
+      "weekends" -> "Every Sat-Sun"
+      "monday" -> "Every Monday"
+      "tuesday" -> "Every Tuesday"
+      "wednesday" -> "Every Wednesday"
+      "thursday" -> "Every Thursday"
+      "friday" -> "Every Friday"
+      "saturday" -> "Every Saturday"
+      "sunday" -> "Every Sunday"
+      "this_month" -> format_month_preview(today.year, today.month)
+      "last_month" ->
+        last_month = Date.add(Date.beginning_of_month(today), -1)
+        format_month_preview(last_month.year, last_month.month)
+
+      "next_month" ->
+        next_month = Date.beginning_of_month(Date.add(Date.end_of_month(today), 1))
+        format_month_preview(next_month.year, next_month.month)
+
+      "mtd" -> format_date_range_preview(Date.beginning_of_month(today), today)
+      "this_quarter" -> format_quarter_preview(today)
+      "last_quarter" ->
+        last_quarter = Date.add(beginning_of_quarter(today), -1)
+        format_quarter_preview(last_quarter)
+
+      "next_quarter" ->
+        next_quarter = Date.add(quarter_end(today), 1)
+        format_quarter_preview(next_quarter)
+
+      "qtd" -> format_date_range_preview(beginning_of_quarter(today), today)
+      "this_year" -> Integer.to_string(today.year)
+      "last_year" -> Integer.to_string(today.year - 1)
+      "next_year" -> Integer.to_string(today.year + 1)
+      "ytd" -> format_date_range_preview(Date.new!(today.year, 1, 1), today)
+      "last_7_days" -> format_date_range_preview(Date.add(today, -6), today)
+      "last_30_days" -> format_date_range_preview(Date.add(today, -29), today)
+      "last_60_days" -> format_date_range_preview(Date.add(today, -59), today)
+      "last_90_days" -> format_date_range_preview(Date.add(today, -89), today)
+      "next_7_days" -> format_date_range_preview(today, Date.add(today, 6))
+      "next_30_days" -> format_date_range_preview(today, Date.add(today, 29))
+      "last_ytd" ->
+        same_day = safe_same_day_last_year(today)
+        format_date_range_preview(Date.new!(today.year - 1, 1, 1), same_day)
+
+      "ytd_vs_last" ->
+        same_day = safe_same_day_last_year(today)
+
+        format_comparison_preview([
+          {Date.new!(today.year, 1, 1), today},
+          {Date.new!(today.year - 1, 1, 1), same_day}
+        ])
+
+      "qtd_vs_last" ->
+        same_day = safe_same_day_last_year(today)
+        last_year_quarter_start = Date.new!(today.year - 1, beginning_of_quarter(today).month, 1)
+
+        format_comparison_preview([
+          {beginning_of_quarter(today), today},
+          {last_year_quarter_start, same_day}
+        ])
+
+      "mtd_vs_last" ->
+        {last_month_start, same_day_last_month} = last_month_range(today)
+
+        format_comparison_preview([
+          {Date.beginning_of_month(today), today},
+          {last_month_start, same_day_last_month}
+        ])
+
+      "mtd_vs_last_year" ->
+        same_day = safe_same_day_last_year(today)
+
+        format_comparison_preview([
+          {Date.beginning_of_month(today), today},
+          {Date.new!(today.year - 1, today.month, 1), same_day}
+        ])
+
+      _ ->
+        nil
+    end
+  end
+
+  def date_shortcut_preview(_, _), do: nil
+
+  @doc """
   Check if a value is a relative date format (5, 3-7, -30, 30-).
 
   Patterns:
@@ -1040,6 +1208,74 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   def is_relative_date(_), do: false
+
+  defp format_date_preview(%Date{} = date), do: Date.to_iso8601(date)
+
+  defp format_date_range_preview(%Date{} = start_date, %Date{} = end_date) do
+    "#{Date.to_iso8601(start_date)} to #{Date.to_iso8601(end_date)}"
+  end
+
+  defp format_month_preview(year, month) do
+    "#{String.pad_leading(Integer.to_string(month), 2, "0")}-#{year}"
+  end
+
+  defp format_quarter_preview(%Date{} = date) do
+    quarter = div(date.month - 1, 3) + 1
+    "Q#{quarter}-#{date.year}"
+  end
+
+  defp format_comparison_preview(ranges) when is_list(ranges) do
+    ranges
+    |> Enum.map(fn {start_date, end_date} -> format_date_range_preview(start_date, end_date) end)
+    |> Enum.join(" + ")
+  end
+
+  defp safe_same_day_last_year(%Date{} = today) do
+    case Date.new(today.year - 1, today.month, today.day) do
+      {:ok, date} ->
+        date
+
+      {:error, _reason} ->
+        Date.new!(today.year - 1, today.month, today.day - 1)
+    end
+  end
+
+  defp last_month_range(%Date{} = today) do
+    {year, month} =
+      if today.month == 1 do
+        {today.year - 1, 12}
+      else
+        {today.year, today.month - 1}
+      end
+
+    start_date = Date.new!(year, month, 1)
+    max_day = Date.days_in_month(start_date)
+    same_day = Date.new!(year, month, min(today.day, max_day))
+
+    {start_date, same_day}
+  end
+
+  defp beginning_of_week(%Date{} = date) do
+    day_of_week = Date.day_of_week(date, :monday)
+    Date.add(date, -(day_of_week - 1))
+  end
+
+  defp beginning_of_quarter(%Date{} = date) do
+    quarter_month = div(date.month - 1, 3) * 3 + 1
+    Date.new!(date.year, quarter_month, 1)
+  end
+
+  defp quarter_end(%Date{} = date) do
+    quarter_start = beginning_of_quarter(date)
+    Date.add(Date.add(quarter_start, 93), -1)
+    |> Date.beginning_of_month()
+    |> Date.add(-1)
+  end
+
+  defp local_today do
+    {{year, month, day}, _time} = :calendar.local_time()
+    Date.new!(year, month, day)
+  end
 
   defp date_specific_datetime_comp?(comp) when is_binary(comp) do
     comp in [

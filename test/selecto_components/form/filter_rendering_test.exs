@@ -117,6 +117,31 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "date_shortcut_preview/2" do
+    test "formats whole-period shortcuts compactly" do
+      today = ~D[2026-04-03]
+
+      assert FilterRendering.date_shortcut_preview("this_month", today) == "04-2026"
+      assert FilterRendering.date_shortcut_preview("this_quarter", today) == "Q2-2026"
+      assert FilterRendering.date_shortcut_preview("this_year", today) == "2026"
+    end
+
+    test "formats range-based shortcuts with exact dates" do
+      today = ~D[2026-04-03]
+
+      assert FilterRendering.date_shortcut_preview("this_week", today) ==
+               "2026-03-30 to 2026-04-05"
+
+      assert FilterRendering.date_shortcut_preview("mtd", today) ==
+               "2026-04-01 to 2026-04-03"
+    end
+
+    test "formats weekday shortcuts as recurring labels" do
+      assert FilterRendering.date_shortcut_preview("friday", ~D[2026-04-03]) == "Every Friday"
+      assert FilterRendering.date_shortcut_preview("weekdays", ~D[2026-04-03]) == "Every Mon-Fri"
+    end
+  end
+
   describe "format_datetime_value/2" do
     test "formats valid dates correctly" do
       assert FilterRendering.format_datetime_value("2024-01-15", :date) == "2024-01-15"
@@ -301,6 +326,29 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ "Promote to View Controller"
     end
 
+    test "locks promoted standard filters in the filter tab" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :string,
+          filter_value: %{
+            "filter" => "title",
+            "comp" => "=",
+            "value" => "alpha",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :string},
+          filter_def: %{type: :string}
+        })
+
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ ~s(inert)
+      assert html =~ "Edited in View Controller."
+    end
+
     test "renders a promote checkbox for datetime filters" do
       html =
         render_component(&FilterRendering.render_datetime_filter/1, %{
@@ -321,6 +369,10 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       assert html =~ ~s(name="filters[f1][promote]")
       assert html =~ "Promote to View Controller"
+      assert html =~ "Preview:"
+      assert html =~ FilterRendering.date_shortcut_preview("today")
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ "Edited in View Controller."
     end
 
     test "renders a promote checkbox for text search filters" do
@@ -339,6 +391,8 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       assert html =~ ~s(name="filters[f1][promote]")
       assert html =~ "Promote to View Controller"
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ "Edited in View Controller."
     end
   end
 
