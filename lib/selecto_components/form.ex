@@ -41,7 +41,11 @@ defmodule SelectoComponents.Form do
         form_state_revision: Map.get(assigns, :form_state_revision, 0),
         view_config_dirty?: Map.get(assigns, :view_config_dirty?, false),
         applied_form_state_revision:
-          Map.get(assigns, :applied_form_state_revision, Map.get(assigns, :form_state_revision, 0)),
+          Map.get(
+            assigns,
+            :applied_form_state_revision,
+            Map.get(assigns, :form_state_revision, 0)
+          ),
         theme: Theme.resolve_theme(assigns),
         use_saved_views: Map.get(assigns, :saved_view_module, false),
         use_exported_views: Map.get(assigns, :exported_view_module, false),
@@ -939,8 +943,8 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  attr :filter, :map, required: true
-  attr :theme, :map, required: true
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
 
   defp controller_filter_editor(assigns) do
     assigns = assign(assigns, :comp_label, controller_filter_badge_label(assigns.filter))
@@ -952,8 +956,8 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  attr :filter, :map, required: true
-  attr :theme, :map, required: true
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
 
   defp controller_standard_filter_editor(assigns) do
     ~H"""
@@ -1014,8 +1018,8 @@ defmodule SelectoComponents.Form do
     """
   end
 
-  attr :filter, :map, required: true
-  attr :theme, :map, required: true
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
 
   defp controller_datetime_filter_editor(assigns) do
     ~H"""
@@ -1133,8 +1137,8 @@ defmodule SelectoComponents.Form do
     """
   end
 
-  attr :filter, :map, required: true
-  attr :theme, :map, required: true
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
 
   defp controller_text_search_filter_editor(assigns) do
     ~H"""

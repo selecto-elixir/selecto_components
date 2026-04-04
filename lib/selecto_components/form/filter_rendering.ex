@@ -1098,10 +1098,18 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   def date_shortcut_preview(shortcut, %Date{} = today) when is_binary(shortcut) do
     case shortcut do
-      "today" -> format_date_preview(today)
-      "yesterday" -> format_date_preview(Date.add(today, -1))
-      "tomorrow" -> format_date_preview(Date.add(today, 1))
-      "this_week" -> format_date_range_preview(beginning_of_week(today), Date.add(beginning_of_week(today), 6))
+      "today" ->
+        format_date_preview(today)
+
+      "yesterday" ->
+        format_date_preview(Date.add(today, -1))
+
+      "tomorrow" ->
+        format_date_preview(Date.add(today, 1))
+
+      "this_week" ->
+        format_date_range_preview(beginning_of_week(today), Date.add(beginning_of_week(today), 6))
+
       "last_week" ->
         start_of_week = beginning_of_week(Date.add(today, -7))
         format_date_range_preview(start_of_week, Date.add(start_of_week, 6))
@@ -1110,16 +1118,36 @@ defmodule SelectoComponents.Form.FilterRendering do
         start_of_week = beginning_of_week(Date.add(today, 7))
         format_date_range_preview(start_of_week, Date.add(start_of_week, 6))
 
-      "weekdays" -> "Every Mon-Fri"
-      "weekends" -> "Every Sat-Sun"
-      "monday" -> "Every Monday"
-      "tuesday" -> "Every Tuesday"
-      "wednesday" -> "Every Wednesday"
-      "thursday" -> "Every Thursday"
-      "friday" -> "Every Friday"
-      "saturday" -> "Every Saturday"
-      "sunday" -> "Every Sunday"
-      "this_month" -> format_month_preview(today.year, today.month)
+      "weekdays" ->
+        "Every Mon-Fri"
+
+      "weekends" ->
+        "Every Sat-Sun"
+
+      "monday" ->
+        "Every Monday"
+
+      "tuesday" ->
+        "Every Tuesday"
+
+      "wednesday" ->
+        "Every Wednesday"
+
+      "thursday" ->
+        "Every Thursday"
+
+      "friday" ->
+        "Every Friday"
+
+      "saturday" ->
+        "Every Saturday"
+
+      "sunday" ->
+        "Every Sunday"
+
+      "this_month" ->
+        format_month_preview(today.year, today.month)
+
       "last_month" ->
         last_month = Date.add(Date.beginning_of_month(today), -1)
         format_month_preview(last_month.year, last_month.month)
@@ -1128,8 +1156,12 @@ defmodule SelectoComponents.Form.FilterRendering do
         next_month = Date.beginning_of_month(Date.add(Date.end_of_month(today), 1))
         format_month_preview(next_month.year, next_month.month)
 
-      "mtd" -> format_date_range_preview(Date.beginning_of_month(today), today)
-      "this_quarter" -> format_quarter_preview(today)
+      "mtd" ->
+        format_date_range_preview(Date.beginning_of_month(today), today)
+
+      "this_quarter" ->
+        format_quarter_preview(today)
+
       "last_quarter" ->
         last_quarter = Date.add(beginning_of_quarter(today), -1)
         format_quarter_preview(last_quarter)
@@ -1138,17 +1170,39 @@ defmodule SelectoComponents.Form.FilterRendering do
         next_quarter = Date.add(quarter_end(today), 1)
         format_quarter_preview(next_quarter)
 
-      "qtd" -> format_date_range_preview(beginning_of_quarter(today), today)
-      "this_year" -> Integer.to_string(today.year)
-      "last_year" -> Integer.to_string(today.year - 1)
-      "next_year" -> Integer.to_string(today.year + 1)
-      "ytd" -> format_date_range_preview(Date.new!(today.year, 1, 1), today)
-      "last_7_days" -> format_date_range_preview(Date.add(today, -6), today)
-      "last_30_days" -> format_date_range_preview(Date.add(today, -29), today)
-      "last_60_days" -> format_date_range_preview(Date.add(today, -59), today)
-      "last_90_days" -> format_date_range_preview(Date.add(today, -89), today)
-      "next_7_days" -> format_date_range_preview(today, Date.add(today, 6))
-      "next_30_days" -> format_date_range_preview(today, Date.add(today, 29))
+      "qtd" ->
+        format_date_range_preview(beginning_of_quarter(today), today)
+
+      "this_year" ->
+        Integer.to_string(today.year)
+
+      "last_year" ->
+        Integer.to_string(today.year - 1)
+
+      "next_year" ->
+        Integer.to_string(today.year + 1)
+
+      "ytd" ->
+        format_date_range_preview(Date.new!(today.year, 1, 1), today)
+
+      "last_7_days" ->
+        format_date_range_preview(Date.add(today, -6), today)
+
+      "last_30_days" ->
+        format_date_range_preview(Date.add(today, -29), today)
+
+      "last_60_days" ->
+        format_date_range_preview(Date.add(today, -59), today)
+
+      "last_90_days" ->
+        format_date_range_preview(Date.add(today, -89), today)
+
+      "next_7_days" ->
+        format_date_range_preview(today, Date.add(today, 6))
+
+      "next_30_days" ->
+        format_date_range_preview(today, Date.add(today, 29))
+
       "last_ytd" ->
         same_day = safe_same_day_last_year(today)
         format_date_range_preview(Date.new!(today.year - 1, 1, 1), same_day)
@@ -1267,6 +1321,7 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp quarter_end(%Date{} = date) do
     quarter_start = beginning_of_quarter(date)
+
     Date.add(Date.add(quarter_start, 93), -1)
     |> Date.beginning_of_month()
     |> Date.add(-1)
@@ -1699,8 +1754,8 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp parse_filter_ids(_), do: []
 
-  attr :uuid, :string, required: true
-  attr :checked, :boolean, required: true
+  attr(:uuid, :string, required: true)
+  attr(:checked, :boolean, required: true)
 
   defp promote_checkbox(assigns) do
     ~H"""

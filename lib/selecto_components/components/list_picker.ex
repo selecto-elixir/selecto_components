@@ -54,12 +54,12 @@ defmodule SelectoComponents.Components.ListPicker do
             <div class="relative">
               <button
                 data-type-filter-toggle
-                class={[Theme.slot(@theme, :button_secondary), "h-8", "w-8", "px-0"]}
+                class={[Theme.slot(@theme, :button_secondary), "h-9", "w-9", "px-0"]}
                 type="button"
                 title="Filter by type"
                 aria-expanded="false"
               >
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <svg class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path d="M3.75 4.5A.75.75 0 0 1 4.5 3.75h11a.75.75 0 0 1 .56 1.25L12 9.57v4.18a.75.75 0 0 1-.38.65l-2 1.14A.75.75 0 0 1 8.5 14.9V9.57L3.94 5a.75.75 0 0 1-.19-.5Z" />
                 </svg>
               </button>

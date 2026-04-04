@@ -29,6 +29,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.Form.ParamsState
+      alias SelectoComponents.QueryResults
       alias SelectoComponents.Views.Detail.Pagination, as: DetailPagination
       import SelectoComponents.Form.ErrorHandling
 
@@ -129,13 +130,15 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         case socket.assigns[:query_results] do
           {rows, columns, aliases}
           when is_list(rows) and length(rows) > 0 and is_list(hd(rows)) ->
-            # Results are in list format, convert to maps
             normalized_rows =
-              Enum.map(rows, fn row ->
+              Enum.map(QueryResults.normalize_rows(rows), fn row ->
                 Enum.zip(columns, row) |> Map.new()
               end)
 
             assign(socket, query_results: {normalized_rows, columns, aliases})
+
+          {_rows, _columns, _aliases} = query_results ->
+            assign(socket, query_results: QueryResults.normalize_query_results(query_results))
 
           _ ->
             # Results are already normalized or empty

@@ -19,6 +19,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.SubselectBuilder
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.QueryResults
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
@@ -1059,15 +1060,17 @@ defmodule SelectoComponents.Form.ParamsState do
 
         case execute_query_with_metadata(paged_selecto) do
           {:ok, {rows, columns, aliases}, metadata} ->
+            normalized_rows = QueryResults.normalize_rows(rows)
+
             pages =
               cache
               |> Map.get(:pages, %{})
-              |> Map.put(page, %{rows: rows, columns: columns, aliases: aliases})
+              |> Map.put(page, %{rows: normalized_rows, columns: columns, aliases: aliases})
 
             updated_cache = Map.put(cache, :pages, pages)
 
             {:ok,
-             {updated_cache, rows, columns, aliases,
+             {updated_cache, normalized_rows, columns, aliases,
               Map.put(metadata || %{}, :pagination_mode, :offset)}}
 
           {:error, error} ->
@@ -1362,12 +1365,14 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp normalize_rows_for_view(rows, _columns, "detail")
        when is_list(rows) and rows != [] and (is_list(hd(rows)) or is_tuple(hd(rows))) do
-    Enum.map(rows, fn row ->
+    rows
+    |> Enum.map(fn row ->
       if is_tuple(row), do: Tuple.to_list(row), else: row
     end)
+    |> QueryResults.normalize_rows()
   end
 
-  defp normalize_rows_for_view(rows, _columns, _view_mode), do: rows
+  defp normalize_rows_for_view(rows, _columns, _view_mode), do: QueryResults.normalize_rows(rows)
 
   @doc """
   Build view_config from URL params, updating only filter state.
@@ -1530,7 +1535,8 @@ defmodule SelectoComponents.Form.ParamsState do
   def mark_form_state_applied(socket) do
     current_view_config = Map.get(socket.assigns, :view_config, %{})
 
-    Phoenix.Component.assign(socket,
+    Phoenix.Component.assign(
+      socket,
       :applied_form_state_revision,
       normalize_form_state_revision(socket.assigns[:form_state_revision])
     )

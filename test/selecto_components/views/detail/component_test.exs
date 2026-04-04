@@ -47,6 +47,7 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
 
     assert html =~ "5-6"
     assert html =~ "rows"
+
     assert html =~
              ~r/class="[^"]*sc-panel[^"]*responsive-table-wrapper[^"]*" id="detail-table-wrapper-[^"]+"/
 
