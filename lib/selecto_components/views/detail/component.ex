@@ -316,11 +316,11 @@ defmodule SelectoComponents.Views.Detail.Component do
       </div>
 
       <div
-        class="responsive-table-wrapper overflow-x-auto"
+        class={Theme.slot(@theme, :panel) <> " responsive-table-wrapper overflow-x-auto"}
         id={"detail-table-wrapper-#{@myself}"}
         phx-hook=".RowClickable"
       >
-        <table class="min-w-full overflow-hidden rounded-sm table-auto ring-1 sm:rounded" style="border-color: var(--sc-surface-border);">
+        <table class="min-w-full table-auto">
           <thead style="background: var(--sc-surface-bg-alt);">
             <tr>
               <th class="w-12 max-w-12 min-w-12 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">

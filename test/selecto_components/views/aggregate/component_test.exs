@@ -112,6 +112,8 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "of"
     assert html =~ "250"
     assert html =~ "rows"
+    assert html =~
+             ~r/id="aggregate-table-wrapper-[^"]+" class="[^"]*sc-panel[^"]*responsive-table-wrapper[^"]*"/
   end
 
   test "renders friendly headers from selected field aliases instead of query aliases" do
@@ -226,6 +228,8 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "5"
     assert html =~ "2"
     assert html =~ "overflow-x-auto"
+    assert html =~
+             ~r/id="aggregate-grid-wrapper-[^"]+" class="[^"]*sc-panel[^"]*overflow-x-auto[^"]*overflow-y-auto[^"]*"/
     assert html =~ "sticky left-0 top-0"
     refute html =~ ~s(phx-click="set_aggregate_page")
   end
@@ -443,9 +447,11 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "Color legend"
     assert html =~ "Low"
     assert html =~ "High"
-    assert html =~ ~s(style="background-color: #ffffff; color: #111827;")
-    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
-    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+    assert html =~ ~s|style="background: var(--sc-surface-bg); color: var(--sc-text-primary);"|
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 28%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 64%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
   end
 
   test "grid can colorize cells with a log scale" do
@@ -487,9 +493,12 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     html = render_component(Component, assigns)
 
     assert html =~ "Log color scale"
-    assert html =~ ~s(style="background-color: #d7f8fc; color: #111827;")
-    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
-    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 16%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 28%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 64%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
   end
 
   test "day-of-week group-by displays weekday names" do

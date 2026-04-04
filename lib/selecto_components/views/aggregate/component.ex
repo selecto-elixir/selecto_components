@@ -1197,8 +1197,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           </div>
           <span>High</span>
         </div>
-        <div class="mb-1 max-h-[70vh] overflow-x-auto overflow-y-auto rounded-sm ring-1" style="border-color: var(--sc-surface-border);">
-          <table class="min-w-full table-auto" style="border-color: var(--sc-surface-border);">
+        <div
+          id={"aggregate-grid-wrapper-#{@myself}"}
+          class={Theme.slot(@theme, :panel) <> " mb-1 max-h-[70vh] overflow-x-auto overflow-y-auto"}
+        >
+          <table class="min-w-full table-auto">
             <thead style="background: var(--sc-surface-bg-alt);">
               <tr>
                 <th class="sticky left-0 top-0 z-30 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
@@ -1240,38 +1243,43 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           </table>
         </div>
       <% else %>
-        <table class="min-w-full overflow-hidden rounded-sm table-auto ring-1 sm:rounded" style="border-color: var(--sc-surface-border);">
-          <thead style="background: var(--sc-surface-bg-alt);">
-            <tr>
-              <%!-- Headers for group by columns --%>
-              <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
-                  {alias}
-                </th>
-              <% end %>
+        <div
+          id={"aggregate-table-wrapper-#{@myself}"}
+          class={Theme.slot(@theme, :panel) <> " responsive-table-wrapper overflow-x-auto"}
+        >
+          <table class="min-w-full table-auto">
+            <thead style="background: var(--sc-surface-bg-alt);">
+              <tr>
+                <%!-- Headers for group by columns --%>
+                <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+                  <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+                    {alias}
+                  </th>
+                <% end %>
 
-              <%!-- Headers for aggregate columns --%>
-              <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
-                  {alias}
-                </th>
-              <% end %>
-            </tr>
-          </thead>
-          <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
-            <.rollup_row
-              :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
-              level={level}
-              row={row}
-              continued?={continued?}
-              grand_total?={grand_total?}
-              num_group_by={@num_group_by}
-              group_by={@group_by}
-              aggregate={@aggregate}
-              theme={@theme}
-            />
-          </tbody>
-        </table>
+                <%!-- Headers for aggregate columns --%>
+                <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+                  <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+                    {alias}
+                  </th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
+              <.rollup_row
+                :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
+                level={level}
+                row={row}
+                continued?={continued?}
+                grand_total?={grand_total?}
+                num_group_by={@num_group_by}
+                group_by={@group_by}
+                aggregate={@aggregate}
+                theme={@theme}
+              />
+            </tbody>
+          </table>
+        </div>
       <% end %>
     </div>
     """
