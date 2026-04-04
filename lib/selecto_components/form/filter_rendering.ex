@@ -1715,7 +1715,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         name={"filters[#{@uuid}][promote]"}
         value="true"
         checked={@checked}
-        style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+        style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
       /> Promote to View Controller
     </div>
     """
