@@ -1,7 +1,6 @@
 defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
-  import SelectoComponents.Components.Common
   alias SelectoComponents.Theme
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ErrorHandling.ErrorSanitizer
@@ -12,6 +11,8 @@ defmodule SelectoComponents.Form do
   alias SelectoComponents.Form.Header
   alias SelectoComponents.Form.ModalRouter
   alias SelectoComponents.Form.SavePanel
+  alias SelectoComponents.Form.SubmitFooter
+  alias SelectoComponents.Form.TabPanel
   alias SelectoComponents.Form.Tabs
   alias SelectoComponents.Form.ViewPanel
 
@@ -211,36 +212,11 @@ defmodule SelectoComponents.Form do
             </:filter_form>
           </FilterPanel.panel>
 
-          <div
-            :if={@use_saved_views}
-            role="tabpanel"
-            id="main-tabpanel-save"
-            aria-labelledby="main-tab-save"
-            class={
-              if @active_tab == "save" do
-                Theme.slot(@theme, :panel) <> " p-3"
-              else
-                "hidden"
-              end
-            }
-          >
-            <h3 class="text-base-content font-medium mb-2">Save View Configuration</h3>
+          <TabPanel.panel :if={@use_saved_views} active_tab={@active_tab} tab="save" theme={@theme} title="Save View Configuration">
             <SavePanel.panel theme={@theme} />
-          </div>
+          </TabPanel.panel>
 
-          <div
-            role="tabpanel"
-            id="main-tabpanel-export"
-            aria-labelledby="main-tab-export"
-            class={
-              if @active_tab == "export" do
-                Theme.slot(@theme, :panel) <> " p-3"
-              else
-                "hidden"
-              end
-            }
-          >
-            <h3 class="text-base-content font-medium mb-2">Export Options</h3>
+          <TabPanel.panel active_tab={@active_tab} tab="export" theme={@theme} title="Export Options">
             <ExportPanel.panel
               theme={@theme}
               id={@id}
@@ -260,20 +236,10 @@ defmodule SelectoComponents.Form do
               path={Map.get(assigns, :path) || Map.get(assigns, :my_path)}
               tenant_context={Map.get(assigns, :tenant_context)}
             />
-          </div>
+          </TabPanel.panel>
         </div>
 
-        <div class="mt-4 flex justify-end">
-          <.sc_button
-            id={"selecto-submit-#{@id}"}
-            theme={@theme}
-            data-selecto-submit-button="true"
-            data-dirty={to_string(@view_config_dirty?)}
-          >
-            <span>Submit</span>
-            <span data-selecto-submit-badge="true" aria-hidden="true">Unsaved</span>
-          </.sc_button>
-        </div>
+        <SubmitFooter.footer id={@id} theme={@theme} view_config_dirty?={@view_config_dirty?} />
       </.form>
 
       <%!-- Render modal if enabled and triggered --%>
