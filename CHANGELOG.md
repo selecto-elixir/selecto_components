@@ -2,6 +2,19 @@
 CHANGES
 =======
 
+Unreleased
+----------
+
+- Refactored `SelectoComponents.Form` into focused composed sections including
+  `Header`, `Tabs`, `ViewPanel`, `FilterPanel`, `SavePanel`, `ExportPanel`,
+  `ModalRouter`, `TabPanel`, `SubmitFooter`, and `PromotedFilterEditor`, so the
+  root form module is mostly orchestration.
+- Added focused render/component regression coverage for the extracted form
+  surfaces instead of relying only on the monolithic form tests.
+- Fixed `ParamsState.view_filter_process/2` so `IN`/`NOT IN` filters preserve
+  duplicate submitted `selected_ids` values while still deduping newly committed
+  pasted values.
+
 V 0.4.4
 --------
 
