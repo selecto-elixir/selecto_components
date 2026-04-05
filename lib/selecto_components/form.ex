@@ -2,17 +2,18 @@ defmodule SelectoComponents.Form do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
-  alias Phoenix.LiveView.JS
   alias SelectoComponents.Theme
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ErrorHandling.ErrorSanitizer
   alias SelectoComponents.ErrorHandling.ErrorDisplay
   alias SelectoComponents.Form.ExportPanel
+  alias SelectoComponents.Form.FilterPanel
   alias SelectoComponents.Form.FilterRendering
   alias SelectoComponents.Form.Header
   alias SelectoComponents.Form.ModalRouter
   alias SelectoComponents.Form.SavePanel
-  alias SelectoComponents.Views.Runtime, as: ViewRuntime
+  alias SelectoComponents.Form.Tabs
+  alias SelectoComponents.Form.ViewPanel
 
   @doc """
   Form for configuing Selecto View
@@ -58,6 +59,9 @@ defmodule SelectoComponents.Form do
         theme_stylesheet: Theme.stylesheet(),
         scheduled_export_context: scheduled_export_context(assigns),
         exported_view_context: exported_view_context(assigns),
+        saved_view_context: saved_view_context(assigns),
+        filter_sets_domain: filter_sets_domain(assigns),
+        tree_builder_suffix: FilterRendering.hash_filter_structure(assigns.view_config.filters),
         detail_modal_visible: detail_modal_visible?(assigns),
         detail_modal_component: Map.get(assigns, :detail_modal_component),
         form: to_form(%{}, as: "view_config")
@@ -175,176 +179,37 @@ defmodule SelectoComponents.Form do
           aria-hidden={to_string(!@show_view_configurator)}
           class={if @show_view_configurator, do: "", else: "hidden"}
         >
-          <div class="mb-4 flex border-b" style="border-color: var(--sc-surface-border)">
-            <div class="flex space-x-1" role="tablist" aria-label="Configuration Sections">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={@active_tab == "view" or @active_tab == nil}
-                aria-controls="main-tabpanel-view"
-                id="main-tab-view"
-                phx-click={JS.push("set_active_tab", value: %{tab: "view"})}
-                class={[
-                  "px-4 py-2 text-sm font-medium",
-                  if @active_tab == "view" or @active_tab == nil do
-                    Theme.slot(@theme, :tab_active)
-                  else
-                    Theme.slot(@theme, :tab_inactive)
-                  end
-                ]}
-              >
-                View
-              </button>
+          <Tabs.nav active_tab={@active_tab} theme={@theme} use_saved_views={@use_saved_views} />
 
-              <button
-                type="button"
-                role="tab"
-                aria-selected={@active_tab == "filter"}
-                aria-controls="main-tabpanel-filter"
-                id="main-tab-filter"
-                phx-click={JS.push("set_active_tab", value: %{tab: "filter"})}
-                class={[
-                  "px-4 py-2 text-sm font-medium",
-                  if @active_tab == "filter" do
-                    Theme.slot(@theme, :tab_active)
-                  else
-                    Theme.slot(@theme, :tab_inactive)
-                  end
-                ]}
-              >
-                Filters
-              </button>
+          <ViewPanel.panel
+            active_tab={@active_tab}
+            theme={@theme}
+            saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
+            view_config={@view_config}
+            saved_view_context={@saved_view_context}
+            current_user_id={Map.get(assigns, :current_user_id)}
+            parent_id={@myself}
+            views={@views}
+            columns={@columns}
+            selecto={@selecto}
+          />
 
-              <button
-                :if={@use_saved_views}
-                type="button"
-                role="tab"
-                aria-selected={@active_tab == "save"}
-                aria-controls="main-tabpanel-save"
-                id="main-tab-save"
-                phx-click={JS.push("set_active_tab", value: %{tab: "save"})}
-                class={[
-                  "px-4 py-2 text-sm font-medium",
-                  if @active_tab == "save" do
-                    Theme.slot(@theme, :tab_active)
-                  else
-                    Theme.slot(@theme, :tab_inactive)
-                  end
-                ]}
-              >
-                Save View
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={@active_tab == "export"}
-                aria-controls="main-tabpanel-export"
-                id="main-tab-export"
-                phx-click={JS.push("set_active_tab", value: %{tab: "export"})}
-                class={[
-                  "px-4 py-2 text-sm font-medium",
-                  if @active_tab == "export" do
-                    Theme.slot(@theme, :tab_active)
-                  else
-                    Theme.slot(@theme, :tab_inactive)
-                  end
-                ]}
-              >
-                Export
-              </button>
-            </div>
-          </div>
-
-          <div
-            role="tabpanel"
-            id="main-tabpanel-view"
-            aria-labelledby="main-tab-view"
-            class={
-              if @active_tab == "view" or @active_tab == nil do
-                Theme.slot(@theme, :panel) <> " p-3"
-              else
-                "hidden"
-              end
-            }
+          <FilterPanel.panel
+            active_tab={@active_tab}
+            theme={@theme}
+            filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
+            user_id={Map.get(assigns, :user_id)}
+            domain={@filter_sets_domain}
+            current_filters={@view_config.filters}
+            id={@id}
+            tree_builder_suffix={@tree_builder_suffix}
+            available_filters={@field_filters}
+            filters={@view_config.filters}
           >
-            <.live_component
-              :if={Map.get(assigns, :saved_view_config_module)}
-              module={SelectoComponents.ViewConfigManager}
-              id="view_config_manager"
-              view_config={@view_config}
-              saved_view_config_module={Map.get(assigns, :saved_view_config_module)}
-              saved_view_context={
-                SelectoComponents.Tenant.scoped_context(
-                  Map.get(assigns, :saved_view_context),
-                  Map.get(assigns, :tenant_context)
-                )
-              }
-              current_user_id={Map.get(assigns, :current_user_id)}
-              parent_id={@myself}
-            />
-
-            <.live_component
-              module={SelectoComponents.Components.Tabs}
-              id="view_mode"
-              fieldname="view_mode"
-              view_mode={@view_config.view_mode}
-              options={@views}
-            >
-              <:section :let={{id, _mod, _, _} = view}>
-                <.live_component
-                  module={ViewRuntime.form_component(view)}
-                  id={"view_#{id}_form"}
-                  theme={@theme}
-                  columns={@columns}
-                  view_config={@view_config}
-                  view={view}
-                  selecto={@selecto}
-                />
-              </:section>
-            </.live_component>
-          </div>
-
-          <div
-            role="tabpanel"
-            id="main-tabpanel-filter"
-            aria-labelledby="main-tab-filter"
-            class={
-              if @active_tab == "filter" do
-                Theme.slot(@theme, :panel) <> " p-3"
-              else
-                "hidden"
-              end
-            }
-          >
-            <!-- Filter Sets Component -->
-            <.live_component
-              :if={Map.get(assigns, :filter_sets_adapter)}
-              module={SelectoComponents.Filter.FilterSets}
-              id="filter_sets"
-              user_id={Map.get(assigns, :user_id)}
-              domain={
-                SelectoComponents.Tenant.scoped_context(
-                  Map.get(assigns, :domain) || Map.get(assigns, :path),
-                  Map.get(assigns, :tenant_context)
-                )
-              }
-              current_filters={@view_config.filters}
-              filter_sets_adapter={Map.get(assigns, :filter_sets_adapter)}
-            />
-
-            <.live_component
-              module={SelectoComponents.Components.TreeBuilder}
-              id={"#{@id}_tree_builder_#{FilterRendering.hash_filter_structure(@view_config.filters)}"}
-              theme={@theme}
-              available={FilterRendering.build_filter_list(@selecto)}
-              filters={@view_config.filters}
-            >
-              <:filter_form :let={{uuid, index, section, filter_value}}>
-                {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
-              </:filter_form>
-            </.live_component>
-          </div>
+            <:filter_form :let={{uuid, index, section, filter_value}}>
+              {FilterRendering.render_filter_form(assigns, uuid, index, section, filter_value)}
+            </:filter_form>
+          </FilterPanel.panel>
 
           <div
             :if={@use_saved_views}
@@ -1612,6 +1477,20 @@ defmodule SelectoComponents.Form do
         Map.get(assigns, :saved_view_context) || Map.get(assigns, :path),
         Map.get(assigns, :tenant_context)
       )
+  end
+
+  defp saved_view_context(assigns) do
+    SelectoComponents.Tenant.scoped_context(
+      Map.get(assigns, :saved_view_context),
+      Map.get(assigns, :tenant_context)
+    )
+  end
+
+  defp filter_sets_domain(assigns) do
+    SelectoComponents.Tenant.scoped_context(
+      Map.get(assigns, :domain) || Map.get(assigns, :path),
+      Map.get(assigns, :tenant_context)
+    )
   end
 
   # Environment detection helpers
