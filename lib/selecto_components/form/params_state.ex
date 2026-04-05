@@ -433,8 +433,10 @@ defmodule SelectoComponents.Form.ParamsState do
     {committed_values, remaining_pending_values} = parse_pending_filter_values(pending_values)
 
     {
-      (selected_values ++ committed_values)
-      |> Enum.uniq(),
+      selected_values ++
+        Enum.reduce(committed_values, [], fn value, acc ->
+          if value in selected_values or value in acc, do: acc, else: acc ++ [value]
+        end),
       remaining_pending_values
     }
   end

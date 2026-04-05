@@ -145,6 +145,26 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["aggregate_grid"] == "true"
   end
 
+  test "view_filter_process preserves duplicate selected_ids values for IN filters" do
+    params = %{
+      "filters" => %{
+        "f1" => %{
+          "filter" => "id",
+          "comp" => "IN",
+          "selected_ids" => ["147", "147"],
+          "section" => "where",
+          "index" => "0"
+        }
+      }
+    }
+
+    [{_uuid, _section, filter_map}] = ParamsState.view_filter_process(params, "filters")
+
+    assert filter_map["value"] == "147,147"
+    assert filter_map["selected_values"] == ["147", "147"]
+    refute Map.has_key?(filter_map, "selected_ids")
+  end
+
   test "view_config_to_params includes aggregate grid color settings" do
     view_config = %{
       view_mode: "aggregate",
