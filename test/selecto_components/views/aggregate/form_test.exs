@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias SelectoComponents.Views.Aggregate.Aggregate.Config
   alias SelectoComponents.Views.Aggregate.Form
   alias SelectoComponents.Views.Aggregate.GroupByConfig
 
@@ -175,5 +176,25 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
     refute html =~ "True Count"
     refute html =~ "False Count"
     refute html =~ "Count Distinct"
+  end
+
+  test "aggregate config uses themed labels and checkbox surfaces" do
+    html =
+      render_component(Config, %{
+        id: "aggregate-config-themed",
+        col: %{type: :integer, name: "Total", colid: :total},
+        uuid: "aggregate-config-themed",
+        item: "total",
+        columns: [{:total, "Total", :integer}],
+        prefix: "aggregate[a0]",
+        config: %{"format" => "sum", "ignore_nulls_in_sum" => true}
+      })
+
+    assert html =~ "Name:"
+    assert html =~ "Alias:"
+    assert html =~ "Options:"
+    assert html =~ "Treat NULL as 0 in Sum"
+    assert html =~ "sc-input"
+    assert html =~ "sc-select"
   end
 end

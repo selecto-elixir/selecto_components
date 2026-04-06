@@ -6,6 +6,7 @@ defmodule SelectoComponents.Components.SqlDebug do
 
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.Env
   alias SelectoComponents.Theme
 
   @doc """
@@ -24,7 +25,7 @@ defmodule SelectoComponents.Components.SqlDebug do
 
   def sql_debug(assigns) do
     # Only show in development mode
-    if Mix.env() == :dev && assigns.sql do
+    if Env.dev?() && assigns.sql do
       assigns =
         assigns
         |> Map.put_new(:theme, Theme.default_theme(:light))
@@ -101,7 +102,7 @@ defmodule SelectoComponents.Components.SqlDebug do
   attr(:theme, :any, default: nil)
 
   def sql_inline(assigns) do
-    if Mix.env() == :dev do
+    if Env.dev?() do
       assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
 
       ~H"""

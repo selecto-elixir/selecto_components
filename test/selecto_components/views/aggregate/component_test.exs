@@ -269,7 +269,7 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
 
     html = render_component(Component, assigns)
 
-    assert html =~ ~r/<span class="text-gray-400 dark:text-gray-500">\s*\[NULL\]\s*<\/span>/
+    assert html =~ ~r/<span[^>]*>\s*\[NULL\]\s*<\/span>/
   end
 
   test "grid view renders all rows instead of paginating" do

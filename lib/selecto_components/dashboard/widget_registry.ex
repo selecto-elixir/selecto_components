@@ -4,6 +4,8 @@ defmodule SelectoComponents.Dashboard.WidgetRegistry do
   Manages widget types, configurations, and data sources.
   """
 
+  alias SelectoComponents.Env
+
   @widget_types [
     %{
       type: :chart,
@@ -349,7 +351,7 @@ defmodule SelectoComponents.Dashboard.WidgetRegistry do
   end
 
   defp allow_mock_data?(context) do
-    Map.get(context, :allow_mock_data, false) || Mix.env() in [:dev, :test]
+    Map.get(context, :allow_mock_data, false) || Env.dev_or_test?()
   end
 
   defp generate_mock_data(%{query_type: :aggregate}) do

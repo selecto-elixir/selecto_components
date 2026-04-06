@@ -130,6 +130,18 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "Query error while generating SQL"
     assert html =~ "The current configuration could not be compiled into valid SQL."
     assert html =~ "Check calculated fields, grouping, filters, and ordering."
+    assert html =~ "View cannot be displayed due to the query error shown above."
+    assert html =~ "color: var(--sc-danger);"
+  end
+
+  test "uses themed status messaging for loading and no-results states" do
+    loading_html = render_component(Component, base_assigns(%{executed: false}))
+    empty_html = render_component(Component, base_assigns(%{query_results: nil}))
+
+    assert loading_html =~ "Loading view..."
+    assert loading_html =~ "color: var(--sc-accent);"
+    assert empty_html =~ "No Results"
+    assert empty_html =~ "color: var(--sc-danger);"
   end
 
   test "renders tuple values safely instead of crashing detail cells" do

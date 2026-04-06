@@ -350,6 +350,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
 
       assert html_string =~ "Loading chart..."
       assert html_string =~ "animate-spin"
+      assert html_string =~ "color: var(--sc-accent);"
     end
 
     test "renders no results state when executed but no results" do
@@ -419,6 +420,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
       assert html_string =~ "Database error while executing the query"
       assert html_string =~ "The query was sent to the database, but the database rejected it."
       assert html_string =~ "Check selected fields, filters, and groupings."
+      assert html_string =~ "color: var(--sc-danger);"
     end
   end
 

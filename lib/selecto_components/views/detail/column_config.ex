@@ -75,33 +75,33 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
     ~H"""
       <div class="space-y-2">
         <div>
-          <div class="font-medium text-sm text-gray-700">Name:</div>
-          <div class="pl-2"><%= @display_name %></div>
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Name:</div>
+          <div class="pl-2" style="color: var(--sc-text-primary);"><%= @display_name %></div>
         </div>
 
         <div>
-          <div class="font-medium text-sm text-gray-700">Alias:</div>
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Alias:</div>
           <div class="pl-2">
             <.sc_input theme={@theme} name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
           </div>
         </div>
 
         <div :if={@show_options}>
-          <div class="font-medium text-sm text-gray-700">Options:</div>
-          <div class="pl-2">
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Options:</div>
+          <div class="space-y-2 pl-2" style="color: var(--sc-text-primary);">
             <%= case Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string) do%>
               <% x when x in [:int, :id] -> %>
-                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"/>Commas</label>
 
               <% x when x in [:float, :decimal] -> %>
-                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
-                <label><.sc_select theme={@theme} name={"#{@prefix}[decimal_places]"}
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"/>Commas</label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);"><.sc_select theme={@theme} name={"#{@prefix}[decimal_places]"}
                   options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
 
               <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
-                <label>Format
+                <label class="block text-sm" style="color: var(--sc-text-primary);">Format
                   <.sc_select
                     theme={@theme}
                     name={"#{@prefix}[format]"}
@@ -111,7 +111,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                 </label>
 
                 <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"] do %>
-                  <label>
+                  <label class="block text-sm" style="color: var(--sc-text-primary);">
                     Bucket Ranges
                     <.sc_input
                       theme={@theme}

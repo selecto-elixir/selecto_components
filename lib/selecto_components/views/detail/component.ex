@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.SqlDebug
+  alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.Theme
@@ -59,22 +60,22 @@ defmodule SelectoComponents.Views.Detail.Component do
       ~H"""
       <div>
         <%= if @execution_error do %>
-          <div class="bg-error/15 border border-error/40 text-error px-4 py-3 rounded relative mb-4" role="alert">
+          <div class="mb-4 rounded px-4 py-3" role="alert" style="background: color-mix(in srgb, var(--sc-danger) 10%, var(--sc-surface-bg)); border: 1px solid color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
             <strong class="font-bold">{@error_info.summary}:</strong>
             <span class="block sm:inline">{@error_info.user_message}</span>
             <div :if={@error_info.detail} class="text-sm mt-1">{@error_info.detail}</div>
             <div :if={@error_info.suggestion} class="text-sm mt-1 font-medium">
               Next step: {@error_info.suggestion}
             </div>
-            <%= if Mix.env() == :dev && is_map(@error_info.debug) && map_size(@error_info.debug) > 0 do %>
+            <%= if Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0 do %>
               <details class="mt-2">
                 <summary class="cursor-pointer text-sm">Debug Details</summary>
-                <pre class="text-xs mt-2 bg-error/20 p-2 rounded overflow-x-auto"><%= inspect(@error_info.debug, pretty: true) %></pre>
+                <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: color-mix(in srgb, var(--sc-danger) 12%, var(--sc-surface-bg));"><%= inspect(@error_info.debug, pretty: true) %></pre>
               </details>
             <% end %>
           </div>
         <% end %>
-        <div class="text-base-content/70 italic p-4">
+        <div class="p-4 italic" style="color: var(--sc-text-secondary);">
           View cannot be displayed due to the query error shown above.
         </div>
       </div>
@@ -86,7 +87,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Query is being executed or hasn't been executed yet
           ~H"""
           <div>
-            <div class="text-info italic p-4">Loading view...</div>
+            <div class="p-4 italic" style="color: var(--sc-accent);">Loading view...</div>
           </div>
           """
 
@@ -94,7 +95,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Executed but no results - this is an error state
           ~H"""
           <div>
-            <div class="text-error p-4">
+            <div class="p-4" style="color: var(--sc-danger);">
               <div class="font-semibold">No Results</div>
               <div class="text-sm mt-1">Query executed but returned no results.</div>
             </div>
@@ -1065,7 +1066,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       e ->
         base = "Component Error: #{inspect(e.__struct__)}: #{Exception.message(e)}"
 
-        if Mix.env() == :dev do
+        if Env.dev?() do
           "#{base} (Row data: #{inspect(params[:row])})"
         else
           base

@@ -95,7 +95,7 @@ defmodule SelectoComponents.Views.Detail.Form do
           <% col = Selecto.field(@selecto, item) %>
           <% format_summary = detail_format_summary(col, config) %>
           <span class="truncate"><%= summary_title(config, column_display_name(@columns, item, col)) %></span>
-          <span :if={present_summary?(format_summary)} class="truncate text-sm font-normal text-base-content/60"><%= format_summary %></span>
+          <span :if={present_summary?(format_summary)} class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= format_summary %></span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <% param_key = compact_param_key(index) %>
@@ -128,7 +128,7 @@ defmodule SelectoComponents.Views.Detail.Form do
       >
         <:item_summary :let={{_id, item, config, _index}}>
           <span class="truncate"><%= summary_title(config, column_display_name(@columns, item, Selecto.field(@selecto, item))) %></span>
-          <span class="truncate text-sm font-normal text-base-content/60"><%= order_direction_summary(config) %></span>
+          <span class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= order_direction_summary(config) %></span>
         </:item_summary>
         <:item_form :let={{id, item, config, index}}>
           <% param_key = compact_param_key(index) %>

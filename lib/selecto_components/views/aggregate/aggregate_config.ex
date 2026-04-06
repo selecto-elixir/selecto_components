@@ -70,12 +70,12 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
     ~H"""
     <div class="space-y-2">
       <div>
-        <div class="font-medium text-sm text-gray-700">Name:</div>
-        <div class="pl-2">{@display_name}</div>
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Name:</div>
+        <div class="pl-2" style="color: var(--sc-text-primary);">{@display_name}</div>
       </div>
 
       <div>
-        <div class="font-medium text-sm text-gray-700">Alias:</div>
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Alias:</div>
         <div class="pl-2">
           <.sc_input
             theme={@theme}
@@ -99,11 +99,11 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
           :date
         ]
       }>
-        <div class="font-medium text-sm text-gray-700">Options:</div>
-        <div class="pl-2">
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Options:</div>
+        <div class="space-y-2 pl-2" style="color: var(--sc-text-primary);">
           <%= case Map.get(@col, :type, :string) do %>
             <% x when x in [:integer, :id, :decimal] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
                   theme={@theme}
@@ -121,19 +121,21 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 />
               </label>
               <%= if Map.get(@config, "format") == "sum" do %>
-                <label class="inline-flex items-center gap-2">
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}>
                   <input type="hidden" name={"#{@prefix}[ignore_nulls_in_sum]"} value="false" />
                   <input
                     type="checkbox"
                     name={"#{@prefix}[ignore_nulls_in_sum]"}
                     value="true"
                     checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
+                    class="h-4 w-4 rounded border"
+                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
                   />
                   Treat NULL as 0 in Sum
                 </label>
               <% end %>
               <%= if Map.get(@config, "format") == "buckets" do %>
-                <label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Bucket Ranges
                   <.sc_input
                     theme={@theme}
@@ -144,7 +146,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 </label>
               <% end %>
             <% x when x in [:float] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
                   theme={@theme}
@@ -160,19 +162,21 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 />
               </label>
               <%= if Map.get(@config, "format") == "sum" do %>
-                <label class="inline-flex items-center gap-2">
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}>
                   <input type="hidden" name={"#{@prefix}[ignore_nulls_in_sum]"} value="false" />
                   <input
                     type="checkbox"
                     name={"#{@prefix}[ignore_nulls_in_sum]"}
                     value="true"
                     checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
+                    class="h-4 w-4 rounded border"
+                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
                   />
                   Treat NULL as 0 in Sum
                 </label>
               <% end %>
               <%= if Map.get(@config, "format") == "buckets" do %>
-                <label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Bucket Ranges
                   <.sc_input
                     theme={@theme}
@@ -183,7 +187,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 </label>
               <% end %>
             <% x when x in [:string] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
                   theme={@theme}
@@ -198,7 +202,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 />
               </label>
             <% :boolean -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
                   theme={@theme}
@@ -212,7 +216,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 />
               </label>
             <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
                   theme={@theme}
@@ -228,7 +232,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                 />
               </label>
               <%= if Map.get(@config, "format") == "age_buckets" do %>
-                <label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Bucket Ranges (days)
                   <.sc_input
                     theme={@theme}

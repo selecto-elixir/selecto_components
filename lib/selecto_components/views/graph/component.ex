@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   use Phoenix.LiveComponent
   require Logger
+  alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.Theme
 
@@ -14,7 +15,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       |> assign(assigns)
       |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
 
-    if Mix.env() == :dev do
+    if Env.dev?() do
       IO.puts("[theme-debug][Graph.Component] update theme=#{socket.assigns.theme.id}")
     end
 
@@ -50,16 +51,16 @@ defmodule SelectoComponents.Views.Graph.Component do
     ~H"""
     <div class="flex min-h-64 items-center justify-center rounded-lg border p-6" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
       <div class="text-center max-w-2xl">
-        <div class="text-4xl mb-3 text-error">⚠️</div>
-        <div class="font-semibold text-error text-lg mb-2">{@error_info.summary}</div>
-        <div class="text-error mb-2">{@error_info.user_message}</div>
-        <div :if={@error_info.detail} class="text-sm text-error/90 mb-2">{@error_info.detail}</div>
-        <div :if={@error_info.suggestion} class="mt-4 text-sm text-base-content/70">
+        <div class="mb-3 text-4xl">⚠️</div>
+        <div class="mb-2 text-lg font-semibold">{@error_info.summary}</div>
+        <div class="mb-2">{@error_info.user_message}</div>
+        <div :if={@error_info.detail} class="mb-2 text-sm">{@error_info.detail}</div>
+        <div :if={@error_info.suggestion} class="mt-4 text-sm" style="color: var(--sc-text-secondary);">
           Next step: {@error_info.suggestion}
         </div>
 
-        <details :if={Mix.env() == :dev && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-3 text-left">
-          <summary class="cursor-pointer text-sm text-error hover:text-error">
+        <details :if={Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-3 text-left">
+          <summary class="cursor-pointer text-sm">
             Debug Details
           </summary>
           <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);"><%= inspect(@error_info.debug, pretty: true) %></pre>
@@ -74,7 +75,7 @@ defmodule SelectoComponents.Views.Graph.Component do
     <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-surface-bg-alt); border-color: var(--sc-surface-border); color: var(--sc-accent);">
       <div class="text-center">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <div class="text-primary italic">Loading chart...</div>
+        <div class="italic">Loading chart...</div>
       </div>
     </div>
     """
@@ -83,7 +84,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   defp render_no_results_state(assigns) do
     ~H"""
     <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
-      <div class="text-center text-error">
+      <div class="text-center">
         <div class="text-4xl mb-2">📊</div>
         <div class="font-semibold">No Data Available</div>
         <div class="text-sm mt-1">Query executed but returned no results for the chart.</div>
@@ -95,7 +96,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   defp render_unknown_state(assigns) do
     ~H"""
     <div class="flex h-64 items-center justify-center rounded-lg border" style="background: color-mix(in srgb, var(--sc-accent-soft) 45%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
-      <div class="text-center text-warning">
+      <div class="text-center">
         <div class="font-semibold">Unknown Chart State</div>
         <div class="text-sm mt-1">
           Executed: {inspect(assigns[:executed])}<br />
@@ -128,7 +129,7 @@ defmodule SelectoComponents.Views.Graph.Component do
       <!-- Chart Header with Title and Controls -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-base-content">
+          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold" style="color: var(--sc-text-primary);">
             {get_in(@chart_options, [:title])}
           </h3>
         </div>

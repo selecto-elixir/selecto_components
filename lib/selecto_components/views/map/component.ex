@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Views.Map.Component do
   use Phoenix.LiveComponent
 
+  alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
 
   @default_marker_color "#2563eb"
@@ -795,7 +796,7 @@ defmodule SelectoComponents.Views.Map.Component do
         <div :if={@error_info.suggestion} class="text-xs mt-2 font-medium">
           Next step: {@error_info.suggestion}
         </div>
-        <details :if={Mix.env() == :dev && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-2 text-left">
+        <details :if={Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-2 text-left">
           <summary class="cursor-pointer text-xs">Debug Details</summary>
           <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@error_info.debug, pretty: true) %></pre>
         </details>

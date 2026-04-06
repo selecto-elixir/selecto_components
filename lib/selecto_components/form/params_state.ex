@@ -287,8 +287,6 @@ defmodule SelectoComponents.Form.ParamsState do
       is_map(f) && (Map.has_key?(f, "filter") || Map.get(f, "is_section") in ["Y", true, "true"])
     end)
     |> Enum.map(fn {param_key, f} ->
-      uuid = Map.get(f, "uuid", param_key)
-
       # Convert selected_ids array to comma-separated value for IN/NOT IN operators
       f =
         if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") in ["IN", "NOT IN"] do
@@ -310,7 +308,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
       f = normalize_filter_form_state(f)
 
-      {uuid, f}
+      {param_key, f}
     end)
     |> Enum.sort(fn {_, f1}, {_, f2} ->
       String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))

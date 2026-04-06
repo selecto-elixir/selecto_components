@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
+  alias SelectoComponents.Env
   alias SelectoComponents.Theme
   alias SelectoComponents.Views.Aggregate.Options
 
@@ -50,7 +51,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         last_update: System.system_time(:microsecond)
       )
 
-    if Mix.env() == :dev do
+    if Env.dev?() do
       IO.puts("[theme-debug][Aggregate.Component] update theme=#{socket.assigns.theme.id}")
     end
 
@@ -550,7 +551,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       # Just show a message that view cannot be rendered
       ~H"""
       <div>
-        <div class="p-4 italic text-gray-500 dark:text-gray-400">
+        <div class="p-4 italic" style="color: var(--sc-text-muted);">
           View cannot be displayed due to query error. Please check the error message above.
         </div>
       </div>
@@ -603,7 +604,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           # Fallback for unexpected states
           ~H"""
           <div>
-            <div class="p-4 text-yellow-500 dark:text-yellow-300">
+            <div class="p-4" style="color: var(--sc-text-secondary);">
               <div class="font-semibold">Unknown State</div>
               <div class="text-sm mt-1">
                 Executed: {inspect(assigns[:executed])}<br />
@@ -1448,7 +1449,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     end
   end
 
-  defp null_grid_text_class("[NULL]"), do: "text-gray-400 dark:text-gray-500"
+  defp null_grid_text_class("[NULL]"), do: nil
   defp null_grid_text_class(_value), do: nil
 
   defp weekday_name(value) do

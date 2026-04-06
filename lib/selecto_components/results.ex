@@ -3,6 +3,7 @@ defmodule SelectoComponents.Results do
 
   alias SelectoComponents.Debug.DebugDisplay
   alias SelectoComponents.Debug.ProductionConfig
+  alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Theme
@@ -78,7 +79,7 @@ defmodule SelectoComponents.Results do
         <div :if={@normalized_execution_error.suggestion} class="text-sm mt-1 font-medium">
           Next step: {@normalized_execution_error.suggestion}
         </div>
-        <%= if Mix.env() == :dev && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
+        <%= if Env.dev?() && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
           <details class="mt-2">
             <summary class="cursor-pointer text-sm">Debug Details</summary>
             <pre

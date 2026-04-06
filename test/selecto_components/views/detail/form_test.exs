@@ -3,6 +3,8 @@ defmodule SelectoComponents.Views.Detail.FormTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias SelectoComponents.Theme
+  alias SelectoComponents.Views.Detail.ColumnConfig
   alias SelectoComponents.Views.Detail.Form
 
   test "renders row click action select with current action selected" do
@@ -194,5 +196,25 @@ defmodule SelectoComponents.Views.Detail.FormTest do
 
     assert updated_socket.assigns.view_config.views.detail.row_click_action ==
              "work_item_api_json"
+  end
+
+  test "detail column config uses themed labels and controls" do
+    html =
+      render_component(ColumnConfig, %{
+        id: "detail-column-config",
+        theme: Theme.default_theme(:light),
+        item: "created_at",
+        col: %{type: :utc_datetime, name: "Created At", colid: :created_at},
+        columns: [{:created_at, "Created At", :utc_datetime}],
+        prefix: "selected[c0]",
+        config: %{"format" => "year_buckets"}
+      })
+
+    assert html =~ "Name:"
+    assert html =~ "Alias:"
+    assert html =~ "Options:"
+    assert html =~ "Bucket Ranges"
+    assert html =~ "sc-input"
+    assert html =~ "sc-select"
   end
 end

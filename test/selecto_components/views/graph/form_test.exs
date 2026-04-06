@@ -111,6 +111,8 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       assert text =~ "Chart Options"
       assert text =~ "Chart Title"
       assert text =~ "Legend Position"
+      assert static_text(rendered) =~ "color: var(--sc-text-primary);"
+      assert static_text(rendered) =~ "color: var(--sc-text-secondary);"
 
       assert marker_count(rendered, "checked") == 3
 
@@ -203,6 +205,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       text = rendered_text(rendered)
 
       assert text =~ "Legend Position"
+      assert static_text(rendered) =~ "accent-color: var(--sc-accent);"
     end
 
     test "renders checkbox states correctly" do
