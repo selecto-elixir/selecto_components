@@ -118,7 +118,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
         <div class="mt-4 flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
-            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked={@form.enabled} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);" />
+            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked={@form.enabled} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);" />
             <label for={"scheduled-export-enabled-#{@id}"}>Enable schedule immediately</label>
           </div>
 

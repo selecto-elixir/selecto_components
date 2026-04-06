@@ -129,7 +129,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                       phx-target={@myself}
                       checked={@save_form.is_default}
                       class="h-4 w-4 rounded border"
-                      style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                      style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                     />
                     <span class="text-sm" style="color: var(--sc-text-secondary);">Set as default</span>
                   </label>
@@ -141,7 +141,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                       phx-target={@myself}
                       checked={@save_form.is_shared}
                       class="h-4 w-4 rounded border"
-                      style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                      style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                     />
                     <span class="text-sm" style="color: var(--sc-text-secondary);">Share with others</span>
                   </label>

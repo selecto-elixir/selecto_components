@@ -751,7 +751,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               name={"filters[#{@uuid}][exclude_articles]"}
               value="true"
               checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+              style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
             /> Ignore leading articles (a, an, the)
           </div>
         <% end %>
@@ -768,7 +768,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               name={"filters[#{@uuid}][ignore_case]"}
               value="true"
               checked={@ignore_case_checked}
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+              style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
             /> Case insensitive
           </div>
         <% end %>

@@ -6,6 +6,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   require Logger
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
 
   def update(assigns, socket) do
@@ -637,7 +638,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   def format_chart_label(value) when is_nil(value), do: "N/A"
 
   def format_chart_label({value, _meta}) when is_binary(value) or is_number(value),
-    do: to_string(value)
+    do: normalize_chart_label(value)
 
   def format_chart_label(value) when is_tuple(value) do
     case value do
@@ -659,7 +660,10 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  def format_chart_label(value), do: to_string(value)
+  def format_chart_label(value), do: normalize_chart_label(value)
+
+  defp normalize_chart_label(value) when is_binary(value), do: QueryResults.normalize_value(value)
+  defp normalize_chart_label(value), do: to_string(value)
 
   def format_numeric_value(value) when is_number(value), do: value
   def format_numeric_value({value, _meta}), do: format_numeric_value(value)

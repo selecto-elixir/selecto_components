@@ -252,7 +252,7 @@ defmodule SelectoComponents.ViewConfigManager do
                               phx-target={@myself}
                               checked={@is_public}
                               class="h-4 w-4 rounded border"
-                              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                             />
                             <span class="ml-2 text-sm" style="color: var(--sc-text-secondary);">
                               Make this view public (visible to all users)

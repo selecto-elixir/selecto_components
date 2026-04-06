@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Map.Component do
 
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.QueryResults
 
   @default_marker_color "#2563eb"
 
@@ -1305,9 +1306,17 @@ defmodule SelectoComponents.Views.Map.Component do
     categories = parse_categories(Map.get(layer, :scale_categories))
 
     Enum.map(values, fn value ->
-      %{label: to_string(value), color: categorical_color(value, palette, categories)}
+      %{
+        label: normalize_legend_label(value),
+        color: categorical_color(value, palette, categories)
+      }
     end)
   end
+
+  defp normalize_legend_label(value) when is_binary(value),
+    do: QueryResults.normalize_value(value)
+
+  defp normalize_legend_label(value), do: to_string(value)
 
   defp linear_legend_entries(layer) do
     {low, high} = linear_palette(parse_palette(Map.get(layer, :scale_palette)))

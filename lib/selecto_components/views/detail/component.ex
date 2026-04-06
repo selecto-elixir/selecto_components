@@ -7,6 +7,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.Sorting
+  alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
   alias SelectoComponents.Views.Detail.RowActions
   use Phoenix.LiveComponent
@@ -1053,6 +1054,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           case value do
             nil -> ""
             value when is_atom(value) -> Atom.to_string(value)
+            value when is_binary(value) -> QueryResults.normalize_value(value)
             _ -> inspect(value)
           end
         end

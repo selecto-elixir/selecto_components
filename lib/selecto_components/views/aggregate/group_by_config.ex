@@ -182,7 +182,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                     value="true"
                     checked={Map.get(@config, "exclude_articles", "true") in [true, "true", "on", "1"]}
                     class="h-4 w-4 rounded border"
-                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                    style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                   />
                   Exclude leading articles (a, an, the)
                 </label>

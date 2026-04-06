@@ -509,7 +509,7 @@ defmodule SelectoComponents.Views.Map.Form do
   defp field_select_class(theme), do: Theme.slot(theme, :select)
 
   defp checkbox_style do
-    "border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+    "border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
   end
 
   defp map_value(config, key, default \\ nil)

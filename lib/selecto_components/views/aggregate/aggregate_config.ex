@@ -129,7 +129,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                     value="true"
                     checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
                     class="h-4 w-4 rounded border"
-                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                    style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                   />
                   Treat NULL as 0 in Sum
                 </label>
@@ -170,7 +170,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                     value="true"
                     checked={Map.get(@config, "ignore_nulls_in_sum") in [true, "true", "on", "1", 1]}
                     class="h-4 w-4 rounded border"
-                    style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+                    style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                   />
                   Treat NULL as 0 in Sum
                 </label>

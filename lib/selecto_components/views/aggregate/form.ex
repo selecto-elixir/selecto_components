@@ -71,7 +71,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             value="true"
             checked={@aggregate_grid}
             class="checkbox checkbox-sm"
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+            style="border-color: var(--sc-surface-border); color: var(--sc-accent);"
           />
           Grid view (2 group-by + 1 aggregate)
         </label>
@@ -84,7 +84,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             value="true"
             checked={@aggregate_grid_colorize}
             class="checkbox checkbox-sm"
-            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
+            style="border-color: var(--sc-surface-border); color: var(--sc-accent);"
           />
           Colorize grid cells
         </label>

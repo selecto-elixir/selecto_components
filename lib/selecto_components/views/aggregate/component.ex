@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   """
   use Phoenix.LiveComponent
   alias SelectoComponents.Env
+  alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
   alias SelectoComponents.Views.Aggregate.Options
 
@@ -201,6 +202,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       value when is_atom(value) ->
         Atom.to_string(value)
+
+      value when is_binary(value) ->
+        QueryResults.normalize_value(value)
 
       _ ->
         if Phoenix.HTML.Safe.impl_for(value) do

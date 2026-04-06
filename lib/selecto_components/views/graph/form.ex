@@ -201,7 +201,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               value="true"
               checked={option_checked(@graph_options, :show_grid, false)}
               class="mr-2 h-4 w-4 rounded border"
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
             <span class="text-sm" style="color: var(--sc-text-secondary);">Show Grid Lines</span>
           </label>
@@ -212,7 +212,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               value="true"
               checked={option_checked(@graph_options, :enable_animations, true)}
               class="mr-2 h-4 w-4 rounded border"
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
             <span class="text-sm" style="color: var(--sc-text-secondary);">Enable Animations</span>
           </label>
@@ -223,7 +223,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               value="true"
               checked={option_checked(@graph_options, :responsive, true)}
               class="mr-2 h-4 w-4 rounded border"
-              style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
             <span class="text-sm" style="color: var(--sc-text-secondary);">Responsive</span>
           </label>
