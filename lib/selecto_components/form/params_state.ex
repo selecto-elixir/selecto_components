@@ -260,6 +260,7 @@ defmodule SelectoComponents.Form.ParamsState do
         %{
           "uuid" => uuid,
           "conjunction" => conj,
+          "is_section" => "Y",
           "section" => section,
           "index" => to_string(index)
         }
@@ -281,12 +282,13 @@ defmodule SelectoComponents.Form.ParamsState do
   def view_filter_process(params, item_name) do
     Map.get(params, item_name, %{})
     |> Enum.filter(fn {_uuid, f} ->
-      # Only include actual filters, not aggregate/group_by configurations
-      # Standard filters should have: filter + comp
-      # Custom component filters only need: filter (no comp required)
-      is_map(f) && Map.has_key?(f, "filter")
+      # Filter form payloads can include both real filters and logical section rows.
+      # Preserve section rows so editing a child filter does not collapse its OR/AND group.
+      is_map(f) && (Map.has_key?(f, "filter") || Map.get(f, "is_section") in ["Y", true, "true"])
     end)
-    |> Enum.map(fn {uuid, f} ->
+    |> Enum.map(fn {param_key, f} ->
+      uuid = Map.get(f, "uuid", param_key)
+
       # Convert selected_ids array to comma-separated value for IN/NOT IN operators
       f =
         if Map.has_key?(f, "selected_ids") && Map.get(f, "comp") in ["IN", "NOT IN"] do
@@ -597,7 +599,9 @@ defmodule SelectoComponents.Form.ParamsState do
           Map.get(params, "filters", %{})
           |> Map.values()
           |> Enum.filter(fn f ->
-            is_map(f) && Map.has_key?(f, "filter") && Map.has_key?(f, "section")
+            is_map(f) &&
+              Map.has_key?(f, "section") &&
+              (Map.has_key?(f, "filter") || Map.get(f, "is_section") in ["Y", true, "true"])
           end)
           |> Enum.reduce(%{}, fn f, acc ->
             Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
