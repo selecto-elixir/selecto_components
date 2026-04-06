@@ -64,7 +64,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
         <div class="mt-4 space-y-2">
           <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"exported-view-ip-#{@id}"}>IP allowlist</label>
-          <textarea id={"exported-view-ip-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="203.0.113.8\n10.0.0.0/24"><%= @form.ip_allowlist_text %></textarea>
+          <textarea id={"exported-view-ip-#{@id}"} rows="3" class={Theme.slot(@theme, :input)} placeholder="203.0.113.8\n10.0.0.0/24"><%= @form.ip_allowlist_text %></textarea>
           <p class="text-xs" style="color: var(--sc-text-muted);">Leave blank for unrestricted access. Use one IP or CIDR per line.</p>
         </div>
 
@@ -91,8 +91,8 @@ defmodule SelectoComponents.ExportedViews.Manager do
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
                 <h5 class="text-base font-semibold" style="color: var(--sc-text-primary);">{ExportedViews.field(view, :name, "Untitled export")}</h5>
-                <span class={status_badge_class(ExportedViews.cache_status(view))}>{status_label(ExportedViews.cache_status(view))}</span>
-                <span class="rounded-full px-2.5 py-1 text-xs font-medium" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);">{String.capitalize(to_string(ExportedViews.field(view, :view_type, "detail")))}</span>
+                <span class={status_badge_class()} style={status_badge_style(ExportedViews.cache_status(view))}>{status_label(ExportedViews.cache_status(view))}</span>
+                <span class={pill_class()} style={pill_style()}>{String.capitalize(to_string(ExportedViews.field(view, :view_type, "detail")))}</span>
               </div>
 
               <div class="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3" style="color: var(--sc-text-secondary);">
@@ -415,20 +415,28 @@ defmodule SelectoComponents.ExportedViews.Manager do
   defp present_param(value, fallback) when value in [nil, ""], do: fallback
   defp present_param(value, _fallback), do: value
 
-  defp status_badge_class(:fresh),
-    do: "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+  defp status_badge_class, do: "rounded-full px-2.5 py-1 text-xs font-medium"
 
-  defp status_badge_class(:stale),
-    do: "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
+  defp status_badge_style(:fresh),
+    do:
+      "background: color-mix(in srgb, var(--sc-accent) 14%, var(--sc-surface-bg)); color: var(--sc-accent);"
 
-  defp status_badge_class(:missing),
-    do: "rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700"
+  defp status_badge_style(:stale),
+    do:
+      "background: color-mix(in srgb, var(--sc-text-muted) 12%, var(--sc-surface-bg)); color: var(--sc-text-secondary);"
 
-  defp status_badge_class(:error),
-    do: "rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700"
+  defp status_badge_style(:missing),
+    do:
+      "background: color-mix(in srgb, var(--sc-accent) 10%, var(--sc-surface-bg-alt)); color: var(--sc-text-primary);"
 
-  defp status_badge_class(:disabled),
-    do: "rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70"
+  defp status_badge_style(:error),
+    do:
+      "background: color-mix(in srgb, var(--sc-danger) 12%, var(--sc-surface-bg)); color: var(--sc-danger);"
+
+  defp status_badge_style(:disabled), do: pill_style()
+
+  defp pill_class, do: "rounded-full px-2.5 py-1 text-xs font-medium"
+  defp pill_style, do: "background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);"
 
   defp status_label(status), do: status |> Atom.to_string() |> String.capitalize()
 

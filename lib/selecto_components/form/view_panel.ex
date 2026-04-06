@@ -30,6 +30,7 @@ defmodule SelectoComponents.Form.ViewPanel do
         view_config={@view_config}
         saved_view_config_module={@saved_view_config_module}
         saved_view_context={@saved_view_context}
+        theme={@theme}
         current_user_id={@current_user_id}
         parent_id={@parent_id}
       />

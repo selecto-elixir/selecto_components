@@ -102,6 +102,9 @@ defmodule SelectoComponents.ScheduledExports.ManagerTest do
     assert html =~ "Weekly Orders"
     assert html =~ "ops@example.com"
     assert html =~ "Weekly on Monday at 07:00 Etc/UTC"
+    assert html =~ "sc-panel"
+    assert html =~ "sc-input"
+    assert html =~ "sc-btn"
   end
 
   test "create_scheduled_export persists a new schedule" do

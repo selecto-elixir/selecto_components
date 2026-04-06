@@ -144,7 +144,7 @@ defmodule SelectoComponents.Form.ExportPanel do
         </div>
       </div>
 
-      <p :if={!@use_export_delivery} class="text-xs text-gray-500 dark:text-gray-400">
+      <p :if={!@use_export_delivery} class="text-xs" style="color: var(--sc-text-muted);">
         Assign `export_delivery_module` in the host LiveView to enable one-off email delivery.
       </p>
 
@@ -154,6 +154,7 @@ defmodule SelectoComponents.Form.ExportPanel do
         id="scheduled_exports_manager"
         scheduled_export_module={@scheduled_export_module}
         scheduled_export_context={@scheduled_export_context}
+        theme={@theme}
         current_user_id={@current_user_id}
         selecto={@selecto}
         views={@views}
@@ -170,6 +171,7 @@ defmodule SelectoComponents.Form.ExportPanel do
         exported_view_context={@exported_view_context}
         exported_view_endpoint={@exported_view_endpoint}
         exported_view_base_url={@exported_view_base_url}
+        theme={@theme}
         current_user_id={@current_user_id}
         selecto={@selecto}
         views={@views}

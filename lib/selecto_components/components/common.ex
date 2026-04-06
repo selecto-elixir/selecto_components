@@ -70,11 +70,20 @@ defmodule SelectoComponents.Components.Common do
   end
 
   def sc_x_button_small(assigns) do
-    attrs = assigns_to_attributes(assigns, [])
-    assigns = assign(assigns, attrs: attrs)
+    attrs = assigns_to_attributes(assigns, [:theme])
+    theme = helper_theme(assigns)
+    assigns = assign(assigns, attrs: attrs, theme: theme)
 
     ~H"""
-      <svg class="w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500" {@attrs} fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <svg
+        class="h-4 w-4 cursor-pointer transition-colors"
+        style="color: var(--sc-text-muted);"
+        {@attrs}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke-width="2"
+        stroke="currentColor"
+      >
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     """

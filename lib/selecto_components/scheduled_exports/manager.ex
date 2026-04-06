@@ -8,6 +8,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ScheduledExports
   alias SelectoComponents.ScheduledExports.Service
+  alias SelectoComponents.Theme
 
   @impl true
   def mount(socket) do
@@ -32,25 +33,27 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   @impl true
   def render(assigns) do
+    assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
+
     ~H"""
-    <div class="space-y-6 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+    <div class={Theme.slot(@theme, :panel) <> " space-y-6 p-4"} style="background: var(--sc-surface-bg);">
       <div class="space-y-2">
-        <h3 class="text-base font-semibold text-base-content">Scheduled Exports</h3>
-        <p class="text-sm text-base-content/70">
+        <h3 class="text-base font-semibold" style="color: var(--sc-text-primary);">Scheduled Exports</h3>
+        <p class="text-sm" style="color: var(--sc-text-secondary);">
           Save a delivery definition now and let your host app execute due exports later via Oban, Quantum, or another scheduler.
         </p>
       </div>
 
-      <div id={"scheduled-export-form-#{@id}"} class="space-y-4 rounded-xl border border-base-300 bg-base-200/40 p-4">
+      <div id={"scheduled-export-form-#{@id}"} class={Theme.slot(@theme, :panel) <> " space-y-4 p-4"} style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 70%, var(--sc-surface-bg));">
         <div class="grid gap-4 xl:grid-cols-2">
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-name-#{@id}"}>Name</label>
-            <input id={"scheduled-export-name-#{@id}"} value={@form.name} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly revenue grid" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-name-#{@id}"}>Name</label>
+            <input id={"scheduled-export-name-#{@id}"} value={@form.name} class={Theme.slot(@theme, :input)} placeholder="Weekly revenue grid" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-format-#{@id}"}>Format</label>
-            <select id={"scheduled-export-format-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-format-#{@id}"}>Format</label>
+            <select id={"scheduled-export-format-#{@id}"} class={Theme.slot(@theme, :select)}>
               <option value="csv" selected={@form.export_format == "csv"}>CSV</option>
               <option value="json" selected={@form.export_format == "json"}>JSON</option>
               <option value="tsv" selected={@form.export_format == "tsv"}>TSV</option>
@@ -59,19 +62,19 @@ defmodule SelectoComponents.ScheduledExports.Manager do
           </div>
 
           <div class="space-y-2 xl:col-span-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-recipients-#{@id}"}>Recipients</label>
-            <textarea id={"scheduled-export-recipients-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="ops@example.com\nfinance@example.com"><%= @form.recipients_text %></textarea>
-            <p class="text-xs text-base-content/60">Separate recipients with commas, semicolons, or new lines.</p>
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-recipients-#{@id}"}>Recipients</label>
+            <textarea id={"scheduled-export-recipients-#{@id}"} rows="3" class={Theme.slot(@theme, :input)} placeholder="ops@example.com\nfinance@example.com"><%= @form.recipients_text %></textarea>
+            <p class="text-xs" style="color: var(--sc-text-muted);">Separate recipients with commas, semicolons, or new lines.</p>
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-subject-#{@id}"}>Subject</label>
-            <input id={"scheduled-export-subject-#{@id}"} value={@form.subject_template} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Weekly export" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-subject-#{@id}"}>Subject</label>
+            <input id={"scheduled-export-subject-#{@id}"} value={@form.subject_template} class={Theme.slot(@theme, :input)} placeholder="Weekly export" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-kind-#{@id}"}>Cadence</label>
-            <select id={"scheduled-export-kind-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-kind-#{@id}"}>Cadence</label>
+            <select id={"scheduled-export-kind-#{@id}"} class={Theme.slot(@theme, :select)}>
               <option value="daily" selected={@form.kind == "daily"}>Daily</option>
               <option value="hourly" selected={@form.kind == "hourly"}>Hourly</option>
               <option value="weekly" selected={@form.kind == "weekly"}>Weekly</option>
@@ -80,23 +83,23 @@ defmodule SelectoComponents.ScheduledExports.Manager do
           </div>
 
           <div class="space-y-2 xl:col-span-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-body-#{@id}"}>Body</label>
-            <textarea id={"scheduled-export-body-#{@id}"} rows="3" class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="Attached is the latest export."><%= @form.body_template %></textarea>
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-body-#{@id}"}>Body</label>
+            <textarea id={"scheduled-export-body-#{@id}"} rows="3" class={Theme.slot(@theme, :input)} placeholder="Attached is the latest export."><%= @form.body_template %></textarea>
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-time-#{@id}"}>Time</label>
-            <input id={"scheduled-export-time-#{@id}"} value={@form.time} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="07:00" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-time-#{@id}"}>Time</label>
+            <input id={"scheduled-export-time-#{@id}"} value={@form.time} class={Theme.slot(@theme, :input)} placeholder="07:00" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-timezone-#{@id}"}>Timezone</label>
-            <input id={"scheduled-export-timezone-#{@id}"} value={@form.timezone} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="America/New_York" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-timezone-#{@id}"}>Timezone</label>
+            <input id={"scheduled-export-timezone-#{@id}"} value={@form.timezone} class={Theme.slot(@theme, :input)} placeholder="America/New_York" />
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-day-of-week-#{@id}"}>Day of Week</label>
-            <select id={"scheduled-export-day-of-week-#{@id}"} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm">
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-day-of-week-#{@id}"}>Day of Week</label>
+            <select id={"scheduled-export-day-of-week-#{@id}"} class={Theme.slot(@theme, :select)}>
               <option value="1" selected={@form.day_of_week == "1"}>Monday</option>
               <option value="2" selected={@form.day_of_week == "2"}>Tuesday</option>
               <option value="3" selected={@form.day_of_week == "3"}>Wednesday</option>
@@ -108,22 +111,22 @@ defmodule SelectoComponents.ScheduledExports.Manager do
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-base-content/80" for={"scheduled-export-day-of-month-#{@id}"}>Day of Month</label>
-            <input id={"scheduled-export-day-of-month-#{@id}"} value={@form.day_of_month} class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm" placeholder="1" />
+            <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"scheduled-export-day-of-month-#{@id}"}>Day of Month</label>
+            <input id={"scheduled-export-day-of-month-#{@id}"} value={@form.day_of_month} class={Theme.slot(@theme, :input)} placeholder="1" />
           </div>
         </div>
 
         <div class="mt-4 flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2 text-sm text-base-content/70">
-            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked={@form.enabled} class="rounded border border-base-300" />
+          <div class="flex items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
+            <input id={"scheduled-export-enabled-#{@id}"} type="checkbox" checked={@form.enabled} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); accent-color: var(--sc-accent);" />
             <label for={"scheduled-export-enabled-#{@id}"}>Enable schedule immediately</label>
           </div>
 
           <div class="flex items-center gap-2">
-            <button :if={@editing_public_id} type="button" phx-click="cancel_edit_scheduled_export" phx-target={@myself} class="inline-flex items-center rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-base-content shadow-sm transition hover:bg-base-200">
+            <button :if={@editing_public_id} type="button" phx-click="cancel_edit_scheduled_export" phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-4 py-2 text-sm shadow-sm"}>
               Cancel
             </button>
-            <button type="button" data-create-scheduled-export="true" data-target={@myself} data-public-id={@editing_public_id} data-name-input={"scheduled-export-name-#{@id}"} data-format-input={"scheduled-export-format-#{@id}"} data-recipients-input={"scheduled-export-recipients-#{@id}"} data-subject-input={"scheduled-export-subject-#{@id}"} data-body-input={"scheduled-export-body-#{@id}"} data-kind-input={"scheduled-export-kind-#{@id}"} data-time-input={"scheduled-export-time-#{@id}"} data-timezone-input={"scheduled-export-timezone-#{@id}"} data-day-of-week-input={"scheduled-export-day-of-week-#{@id}"} data-day-of-month-input={"scheduled-export-day-of-month-#{@id}"} data-enabled-input={"scheduled-export-enabled-#{@id}"} class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-content shadow-sm transition hover:bg-primary/90">
+            <button type="button" data-create-scheduled-export="true" data-target={@myself} data-public-id={@editing_public_id} data-name-input={"scheduled-export-name-#{@id}"} data-format-input={"scheduled-export-format-#{@id}"} data-recipients-input={"scheduled-export-recipients-#{@id}"} data-subject-input={"scheduled-export-subject-#{@id}"} data-body-input={"scheduled-export-body-#{@id}"} data-kind-input={"scheduled-export-kind-#{@id}"} data-time-input={"scheduled-export-time-#{@id}"} data-timezone-input={"scheduled-export-timezone-#{@id}"} data-day-of-week-input={"scheduled-export-day-of-week-#{@id}"} data-day-of-month-input={"scheduled-export-day-of-month-#{@id}"} data-enabled-input={"scheduled-export-enabled-#{@id}"} class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}>
               {if @editing_public_id, do: "Update Scheduled Export", else: "Create Scheduled Export"}
             </button>
           </div>
@@ -132,31 +135,31 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-3">
-          <h4 class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/60">Managed Schedules</h4>
-          <span class="text-xs text-base-content/60">{@scheduled_exports |> length()} total</span>
+          <h4 class="text-sm font-semibold uppercase tracking-[0.18em]" style="color: var(--sc-text-muted);">Managed Schedules</h4>
+          <span class="text-xs" style="color: var(--sc-text-muted);">{@scheduled_exports |> length()} total</span>
         </div>
 
-        <div :if={@scheduled_exports == []} class="rounded-xl border border-dashed border-base-300 bg-base-200/50 px-4 py-6 text-sm text-base-content/70">
+        <div :if={@scheduled_exports == []} class="rounded-xl border border-dashed px-4 py-6 text-sm" style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 60%, var(--sc-surface-bg)); color: var(--sc-text-secondary);">
           No scheduled exports yet.
         </div>
 
-        <div :for={scheduled_export <- @scheduled_exports} class="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+        <div :for={scheduled_export <- @scheduled_exports} class={Theme.slot(@theme, :panel) <> " p-4"} style="background: var(--sc-surface-bg);">
           <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
-                <h5 class="text-base font-semibold text-base-content">{ScheduledExports.field(scheduled_export, :name, "Untitled schedule")}</h5>
-                <span class={status_badge_class(schedule_status(scheduled_export))}>{status_label(schedule_status(scheduled_export))}</span>
-                <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70">{ScheduledExports.field(scheduled_export, :export_format, "csv") |> String.upcase()}</span>
-                <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70">{String.capitalize(to_string(ScheduledExports.field(scheduled_export, :view_type, "detail")))}</span>
+                <h5 class="text-base font-semibold" style="color: var(--sc-text-primary);">{ScheduledExports.field(scheduled_export, :name, "Untitled schedule")}</h5>
+                <span class={status_badge_class()} style={status_badge_style(schedule_status(scheduled_export))}>{status_label(schedule_status(scheduled_export))}</span>
+                <span class={pill_class()} style={pill_style()}>{ScheduledExports.field(scheduled_export, :export_format, "csv") |> String.upcase()}</span>
+                <span class={pill_class()} style={pill_style()}>{String.capitalize(to_string(ScheduledExports.field(scheduled_export, :view_type, "detail")))}</span>
               </div>
 
-              <div class="grid gap-2 text-sm text-base-content/70 md:grid-cols-2 xl:grid-cols-3">
+              <div class="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3" style="color: var(--sc-text-secondary);">
                 <div>Cadence: {schedule_summary(scheduled_export)}</div>
                 <div>Next run: {format_datetime(ScheduledExports.field(scheduled_export, :next_run_at))}</div>
                 <div>Last run: {format_datetime(ScheduledExports.field(scheduled_export, :last_run_at))}</div>
               </div>
 
-              <div class="space-y-1 text-xs text-base-content/60">
+              <div class="space-y-1 text-xs" style="color: var(--sc-text-muted);">
                 <div>Recipients: {recipient_summary(scheduled_export)}</div>
                 <div>Public ID: <span class="font-mono">{ScheduledExports.field(scheduled_export, :public_id, "-")}</span></div>
                 <div :if={ScheduledExports.field(scheduled_export, :last_error)} class="text-error">Last error: {ScheduledExports.field(scheduled_export, :last_error)}</div>
@@ -164,9 +167,9 @@ defmodule SelectoComponents.ScheduledExports.Manager do
             </div>
 
             <div class="flex flex-wrap gap-2 xl:max-w-[340px] xl:justify-end">
-              <button type="button" phx-click="edit_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">Edit</button>
-              <button type="button" phx-click="toggle_scheduled_export_disabled" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class="rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200">{if schedule_enabled?(scheduled_export), do: "Pause", else: "Enable"}</button>
-              <button type="button" phx-click="delete_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} data-confirm="Delete this scheduled export?" class="rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-sm font-medium text-error transition hover:bg-error/20">Delete</button>
+              <button type="button" phx-click="edit_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>Edit</button>
+              <button type="button" phx-click="toggle_scheduled_export_disabled" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>{if schedule_enabled?(scheduled_export), do: "Pause", else: "Enable"}</button>
+              <button type="button" phx-click="delete_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} data-confirm="Delete this scheduled export?" class={Theme.slot(@theme, :button_danger) <> " px-3 py-2 text-sm"}>Delete</button>
             </div>
           </div>
         </div>
@@ -504,23 +507,29 @@ defmodule SelectoComponents.ScheduledExports.Manager do
   defp weekday_name(7), do: "Sunday"
   defp weekday_name(_), do: "Monday"
 
-  defp status_badge_class(:ok),
-    do: "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+  defp status_badge_class, do: "rounded-full px-2.5 py-1 text-xs font-medium"
 
-  defp status_badge_class(:running),
-    do: "rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700"
+  defp status_badge_style(:ok),
+    do:
+      "background: color-mix(in srgb, var(--sc-accent) 14%, var(--sc-surface-bg)); color: var(--sc-accent);"
 
-  defp status_badge_class(:failed),
-    do: "rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700"
+  defp status_badge_style(:running),
+    do:
+      "background: color-mix(in srgb, var(--sc-accent) 10%, var(--sc-surface-bg-alt)); color: var(--sc-text-primary);"
 
-  defp status_badge_class(:skipped),
-    do: "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
+  defp status_badge_style(:failed),
+    do:
+      "background: color-mix(in srgb, var(--sc-danger) 12%, var(--sc-surface-bg)); color: var(--sc-danger);"
 
-  defp status_badge_class(:never),
-    do: "rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70"
+  defp status_badge_style(:skipped),
+    do:
+      "background: color-mix(in srgb, var(--sc-text-muted) 12%, var(--sc-surface-bg)); color: var(--sc-text-secondary);"
 
-  defp status_badge_class(:disabled),
-    do: "rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium text-base-content/70"
+  defp status_badge_style(:never), do: pill_style()
+  defp status_badge_style(:disabled), do: pill_style()
+
+  defp pill_class, do: "rounded-full px-2.5 py-1 text-xs font-medium"
+  defp pill_style, do: "background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);"
 
   defp status_label(status), do: status |> Atom.to_string() |> String.capitalize()
 
