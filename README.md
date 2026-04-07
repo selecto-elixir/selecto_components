@@ -27,19 +27,19 @@ It is the package you use when you want users to:
 
 - Phoenix 1.7+
 - Elixir ~> 1.18
-- `selecto ~> 0.4.0`
-- an adapter package such as `selecto_db_postgresql ~> 0.4.0`
-- `selecto_mix ~> 0.4.0` if you want generators and installation helpers
+- `selecto >= 0.4.3 and < 0.5.0`
+- an adapter package such as `selecto_db_postgresql >= 0.4.2 and < 0.5.0`
+- `selecto_mix >= 0.4.2 and < 0.5.0` if you want generators and installation helpers
 
 ## Installation
 
 ```elixir
 def deps do
   [
-    {:selecto_components, "~> 0.4.0"},
-    {:selecto, "~> 0.4.0"},
-    {:selecto_db_postgresql, "~> 0.4.0"},
-    {:selecto_mix, "~> 0.4.0"}
+    {:selecto_components, ">= 0.4.5 and < 0.5.0"},
+    {:selecto, ">= 0.4.3 and < 0.5.0"},
+    {:selecto_db_postgresql, ">= 0.4.2 and < 0.5.0"},
+    {:selecto_mix, ">= 0.4.2 and < 0.5.0"}
   ]
 end
 ```

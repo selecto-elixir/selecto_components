@@ -2,7 +2,7 @@
 CHANGES
 =======
 
-Unreleased
+V 0.4.5
 ----------
 
 - Refactored `SelectoComponents.Form` into focused composed sections including
@@ -14,6 +14,18 @@ Unreleased
 - Fixed `ParamsState.view_filter_process/2` so `IN`/`NOT IN` filters preserve
   duplicate submitted `selected_ids` values while still deduping newly committed
   pasted values.
+- Continued runtime theming across form managers and major view/config surfaces,
+  including aggregate, detail, graph, map, saved-view, exported-view, scheduled
+  export, and filter-set helpers.
+- Replaced release-unsafe runtime `Mix.env/0` calls with a release-safe
+  environment helper across view/error/debug surfaces.
+- Sanitized invalid non-UTF8 binary values before rendering aggregate/detail/
+  graph/map display paths so LiveView JSON encoding does not crash on bad source
+  bytes.
+- Fixed DaisyUI/themed checkbox rendering across aggregate grid/config forms and
+  filter-controller toggles so checked state remains visible.
+- Updated packaged `selecto` compatibility to require `>= 0.4.3`.
+- Bump package version to `0.4.5`.
 
 V 0.4.4
 --------
