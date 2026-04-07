@@ -3,6 +3,55 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
   alias SelectoComponents.Form.ParamsState
 
+  defmodule BrokenView do
+    def view(_options, _params, _columns_map, _filtered, _selecto) do
+      raise ArgumentError, "broken runtime"
+    end
+
+    def initial_state(_selecto, _options), do: %{}
+    def param_to_state(_params, _options), do: %{}
+    def form_component, do: SelectoComponents.Views.Detail.Form
+    def result_component, do: SelectoComponents.Views.Detail.Component
+  end
+
+  defp selecto do
+    domain = %{
+      name: "ParamsStateTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :status],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, status: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp base_socket(views \\ nil) do
+    %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: selecto(),
+        views:
+          views ||
+            [
+              {:detail, SelectoComponents.Views.Detail, "Detail", []},
+              {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
+              {:graph, SelectoComponents.Views.Graph, "Graph", []}
+            ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}},
+        current_detail_page: 0,
+        sort_by: nil,
+        last_query_info: %{}
+      }
+    }
+  end
+
   test "view_config_to_params includes detail max_rows and per_page" do
     view_config = %{
       view_mode: "detail",
@@ -94,6 +143,26 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert params["view_mode"] == "aggregate"
     assert params["aggregate_grid"] == "true"
+  end
+
+  test "view_filter_process preserves duplicate selected_ids values for IN filters" do
+    params = %{
+      "filters" => %{
+        "f1" => %{
+          "filter" => "id",
+          "comp" => "IN",
+          "selected_ids" => ["147", "147"],
+          "section" => "where",
+          "index" => "0"
+        }
+      }
+    }
+
+    [{_uuid, _section, filter_map}] = ParamsState.view_filter_process(params, "filters")
+
+    assert filter_map["value"] == "147,147"
+    assert filter_map["selected_values"] == ["147", "147"]
+    refute Map.has_key?(filter_map, "selected_ids")
   end
 
   test "view_config_to_params includes aggregate grid color settings" do
@@ -554,6 +623,49 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.graph.options == %{"title" => "Revenue"}
   end
 
+  test "form_params_to_state preserves existing prevent_denormalization when submit omits it" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selecto: %{domain: %{}},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []},
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{
+              selected: [{"d1", "id", %{"alias" => "ID"}}],
+              order_by: [],
+              per_page: "60",
+              max_rows: "1000",
+              count_mode: "bounded",
+              row_click_action: "",
+              prevent_denormalization: false
+            },
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"}
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{
+        "k0" => %{"field" => "id", "index" => "0", "uuid" => "detail-col-1", "alias" => "ID"}
+      },
+      "per_page" => "60",
+      "max_rows" => "1000",
+      "count_mode" => "bounded"
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.detail.prevent_denormalization == false
+  end
+
   test "form_params_to_state preserves missing non-active views for partial URL params" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
@@ -652,6 +764,180 @@ defmodule SelectoComponents.Form.ParamsStateTest do
                }
              }
            }
+  end
+
+  test "form_params_to_state preserves existing aggregate lists when submit payload omits them" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{
+              group_by: [{"g1", "status", %{"alias" => "Status", "index" => "0"}}],
+              aggregate: [
+                {"a1", "id", %{"alias" => "Count", "function" => "count", "index" => "0"}}
+              ],
+              per_page: "100"
+            },
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        },
+        form_state_revision: 2
+      )
+
+    params = %{
+      "view_mode" => "aggregate",
+      "aggregate_per_page" => "200",
+      "form_state_revision" => "1"
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.aggregate.group_by == [
+             {"g1", "status", %{"alias" => "Status", "index" => "0"}}
+           ]
+
+    assert updated.assigns.view_config.views.aggregate.aggregate == [
+             {"a1", "id", %{"alias" => "Count", "function" => "count", "index" => "0"}}
+           ]
+
+    assert updated.assigns.view_config.views.aggregate.per_page == "200"
+  end
+
+  test "form_params_to_state keeps server-side removals when submit payload is stale" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{
+              group_by: [],
+              aggregate: [],
+              per_page: "100"
+            },
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        },
+        form_state_revision: 2
+      )
+
+    stale_params = %{
+      "view_mode" => "aggregate",
+      "aggregate_per_page" => "100",
+      "form_state_revision" => "1",
+      "group_by" => %{
+        "k0" => %{"field" => "status", "alias" => "Status", "index" => "0", "uuid" => "g1"}
+      },
+      "aggregate" => %{
+        "k0" => %{
+          "field" => "id",
+          "alias" => "Count",
+          "function" => "count",
+          "index" => "0",
+          "uuid" => "a1"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(stale_params, socket)
+
+    assert updated.assigns.view_config.views.aggregate.group_by == []
+    assert updated.assigns.view_config.views.aggregate.aggregate == []
+  end
+
+  test "form_params_to_state normalizes pasted IN values into selected filter values" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        }
+      )
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "status",
+          "comp" => "IN",
+          "value" => "open",
+          "pending_values" => "closed\npaused\nclosed",
+          "index" => "0",
+          "section" => "filters"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.filters == [
+             {"f1", "filters",
+              %{
+                "comp" => "IN",
+                "filter" => "status",
+                "index" => "0",
+                "section" => "filters",
+                "selected_values" => ["open", "closed", "paused"],
+                "value" => "open,closed,paused"
+              }}
+           ]
+  end
+
+  test "form_params_to_state keeps an unfinished single-line IN value as pending text" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        }
+      )
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "status",
+          "comp" => "IN",
+          "value" => "",
+          "pending_values" => "alpha",
+          "index" => "0",
+          "section" => "filters"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.filters == [
+             {"f1", "filters",
+              %{
+                "comp" => "IN",
+                "filter" => "status",
+                "index" => "0",
+                "pending_values" => "alpha",
+                "section" => "filters",
+                "selected_values" => [],
+                "value" => ""
+              }}
+           ]
   end
 
   test "view_config_to_saved_params includes all view configurations" do
@@ -753,13 +1039,47 @@ defmodule SelectoComponents.Form.ParamsStateTest do
              {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
            ]
 
-    assert updated.assigns.view_config.views.detail["row_click_action"] == "workspace_spotlight"
-    assert updated.assigns.view_config.views.aggregate["grid"] == true
-    assert updated.assigns.view_config.views.graph["chart_type"] == "line"
+    assert get_in(updated.assigns.view_config, [:views, :detail, "row_click_action"]) ==
+             "workspace_spotlight"
+
+    assert get_in(updated.assigns.view_config, [:views, :aggregate, "grid"]) == true
+    assert get_in(updated.assigns.view_config, [:views, :graph, "chart_type"]) == "line"
 
     detail_params = ParamsState.view_config_to_params(updated.assigns.view_config)
     assert detail_params["row_click_action"] == "workspace_spotlight"
     assert detail_params["filters"]["k0"]["filter"] == "status"
+  end
+
+  test "saved_params_to_state normalizes saved detail prevent_denormalization strings" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        views: [
+          {:detail, SelectoComponents.Views.Detail, "Detail", []}
+        ],
+        view_config: %{view_mode: "detail", filters: [], views: %{}}
+      }
+    }
+
+    saved_params = %{
+      "view_mode" => "detail",
+      "filters" => [],
+      "views" => %{
+        "detail" => %{
+          "selected" => [["d1", "id", %{"alias" => "ID"}]],
+          "order_by" => [],
+          "per_page" => "60",
+          "max_rows" => "1000",
+          "count_mode" => "bounded",
+          "prevent_denormalization" => "false"
+        }
+      }
+    }
+
+    updated = ParamsState.saved_params_to_state(saved_params, socket)
+
+    assert get_in(updated.assigns.view_config, [:views, :detail, :prevent_denormalization]) ==
+             false
   end
 
   test "filters_to_params uses compact keys while preserving uuid" do
@@ -773,6 +1093,69 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["k0"]["uuid"] == "48b7fb89-2970-41cf-850d-90da95985408"
     assert params["k0"]["filter"] == "shipper.co_name"
     refute Map.has_key?(params, "48b7fb89-2970-41cf-850d-90da95985408")
+  end
+
+  test "canonicalize_form_params merges promoted controller values into filters" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "status",
+          "comp" => "=",
+          "value" => "open",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => "closed"}
+      }
+    }
+
+    canonicalized = ParamsState.canonicalize_form_params(params)
+
+    assert canonicalized["filters"]["k0"]["value"] == "closed"
+    assert canonicalized["filters"]["k0"]["promote"] == "true"
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
+  test "canonicalize_form_params normalizes promoted non-equals controller values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "estimate",
+          "comp" => "BETWEEN",
+          "value_start" => "1",
+          "value_end" => "3",
+          "promote" => "true"
+        },
+        "k1" => %{
+          "filter" => "status",
+          "comp" => "IN",
+          "value" => "open",
+          "promote" => "true"
+        },
+        "k2" => %{
+          "filter" => "search",
+          "comp" => "TEXT_SEARCH",
+          "value" => "launch",
+          "mode" => "plain",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value_start" => "5", "value_end" => "8"},
+        "k1" => %{"value" => "open\nclosed"},
+        "k2" => %{"value" => "launch pad", "mode" => "phrase"}
+      }
+    }
+
+    canonicalized = ParamsState.canonicalize_form_params(params)
+
+    assert canonicalized["filters"]["k0"]["value_start"] == "5"
+    assert canonicalized["filters"]["k0"]["value_end"] == "8"
+    assert canonicalized["filters"]["k1"]["value"] == "open,closed"
+    assert canonicalized["filters"]["k2"]["value"] == "launch pad"
+    assert canonicalized["filters"]["k2"]["mode"] == "phrase"
+    refute Map.has_key?(canonicalized, "promoted_filters")
   end
 
   test "compact_url_params rewrites raw form UUID keys to compact keys" do
@@ -1026,5 +1409,33 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["map_layers"]["1"]["scale_categories"] == "queued:#22c55e,loading:#f59e0b"
     assert params["map_layers"]["1"]["line_dash_array"] == "6,4"
     assert params["map_layers"]["1"]["visible"] == "false"
+  end
+
+  test "view_from_params returns stage-aware processing error for unknown view mode" do
+    updated = ParamsState.view_from_params(%{"view_mode" => "missing_view"}, base_socket())
+
+    assert updated.assigns.executed == false
+    assert updated.assigns.execution_error.stage in [:result_process, :db_execute]
+    assert updated.assigns.execution_error.category in [:processing, :query, :connection]
+
+    assert updated.assigns.execution_error.code in [
+             :view_processing_failed,
+             :db_query_failed,
+             :connection_error
+           ]
+
+    assert is_binary(updated.assigns.execution_error.summary)
+  end
+
+  test "view_from_params returns stage-aware processing error for broken view runtime" do
+    socket = base_socket([{:detail, BrokenView, "Detail", []}])
+
+    updated = ParamsState.view_from_params(%{"view_mode" => "detail"}, socket)
+
+    assert updated.assigns.executed == false
+    assert updated.assigns.execution_error.stage == :result_process
+    assert updated.assigns.execution_error.category == :processing
+    assert updated.assigns.execution_error.code == :view_processing_failed
+    assert updated.assigns.execution_error.user_message == "View processing failed"
   end
 end

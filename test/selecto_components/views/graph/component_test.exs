@@ -350,6 +350,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
 
       assert html_string =~ "Loading chart..."
       assert html_string =~ "animate-spin"
+      assert html_string =~ "color: var(--sc-accent);"
     end
 
     test "renders no results state when executed but no results" do
@@ -392,6 +393,34 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
 
       assert html_string =~ "Unknown Chart State"
       assert html_string =~ "Executed: :unknown"
+    end
+
+    test "renders stage-aware execution errors" do
+      html_string =
+        render_component_html(%{
+          executed: true,
+          execution_error: %{
+            stage: :db_execute,
+            category: :database,
+            code: :db_query_failed,
+            summary: "Database error while executing the query",
+            user_message: "The query was sent to the database, but the database rejected it.",
+            suggestion: "Check selected fields, filters, and groupings.",
+            suggestions: ["Check selected fields, filters, and groupings."],
+            detail: "column foo does not exist",
+            severity: :error,
+            recoverable: true,
+            retryable: false,
+            source: :database,
+            debug: %{sql: "select * from broken"},
+            error: %{message: "broken"}
+          }
+        })
+
+      assert html_string =~ "Database error while executing the query"
+      assert html_string =~ "The query was sent to the database, but the database rejected it."
+      assert html_string =~ "Check selected fields, filters, and groupings."
+      assert html_string =~ "color: var(--sc-danger);"
     end
   end
 

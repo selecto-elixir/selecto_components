@@ -179,7 +179,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
             x when is_function(x) -> {:row, col.group_by_filter_select.(e), alias}
           end
         else
-          case col.type do
+          case Selecto.Temporal.date_like_type(col) || col.type do
             x when x in [:naive_datetime, :utc_datetime, :date] ->
               {:field, datetime_gb_proc(col, e), alias}
 
@@ -436,16 +436,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
       # Bucket formats
       "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        # Generate CASE expression for age buckets in group by
-        field_with_alias =
-          if String.contains?(to_string(col.colid), ".") do
-            # For qualified names like "category.updated_at", extract just the column part
-            # and use the pivot table alias "t"
-            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
-            "t.#{column}"
-          else
-            "selecto_root.#{col.colid}"
-          end
+        # Generate CASE expression for age buckets in group by.
+        # Joined fields need their fully-qualified reference, not the pivot alias.
+        field_with_alias = aggregate_field_ref(col.colid)
 
         alias SelectoComponents.Helpers.BucketParser
 
@@ -459,16 +452,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         {:raw_sql, case_sql}
 
       "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        # Generate CASE expression for custom date buckets
-        field_with_alias =
-          if String.contains?(to_string(col.colid), ".") do
-            # For qualified names like "category.updated_at", extract just the column part
-            # and use the pivot table alias "t"
-            [_table, column] = String.split(to_string(col.colid), ".", parts: 2)
-            "t.#{column}"
-          else
-            "selecto_root.#{col.colid}"
-          end
+        field_with_alias = aggregate_field_ref(col.colid)
 
         alias SelectoComponents.Helpers.BucketParser
 
@@ -481,10 +465,29 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
         {:raw_sql, case_sql}
 
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = aggregate_field_ref(col.colid)
+
+        alias SelectoComponents.Helpers.BucketParser
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
+          )
+
+        {:raw_sql, case_sql}
+
       _ ->
         # Default to day format
         {:to_char, {col.colid, "YYYY-MM-DD"}}
     end
+  end
+
+  defp aggregate_field_ref(colid) do
+    colid_str = to_string(colid)
+    if String.contains?(colid_str, "."), do: colid_str, else: "selecto_root." <> colid_str
   end
 
   def aggregates(aggregates, columns) do
@@ -500,6 +503,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         format = Map.get(e, "format")
         field = Map.get(e, "field")
         bucket_ranges = Map.get(e, "bucket_ranges")
+        ignore_nulls_in_sum = truthy_param?(Map.get(e, "ignore_nulls_in_sum"))
 
         function_name =
           case Map.get(e, "function", Map.get(e, "format")) do
@@ -681,13 +685,27 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
           _other ->
             # Standard aggregates - return as single item list for consistency
-            # Use SafeAtom to prevent atom table exhaustion from user input
-            [{:field, {SafeAtom.to_aggregate_function(function_name), field}, aggregate_alias}]
+            [
+              {:field, aggregate_selector(function_name, field, ignore_nulls_in_sum),
+               aggregate_alias}
+            ]
         end
       end)
 
     result
   end
+
+  defp aggregate_selector("true_count", field, _ignore_nulls_in_sum),
+    do: {:count, field, {field, true}}
+
+  defp aggregate_selector("false_count", field, _ignore_nulls_in_sum),
+    do: {:count, field, {field, false}}
+
+  defp aggregate_selector("sum", field, true),
+    do: {:sum, {:coalesce, [field, 0]}}
+
+  defp aggregate_selector(function_name, field, _ignore_nulls_in_sum),
+    do: {SafeAtom.to_aggregate_function(function_name), field}
 
   defp default_aggregate_label(field, columns, function_name) do
     "#{default_field_label(field, lookup_column(columns, field), columns)} #{aggregate_function_label(function_name)}"
@@ -786,6 +804,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       "max" -> "Max"
       "buckets" -> "Buckets"
       "age_buckets" -> "Age Buckets"
+      "year_buckets" -> "Year Buckets"
       "true_count" -> "True Count"
       "false_count" -> "False Count"
       value -> SelectoComponents.Helpers.aggregate_datetime_format_label(value)

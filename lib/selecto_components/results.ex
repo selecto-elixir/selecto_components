@@ -1,18 +1,25 @@
 defmodule SelectoComponents.Results do
   use Phoenix.LiveComponent
+
   alias SelectoComponents.Debug.DebugDisplay
   alias SelectoComponents.Debug.ProductionConfig
+  alias SelectoComponents.Env
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Theme
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   def render(assigns) do
     assigns =
-      assigns
-      |> Map.put_new(:component_module, nil)
-      |> Map.put_new(:execution_error, nil)
-      |> Map.put_new(:applied_view, nil)
-      |> Map.put_new(:executed, false)
-      |> Map.put_new(:query_results, nil)
+      assign(assigns,
+        component_module: Map.get(assigns, :component_module),
+        execution_error: Map.get(assigns, :execution_error),
+        applied_view: Map.get(assigns, :applied_view),
+        executed: Map.get(assigns, :executed, false),
+        query_results: Map.get(assigns, :query_results),
+        theme: Theme.resolve_theme(assigns),
+        theme_stylesheet: Map.get(assigns, :theme_stylesheet, Theme.stylesheet())
+      )
 
     assigns =
       case assigns.applied_view do
@@ -27,9 +34,10 @@ defmodule SelectoComponents.Results do
 
           case view_tuple do
             {_id, _module, _name, opt} ->
-              assigns
-              |> Map.put(:component_module, ViewRuntime.result_component(view_tuple))
-              |> Map.put(:view_opts, opt)
+              assign(assigns,
+                component_module: ViewRuntime.result_component(view_tuple),
+                view_opts: opt
+              )
 
             nil ->
               assigns
@@ -38,38 +46,53 @@ defmodule SelectoComponents.Results do
 
     # Check debug permissions using params and session from socket
     show_debug = should_show_debug?(assigns)
-    assigns = Map.put(assigns, :show_debug, show_debug)
     has_component_errors = match?([_ | _], Map.get(assigns, :component_errors, []))
-    assigns = Map.put(assigns, :has_component_errors, has_component_errors)
+
+    assigns =
+      assign(assigns,
+        show_debug: show_debug,
+        has_component_errors: has_component_errors,
+        normalized_execution_error: normalize_execution_error(assigns)
+      )
 
     ~H"""
-    <div>
+    <div
+      id={"selecto-results-#{@id}-#{@theme.id}"}
+      data-selecto-theme={@theme.id}
+      style={Theme.style_attr(@theme)}
+      class={Theme.slot(@theme, :root)}
+    >
+      <style>
+        <%= Phoenix.HTML.raw(@theme_stylesheet) %>
+      </style>
       <div
-        :if={Map.get(assigns, :execution_error) && !@applied_view}
-        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        :if={@normalized_execution_error && !@applied_view}
+        class="mb-4 rounded-lg border px-4 py-3"
+        style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"
       >
-        <strong class="font-bold">View Error:</strong>
-        <span class="block sm:inline ml-1">
-          <%= case Map.get(assigns, :execution_error) do %>
-            <% %{message: msg} -> %>
-              {msg}
-            <% error when is_binary(error) -> %>
-              {error}
-            <% error -> %>
-              {inspect(error)}
-          <% end %>
-        </span>
-        <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) && map_size(@execution_error.details) > 0 do %>
+        <strong class="font-bold">{@normalized_execution_error.summary}:</strong>
+        <span class="block sm:inline ml-1">{@normalized_execution_error.user_message}</span>
+        <div :if={@normalized_execution_error.detail} class="text-sm mt-1">
+          {@normalized_execution_error.detail}
+        </div>
+        <div :if={@normalized_execution_error.suggestion} class="text-sm mt-1 font-medium">
+          Next step: {@normalized_execution_error.suggestion}
+        </div>
+        <%= if Env.dev?() && is_map(@normalized_execution_error.debug) && map_size(@normalized_execution_error.debug) > 0 do %>
           <details class="mt-2">
             <summary class="cursor-pointer text-sm">Debug Details</summary>
-            <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+            <pre
+              class="mt-2 overflow-x-auto rounded p-2 text-xs"
+              style="background: color-mix(in srgb, var(--sc-danger-soft) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+            ><%= inspect(@normalized_execution_error.debug, pretty: true) %></pre>
           </details>
         <% end %>
       </div>
       <div
         :if={@has_component_errors && !@applied_view}
-        class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4"
+        class="mb-4 rounded-lg border px-4 py-3"
+        style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"
       >
         <strong class="font-bold">View Error:</strong>
@@ -90,7 +113,8 @@ defmodule SelectoComponents.Results do
       <div :if={@applied_view && @component_module}>
         <.live_component
           module={@component_module}
-          id={"view_results_#{@applied_view}"}
+          id={"view_results_#{@applied_view}_#{@theme.id}"}
+          theme={@theme}
           selecto={@selecto}
           query_results={@query_results}
           view_meta={@view_meta}
@@ -113,6 +137,13 @@ defmodule SelectoComponents.Results do
 
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)
+  end
+
+  defp normalize_execution_error(assigns) do
+    case Map.get(assigns, :execution_error) do
+      nil -> nil
+      error -> ErrorBuilder.normalize(error)
+    end
   end
 
   defp build_debug_data(assigns) do

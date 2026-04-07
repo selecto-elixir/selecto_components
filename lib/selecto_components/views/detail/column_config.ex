@@ -2,6 +2,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string
@@ -55,7 +56,10 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
           end
       end
 
-    col_type = Map.get(assigns[:col] || %{}, :type, :string)
+    col_type =
+      Selecto.Temporal.date_like_type(assigns[:col] || %{}) ||
+        Map.get(assigns[:col] || %{}, :type, :string)
+
     configure_component = Map.get(assigns[:col] || %{}, :configure_component)
 
     show_options =
@@ -64,57 +68,56 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
 
     assigns =
       assigns
+      |> assign_new(:theme, fn -> Theme.default_theme(:light) end)
       |> Map.put(:display_name, display_name)
       |> Map.put(:show_options, show_options)
 
     ~H"""
       <div class="space-y-2">
         <div>
-          <div class="font-medium text-sm text-gray-700">Name:</div>
-          <div class="pl-2"><%= @display_name %></div>
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Name:</div>
+          <div class="pl-2" style="color: var(--sc-text-primary);"><%= @display_name %></div>
         </div>
 
         <div>
-          <div class="font-medium text-sm text-gray-700">Alias:</div>
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Alias:</div>
           <div class="pl-2">
-            <.sc_input name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
+            <.sc_input theme={@theme} name={"#{@prefix}[alias]"} value={Map.get(@config, "alias", "")} placeholder="Enter alias"/>
           </div>
         </div>
 
         <div :if={@show_options}>
-          <div class="font-medium text-sm text-gray-700">Options:</div>
-          <div class="pl-2">
-            <%= case Map.get(@col, :type, :string) do%>
+          <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Options:</div>
+          <div class="space-y-2 pl-2" style="color: var(--sc-text-primary);">
+            <%= case Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string) do%>
               <% x when x in [:int, :id] -> %>
-                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"/>Commas</label>
 
               <% x when x in [:float, :decimal] -> %>
-                <label><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")}/>Commas</label>
-                <label><.sc_select name={"#{@prefix}[decimal_places]"}
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-sm"}><input name={"#{@prefix}[commas]"} type="checkbox" checked={Map.get(@config, "commas")} class="h-4 w-4 rounded border" style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"/>Commas</label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);"><.sc_select theme={@theme} name={"#{@prefix}[decimal_places]"}
                   options={Enum.map(~w(0 1 2 3), fn o -> {o, o} end )}
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
 
               <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
-                <label>Format
+                <label class="block text-sm" style="color: var(--sc-text-primary);">Format
                   <.sc_select
+                    theme={@theme}
                     name={"#{@prefix}[format]"}
                     value={Map.get(@config, "format")}
-                    options={SelectoComponents.Helpers.aggregate_datetime_format_options()}
+                    options={SelectoComponents.Helpers.datetime_grouping_format_options()}
                   />
                 </label>
 
-                <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets"] do %>
-                  <label>
+                <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"] do %>
+                  <label class="block text-sm" style="color: var(--sc-text-primary);">
                     Bucket Ranges
                     <.sc_input
+                      theme={@theme}
                       name={"#{@prefix}[bucket_ranges]"}
                       value={Map.get(@config, "bucket_ranges", "")}
-                      placeholder={
-                        if Map.get(@config, "format") == "age_buckets",
-                          do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
-                          else: "e.g., today, yesterday, 2-7, 8+"
-                      }
+                      placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
                     />
                   </label>
                 <% end %>

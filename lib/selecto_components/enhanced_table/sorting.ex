@@ -6,6 +6,7 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
 
   use Phoenix.Component
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Theme
 
   @doc """
   Initialize sort state in the socket assigns.
@@ -92,6 +93,7 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
   Render sort indicator component.
   """
   def sort_indicator(assigns) do
+    assigns = Phoenix.Component.assign_new(assigns, :theme, fn -> Theme.default_theme(:light) end)
     indicator = get_sort_indicator(assigns.column, assigns[:sort_by])
 
     position =
@@ -104,21 +106,21 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
     assigns = Phoenix.Component.assign(assigns, indicator: indicator, position: position)
 
     ~H"""
-    <span class="inline-flex items-center ml-1">
+    <span class="ml-1 inline-flex items-center">
       <%= if @position do %>
-        <span class="text-xs text-gray-500 mr-1"><%= @position %></span>
+        <span class="mr-1 text-xs" style="color: var(--sc-text-muted);"><%= @position %></span>
       <% end %>
       <%= case @indicator do %>
         <% :asc -> %>
-          <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="h-4 w-4" style="color: var(--sc-accent);" fill="currentColor" viewBox="0 0 20 20">
             <path d="M7 10l5-5 5 5H7z"/>
           </svg>
         <% :desc -> %>
-          <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="h-4 w-4" style="color: var(--sc-accent);" fill="currentColor" viewBox="0 0 20 20">
             <path d="M7 10l5 5 5-5H7z"/>
           </svg>
         <% _ -> %>
-          <svg class="w-4 h-4 text-gray-400 opacity-50" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="h-4 w-4 opacity-50" style="color: var(--sc-text-muted);" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 3l-7 7h4v7h6v-7h4L10 3z" opacity="0.3"/>
             <path d="M10 17l7-7h-4V3H7v7H3l7 7z" opacity="0.3"/>
           </svg>
@@ -131,6 +133,8 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
   Render sortable column header.
   """
   def sortable_header(assigns) do
+    assigns = Phoenix.Component.assign_new(assigns, :theme, fn -> Theme.default_theme(:light) end)
+
     # Check if resizable is enabled
     if Map.get(assigns, :resizable, false) && Map.get(assigns, :column_config) do
       column_config =
@@ -144,12 +148,13 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
 
       ~H"""
       <th
-        class={"relative px-2 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
-        style={"width: #{@col_config.width}px; min-width: #{@col_config.min_width}px; max-width: #{@col_config.max_width}px;"}
+        class={"relative px-2 py-3 text-left text-xs font-medium uppercase tracking-wider select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
+        style={"width: #{@col_config.width}px; min-width: #{@col_config.min_width}px; max-width: #{@col_config.max_width}px; background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"}
         data-column-id={@column}
       >
         <div 
-          class="flex items-center justify-between cursor-pointer hover:bg-gray-100 px-2 rounded"
+          class="flex items-center justify-between cursor-pointer rounded px-2"
+          style="color: inherit;"
           phx-click="sort_column"
           phx-value-column={@column}
           phx-value-multi={@multi || false}
@@ -161,13 +166,14 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
           data-column-id={@column}
         >
           <span class="truncate"><%= @label %></span>
-          <.sort_indicator column={@column} sort_by={@sort_by} show_position={@multi} />
+          <.sort_indicator theme={@theme} column={@column} sort_by={@sort_by} show_position={@multi} />
         </div>
         
         <%!-- Resize handle --%>
         <%= if Map.get(assigns, :resizable, false) do %>
           <div
-            class="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors"
+            class="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize transition-colors"
+            style="background: transparent;"
             phx-hook=".ColumnResize"
             id={"resize-#{@column}"}
             data-column-id={@column}
@@ -373,7 +379,8 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
       # Original non-resizable header
       ~H"""
       <th
-        class={"px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-700 uppercase bg-gray-50 cursor-pointer hover:bg-gray-100 select-none #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
+        class={"cursor-pointer select-none px-6 py-3 text-left text-xs font-medium uppercase tracking-wider #{if get_sort_indicator(@column, @sort_by), do: "font-bold", else: ""}"}
+        style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
         phx-click="sort_column"
         phx-value-column={@column}
         phx-value-multi={@multi || false}
@@ -382,7 +389,7 @@ defmodule SelectoComponents.EnhancedTable.Sorting do
       >
         <div class="flex items-center justify-between">
           <span><%= @label %></span>
-          <.sort_indicator column={@column} sort_by={@sort_by} show_position={@multi} />
+          <.sort_indicator theme={@theme} column={@column} sort_by={@sort_by} show_position={@multi} />
         </div>
       </th>
       """

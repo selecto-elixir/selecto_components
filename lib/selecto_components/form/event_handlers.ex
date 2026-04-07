@@ -68,6 +68,7 @@ defmodule SelectoComponents.Form.EventHandlers do
 
    ### ExportOperations
    - `export_data` - Export current results (CSV/JSON)
+   - `send_export_email` - Email current results via configured delivery adapter
 
   ## Adding New Event Handlers
 
@@ -151,8 +152,20 @@ defmodule SelectoComponents.Form.EventHandlers do
         columns_list =
           raw_columns
           |> Enum.map(fn {key, col} ->
-            {key, col.name, col.type}
+            {key, col.name,
+             %{
+               type: Selecto.Temporal.date_like_type(col) || col.type,
+               format: Map.get(col, :format),
+               icon: Map.get(col, :icon),
+               icon_family: Map.get(col, :icon_family)
+             }}
           end)
+
+        initial_view_config = %{
+          view_mode: default_view_mode,
+          views: view_configs,
+          filters: []
+        }
 
         [
           selecto: selecto,
@@ -164,13 +177,14 @@ defmodule SelectoComponents.Form.EventHandlers do
           query_results: [],
           detail_page_cache: nil,
           aggregate_page_cache: nil,
+          form_state_revision: 0,
+          applied_form_state_revision: 0,
+          applied_view_config: initial_view_config,
+          view_config_dirty?: false,
+          validation_locked_until_patch: false,
           applied_view: nil,
           active_tab: "view",
-          view_config: %{
-            view_mode: default_view_mode,
-            views: view_configs,
-            filters: []
-          },
+          view_config: initial_view_config,
           view_meta: %{}
         ]
       end
@@ -190,7 +204,8 @@ defmodule SelectoComponents.Form.EventHandlers do
       """
       @impl true
       def handle_info({:view_set, view}, socket) do
-        {:noreply, assign(socket, view_config: %{socket.assigns.view_config | view_mode: view})}
+        {:noreply,
+         ParamsState.assign_view_config(socket, %{socket.assigns.view_config | view_mode: view})}
       end
     end
   end

@@ -1,6 +1,10 @@
 defmodule SelectoComponents.Views.Map.Component do
   use Phoenix.LiveComponent
 
+  alias SelectoComponents.Env
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.QueryResults
+
   @default_marker_color "#2563eb"
 
   def update(assigns, socket) do
@@ -782,11 +786,21 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp render_error_state(assigns) do
+    assigns = assign(assigns, :error_info, ErrorBuilder.normalize(assigns[:execution_error]))
+
     ~H"""
     <div class="flex items-center justify-center min-h-64 bg-red-50 rounded-lg border border-red-300 p-6">
       <div class="text-center text-red-700">
-        <div class="font-semibold">Query execution error</div>
-        <div class="text-sm mt-1">{inspect(assigns[:execution_error])}</div>
+        <div class="font-semibold">{@error_info.summary}</div>
+        <div class="text-sm mt-1">{@error_info.user_message}</div>
+        <div :if={@error_info.detail} class="text-xs mt-1">{@error_info.detail}</div>
+        <div :if={@error_info.suggestion} class="text-xs mt-2 font-medium">
+          Next step: {@error_info.suggestion}
+        </div>
+        <details :if={Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-2 text-left">
+          <summary class="cursor-pointer text-xs">Debug Details</summary>
+          <pre class="text-xs mt-2 bg-red-100 p-2 rounded overflow-x-auto"><%= inspect(@error_info.debug, pretty: true) %></pre>
+        </details>
       </div>
     </div>
     """
@@ -1292,9 +1306,17 @@ defmodule SelectoComponents.Views.Map.Component do
     categories = parse_categories(Map.get(layer, :scale_categories))
 
     Enum.map(values, fn value ->
-      %{label: to_string(value), color: categorical_color(value, palette, categories)}
+      %{
+        label: normalize_legend_label(value),
+        color: categorical_color(value, palette, categories)
+      }
     end)
   end
+
+  defp normalize_legend_label(value) when is_binary(value),
+    do: QueryResults.normalize_value(value)
+
+  defp normalize_legend_label(value), do: to_string(value)
 
   defp linear_legend_entries(layer) do
     {low, high} = linear_palette(parse_palette(Map.get(layer, :scale_palette)))

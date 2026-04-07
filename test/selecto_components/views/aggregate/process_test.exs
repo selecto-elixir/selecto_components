@@ -35,6 +35,38 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
              [{:field, {:count_distinct, "id"}, "Category ID Distinct Count"}]
   end
 
+  test "aggregates build filtered boolean counts" do
+    columns = %{"active" => %{name: "Active", type: :boolean, colid: "active"}}
+
+    assert Process.aggregates(
+             %{
+               "a1" => %{"field" => "active", "format" => "true_count"},
+               "a2" => %{"field" => "active", "format" => "false_count", "index" => "1"}
+             },
+             columns
+           ) == [
+             {:field, {:count, "active", {"active", true}}, "Active True Count"},
+             {:field, {:count, "active", {"active", false}}, "Active False Count"}
+           ]
+  end
+
+  test "aggregates can treat null as zero for sum" do
+    columns = %{"total" => %{name: "Total", type: :decimal, colid: "total"}}
+
+    assert Process.aggregates(
+             %{
+               "a1" => %{
+                 "field" => "total",
+                 "format" => "sum",
+                 "ignore_nulls_in_sum" => "true"
+               }
+             },
+             columns
+           ) == [
+             {:field, {:sum, {:coalesce, ["total", 0]}}, "Total Sum"}
+           ]
+  end
+
   test "group by uses column display names by default" do
     columns = %{
       "category.category_name" => %{
@@ -74,5 +106,51 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
              columns
            ) ==
              [{:field, {:count_distinct, "order_details.order_id"}, "Order ID Distinct Count"}]
+  end
+
+  test "group by supports datetime year buckets" do
+    columns = %{
+      "created_at" => %{name: "Created At", type: :utc_datetime, colid: :created_at}
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{"field" => "created_at", "format" => "year_buckets", "bucket_ranges" => "*/5"}
+        },
+        columns,
+        nil
+      )
+
+    assert {:field, {:raw_sql, sql}, "Created At"} = selector
+    assert sql =~ "EXTRACT(YEAR FROM selecto_root.created_at)"
+    assert sql =~ "CASE WHEN"
+  end
+
+  test "group by preserves joined field references for datetime year buckets" do
+    columns = %{
+      "delivery_team.inserted_at" => %{
+        name: "Delivery Team Inserted At",
+        type: :utc_datetime,
+        colid: "delivery_team.inserted_at"
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "delivery_team.inserted_at",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5"
+          }
+        },
+        columns,
+        nil
+      )
+
+    assert {:field, {:raw_sql, sql}, "Delivery Team Inserted At"} = selector
+    assert sql =~ "EXTRACT(YEAR FROM delivery_team.inserted_at)"
+    refute sql =~ "EXTRACT(YEAR FROM t.inserted_at)"
   end
 end

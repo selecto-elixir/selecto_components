@@ -3,20 +3,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
+  alias SelectoComponents.Env
+  alias SelectoComponents.QueryResults
+  alias SelectoComponents.Theme
   alias SelectoComponents.Views.Aggregate.Options
-
-  @grid_palette [
-    "#eafcff",
-    "#d7f8fc",
-    "#c6f2f8",
-    "#bdeff0",
-    "#f8efe9",
-    "#f8e2d8",
-    "#f8d3c4",
-    "#f6c1b1",
-    "#f4ab9a",
-    "#f1988b"
-  ]
 
   @impl true
   def mount(socket) do
@@ -24,7 +14,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
      assign(socket,
        aggregate_page: 0,
        aggregate_page_loading?: false,
-       aggregate_requested_page: nil
+       aggregate_requested_page: nil,
+       theme: Theme.default_theme(:light)
      )}
   end
 
@@ -56,8 +47,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aggregate_server_paged?: incoming_server_paged?,
         aggregate_page_loading?: false,
         aggregate_requested_page: nil,
+        theme:
+          Map.get(assigns, :theme, Map.get(socket.assigns, :theme, Theme.default_theme(:light))),
         last_update: System.system_time(:microsecond)
       )
+
+    if Env.dev?() do
+      IO.puts("[theme-debug][Aggregate.Component] update theme=#{socket.assigns.theme.id}")
+    end
 
     {:ok, socket}
   end
@@ -205,6 +202,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       value when is_atom(value) ->
         Atom.to_string(value)
+
+      value when is_binary(value) ->
+        QueryResults.normalize_value(value)
 
       _ ->
         if Phoenix.HTML.Safe.impl_for(value) do
@@ -403,28 +403,32 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     agg_cols = Enum.drop(assigns.row, assigns.num_group_by)
 
     # Determine styling based on hierarchy level
-    {row_class, font_weight, indent_px} =
+    {row_style, font_weight, indent_px} =
       case display_level do
         # Grand total
         0 ->
-          {"bg-blue-50 border-t-2 border-blue-300 dark:bg-blue-950/40 dark:border-blue-700",
+          {"background: color-mix(in srgb, var(--sc-accent-soft) 55%, var(--sc-surface-bg)); border-top: 2px solid var(--sc-accent);",
            "font-bold", 0}
 
         # Level 1 subtotal
         1 ->
-          {"bg-gray-50 dark:bg-gray-800/70", "font-semibold", 16}
+          {"background: var(--sc-surface-bg-alt); border-top: 1px solid var(--sc-surface-border);",
+           "font-semibold", 16}
 
         # Level 2 (or detail if only 2 levels)
         2 ->
-          {"", "font-normal", 32}
+          {"background: var(--sc-surface-bg); border-top: 1px solid var(--sc-surface-border);",
+           "font-normal", 32}
 
         # Level 3
         3 ->
-          {"", "font-normal", 48}
+          {"background: var(--sc-surface-bg); border-top: 1px solid var(--sc-surface-border);",
+           "font-normal", 48}
 
         # Deeper levels
         _ ->
-          {"", "font-normal", 64}
+          {"background: var(--sc-surface-bg); border-top: 1px solid var(--sc-surface-border);",
+           "font-normal", 64}
       end
 
     # The maximum level is the number of group-by columns
@@ -432,17 +436,18 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     is_detail = display_level == assigns.num_group_by
 
     # For detail rows, use normal styling unless row is a continuation marker
-    {row_class, font_weight} =
+    {row_style, font_weight} =
       cond do
         continued? ->
-          {"bg-amber-50 border-t border-amber-200 dark:bg-amber-950/30 dark:border-amber-800",
+          {"background: color-mix(in srgb, var(--sc-accent-soft) 35%, var(--sc-surface-bg)); border-top: 1px dashed var(--sc-accent);",
            "font-semibold italic"}
 
         is_detail ->
-          {"", "font-normal"}
+          {"background: var(--sc-surface-bg); border-top: 1px solid var(--sc-surface-border);",
+           "font-normal"}
 
         true ->
-          {row_class, font_weight}
+          {row_style, font_weight}
       end
 
     # Build filter attributes for drill-down (accumulated from all parent levels)
@@ -452,7 +457,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       assign(assigns,
         group_cols: group_cols,
         agg_cols: agg_cols,
-        row_class: row_class,
+        row_style: row_style,
         font_weight: font_weight,
         indent_px: indent_px,
         filter_attrs: filter_attrs,
@@ -462,22 +467,22 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       )
 
     ~H"""
-    <tr class={@row_class}>
+    <tr style={@row_style}>
       <%!-- Render group by columns --%>
       <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
-        <td class={"px-3 py-2 text-sm text-gray-900 dark:text-gray-100 #{@font_weight}"}>
+        <td class={"px-3 py-2 text-sm #{@font_weight}"} style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
           <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
             <%= if @grand_total? and @display_level == 0 and idx == 0 do %>
               <%!-- Grand total row --%>
-              <span class="text-gray-400 italic dark:text-gray-500">Total</span>
+              <span style="color: var(--sc-text-muted); font-style: italic;">Total</span>
             <% else %>
               <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
               <%!-- For level N, show column at index N-1 (0-indexed) --%>
               <%= if idx == @display_level - 1 do %>
                 <%= if @continued? do %>
-                  <span class="text-amber-900 dark:text-amber-200">
-                    {format_group_value(value, coldef)} (continued)
-                  </span>
+                    <span style="color: var(--sc-accent);">
+                      {format_group_value(value, coldef)} (continued)
+                    </span>
                 <% else %>
                   <div
                     phx-click="agg_add_filters"
@@ -495,9 +500,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       <%!-- Render aggregate columns --%>
       <%= for {value, {_alias, {:agg, _agg, coldef}}} <- Enum.zip(@agg_cols, @aggregate) do %>
-        <td class={"px-3 py-2 text-sm text-gray-900 dark:text-gray-100 #{@font_weight}"}>
+        <td class={"px-3 py-2 text-sm #{@font_weight}"} style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
           <%= if @continued? do %>
-            <span class="text-amber-700 dark:text-amber-300">-</span>
+            <span style="color: var(--sc-accent);">-</span>
           <% else %>
             {format_aggregate_value(value, coldef)}
           <% end %>
@@ -550,7 +555,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       # Just show a message that view cannot be rendered
       ~H"""
       <div>
-        <div class="p-4 italic text-gray-500 dark:text-gray-400">
+        <div class="p-4 italic" style="color: var(--sc-text-muted);">
           View cannot be displayed due to query error. Please check the error message above.
         </div>
       </div>
@@ -562,19 +567,19 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           # Query is being executed or hasn't been executed yet
           ~H"""
           <div>
-            <div class="p-4 italic text-blue-500 dark:text-blue-300">Loading view...</div>
+            <div class="p-4 italic" style="color: var(--sc-accent);">Loading view...</div>
           </div>
           """
 
         {true, nil} ->
           # Executed but no results - this is an error state
           ~H"""
-          <div>
-            <div class="p-4 text-red-500 dark:text-red-300">
-              <div class="font-semibold">No Results</div>
-              <div class="text-sm mt-1">Query executed but returned no results.</div>
+            <div>
+              <div class="p-4" style="color: var(--sc-danger);">
+                <div class="font-semibold">No Results</div>
+                <div class="mt-1 text-sm">Query executed but returned no results.</div>
+              </div>
             </div>
-          </div>
           """
 
         {true, {results, _fields, aliases}} ->
@@ -603,7 +608,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           # Fallback for unexpected states
           ~H"""
           <div>
-            <div class="p-4 text-yellow-500 dark:text-yellow-300">
+            <div class="p-4" style="color: var(--sc-text-secondary);">
               <div class="font-semibold">Unknown State</div>
               <div class="text-sm mt-1">
                 Executed: {inspect(assigns[:executed])}<br />
@@ -637,14 +642,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         not assigns[:executed] ->
           ~H"""
           <div>
-            <div class="p-4 italic text-blue-500 dark:text-blue-300">Loading view...</div>
+            <div class="p-4 italic" style="color: var(--sc-accent);">Loading view...</div>
           </div>
           """
 
         assigns.query_results == nil ->
           ~H"""
           <div>
-            <div class="p-4 italic text-blue-500 dark:text-blue-300">Loading view...</div>
+            <div class="p-4 italic" style="color: var(--sc-accent);">Loading view...</div>
           </div>
           """
 
@@ -661,7 +666,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
           ~H"""
           <div>
-            <div class="text-red-500 p-4">
+            <div class="p-4" style="color: var(--sc-danger);">
               <div class="font-semibold">View Configuration Error</div>
               <div class="text-sm mt-1">
                 Expected {@expected_field_count} fields but got {@aliases_count} from query.
@@ -986,11 +991,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       if grid_available?,
         do:
           build_grid_data(
-            paged_rollup_rows,
+            rollup_rows,
             num_group_by,
             group_by,
             grid_colorize,
-            grid_color_scale
+            grid_color_scale,
+            assigns.theme
           ),
         else: nil
 
@@ -1015,19 +1021,24 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         grid_colorize: grid_colorize,
         grid_color_scale: grid_color_scale,
         grid_available?: grid_available?,
-        grid_data: grid_data
+        grid_data: grid_data,
+        grid_legend_colors: grid_palette(assigns.theme)
       )
 
     ~H"""
     <div>
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white px-3 py-2 dark:border-gray-700 dark:from-gray-900 dark:to-gray-800">
-        <div class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div
+        :if={!@grid_available?}
+        class={Theme.slot(@theme, :panel) <> " mb-3 flex flex-wrap items-center justify-between gap-3 px-3 py-2"}
+        style="background: var(--sc-surface-bg-alt);"
+      >
+        <div class={Theme.slot(@theme, :panel) <> " inline-flex items-center gap-1 p-1"} style="background: var(--sc-surface-bg);">
           <button
             type="button"
             phx-click="set_aggregate_page"
             phx-value-page={0}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:hover:bg-gray-900"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="First page"
             aria-label="First page"
             disabled={@aggregate_page <= 0 or @aggregate_page_loading?}
@@ -1053,7 +1064,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_page - 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:hover:bg-gray-900"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Previous page"
             aria-label="Previous page"
             disabled={@aggregate_page <= 0 or @aggregate_page_loading?}
@@ -1076,7 +1087,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_page + 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-gray-200 px-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:hover:bg-gray-900"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Next page"
             aria-label="Next page"
             disabled={@aggregate_page >= @aggregate_max_page or @aggregate_page_loading?}
@@ -1099,7 +1110,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_max_page}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:hover:bg-gray-900"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="Last page"
             aria-label="Last page"
             disabled={@aggregate_page >= @aggregate_max_page or @aggregate_page_loading?}
@@ -1121,7 +1132,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           </button>
         </div>
 
-        <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">
           <span class="font-semibold tabular-nums">
             {@aggregate_page_start}-{@aggregate_page_end}
           </span>
@@ -1129,13 +1140,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           rows
         </div>
 
-        <div class="text-xs text-gray-500 tabular-nums dark:text-gray-400">
+        <div class="text-xs tabular-nums" style="color: var(--sc-text-muted);">
           Page
           <span class="font-semibold">
             {if @aggregate_total_pages > 0, do: @aggregate_page + 1, else: 0}
           </span>
           of <span class="font-semibold">{@aggregate_total_pages}</span>
-          <span :if={@aggregate_page_loading?} class="ml-2 text-blue-600 dark:text-blue-300">
+          <span :if={@aggregate_page_loading?} class="ml-2" style="color: var(--sc-accent);">
             Loading...
           </span>
         </div>
@@ -1143,101 +1154,137 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       <div
         :if={@aggregate_rows_capped?}
-        class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+        class="mb-3 rounded-md border px-3 py-2 text-sm"
+        style="background: color-mix(in srgb, var(--sc-accent-soft) 40%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
       >
         Showing the first <span class="font-semibold tabular-nums">{@aggregate_total_rows}</span>
         rows out of <span class="font-semibold tabular-nums">{@aggregate_total_rows_before_cap}</span>
         to keep rendering responsive. Narrow filters/grouping, or increase
-        <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/40">
-          :aggregate_max_client_rows
-        </code>
+          <code class="rounded px-1 py-0.5" style="background: var(--sc-surface-bg);">
+            :aggregate_max_client_rows
+          </code>
         (currently <span class="font-semibold">{inspect(@aggregate_max_client_rows)}</span>)
         if you need to render more rows at once.
       </div>
 
       <div
         :if={@grid_enabled and not @grid_available?}
-        class="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100"
+        class="mb-3 rounded-md border px-3 py-2 text-sm"
+        style="background: color-mix(in srgb, var(--sc-accent-soft) 50%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
       >
         Grid view requires exactly 2 Group By fields and 1 Aggregate.
       </div>
 
       <%= if @grid_available? and @grid_data do %>
-        <div class="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+        <div class="mb-2 flex flex-wrap items-center gap-2 text-sm" style="color: var(--sc-text-secondary);">
           <span class="font-medium">Aggregate Grid</span>
           <span
             :if={@grid_colorize}
-            class="rounded-full border border-cyan-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-cyan-900 dark:bg-gray-900 dark:text-gray-300"
+            class="rounded-full border px-2 py-0.5 text-xs font-medium"
+            style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-secondary);"
           >
             {String.capitalize(@grid_color_scale)} color scale
           </span>
         </div>
-        <table class="min-w-full overflow-hidden divide-y divide-gray-200 rounded-sm table-auto ring-1 ring-gray-200 dark:divide-gray-700 dark:ring-gray-700 sm:rounded">
-          <thead class="bg-gray-50 dark:bg-gray-800/80">
-            <tr>
-              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {@grid_data.row_alias}
-              </th>
-              <%= for col_value <- @grid_data.col_headers do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {format_group_value(col_value, @grid_data.col_coldef)}
-                </th>
-              <% end %>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-            <tr :for={row_value <- @grid_data.row_headers}>
-              <td class="px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                {format_group_value(row_value, @grid_data.row_coldef)}
-              </td>
-              <td
-                :for={col_value <- @grid_data.col_headers}
-                class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-                style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background-color: #ffffff; color: #111827;")}
-              >
-                <div
-                  phx-click="agg_add_filters"
-                  {build_filter_attrs([row_value, col_value], @group_by, 2)}
-                  class="cursor-pointer hover:underline"
-                >
-                  {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      <% else %>
-        <table class="min-w-full overflow-hidden divide-y divide-gray-200 rounded-sm table-auto ring-1 ring-gray-200 dark:divide-gray-700 dark:ring-gray-700 sm:rounded">
-          <thead class="bg-gray-50 dark:bg-gray-800/80">
-            <tr>
-              <%!-- Headers for group by columns --%>
-              <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {alias}
-                </th>
-              <% end %>
-
-              <%!-- Headers for aggregate columns --%>
-              <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
-                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {alias}
-                </th>
-              <% end %>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-            <.rollup_row
-              :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
-              level={level}
-              row={row}
-              continued?={continued?}
-              grand_total?={grand_total?}
-              num_group_by={@num_group_by}
-              group_by={@group_by}
-              aggregate={@aggregate}
+        <div
+          :if={@grid_colorize}
+          class="mb-3 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-xs"
+          style="background: color-mix(in srgb, var(--sc-accent-soft) 45%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-secondary);"
+        >
+          <span class="font-medium">Color legend</span>
+          <span>Low</span>
+          <div class="flex items-center gap-1" aria-label="Grid color legend">
+            <span
+              :for={color <- @grid_legend_colors}
+              class="h-3 w-5 rounded-sm border"
+              style={"border-color: var(--sc-surface-border); background-color: #{color};"}
             />
-          </tbody>
-        </table>
+          </div>
+          <span>High</span>
+        </div>
+        <div
+          id={"aggregate-grid-wrapper-#{@myself}"}
+          class={Theme.slot(@theme, :panel) <> " mb-1 max-h-[70vh] overflow-x-auto overflow-y-auto"}
+        >
+          <table class="min-w-full table-auto">
+            <thead style="background: var(--sc-surface-bg-alt);">
+              <tr>
+                <th class="sticky left-0 top-0 z-30 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
+                  {@grid_data.row_alias}
+                </th>
+                <%= for col_value <- @grid_data.col_headers do %>
+                  <th class="sticky top-0 z-20 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);">
+                    <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef))}>
+                      {format_group_value(col_value, @grid_data.col_coldef)}
+                    </span>
+                  </th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
+              <tr :for={row_value <- @grid_data.row_headers}>
+                <td class="sticky left-0 z-10 px-3 py-2 text-sm font-semibold" style="background: var(--sc-surface-bg); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
+                  <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef))}>
+                    {format_group_value(row_value, @grid_data.row_coldef)}
+                  </span>
+                </td>
+          <td
+            :for={col_value <- @grid_data.col_headers}
+            class="px-3 py-2 text-sm"
+            style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background: var(--sc-surface-bg); color: var(--sc-text-primary);")}
+          >
+                  <div
+                    phx-click="agg_add_filters"
+                    {build_filter_attrs([row_value, col_value], @group_by, 2)}
+                    class="cursor-pointer whitespace-nowrap hover:underline"
+                  >
+                    <span class={null_grid_text_class(format_value(Map.get(@grid_data.cells, {row_value, col_value})))}>
+                      {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div
+          id={"aggregate-table-wrapper-#{@myself}"}
+          class={Theme.slot(@theme, :panel) <> " responsive-table-wrapper overflow-x-auto"}
+        >
+          <table class="min-w-full table-auto">
+            <thead style="background: var(--sc-surface-bg-alt);">
+              <tr>
+                <%!-- Headers for group by columns --%>
+                <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+                  <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+                    {alias}
+                  </th>
+                <% end %>
+
+                <%!-- Headers for aggregate columns --%>
+                <%= for {alias, {:agg, _agg, _coldef}} <- @aggregate do %>
+                  <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+                    {alias}
+                  </th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
+              <.rollup_row
+                :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
+                level={level}
+                row={row}
+                continued?={continued?}
+                grand_total?={grand_total?}
+                num_group_by={@num_group_by}
+                group_by={@group_by}
+                aggregate={@aggregate}
+                theme={@theme}
+              />
+            </tbody>
+          </table>
+        </div>
       <% end %>
     </div>
     """
@@ -1246,9 +1293,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy?(_), do: false
 
-  defp build_grid_data(paged_rollup_rows, num_group_by, group_by, colorize?, scale_mode) do
+  defp build_grid_data(paged_rollup_rows, num_group_by, group_by, colorize?, scale_mode, theme) do
     detail_rows =
       Enum.reduce(paged_rollup_rows, [], fn
+        {level, row, grand_total?}, acc when level == num_group_by ->
+          if grand_total? do
+            acc
+          else
+            [row | acc]
+          end
+
         {level, row, continued?, grand_total?}, acc when level == num_group_by ->
           if continued? or grand_total? do
             acc
@@ -1279,7 +1333,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     row_headers = sort_group_values(row_headers, row_coldef)
     col_headers = sort_group_values(col_headers, col_coldef)
-    cell_styles = build_grid_cell_styles(cells, colorize?, scale_mode)
+    cell_styles = build_grid_cell_styles(cells, colorize?, scale_mode, theme)
 
     %{
       row_alias: grid_row_alias(group_by),
@@ -1292,13 +1346,13 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     }
   end
 
-  defp build_grid_cell_styles(cells, false, _scale_mode) when is_map(cells) do
+  defp build_grid_cell_styles(cells, false, _scale_mode, _theme) when is_map(cells) do
     Enum.into(cells, %{}, fn {key, _value} ->
-      {key, "background-color: #ffffff; color: #111827;"}
+      {key, "background: var(--sc-surface-bg); color: var(--sc-text-primary);"}
     end)
   end
 
-  defp build_grid_cell_styles(cells, true, scale_mode) when is_map(cells) do
+  defp build_grid_cell_styles(cells, true, scale_mode, theme) when is_map(cells) do
     max_positive_value =
       cells
       |> Map.values()
@@ -1310,23 +1364,25 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end)
 
     Enum.into(cells, %{}, fn {key, value} ->
-      {key, grid_cell_style(value, max_positive_value, scale_mode)}
+      {key, grid_cell_style(value, max_positive_value, scale_mode, theme)}
     end)
   end
 
-  defp grid_cell_style(value, max_positive_value, scale_mode) do
-    case grid_palette_color(value, max_positive_value, scale_mode) do
-      nil -> "background-color: #ffffff; color: #111827;"
-      color -> "background-color: #{color}; color: #111827;"
+  defp grid_cell_style(value, max_positive_value, scale_mode, theme) do
+    case grid_palette_color(value, max_positive_value, scale_mode, theme) do
+      nil -> "background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+      color -> "background-color: #{color}; color: var(--sc-text-primary);"
     end
   end
 
-  defp grid_palette_color(_value, nil, _scale_mode), do: nil
+  defp grid_palette_color(_value, nil, _scale_mode, _theme), do: nil
 
-  defp grid_palette_color(value, max_positive_value, scale_mode) do
+  defp grid_palette_color(value, max_positive_value, scale_mode, theme) do
     with num when is_number(num) <- numeric_value(value),
          true <- num > 0,
          true <- max_positive_value > 0 do
+      palette = grid_palette(theme)
+
       ratio =
         case Options.normalize_grid_color_scale_mode(scale_mode) do
           "log" -> :math.log(num + 1) / :math.log(max_positive_value + 1)
@@ -1335,16 +1391,31 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
       palette_index =
         ratio
-        |> Kernel.*(length(@grid_palette))
+        |> Kernel.*(length(palette))
         |> Float.ceil()
         |> trunc()
-        |> min(length(@grid_palette))
+        |> min(length(palette))
         |> max(1)
 
-      Enum.at(@grid_palette, palette_index - 1)
+      Enum.at(palette, palette_index - 1)
     else
       _ -> nil
     end
+  end
+
+  defp grid_palette(_theme) do
+    [
+      "color-mix(in srgb, var(--sc-accent) 10%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 16%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 22%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 28%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 34%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 40%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 46%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 52%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 58%, var(--sc-surface-bg))",
+      "color-mix(in srgb, var(--sc-accent) 64%, var(--sc-surface-bg))"
+    ]
   end
 
   defp numeric_value(value) when is_integer(value), do: value
@@ -1381,6 +1452,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       _ -> format_value(value)
     end
   end
+
+  defp null_grid_text_class("[NULL]"), do: nil
+  defp null_grid_text_class(_value), do: nil
 
   defp weekday_name(value) do
     case parse_int(value) do

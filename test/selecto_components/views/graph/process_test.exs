@@ -235,6 +235,37 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert {:field, {:to_char, {:created_at, "YYYY-Q"}}, "Quarter"} = field_selector
     end
 
+    test "supports year buckets in graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "created_at", %{colid: :created_at, type: :utc_datetime})
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "created_at",
+            "index" => "0",
+            "alias" => "Year Buckets",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:raw_sql, sql}, "Year Buckets"} = field_selector
+      assert sql =~ "EXTRACT(YEAR FROM selecto_root.created_at)"
+    end
+
     test "generates proper order_by and group_by clauses", %{columns: columns} do
       params = %{
         "x_axis" => %{

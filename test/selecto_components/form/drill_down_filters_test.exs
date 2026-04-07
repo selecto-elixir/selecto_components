@@ -58,6 +58,67 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
       assert result == %{}
     end
+
+    test "aggregate drill-down replaces existing filters for the clicked field and auto-promotes them" do
+      socket = %{
+        assigns: %{
+          used_params: %{
+            "filters" => %{
+              "k0" => %{
+                "filter" => "category",
+                "comp" => "=",
+                "uuid" => "existing",
+                "value" => "Old"
+              },
+              "k1" => %{
+                "filter" => "price",
+                "comp" => "=",
+                "uuid" => "price-existing",
+                "value" => "42"
+              }
+            }
+          },
+          selecto: selecto()
+        }
+      }
+
+      result =
+        DrillDownFilters.build_filter_map(%{"field0" => "category", "value0" => "Action"}, socket)
+
+      assert map_size(result) == 2
+      assert result["k0"]["filter"] == "category"
+      assert result["k0"]["value"] == "Action"
+      assert result["k0"]["promote"] == "true"
+      assert result["k1"]["filter"] == "price"
+      refute Enum.any?(Map.values(result), fn filter -> filter["value"] == "Old" end)
+    end
+  end
+
+  describe "build_filter_tuples/2" do
+    test "aggregate drill-down reuses the existing tuple slot for the clicked field" do
+      socket = %{
+        assigns: %{
+          selecto: selecto(),
+          view_config: %{
+            filters: [
+              {"k0", "filters", %{"filter" => "category", "comp" => "=", "value" => "Old"}},
+              {"k1", "filters", %{"filter" => "price", "comp" => "=", "value" => "42"}}
+            ]
+          }
+        }
+      }
+
+      result =
+        DrillDownFilters.build_filter_tuples(
+          %{"field0" => "category", "value0" => "Action"},
+          socket
+        )
+
+      assert [{"k0", "filters", filter}] = result
+      assert filter["filter"] == "category"
+      assert filter["value"] == "Action"
+      assert filter["promote"] == "true"
+    end
   end
 
   describe "determine_filter_comp_and_values/3" do
@@ -260,6 +321,21 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       # v1 and v2 should be ISO date strings
       assert String.match?(v1, ~r/^\d{4}-\d{2}-\d{2}$/)
       assert String.match?(v2, ~r/^\d{4}-\d{2}-\d{2}$/)
+    end
+
+    test "handles year buckets on date fields" do
+      field_conf = %{type: :date}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2020-2024",
+          field_conf,
+          %{format: "year_buckets"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2020-01-01"
+      assert v2 == "2025-01-01"
     end
 
     test "prevents SQL injection in date values" do
@@ -485,6 +561,39 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
       assert Enum.any?(filters, fn f -> f["comp"] == "WEEKDAY_SUN1" and f["value"] == "6" end)
       assert Enum.any?(filters, fn f -> f["comp"] == "DAY_OF_MONTH" and f["value"] == "14" end)
+    end
+
+    test "aggregate drill-down params replace prior matching filters but preserve unrelated ones" do
+      socket = %{
+        assigns: %{
+          selecto: selecto(),
+          used_params: %{
+            "filters" => %{
+              "k0" => %{
+                "filter" => "category",
+                "comp" => "=",
+                "uuid" => "existing",
+                "value" => "Old"
+              },
+              "k1" => %{
+                "filter" => "price",
+                "comp" => "=",
+                "uuid" => "price-existing",
+                "value" => "42"
+              }
+            }
+          }
+        }
+      }
+
+      params = %{"field0" => "category", "value0" => "Action"}
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+
+      assert map_size(view_params["filters"]) == 2
+      assert view_params["filters"]["k0"]["value"] == "Action"
+      assert view_params["filters"]["k0"]["promote"] == "true"
+      assert view_params["filters"]["k1"]["value"] == "42"
     end
   end
 end

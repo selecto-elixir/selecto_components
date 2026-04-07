@@ -107,7 +107,7 @@ defmodule SelectoComponents.Views.Graph.Process do
 
         # Build field selector based on column type
         field_selector =
-          case col.type do
+          case Selecto.Temporal.date_like_type(col) || col.type do
             x
             when x in [:naive_datetime, :utc_datetime, :naive_datetime_usec, :utc_datetime_usec] ->
               {:field, datetime_group_by_processor(col, field_config), alias_name}
@@ -222,6 +222,18 @@ defmodule SelectoComponents.Views.Graph.Process do
             field_with_alias,
             bucket_ranges,
             :date
+          )
+
+        {:raw_sql, case_sql}
+
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = graph_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
           )
 
         {:raw_sql, case_sql}

@@ -6,7 +6,11 @@ defmodule SelectoComponents.Filter.FilterSets do
 
   use Phoenix.LiveComponent
   import Phoenix.Component
+  import SelectoComponents.Components.Common
   require Logger
+
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Theme
 
   @max_shared_filters_param_bytes 32_768
   @max_shared_filters_compressed_bytes 24_576
@@ -14,16 +18,19 @@ defmodule SelectoComponents.Filter.FilterSets do
   @max_shared_filter_entries 500
 
   def render(assigns) do
+    assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
+
     ~H"""
     <div class="filter-sets-component">
       <!-- Main Controls -->
       <div class="flex items-center gap-2">
-        <select
+        <.sc_select_with_slot
+          theme={@theme}
           id={"filter-set-select-#{@id}"}
           name={"filter-set-select-#{@id}"}
           phx-change="load_filter_set"
           phx-target={@myself}
-          class="select select-bordered select-sm"
+          class="min-w-[15rem]"
         >
           <option value="">-- Select Filter Set --</option>
 
@@ -50,12 +57,12 @@ defmodule SelectoComponents.Filter.FilterSets do
               </option>
             </optgroup>
           <% end %>
-        </select>
+        </.sc_select_with_slot>
 
         <button
           phx-click="toggle_save_dialog"
           phx-target={@myself}
-          class="btn btn-sm btn-primary"
+          class={Theme.slot(@theme, :button_primary) <> " px-3 py-2 text-sm"}
           title="Save current filters"
         >
           Save
@@ -64,7 +71,7 @@ defmodule SelectoComponents.Filter.FilterSets do
         <button
           phx-click="toggle_manage_dialog"
           phx-target={@myself}
-          class="btn btn-sm btn-secondary"
+          class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}
           title="Manage filter sets"
         >
           Manage
@@ -73,9 +80,9 @@ defmodule SelectoComponents.Filter.FilterSets do
       
     <!-- Save Dialog -->
       <%= if @show_save_dialog do %>
-        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div class="bg-base-100 border border-base-300 rounded-lg p-6 max-w-md w-full">
-            <h3 class="text-lg font-semibold mb-4">Save Filter Set</h3>
+        <div class="fixed inset-0 z-50 flex items-center justify-center" style="background: color-mix(in srgb, var(--sc-text-primary) 35%, transparent);">
+          <div class={Theme.slot(@theme, :panel) <> " max-w-md w-full p-6"} style="background: var(--sc-surface-bg);">
+            <h3 class="mb-4 text-lg font-semibold" style="color: var(--sc-text-primary);">Save Filter Set</h3>
 
             <.form
               for={%{}}
@@ -85,55 +92,58 @@ defmodule SelectoComponents.Filter.FilterSets do
             >
               <div class="space-y-4">
                 <div>
-                  <label class="block text-sm font-medium text-base-content/80 mb-1">
+                  <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary);">
                     Name <span class="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     name="filter_set_form[name]"
                     value={@save_form.name}
-                    class={"w-full rounded-md bg-base-100 text-base-content " <> if(@save_form.name == "" || is_nil(@save_form.name), do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-base-300 focus:border-primary focus:ring-primary")}
+                    class={Theme.slot(@theme, :input)}
+                    style={if @save_form.name == "" || is_nil(@save_form.name), do: "border-color: var(--sc-danger);", else: nil}
                     placeholder="Enter filter set name (required)"
                     required
                   />
                   <%= if @save_form.name == "" || is_nil(@save_form.name) do %>
-                    <p class="mt-1 text-sm text-red-600">Name is required</p>
+                    <p class="mt-1 text-sm" style="color: var(--sc-danger);">Name is required</p>
                   <% end %>
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-base-content/80 mb-1">
+                  <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary);">
                     Description
                   </label>
                   <textarea
                     name="filter_set_form[description]"
-                    class="w-full rounded-md border border-base-300 bg-base-100 text-base-content"
+                    class={Theme.slot(@theme, :input)}
                     rows="3"
                     placeholder="Optional description"
                   ><%= @save_form.description %></textarea>
                 </div>
 
                 <div class="flex items-center gap-4">
-                  <label class="flex items-center gap-2">
+                  <label class={Theme.slot(@theme, :checkbox_label) <> " flex items-center gap-2"}>
                     <input
                       type="checkbox"
                       phx-click="toggle_default"
                       phx-target={@myself}
                       checked={@save_form.is_default}
-                      class="rounded border-base-300 bg-base-100 text-primary"
+                      class="h-4 w-4 rounded border"
+                      style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                     />
-                    <span class="text-sm text-base-content/80">Set as default</span>
+                    <span class="text-sm" style="color: var(--sc-text-secondary);">Set as default</span>
                   </label>
 
-                  <label class="flex items-center gap-2">
+                  <label class={Theme.slot(@theme, :checkbox_label) <> " flex items-center gap-2"}>
                     <input
                       type="checkbox"
                       phx-click="toggle_shared"
                       phx-target={@myself}
                       checked={@save_form.is_shared}
-                      class="rounded border-base-300 bg-base-100 text-primary"
+                      class="h-4 w-4 rounded border"
+                      style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                     />
-                    <span class="text-sm text-base-content/80">Share with others</span>
+                    <span class="text-sm" style="color: var(--sc-text-secondary);">Share with others</span>
                   </label>
                 </div>
               </div>
@@ -144,7 +154,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 type="button"
                 phx-click="toggle_save_dialog"
                 phx-target={@myself}
-                class="px-4 py-2 bg-base-200 text-base-content/80 rounded-md hover:bg-base-300"
+                class={Theme.slot(@theme, :button_secondary) <> " px-4 py-2"}
               >
                 Cancel
               </button>
@@ -153,7 +163,8 @@ defmodule SelectoComponents.Filter.FilterSets do
                 phx-click="do_save_filter_set"
                 phx-target={@myself}
                 disabled={@save_form.name == "" || is_nil(@save_form.name)}
-                class={"px-4 py-2 rounded-md " <> if(@save_form.name == "" || is_nil(@save_form.name), do: "bg-base-300 text-base-content/50 cursor-not-allowed", else: "bg-primary text-primary-content hover:bg-primary/90")}
+                class={Theme.slot(@theme, :button_primary) <> " px-4 py-2"}
+                style={if @save_form.name == "" || is_nil(@save_form.name), do: "opacity: 0.55; cursor: not-allowed;", else: nil}
               >
                 Save
               </button>
@@ -164,22 +175,23 @@ defmodule SelectoComponents.Filter.FilterSets do
       
     <!-- Manage Dialog -->
       <%= if @show_manage_dialog do %>
-        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div class="bg-base-100 border border-base-300 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <h3 class="text-lg font-semibold mb-4">Manage Filter Sets</h3>
+        <div class="fixed inset-0 z-50 flex items-center justify-center" style="background: color-mix(in srgb, var(--sc-text-primary) 35%, transparent);">
+          <div class={Theme.slot(@theme, :panel) <> " max-h-[80vh] max-w-2xl w-full overflow-y-auto p-6"} style="background: var(--sc-surface-bg);">
+            <h3 class="mb-4 text-lg font-semibold" style="color: var(--sc-text-primary);">Manage Filter Sets</h3>
 
             <%= if length(@personal_sets) > 0 do %>
               <div class="mb-6">
-                <h4 class="font-medium mb-2">Personal Filter Sets</h4>
+                <h4 class="mb-2 font-medium" style="color: var(--sc-text-primary);">Personal Filter Sets</h4>
                 <div class="space-y-2">
                   <div
                     :for={set <- @personal_sets}
-                    class="flex items-center justify-between p-2 border rounded"
+                    class={Theme.slot(@theme, :panel) <> " flex items-center justify-between p-2"}
+                    style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 50%, var(--sc-surface-bg));"
                   >
                     <div>
-                      <span class="font-medium">{set.name}</span>
+                      <span class="font-medium" style="color: var(--sc-text-primary);">{set.name}</span>
                       <%= if set.is_default do %>
-                        <span class="ml-2 text-xs bg-warning/20 text-warning px-2 py-1 rounded">
+                        <span class="ml-2 rounded px-2 py-1 text-xs" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);">
                           Default
                         </span>
                       <% end %>
@@ -193,7 +205,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                           phx-click="set_default"
                           phx-value-id={set.id}
                           phx-target={@myself}
-                          class="text-sm px-2 py-1 bg-warning/20 text-warning rounded hover:bg-warning/30"
+                          class={Theme.slot(@theme, :button_secondary) <> " px-2 py-1 text-sm"}
                           title="Set as default"
                         >
                           Default
@@ -203,7 +215,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                         phx-click="duplicate_set"
                         phx-value-id={set.id}
                         phx-target={@myself}
-                        class="text-sm px-2 py-1 bg-info/20 text-info rounded hover:bg-info/30"
+                        class={Theme.slot(@theme, :button_secondary) <> " px-2 py-1 text-sm"}
                         title="Duplicate"
                       >
                         Copy
@@ -212,7 +224,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                         phx-click="share_filter_set"
                         phx-value-id={set.id}
                         phx-target={@myself}
-                        class="text-sm px-2 py-1 bg-success/20 text-success rounded hover:bg-success/30"
+                        class={Theme.slot(@theme, :button_secondary) <> " px-2 py-1 text-sm"}
                         title="Share"
                       >
                         Share
@@ -221,7 +233,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                         phx-click="delete_set"
                         phx-value-id={set.id}
                         phx-target={@myself}
-                        class="text-sm px-2 py-1 bg-error/20 text-error rounded hover:bg-error/30"
+                        class={Theme.slot(@theme, :button_danger) <> " px-2 py-1 text-sm"}
                         onclick="return confirm('Are you sure you want to delete this filter set?')"
                         title="Delete"
                       >
@@ -235,14 +247,15 @@ defmodule SelectoComponents.Filter.FilterSets do
 
             <%= if length(@shared_sets) > 0 do %>
               <div class="mb-6">
-                <h4 class="font-medium mb-2">Shared Filter Sets</h4>
+                <h4 class="mb-2 font-medium" style="color: var(--sc-text-primary);">Shared Filter Sets</h4>
                 <div class="space-y-2">
                   <div
                     :for={set <- @shared_sets}
-                    class="flex items-center justify-between p-2 border rounded"
+                    class={Theme.slot(@theme, :panel) <> " flex items-center justify-between p-2"}
+                    style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 50%, var(--sc-surface-bg));"
                   >
                     <div>
-                      <span class="font-medium">{set.name}</span>
+                      <span class="font-medium" style="color: var(--sc-text-primary);">{set.name}</span>
                       <%= if set.description do %>
                         <p class="text-sm text-base-content/70">{set.description}</p>
                       <% end %>
@@ -252,7 +265,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                         phx-click="duplicate_set"
                         phx-value-id={set.id}
                         phx-target={@myself}
-                        class="text-sm px-2 py-1 bg-info/20 text-info rounded hover:bg-info/30"
+                        class={Theme.slot(@theme, :button_secondary) <> " px-2 py-1 text-sm"}
                         title="Duplicate"
                       >
                         Copy
@@ -268,7 +281,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 <button
                   phx-click="import_set"
                   phx-target={@myself}
-                  class="px-4 py-2 bg-success text-success-content rounded-md hover:bg-success/90"
+                  class={Theme.slot(@theme, :button_primary) <> " px-4 py-2"}
                 >
                   Import
                 </button>
@@ -277,7 +290,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 type="button"
                 phx-click="toggle_manage_dialog"
                 phx-target={@myself}
-                class="px-4 py-2 bg-base-200 text-base-content/80 rounded-md hover:bg-base-300"
+                class={Theme.slot(@theme, :button_secondary) <> " px-4 py-2"}
               >
                 Close
               </button>
@@ -288,32 +301,34 @@ defmodule SelectoComponents.Filter.FilterSets do
       
     <!-- Share Dialog -->
       <%= if @show_share_dialog do %>
-        <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div class="bg-base-100 border border-base-300 rounded-lg p-6 max-w-md w-full">
-            <h3 class="text-lg font-semibold mb-4">Share Filter Set</h3>
+        <div class="fixed inset-0 z-50 flex items-center justify-center" style="background: color-mix(in srgb, var(--sc-text-primary) 35%, transparent);">
+          <div class={Theme.slot(@theme, :panel) <> " max-w-md w-full p-6"} style="background: var(--sc-surface-bg);">
+            <h3 class="mb-4 text-lg font-semibold" style="color: var(--sc-text-primary);">Share Filter Set</h3>
 
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-base-content/80 mb-1">
+                <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary);">
                   Share URL
                 </label>
                 <input
                   type="text"
                   value={@share_url}
                   readonly
-                  class="w-full rounded-md border border-base-300 bg-base-200 text-base-content"
+                  class={Theme.slot(@theme, :input) <> " font-mono text-xs"}
+                  style="background: var(--sc-surface-bg-alt);"
                   onclick="this.select()"
                 />
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-base-content/80 mb-1">
+                <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary);">
                   Export as JSON
                 </label>
                 <textarea
                   rows="4"
                   readonly
-                  class="w-full rounded-md border border-base-300 bg-base-200 text-xs font-mono text-base-content"
+                  class={Theme.slot(@theme, :input) <> " text-xs font-mono"}
+                  style="background: var(--sc-surface-bg-alt);"
                 ><%= @share_json %></textarea>
               </div>
             </div>
@@ -323,7 +338,7 @@ defmodule SelectoComponents.Filter.FilterSets do
                 type="button"
                 phx-click="close_share_dialog"
                 phx-target={@myself}
-                class="px-4 py-2 bg-base-200 text-base-content/80 rounded-md hover:bg-base-300"
+                class={Theme.slot(@theme, :button_secondary) <> " px-4 py-2"}
               >
                 Close
               </button>
@@ -399,7 +414,15 @@ defmodule SelectoComponents.Filter.FilterSets do
            )}
 
         {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to load filter set")}
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             filter_set_error_message("Failed to load filter set",
+               code: :load_filter_set_failed,
+               operation: "load_filter_set"
+             )
+           )}
       end
     end
   end
@@ -452,7 +475,17 @@ defmodule SelectoComponents.Filter.FilterSets do
 
     # Validate that name is not empty
     if params["name"] == "" || is_nil(params["name"]) do
-      {:noreply, put_flash(socket, :error, "Filter set name cannot be empty")}
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         filter_set_error_message("Filter set name cannot be empty",
+           stage: :persistence,
+           category: :validation,
+           code: :missing_filter_set_name,
+           operation: "do_save_filter_set"
+         )
+       )}
     else
       case save_filter_set(params, socket.assigns) do
         {:ok, filter_set} ->
@@ -480,7 +513,15 @@ defmodule SelectoComponents.Filter.FilterSets do
                 "Failed to save filter set"
             end
 
-          {:noreply, put_flash(socket, :error, error_msg)}
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             filter_set_error_message(error_msg,
+               code: :save_filter_set_failed,
+               operation: "do_save_filter_set"
+             )
+           )}
       end
     end
   end
@@ -496,7 +537,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set deleted")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to delete filter set",
+             code: :delete_filter_set_failed,
+             operation: "delete_set"
+           )
+         )}
     end
   end
 
@@ -510,7 +559,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Default filter set updated")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to set default")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to set default filter set",
+             code: :set_default_filter_set_failed,
+             operation: "set_default"
+           )
+         )}
     end
   end
 
@@ -528,7 +585,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set duplicated")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to duplicate filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to duplicate filter set",
+             code: :duplicate_filter_set_failed,
+             operation: "duplicate_set"
+           )
+         )}
     end
   end
 
@@ -544,7 +609,15 @@ defmodule SelectoComponents.Filter.FilterSets do
          )}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to generate share data")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to generate share data",
+             code: :share_filter_set_failed,
+             operation: "share_filter_set"
+           )
+         )}
     end
   end
 
@@ -567,13 +640,41 @@ defmodule SelectoComponents.Filter.FilterSets do
          |> put_flash(:info, "Filter set imported successfully")}
 
       {:error, :invalid_format} ->
-        {:noreply, put_flash(socket, :error, "Invalid filter set format")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Invalid filter set format",
+             stage: :input,
+             category: :validation,
+             code: :invalid_filter_set_format,
+             operation: "import_set"
+           )
+         )}
 
       {:error, {:json_decode_failed, _}} ->
-        {:noreply, put_flash(socket, :error, "Invalid JSON format")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Invalid JSON format",
+             stage: :input,
+             category: :validation,
+             code: :invalid_filter_set_json,
+             operation: "import_set"
+           )
+         )}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to import filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to import filter set",
+             code: :import_filter_set_failed,
+             operation: "import_set"
+           )
+         )}
     end
   end
 
@@ -593,8 +694,29 @@ defmodule SelectoComponents.Filter.FilterSets do
         {:noreply, put_flash(socket, :info, "Filter set exported")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to export filter set")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           filter_set_error_message("Failed to export filter set",
+             code: :export_filter_set_failed,
+             operation: "export_set"
+           )
+         )}
     end
+  end
+
+  defp filter_set_error_message(message, opts) do
+    error =
+      ErrorBuilder.build(
+        message,
+        Keyword.merge(
+          [stage: :persistence, category: :persistence],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
   end
 
   # Helper functions

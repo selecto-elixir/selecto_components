@@ -112,6 +112,9 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "of"
     assert html =~ "250"
     assert html =~ "rows"
+
+    assert html =~
+             ~r/id="aggregate-table-wrapper-[^"]+" class="[^"]*sc-panel[^"]*responsive-table-wrapper[^"]*"/
   end
 
   test "renders friendly headers from selected field aliases instead of query aliases" do
@@ -225,6 +228,88 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "3"
     assert html =~ "5"
     assert html =~ "2"
+    assert html =~ "overflow-x-auto"
+
+    assert html =~
+             ~r/id="aggregate-grid-wrapper-[^"]+" class="[^"]*sc-panel[^"]*overflow-x-auto[^"]*overflow-y-auto[^"]*"/
+
+    assert html =~ "sticky left-0 top-0"
+    refute html =~ ~s(phx-click="set_aggregate_page")
+  end
+
+  test "aggregate grid renders null buckets with subdued text" do
+    assigns = %{
+      id: "aggregate-grid-null-style-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results:
+        {[["[NULL]", "A", 3], [2002, "A", 5]], [], ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-null-style-run", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ ~r/<span[^>]*>\s*\[NULL\]\s*<\/span>/
+  end
+
+  test "grid view renders all rows instead of paginating" do
+    query_rows =
+      1..150
+      |> Enum.map(fn i -> ["region", "bucket_#{i}", i] end)
+
+    assigns = %{
+      id: "aggregate-grid-unpaged-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "release_year", "index" => "0"},
+          "g1" => %{"field" => "title", "index" => "1"}
+        }
+      },
+      selecto: %{
+        selecto()
+        | set: %{
+            selected: [
+              {:field, :release_year, "release_year"},
+              {:field, :title, "title"},
+              {:field, {:count, :film_id}, "film_count"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}, {:literal_position, 2}]}],
+            aggregates: [{:field, {:count, :film_id}, "film_count"}]
+          }
+      },
+      query_results: {query_rows, [], ["release_year", "title", "film_count"]},
+      view_meta: %{exe_id: "aggregate-grid-unpaged-run", grid_enabled: true, per_page: "100"}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "bucket_150"
+    assert html =~ ~r/>\s*150\s*</
+    refute html =~ ~s(phx-click="set_aggregate_page")
   end
 
   test "shows grid requirements message when configuration does not match" do
@@ -362,9 +447,16 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     html = render_component(Component, assigns)
 
     assert html =~ "Linear color scale"
-    assert html =~ ~s(style="background-color: #ffffff; color: #111827;")
-    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
-    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+    assert html =~ "Color legend"
+    assert html =~ "Low"
+    assert html =~ "High"
+    assert html =~ ~s|style="background: var(--sc-surface-bg); color: var(--sc-text-primary);"|
+
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 28%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 64%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
   end
 
   test "grid can colorize cells with a log scale" do
@@ -406,9 +498,15 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     html = render_component(Component, assigns)
 
     assert html =~ "Log color scale"
-    assert html =~ ~s(style="background-color: #d7f8fc; color: #111827;")
-    assert html =~ ~s(style="background-color: #bdeff0; color: #111827;")
-    assert html =~ ~s(style="background-color: #f1988b; color: #111827;")
+
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 16%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 28%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
+
+    assert html =~
+             ~s|style="background-color: color-mix(in srgb, var(--sc-accent) 64%, var(--sc-surface-bg)); color: var(--sc-text-primary);"|
   end
 
   test "day-of-week group-by displays weekday names" do

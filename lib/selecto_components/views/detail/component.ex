@@ -4,7 +4,11 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.SqlDebug
+  alias SelectoComponents.Env
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.Sorting
+  alias SelectoComponents.QueryResults
+  alias SelectoComponents.Theme
   alias SelectoComponents.Views.Detail.RowActions
   use Phoenix.LiveComponent
 
@@ -41,6 +45,7 @@ defmodule SelectoComponents.Views.Detail.Component do
     socket =
       socket
       |> assign(assigns)
+      |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
       |> assign(:columns_config, init_columns_config(columns))
 
     {:ok, socket}
@@ -49,31 +54,29 @@ defmodule SelectoComponents.Views.Detail.Component do
   def render(assigns) do
     # Check for execution error first
     if Map.get(assigns, :execution_error) do
+      error_info = ErrorBuilder.normalize(assigns.execution_error)
+      assigns = assign(assigns, :error_info, error_info)
+
       # Display the actual error message
       ~H"""
       <div>
         <%= if @execution_error do %>
-          <div class="bg-error/15 border border-error/40 text-error px-4 py-3 rounded relative mb-4" role="alert">
-            <strong class="font-bold">Query Error:</strong>
-            <span class="block sm:inline">
-              <%= case @execution_error do %>
-                <% %{message: msg} -> %>
-                  {msg}
-                <% error when is_binary(error) -> %>
-                  {error}
-                <% error -> %>
-                  {inspect(error)}
-              <% end %>
-            </span>
-            <%= if Mix.env() == :dev && is_map(@execution_error) && Map.has_key?(@execution_error, :details) do %>
+          <div class="mb-4 rounded px-4 py-3" role="alert" style="background: color-mix(in srgb, var(--sc-danger) 10%, var(--sc-surface-bg)); border: 1px solid color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
+            <strong class="font-bold">{@error_info.summary}:</strong>
+            <span class="block sm:inline">{@error_info.user_message}</span>
+            <div :if={@error_info.detail} class="text-sm mt-1">{@error_info.detail}</div>
+            <div :if={@error_info.suggestion} class="text-sm mt-1 font-medium">
+              Next step: {@error_info.suggestion}
+            </div>
+            <%= if Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0 do %>
               <details class="mt-2">
                 <summary class="cursor-pointer text-sm">Debug Details</summary>
-                <pre class="text-xs mt-2 bg-error/20 p-2 rounded overflow-x-auto"><%= inspect(@execution_error.details, pretty: true) %></pre>
+                <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: color-mix(in srgb, var(--sc-danger) 12%, var(--sc-surface-bg));"><%= inspect(@error_info.debug, pretty: true) %></pre>
               </details>
             <% end %>
           </div>
         <% end %>
-        <div class="text-base-content/70 italic p-4">
+        <div class="p-4 italic" style="color: var(--sc-text-secondary);">
           View cannot be displayed due to the query error shown above.
         </div>
       </div>
@@ -85,7 +88,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Query is being executed or hasn't been executed yet
           ~H"""
           <div>
-            <div class="text-info italic p-4">Loading view...</div>
+            <div class="p-4 italic" style="color: var(--sc-accent);">Loading view...</div>
           </div>
           """
 
@@ -93,7 +96,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           # Executed but no results - this is an error state
           ~H"""
           <div>
-            <div class="text-error p-4">
+            <div class="p-4" style="color: var(--sc-danger);">
               <div class="font-semibold">No Results</div>
               <div class="text-sm mt-1">Query executed but returned no results.</div>
             </div>
@@ -200,14 +203,14 @@ defmodule SelectoComponents.Views.Detail.Component do
         execution_time={Map.get(assigns, :execution_time)}
       />
 
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200 px-3 py-2">
-        <div class="inline-flex items-center gap-1 rounded-md border border-base-300 bg-base-100 p-1 shadow-sm">
+      <div class={Theme.slot(@theme, :panel) <> " mb-3 flex flex-wrap items-center justify-between gap-3 px-3 py-2"} style="background: var(--sc-surface-bg-alt);">
+        <div class={Theme.slot(@theme, :panel) <> " inline-flex items-center gap-1 p-1"} style="background: var(--sc-surface-bg);">
           <button
             type="button"
             phx-click="set_page"
             phx-value-page={0}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-base-300 text-base-content/70 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="First page"
             aria-label="First page"
             disabled={@current_page <= 0}
@@ -233,7 +236,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page - 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-base-300 px-2 text-sm font-medium text-base-content/80 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Previous page"
             aria-label="Previous page"
             disabled={@current_page <= 0}
@@ -256,7 +259,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page + 1}
             phx-target={@myself}
-            class="inline-flex h-8 items-center gap-1 rounded border border-base-300 px-2 text-sm font-medium text-base-content/80 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Next page"
             aria-label="Next page"
             disabled={@current_page >= @max_page}
@@ -279,7 +282,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@max_page}
             phx-target={@myself}
-            class="inline-flex h-8 w-8 items-center justify-center rounded border border-base-300 text-base-content/70 transition hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-base-100"
+            class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="Last page"
             aria-label="Last page"
             disabled={@current_page >= @max_page}
@@ -301,13 +304,13 @@ defmodule SelectoComponents.Views.Detail.Component do
           </button>
         </div>
 
-        <div class="text-sm font-medium text-base-content/80">
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">
           <span class="font-semibold tabular-nums">{@page_start}-{@page_end}</span>
           of <span class="font-semibold tabular-nums">{@total_rows}</span>
           rows
         </div>
 
-        <div class="text-xs text-base-content/70 tabular-nums">
+        <div class="text-xs tabular-nums" style="color: var(--sc-text-muted);">
           Page
           <span class="font-semibold">{if @total_pages > 0, do: @current_page + 1, else: 0}</span>
           of <span class="font-semibold">{@total_pages}</span>
@@ -315,19 +318,20 @@ defmodule SelectoComponents.Views.Detail.Component do
       </div>
 
       <div
-        class="responsive-table-wrapper overflow-x-auto"
+        class={Theme.slot(@theme, :panel) <> " responsive-table-wrapper overflow-x-auto"}
         id={"detail-table-wrapper-#{@myself}"}
         phx-hook=".RowClickable"
       >
-        <table class="min-w-full overflow-hidden divide-y divide-base-300 ring-1 ring-base-300 rounded-sm table-auto sm:rounded">
-          <thead>
+        <table class="min-w-full table-auto">
+          <thead style="background: var(--sc-surface-bg-alt);">
             <tr>
-              <th class="px-2 py-3 text-xs font-medium tracking-wider text-center text-base-content/80 uppercase bg-base-200 w-12 max-w-12 min-w-12">
+              <th class="w-12 max-w-12 min-w-12 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">
                 #
               </th>
               <%= for {alias, idx} <- Enum.with_index(@visible_aliases) do %>
                 <% column_field = Enum.at(@columns, idx)["field"] %>
                 <Sorting.sortable_header
+                  theme={@theme}
                   column={column_field}
                   label={alias}
                   sort_by={assigns[:sort_by] || []}
@@ -340,7 +344,7 @@ defmodule SelectoComponents.Views.Detail.Component do
               <%!-- Add headers for subselect columns --%>
               <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
                 <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
-                  <th class="px-6 py-3 text-xs font-medium tracking-wider text-left text-base-content/80 uppercase bg-base-200">
+                  <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">
                     {Map.get(config, :title, config.key)}
                   </th>
                 <% end %>
@@ -413,10 +417,8 @@ defmodule SelectoComponents.Views.Detail.Component do
               <% row_clickable = row_action_type != "none" %>
 
               <tr
-                class={[
-                  "border-b border-base-300 bg-base-100 even:bg-base-200/70 last:border-none text-sm text-base-content/80 align-top",
-                  if(row_clickable, do: "hover:bg-primary/10 cursor-pointer", else: "cursor-default")
-                ]}
+                class={if(row_clickable, do: "cursor-pointer", else: "cursor-default")}
+                style={detail_row_style(display_idx, row_clickable)}
                 data-row-action-type={row_action_type}
                 data-row-link={resolved_row_link && resolved_row_link.url}
                 data-row-link-target={resolved_row_link && resolved_row_link.target}
@@ -424,13 +426,14 @@ defmodule SelectoComponents.Views.Detail.Component do
                 phx-value-row-index={if row_action_type == "modal", do: display_idx}
                 phx-target={if row_action_type == "modal", do: @myself}
               >
-                <td class="px-2 py-1 text-center w-12 max-w-12 min-w-12">
+                <td class="w-12 max-w-12 min-w-12 px-2 py-1 text-center" style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">
                   {absolute_idx + 1}
                 </td>
                 <%!-- Display regular columns --%>
                 <td
                   :for={{col_conf, column_idx} <- Enum.with_index(@columns)}
                   class="px-1 py-1 align-top"
+                  style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
                 >
                   <% column_uuid = config_get(col_conf, "uuid") %>
                   <% column_field = config_get(col_conf, "field") %>
@@ -470,17 +473,17 @@ defmodule SelectoComponents.Views.Detail.Component do
                   <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
                     <% data = Map.get(row_data_by_column, config.key, []) %>
                     <% unique_id = "row#{absolute_idx}_#{config.key}" %>
-                    <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"}>
+                      <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"} style="border-bottom: 1px solid var(--sc-surface-border);">
                       <% # Parse the data here to ensure it's fresh %>
                       <% parsed_data =
                         SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
                       <div id={"nested_#{unique_id}"}>
                         <%= if length(parsed_data) > 0 do %>
-                          <table class="min-w-full border border-base-300 rounded">
+                          <table class="min-w-full rounded border" style="border-color: var(--sc-surface-border);">
                             <thead>
-                              <tr class="bg-base-200">
+                              <tr style="background: var(--sc-surface-bg-alt);">
                                 <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                  <th class="px-2 py-1 text-xs font-medium text-base-content/80 border-b border-base-300">
+                                  <th class="border-b px-2 py-1 text-xs font-medium" style="border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
                                     {SelectoComponents.Components.NestedTable.humanize_key(key)}
                                   </th>
                                 <% end %>
@@ -488,9 +491,9 @@ defmodule SelectoComponents.Views.Detail.Component do
                             </thead>
                             <tbody>
                               <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
-                                <tr class="border-b border-base-300 last:border-b-0 hover:bg-base-200">
+                                <tr class="last:border-b-0" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg);">
                                   <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                    <td class="px-2 py-1 text-xs text-base-content/80">
+                                    <td class="px-2 py-1 text-xs" style="color: var(--sc-text-secondary);">
                                       {SelectoComponents.Components.NestedTable.format_value(
                                         Map.get(item, key, "")
                                       )}
@@ -501,7 +504,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                             </tbody>
                           </table>
                         <% else %>
-                          <div class="text-xs text-base-content/70 italic">No data</div>
+                          <div class="text-xs italic" style="color: var(--sc-text-muted);">No data</div>
                         <% end %>
                       </div>
                     </td>
@@ -1051,6 +1054,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           case value do
             nil -> ""
             value when is_atom(value) -> Atom.to_string(value)
+            value when is_binary(value) -> QueryResults.normalize_value(value)
             _ -> inspect(value)
           end
         end
@@ -1064,7 +1068,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       e ->
         base = "Component Error: #{inspect(e.__struct__)}: #{Exception.message(e)}"
 
-        if Mix.env() == :dev do
+        if Env.dev?() do
           "#{base} (Row data: #{inspect(params[:row])})"
         else
           base
@@ -1143,5 +1147,17 @@ defmodule SelectoComponents.Views.Detail.Component do
     to_string(value)
   rescue
     _ -> inspect(value)
+  end
+
+  defp detail_row_style(display_idx, row_clickable) do
+    base_bg =
+      if rem(display_idx, 2) == 0, do: "var(--sc-surface-bg)", else: "var(--sc-surface-bg-alt)"
+
+    hover_bg =
+      if row_clickable,
+        do: " background: color-mix(in srgb, var(--sc-accent-soft) 65%, #{base_bg});",
+        else: ""
+
+    "background: #{base_bg}; color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);#{hover_bg}"
   end
 end

@@ -4,6 +4,8 @@ defmodule SelectoComponents.Debug.ConfigReader do
   Provides a centralized way to control debug information display.
   """
 
+  alias SelectoComponents.Env
+
   @default_config %{
     enabled: false,
     show_query: true,
@@ -265,11 +267,6 @@ defmodule SelectoComponents.Debug.ConfigReader do
   end
 
   defp check_mix_env do
-    # Mix is not available in production releases
-    if Code.ensure_loaded?(Mix) do
-      Mix.env() in [:dev, :test]
-    else
-      false
-    end
+    Env.dev_or_test?()
   end
 end

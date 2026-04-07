@@ -132,7 +132,16 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   defp make_text_search_filter(filter) do
-    {Map.get(filter, "filter"), {:text_search, Map.get(filter, "value")}}
+    filter_field = Map.get(filter, "filter")
+    query = Map.get(filter, "value")
+
+    case Map.get(filter, "mode") do
+      mode when mode in [nil, "", "websearch"] ->
+        {filter_field, {:text_search, query}}
+
+      mode ->
+        {filter_field, {:text_search, query, [mode: String.to_atom(mode)]}}
+    end
   end
 
   defp _make_string_filter(filter) do
@@ -293,7 +302,7 @@ defmodule SelectoComponents.Helpers.Filters do
     end
   end
 
-  defp _make_date_filter(filter) do
+  defp _make_date_filter(filter, field_conf) do
     comp = Map.get(filter, "comp", "=")
 
     case comp do
@@ -305,7 +314,7 @@ defmodule SelectoComponents.Helpers.Filters do
       "SHORTCUT" ->
         # Handle date shortcuts like "this_month", "last_week", etc.
         shortcut = Map.get(filter, "value", "")
-        process_date_shortcut_filter(shortcut, filter)
+        process_date_shortcut_filter(shortcut, filter, field_conf)
 
       "DATE=" ->
         # For DATE=, we want to match the entire day
@@ -396,7 +405,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(EXTRACT(ISODOW FROM ",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ")::int = ",
            Integer.to_string(weekday),
            ")"
@@ -408,7 +417,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(to_char(",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ", 'D')::int = ",
            Integer.to_string(weekday),
            ")"
@@ -420,7 +429,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(to_char(",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ", 'YYYY-WW') = '",
            week_value,
            "')"
@@ -432,7 +441,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(EXTRACT(MONTH FROM ",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ")::int = ",
            Integer.to_string(month),
            ")"
@@ -444,7 +453,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(EXTRACT(DAY FROM ",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ")::int = ",
            Integer.to_string(day),
            ")"
@@ -456,7 +465,7 @@ defmodule SelectoComponents.Helpers.Filters do
         {:raw_sql_filter,
          [
            "(EXTRACT(HOUR FROM ",
-           date_filter_field_expr(filter),
+           date_filter_field_expr(filter, field_conf),
            ")::int = ",
            Integer.to_string(hour),
            ")"
@@ -697,49 +706,11 @@ defmodule SelectoComponents.Helpers.Filters do
 
   # Build filter based on column type
   defp build_typed_filter(selecto, column, f, filter_key) do
-    case column.type do
-      x when x in [:id, :integer, :float, :decimal] ->
-        case safe_make_num_filter(x, f) do
-          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
-          {:error, reason} -> {:skip, {:invalid_numeric, reason}}
-        end
+    date_like_type = Selecto.Temporal.date_like_type(column)
 
-      :tsvector ->
-        {:ok, [make_text_search_filter(f)]}
-
-      :boolean ->
-        value =
-          case Map.get(f, "value") do
-            "true" -> true
-            true -> true
-            _ -> false
-          end
-
-        {:ok, [{filter_key, value}]}
-
-      :string ->
-        case enum_values_for_filter(selecto, filter_key, column) do
-          nil ->
-            case safe_make_string_filter(f) do
-              {:ok, filter_val} -> {:ok, [filter_val]}
-              {:error, reason} -> {:skip, {:invalid_string, reason}}
-            end
-
-          enum_values ->
-            case safe_make_enum_filter(filter_key, f, enum_values) do
-              {:ok, filter_val} -> {:ok, [filter_val]}
-              {:error, reason} -> {:skip, {:invalid_enum, reason}}
-            end
-        end
-
-      :custom_column ->
-        case safe_make_string_filter(f) do
-          {:ok, filter_val} -> {:ok, [filter_val]}
-          {:error, reason} -> {:skip, {:invalid_custom_column, reason}}
-        end
-
-      x when x in [:naive_datetime, :utc_datetime, :date] ->
-        case safe_make_date_filter(f, x) do
+    cond do
+      date_like_type in [:naive_datetime, :utc_datetime, :date] ->
+        case safe_make_date_filter(f, column) do
           {:ok, {:or, conditions}} ->
             or_filters =
               Enum.map(conditions, fn filter_val ->
@@ -761,13 +732,58 @@ defmodule SelectoComponents.Helpers.Filters do
             {:skip, {:invalid_date, reason}}
         end
 
-      {:array, _inner_type} ->
+      column.type in [:id, :integer, :float, :decimal] ->
+        x = column.type
+
+        case safe_make_num_filter(x, f) do
+          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
+          {:error, reason} -> {:skip, {:invalid_numeric, reason}}
+        end
+
+      column.type == :tsvector ->
+        {:ok, [make_text_search_filter(f)]}
+
+      column.type == :boolean ->
+        value =
+          case Map.get(f, "value") do
+            "true" -> true
+            true -> true
+            _ -> false
+          end
+
+        {:ok, [{filter_key, value}]}
+
+      column.type == :string ->
+        case enum_values_for_filter(selecto, filter_key, column) do
+          nil ->
+            case safe_make_string_filter(f) do
+              {:ok, filter_val} -> {:ok, [filter_val]}
+              {:error, reason} -> {:skip, {:invalid_string, reason}}
+            end
+
+          enum_values ->
+            case safe_make_enum_filter(filter_key, f, enum_values) do
+              {:ok, filter_val} -> {:ok, [filter_val]}
+              {:error, reason} -> {:skip, {:invalid_enum, reason}}
+            end
+        end
+
+      column.type == :custom_column ->
+        case safe_make_string_filter(f) do
+          {:ok, filter_val} -> {:ok, [filter_val]}
+          {:error, reason} -> {:skip, {:invalid_custom_column, reason}}
+        end
+
+      is_tuple(column.type) and tuple_size(column.type) == 2 and elem(column.type, 0) == :array ->
         case safe_make_array_filter(filter_key, f) do
           {:ok, filter_val} -> {:ok, [filter_val]}
           {:error, reason} -> {:skip, {:invalid_array, reason}}
         end
 
-      {:parameterized, _, enum_conf} ->
+      is_tuple(column.type) and tuple_size(column.type) == 3 and
+          elem(column.type, 0) == :parameterized ->
+        {:parameterized, _, enum_conf} = column.type
+
         # Validate enum value against mappings
         value = Map.get(f, "value")
 
@@ -776,12 +792,12 @@ defmodule SelectoComponents.Helpers.Filters do
           {:error, reason} -> {:skip, {:invalid_enum, reason}}
         end
 
-      unknown_type ->
+      true ->
         # For unknown types, try as string filter
         require Logger
 
         Logger.debug(
-          "Unknown column type #{inspect(unknown_type)} for filter #{filter_key}, treating as string"
+          "Unknown column type #{inspect(column.type)} for filter #{filter_key}, treating as string"
         )
 
         case safe_make_string_filter(f) do
@@ -820,18 +836,35 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Safe wrapper for date filter creation
-  defp safe_make_date_filter(filter, field_type) do
-    result = _make_date_filter(filter)
-    result = normalize_date_filter_for_type(result, field_type)
+  defp safe_make_date_filter(filter, field_conf) do
+    result = _make_date_filter(filter, field_conf)
+    result = normalize_date_filter_for_type(result, field_conf)
     {:ok, result}
   rescue
     e -> {:error, Exception.message(e)}
   end
 
-  defp normalize_date_filter_for_type(result, :utc_datetime),
-    do: map_filter_datetimes(result, &naive_to_utc/1)
+  defp normalize_date_filter_for_type(result, field_conf) do
+    result
+    |> maybe_normalize_to_utc(field_conf)
+    |> maybe_normalize_to_epoch(field_conf)
+  end
 
-  defp normalize_date_filter_for_type(result, _), do: result
+  defp maybe_normalize_to_utc(result, field_conf) do
+    if Selecto.Temporal.date_like_type(field_conf) == :utc_datetime do
+      map_filter_datetimes(result, &naive_to_utc/1)
+    else
+      result
+    end
+  end
+
+  defp maybe_normalize_to_epoch(result, field_conf) do
+    if Selecto.Temporal.epoch_storage(field_conf) do
+      map_filter_datetimes(result, &Selecto.Temporal.coerce_filter_value(field_conf, &1))
+    else
+      result
+    end
+  end
 
   defp map_filter_datetimes({:between, start_val, end_val}, mapper) do
     {:between, mapper.(start_val), mapper.(end_val)}
@@ -842,6 +875,10 @@ defmodule SelectoComponents.Helpers.Filters do
 
   defp map_filter_datetimes({:or, conditions}, mapper) when is_list(conditions) do
     {:or, Enum.map(conditions, &map_filter_datetimes(&1, mapper))}
+  end
+
+  defp map_filter_datetimes({operator, value}, mapper) when operator in [:<, :<=, :>, :>=] do
+    {operator, mapper.(value)}
   end
 
   defp map_filter_datetimes(other, _mapper), do: other
@@ -1214,7 +1251,7 @@ defmodule SelectoComponents.Helpers.Filters do
   end
 
   # Process date shortcuts like "this_month", "last_week", etc.
-  defp process_date_shortcut_filter(shortcut, filter) do
+  defp process_date_shortcut_filter(shortcut, filter, field_conf) do
     today = get_local_today()
 
     case shortcut do
@@ -1523,31 +1560,31 @@ defmodule SelectoComponents.Helpers.Filters do
          NaiveDateTime.new!(end_date, ~T[00:00:00])}
 
       "weekdays" ->
-        weekday_set_filter(filter, [1, 2, 3, 4, 5])
+        weekday_set_filter(filter, [1, 2, 3, 4, 5], field_conf)
 
       "weekends" ->
-        weekday_set_filter(filter, [6, 7])
+        weekday_set_filter(filter, [6, 7], field_conf)
 
       "monday" ->
-        weekday_set_filter(filter, [1])
+        weekday_set_filter(filter, [1], field_conf)
 
       "tuesday" ->
-        weekday_set_filter(filter, [2])
+        weekday_set_filter(filter, [2], field_conf)
 
       "wednesday" ->
-        weekday_set_filter(filter, [3])
+        weekday_set_filter(filter, [3], field_conf)
 
       "thursday" ->
-        weekday_set_filter(filter, [4])
+        weekday_set_filter(filter, [4], field_conf)
 
       "friday" ->
-        weekday_set_filter(filter, [5])
+        weekday_set_filter(filter, [5], field_conf)
 
       "saturday" ->
-        weekday_set_filter(filter, [6])
+        weekday_set_filter(filter, [6], field_conf)
 
       "sunday" ->
-        weekday_set_filter(filter, [7])
+        weekday_set_filter(filter, [7], field_conf)
 
       _ ->
         # Default to today if shortcut doesn't match
@@ -1576,7 +1613,7 @@ defmodule SelectoComponents.Helpers.Filters do
     Date.new!(year, month, day)
   end
 
-  defp weekday_set_filter(filter, weekdays) when is_list(weekdays) do
+  defp weekday_set_filter(filter, weekdays, field_conf) when is_list(weekdays) do
     weekday_list =
       weekdays
       |> Enum.uniq()
@@ -1585,7 +1622,13 @@ defmodule SelectoComponents.Helpers.Filters do
       |> Enum.join(",")
 
     {:raw_sql_filter,
-     ["(EXTRACT(ISODOW FROM ", date_filter_field_expr(filter), ")::int IN (", weekday_list, "))"]}
+     [
+       "(EXTRACT(ISODOW FROM ",
+       date_filter_field_expr(filter, field_conf),
+       ")::int IN (",
+       weekday_list,
+       "))"
+     ]}
   end
 
   defp parse_bounded_integer(value, min_value, max_value) do
@@ -1608,13 +1651,27 @@ defmodule SelectoComponents.Helpers.Filters do
     end
   end
 
-  defp date_filter_field_expr(filter) do
+  defp date_filter_field_expr(filter, field_conf) do
     case Map.get(filter, "filter") do
       field when is_binary(field) and field != "" ->
-        if String.contains?(field, "."), do: field, else: "selecto_root." <> field
+        field
+        |> then(fn field_expr ->
+          if String.contains?(field_expr, "."),
+            do: field_expr,
+            else: "selecto_root." <> field_expr
+        end)
+        |> epoch_datetime_expr(field_conf)
 
       _ ->
         "selecto_root.id"
+    end
+  end
+
+  defp epoch_datetime_expr(field_expr, field_conf) do
+    case Selecto.Temporal.epoch_storage(field_conf) do
+      :unix_seconds -> "TO_TIMESTAMP(#{field_expr})"
+      :unix_milliseconds -> "TO_TIMESTAMP((#{field_expr}) / 1000.0)"
+      _ -> field_expr
     end
   end
 

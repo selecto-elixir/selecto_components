@@ -6,6 +6,7 @@ defmodule SelectoComponents.Components.NestedTable do
 
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.Theme
 
   @doc """
   Renders a nested table for subselect results.
@@ -19,20 +20,23 @@ defmodule SelectoComponents.Components.NestedTable do
   attr(:config, :map, required: true)
   attr(:row_id, :string, required: true)
   attr(:expanded, :boolean, default: false)
+  attr(:theme, :any, default: nil)
 
   def nested_table(assigns) do
     assigns =
       assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
       |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
       |> Map.put(:table_id, "nested_#{assigns.row_id}")
       |> Map.put(:column_headers, get_column_headers(assigns))
 
     ~H"""
-    <div class="nested-table-container ml-4 mt-2">
+    <div class="nested-table-container ml-4 mt-2" style="border-color: var(--sc-surface-border); color: var(--sc-text-primary);">
       <div class="flex items-center">
         <button
           type="button"
-          class="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+          class="flex items-center text-sm font-medium"
+          style="color: var(--sc-text-secondary);"
           phx-click={toggle_nested_table(@table_id)}
         >
           <svg
@@ -50,22 +54,22 @@ defmodule SelectoComponents.Components.NestedTable do
       <div id={@table_id} class={if @expanded, do: "block", else: "hidden"}>
         <%= if length(@parsed_data) > 0 do %>
           <div class="mt-2 overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
+            <table class="min-w-full" style="border-color: var(--sc-surface-border);">
+              <thead style="background: var(--sc-surface-bg-alt);">
                 <tr>
                   <%= for header <- @column_headers do %>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider" style="color: var(--sc-text-muted);">
                       {header}
                     </th>
                   <% end %>
                 </tr>
               </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
+              <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
                 <%= for {item, idx} <- Enum.with_index(@parsed_data) do %>
                   <%= if idx < max_display_rows(@config) do %>
-                    <tr class="hover:bg-gray-50">
+                    <tr style="border-color: var(--sc-surface-border);">
                       <%= for key <- get_data_keys(@parsed_data, @config) do %>
-                        <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                        <td class="whitespace-nowrap px-3 py-2 text-sm" style="color: var(--sc-text-primary);">
                           {format_value(Map.get(item, key, ""))}
                         </td>
                       <% end %>
@@ -76,13 +80,13 @@ defmodule SelectoComponents.Components.NestedTable do
             </table>
 
             <%= if length(@parsed_data) > max_display_rows(@config) do %>
-              <div class="px-3 py-2 text-sm text-gray-500">
+              <div class="px-3 py-2 text-sm" style="color: var(--sc-text-muted);">
                 ... and {length(@parsed_data) - max_display_rows(@config)} more items
               </div>
             <% end %>
           </div>
         <% else %>
-          <div class="mt-2 px-3 py-2 text-sm text-gray-500 italic">
+          <div class="mt-2 px-3 py-2 text-sm italic" style="color: var(--sc-text-muted);">
             No related {String.downcase(@config.title)} found
           </div>
         <% end %>
@@ -97,6 +101,7 @@ defmodule SelectoComponents.Components.NestedTable do
   attr(:row, :map, required: true)
   attr(:subselect_configs, :list, default: [])
   attr(:row_id, :string, required: true)
+  attr(:theme, :any, default: nil)
 
   def nested_tables(assigns) do
     ~H"""
@@ -106,6 +111,7 @@ defmodule SelectoComponents.Components.NestedTable do
           data={Map.get(@row, config.key, [])}
           config={config}
           row_id={@row_id}
+          theme={@theme}
           expanded={Map.get(config, :initial_state, :collapsed) == :expanded}
         />
       <% end %>
@@ -248,20 +254,22 @@ defmodule SelectoComponents.Components.NestedTable do
   attr(:data, :any, required: true)
   attr(:config, :map, required: true)
   attr(:row_id, :string, required: true)
+  attr(:theme, :any, default: nil)
 
   def inline_nested_table(assigns) do
     assigns =
       assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
       |> Map.put(:parsed_data, parse_subselect_data(assigns.data, assigns.config))
 
     ~H"""
     <div class="inline-nested-table">
       <%= if length(@parsed_data) > 0 do %>
-        <table class="min-w-full border border-gray-300 rounded">
+        <table class="min-w-full rounded border" style="border-color: var(--sc-surface-border);">
           <thead>
-            <tr class="bg-gray-100">
+            <tr style="background: var(--sc-surface-bg-alt);">
               <%= for key <- get_data_keys(@parsed_data, @config) do %>
-                <th class="px-2 py-1 text-xs font-medium text-gray-700 border-b border-gray-200">
+                <th class="border-b px-2 py-1 text-xs font-medium" style="border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
                   {humanize_key(key)}
                 </th>
               <% end %>
@@ -269,9 +277,9 @@ defmodule SelectoComponents.Components.NestedTable do
           </thead>
           <tbody>
             <%= for {item, _idx} <- Enum.with_index(@parsed_data) do %>
-              <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50">
+              <tr class="last:border-b-0" style="border-color: var(--sc-surface-border);">
                 <%= for key <- get_data_keys(@parsed_data, @config) do %>
-                  <td class="px-2 py-1 text-xs text-gray-700">
+                  <td class="px-2 py-1 text-xs" style="color: var(--sc-text-primary);">
                     {format_value(Map.get(item, key, ""))}
                   </td>
                 <% end %>
@@ -280,7 +288,7 @@ defmodule SelectoComponents.Components.NestedTable do
           </tbody>
         </table>
       <% else %>
-        <div class="text-xs text-gray-500 italic">No data</div>
+        <div class="text-xs italic" style="color: var(--sc-text-muted);">No data</div>
       <% end %>
     </div>
     """

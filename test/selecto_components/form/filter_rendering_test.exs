@@ -1,7 +1,13 @@
 defmodule SelectoComponents.Form.FilterRenderingTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias SelectoComponents.Form.FilterRendering
+
+  defmodule TestMySQLAdapter do
+    def name, do: :mysql
+  end
 
   describe "is_date_shortcut/1" do
     test "recognizes valid date shortcuts" do
@@ -111,6 +117,31 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "date_shortcut_preview/2" do
+    test "formats whole-period shortcuts compactly" do
+      today = ~D[2026-04-03]
+
+      assert FilterRendering.date_shortcut_preview("this_month", today) == "04-2026"
+      assert FilterRendering.date_shortcut_preview("this_quarter", today) == "Q2-2026"
+      assert FilterRendering.date_shortcut_preview("this_year", today) == "2026"
+    end
+
+    test "formats range-based shortcuts with exact dates" do
+      today = ~D[2026-04-03]
+
+      assert FilterRendering.date_shortcut_preview("this_week", today) ==
+               "2026-03-30 to 2026-04-05"
+
+      assert FilterRendering.date_shortcut_preview("mtd", today) ==
+               "2026-04-01 to 2026-04-03"
+    end
+
+    test "formats weekday shortcuts as recurring labels" do
+      assert FilterRendering.date_shortcut_preview("friday", ~D[2026-04-03]) == "Every Friday"
+      assert FilterRendering.date_shortcut_preview("weekdays", ~D[2026-04-03]) == "Every Mon-Fri"
+    end
+  end
+
   describe "format_datetime_value/2" do
     test "formats valid dates correctly" do
       assert FilterRendering.format_datetime_value("2024-01-15", :date) == "2024-01-15"
@@ -124,6 +155,21 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       result = FilterRendering.format_datetime_value("2024-01-15 10:30:00", :utc_datetime)
       assert result == "2024-01-15T10:30"
+    end
+
+    test "formats epoch-backed datetime values for date and datetime inputs" do
+      date_field = %{type: :integer, presentation_type: :date, datetime_storage: :unix_ms}
+
+      datetime_field = %{
+        type: :integer,
+        presentation_type: :utc_datetime,
+        datetime_storage: :unix_ms
+      }
+
+      assert FilterRendering.format_datetime_value(1_705_276_800_000, date_field) == "2024-01-15"
+
+      assert FilterRendering.format_datetime_value(1_705_316_400_000, datetime_field) ==
+               "2024-01-15T11:00"
     end
 
     test "prevents SQL injection in datetime formatting" do
@@ -209,6 +255,147 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "text search rendering" do
+    test "renders adapter-aware generic text search help and mode options" do
+      html =
+        render_component(&FilterRendering.render_text_search_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          filter_value: %{"filter" => "search_document", "value" => "wireless charger"},
+          selecto: %{adapter: TestMySQLAdapter}
+        })
+
+      assert html =~ "Search Mode"
+      assert html =~ "Natural Language"
+      assert html =~ "Query Expansion"
+      assert html =~ "Native text search"
+      refute html =~ "websearch_to_tsquery"
+    end
+  end
+
+  describe "standard filter IN rendering" do
+    test "renders textarea, selected checkboxes, and uncheck all for string IN filters" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :string,
+          filter_value: %{
+            "filter" => "status",
+            "comp" => "IN",
+            "selected_values" => ["open", "closed", "paused"]
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :string},
+          filter_def: %{type: :string}
+        })
+
+      assert html =~ ~s(name="filters[f1][pending_values]")
+      assert html =~ ~s(phx-click="toggle_filter_selected_value")
+      assert html =~ "Uncheck all"
+      assert html =~ "pointer-events-none"
+      assert html =~ "open"
+      assert html =~ "closed"
+      assert html =~ "paused"
+    end
+  end
+
+  describe "standard filter controller promotion" do
+    test "renders a promote checkbox for non-equals standard filters" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :integer,
+          filter_value: %{
+            "filter" => "estimate",
+            "comp" => "BETWEEN",
+            "value_start" => "3",
+            "value_end" => "8",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :integer},
+          filter_def: %{type: :integer}
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+    end
+
+    test "locks promoted standard filters in the filter tab" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :string,
+          filter_value: %{
+            "filter" => "title",
+            "comp" => "=",
+            "value" => "alpha",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :string},
+          filter_def: %{type: :string}
+        })
+
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ ~s(inert)
+      assert html =~ "Edited in View Controller."
+    end
+
+    test "renders a promote checkbox for datetime filters" do
+      html =
+        render_component(&FilterRendering.render_datetime_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :date,
+          filter_value: %{
+            "filter" => "due_on",
+            "comp" => "SHORTCUT",
+            "value" => "today",
+            "promote" => "true"
+          },
+          selecto: render_selecto(),
+          column_def: %{type: :date},
+          filter_def: %{type: :date}
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+      assert html =~ "Preview:"
+      assert html =~ FilterRendering.date_shortcut_preview("today")
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ "Edited in View Controller."
+    end
+
+    test "renders a promote checkbox for text search filters" do
+      html =
+        render_component(&FilterRendering.render_text_search_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          filter_value: %{
+            "filter" => "search",
+            "value" => "launch pad",
+            "promote" => "true"
+          },
+          selecto: render_selecto()
+        })
+
+      assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "Promote to View Controller"
+      assert html =~ ~s(data-promoted-lock="true")
+      assert html =~ "Edited in View Controller."
+    end
+  end
+
   describe "Security notes" do
     test "documents security measures for filter rendering" do
       # Security measures in FilterRendering:
@@ -225,5 +412,26 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
 
       assert true, "Security measures documented"
     end
+  end
+
+  defp render_selecto do
+    domain = %{
+      name: "FilterRenderingRenderTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: :id, name: "ID"},
+          status: %{type: :string, colid: :status, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
   end
 end

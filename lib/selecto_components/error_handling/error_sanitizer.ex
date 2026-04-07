@@ -3,17 +3,13 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
   Sanitizes error messages for production environments to prevent sensitive information leakage.
   """
 
+  alias SelectoComponents.Env
+
   @doc """
   Determines if the current environment is production.
   """
   def production_env? do
-    # Check if Mix is available (it's not in releases)
-    if Code.ensure_loaded?(Mix) do
-      Mix.env() == :prod
-    else
-      # If Mix is not available, we're likely in a release (production)
-      true
-    end
+    Env.prod?()
   end
 
   @doc """

@@ -10,12 +10,15 @@ defmodule SelectoComponents.Components.Tabs do
   - @section: Slot for rendering tab content
   """
   use Phoenix.LiveComponent
+  alias SelectoComponents.Theme
 
   def render(assigns) do
+    assigns = Map.put_new(assigns, :theme, Theme.default_theme(:light))
+
     ~H"""
     <div id={"tabs-#{@id}"} phx-hook=".TabsFormSync" class="w-full">
       <!-- Tab Navigation Bar -->
-      <div class="flex border-b border-gray-200 dark:border-gray-700">
+      <div class="flex border-b" style="border-color: var(--sc-surface-border)">
         <div class="flex space-x-1" role="tablist" aria-label="View Type">
           <button
             :for={{id, _module, name, _opt} <- @options}
@@ -27,12 +30,11 @@ defmodule SelectoComponents.Components.Tabs do
             data-view-tab
             data-view-id={id}
             class={[
-              "px-4 py-2 text-sm font-medium transition-all duration-200",
-              "border-b-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+              "px-4 py-2 text-sm font-medium",
               if @view_mode == Atom.to_string(id) do
-                "border-primary text-primary bg-primary/5"
+                Theme.slot(@theme, :tab_active)
               else
-                "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200"
+                Theme.slot(@theme, :tab_inactive)
               end
             ]}
           >

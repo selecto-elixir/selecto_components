@@ -202,4 +202,32 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert html =~ "Pickups"
     assert html =~ "Routes"
   end
+
+  test "render shows stage-aware execution errors" do
+    html =
+      render_component(Component,
+        id: "map-test-error",
+        executed: true,
+        execution_error: %{
+          stage: :timeout,
+          category: :timeout,
+          code: :query_timed_out,
+          summary: "Timeout while waiting for query results",
+          user_message: "The query took too long to finish and was stopped.",
+          suggestion: "Narrow filters or reduce the result size, then retry.",
+          suggestions: ["Narrow filters or reduce the result size, then retry."],
+          detail: nil,
+          severity: :error,
+          recoverable: true,
+          retryable: true,
+          source: :system,
+          debug: %{timing: :timeout},
+          error: %{message: "timeout"}
+        }
+      )
+
+    assert html =~ "Timeout while waiting for query results"
+    assert html =~ "The query took too long to finish and was stopped."
+    assert html =~ "Narrow filters or reduce the result size, then retry."
+  end
 end

@@ -1,6 +1,9 @@
 defmodule SelectoComponents.Views.Graph.XAxisConfig do
   use Phoenix.LiveComponent
 
+  import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
+
   def render(assigns) do
     col =
       case Map.get(assigns, :col) do
@@ -14,78 +17,77 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         _ -> %{}
       end
 
-    assigns = assign(assigns, :col, col)
+    assigns = assigns |> Map.put_new(:theme, Theme.default_theme(:light)) |> assign(:col, col)
     assigns = assign(assigns, :config, config)
-    assigns = assign(assigns, :col_type_label, format_type(Map.get(col, :type, :string)))
+
+    assigns =
+      assign(
+        assigns,
+        :col_type_label,
+        format_type(Selecto.Temporal.date_like_type(col) || Map.get(col, :type, :string))
+      )
 
     ~H"""
-    <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+    <div class={Theme.slot(@theme, :panel) <> " p-3"} style="background: var(--sc-surface-bg-alt);">
       <div class="flex items-center justify-between mb-2">
-        <span class="font-medium text-sm text-gray-700"><%= @col.name %></span>
-        <span class="text-xs text-gray-500"><%= @col_type_label %></span>
+        <span class="font-medium text-sm" style="color: var(--sc-text-primary)"><%= @col.name %></span>
+        <span class="text-xs" style="color: var(--sc-text-muted)"><%= @col_type_label %></span>
       </div>
       
       <div class="grid grid-cols-1 gap-3">
         <!-- Custom Alias -->
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Label</label>
-          <input 
+          <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Label</label>
+          <.sc_input
+            theme={@theme}
             name={"#{@prefix}[alias]"}
-            type="text" 
             value={Map.get(@config, "alias", "")}
             placeholder={@col.name}
-            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+          />
         </div>
 
         <!-- Datetime Formatting (if applicable) -->
-        <div :if={Map.get(@col, :type, :string) in [:naive_datetime, :utc_datetime, :date]}>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Date Format</label>
-          <select
-            name={"#{@prefix}[format]"}
-            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
+        <div :if={(Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string)) in [:naive_datetime, :utc_datetime, :date]}>
+          <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Date Format</label>
+          <.sc_select_with_slot theme={@theme} name={"#{@prefix}[format]"} value={Map.get(@config, "format", "") == "" && ""}>
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>
-            <%= for {value, label} <- SelectoComponents.Helpers.aggregate_datetime_format_options() do %>
+            <%= for {value, label} <- SelectoComponents.Helpers.datetime_grouping_format_options() do %>
               <option value={value} selected={Map.get(@config, "format") == value}>{label}</option>
             <% end %>
-          </select>
+          </.sc_select_with_slot>
         </div>
 
-        <div :if={Map.get(@config, "format") in ["age_buckets", "custom_buckets"]}>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Bucket Ranges</label>
-          <input
+        <div :if={Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"]}>
+          <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Bucket Ranges</label>
+          <.sc_input
+            theme={@theme}
             name={"#{@prefix}[bucket_ranges]"}
-            type="text"
             value={Map.get(@config, "bucket_ranges", "")}
-            placeholder={
-              if Map.get(@config, "format") == "age_buckets",
-                do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
-                else: "e.g., today, yesterday, 2-7, 8+"
-            }
-            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
           />
         </div>
 
         <!-- String truncation (if applicable) -->
         <div :if={Map.get(@col, :type, :string) in [:string, :text]}>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Max Length</label>
-          <input 
+          <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Max Length</label>
+          <.sc_input
+            theme={@theme}
             name={"#{@prefix}[max_length]"}
-            type="number" 
+            type="number"
             value={Map.get(@config, "max_length", "")}
             placeholder="No limit"
             min="1"
-            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+          />
         </div>
 
         <!-- Sorting -->
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
-          <select name={"#{@prefix}[sort]"} class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Sort Order</label>
+          <.sc_select_with_slot theme={@theme} name={"#{@prefix}[sort]"}>
             <option value="" selected={Map.get(@config, "sort", "") == ""}>Default</option>
             <option value="asc" selected={Map.get(@config, "sort") == "asc"}>Ascending</option>
             <option value="desc" selected={Map.get(@config, "sort") == "desc"}>Descending</option>
-          </select>
+          </.sc_select_with_slot>
         </div>
       </div>
     </div>

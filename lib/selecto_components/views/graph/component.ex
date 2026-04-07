@@ -4,11 +4,21 @@ defmodule SelectoComponents.Views.Graph.Component do
   """
   use Phoenix.LiveComponent
   require Logger
-  alias SelectoComponents.DBSupport
+  alias SelectoComponents.Env
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.QueryResults
+  alias SelectoComponents.Theme
 
   def update(assigns, socket) do
     # Force a complete re-assignment to ensure LiveView recognizes data changes
-    socket = assign(socket, assigns)
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
+
+    if Env.dev?() do
+      IO.puts("[theme-debug][Graph.Component] update theme=#{socket.assigns.theme.id}")
+    end
 
     # Add a timestamp to force re-rendering if data changed
     socket = assign(socket, :last_update, System.system_time(:microsecond))
@@ -37,63 +47,25 @@ defmodule SelectoComponents.Views.Graph.Component do
   end
 
   defp render_error_state(assigns) do
-    assigns = assign(assigns, :error, assigns[:execution_error])
+    assigns = assign(assigns, :error_info, ErrorBuilder.normalize(assigns[:execution_error]))
 
     ~H"""
-    <div class="flex items-center justify-center min-h-64 bg-error/15 rounded-lg border border-error/40 p-6">
+    <div class="flex min-h-64 items-center justify-center rounded-lg border p-6" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
       <div class="text-center max-w-2xl">
-        <div class="text-4xl mb-3 text-error">⚠️</div>
-        <div class="font-semibold text-error text-lg mb-2">Query Execution Error</div>
-
-        <%= if is_struct(@error, Selecto.Error) do %>
-          <%= if @error.message do %>
-            <div class="text-error mb-2">{@error.message}</div>
-          <% end %>
-
-          <%= if @error.details[:exception] do %>
-            <%= case DBSupport.database_error_details(@error.details.exception) do %>
-              <% postgres when is_map(postgres) -> %>
-                <div class="bg-error/20 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-error">
-                    {Map.get(postgres, :message, "Database error occurred")}
-                  </div>
-                  <%= if Map.get(postgres, :position) do %>
-                    <div class="text-xs text-error/90 mt-1">
-                      Position: {postgres.position}
-                    </div>
-                  <% end %>
-                  <%= if Map.get(postgres, :code) do %>
-                    <div class="text-xs text-error/90 mt-1">
-                      Error Code: {postgres.code}
-                    </div>
-                  <% end %>
-                </div>
-              <% _ -> %>
-                <div class="bg-error/20 rounded p-3 mt-3 text-left">
-                  <div class="font-mono text-sm text-error">
-                    {inspect(@error.details.exception)}
-                  </div>
-                </div>
-            <% end %>
-          <% end %>
-
-          <%= if @error.query do %>
-            <details class="mt-3 text-left">
-              <summary class="cursor-pointer text-sm text-error hover:text-error">
-                Show Query
-              </summary>
-              <pre class="bg-base-200 p-2 rounded mt-2 text-xs overflow-x-auto text-base-content"><%= @error.query %></pre>
-            </details>
-          <% end %>
-        <% else %>
-          <div class="text-error">
-            {inspect(@error)}
-          </div>
-        <% end %>
-
-        <div class="mt-4 text-sm text-base-content/70">
-          Please check your query configuration and try again.
+        <div class="mb-3 text-4xl">⚠️</div>
+        <div class="mb-2 text-lg font-semibold">{@error_info.summary}</div>
+        <div class="mb-2">{@error_info.user_message}</div>
+        <div :if={@error_info.detail} class="mb-2 text-sm">{@error_info.detail}</div>
+        <div :if={@error_info.suggestion} class="mt-4 text-sm" style="color: var(--sc-text-secondary);">
+          Next step: {@error_info.suggestion}
         </div>
+
+        <details :if={Env.dev?() && is_map(@error_info.debug) && map_size(@error_info.debug) > 0} class="mt-3 text-left">
+          <summary class="cursor-pointer text-sm">
+            Debug Details
+          </summary>
+          <pre class="mt-2 overflow-x-auto rounded p-2 text-xs" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);"><%= inspect(@error_info.debug, pretty: true) %></pre>
+        </details>
       </div>
     </div>
     """
@@ -101,10 +73,10 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_loading_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-base-200 rounded-lg border border-base-300">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-surface-bg-alt); border-color: var(--sc-surface-border); color: var(--sc-accent);">
       <div class="text-center">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <div class="text-primary italic">Loading chart...</div>
+        <div class="italic">Loading chart...</div>
       </div>
     </div>
     """
@@ -112,8 +84,8 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_no_results_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-error/15 rounded-lg border border-error/40">
-      <div class="text-center text-error">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
+      <div class="text-center">
         <div class="text-4xl mb-2">📊</div>
         <div class="font-semibold">No Data Available</div>
         <div class="text-sm mt-1">Query executed but returned no results for the chart.</div>
@@ -124,8 +96,8 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp render_unknown_state(assigns) do
     ~H"""
-    <div class="flex items-center justify-center h-64 bg-warning/15 rounded-lg border border-warning/40">
-      <div class="text-center text-warning">
+    <div class="flex h-64 items-center justify-center rounded-lg border" style="background: color-mix(in srgb, var(--sc-accent-soft) 45%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
+      <div class="text-center">
         <div class="font-semibold">Unknown Chart State</div>
         <div class="text-sm mt-1">
           Executed: {inspect(assigns[:executed])}<br />
@@ -154,18 +126,18 @@ defmodule SelectoComponents.Views.Graph.Component do
       )
 
     ~H"""
-    <div class="bg-base-100 rounded-lg border border-base-300 p-6">
+    <div class="rounded-lg border p-6" style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);">
       <!-- Chart Header with Title and Controls -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold text-base-content">
+          <h3 :if={get_in(@chart_options, [:title])} class="text-lg font-semibold" style="color: var(--sc-text-primary);">
             {get_in(@chart_options, [:title])}
           </h3>
         </div>
         <div class="flex items-center gap-2">
           <button
             data-export
-            class="inline-flex items-center rounded border border-base-300 bg-base-100 px-3 py-1 text-xs leading-4 font-medium text-base-content/80 shadow-sm hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            class={Theme.slot(@theme, :button_secondary) <> " px-3 py-1 text-xs leading-4 shadow-sm"}
           >
             📥 Export
           </button>
@@ -273,12 +245,12 @@ defmodule SelectoComponents.Views.Graph.Component do
       </script>
       
     <!-- Chart Legend/Summary -->
-      <div class="mt-4 text-sm text-base-content/70">
+      <div class="mt-4 text-sm" style="color: var(--sc-text-secondary);">
         <div class="flex items-center justify-between">
           <span>
             {chart_summary(@chart_data, @chart_type)}
           </span>
-          <span class="text-xs text-base-content/60">
+          <span class="text-xs" style="color: var(--sc-text-muted);">
             Click data points to drill down
           </span>
         </div>
@@ -666,7 +638,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   def format_chart_label(value) when is_nil(value), do: "N/A"
 
   def format_chart_label({value, _meta}) when is_binary(value) or is_number(value),
-    do: to_string(value)
+    do: normalize_chart_label(value)
 
   def format_chart_label(value) when is_tuple(value) do
     case value do
@@ -688,7 +660,10 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  def format_chart_label(value), do: to_string(value)
+  def format_chart_label(value), do: normalize_chart_label(value)
+
+  defp normalize_chart_label(value) when is_binary(value), do: QueryResults.normalize_value(value)
+  defp normalize_chart_label(value), do: to_string(value)
 
   def format_numeric_value(value) when is_number(value), do: value
   def format_numeric_value({value, _meta}), do: format_numeric_value(value)

@@ -73,7 +73,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             item_tuple
           )
 
-        socket = assign(socket, view_config: updated_view_config)
+        socket = ParamsState.assign_view_config(socket, updated_view_config)
 
         # Find and update the view module
         view_module =
@@ -119,7 +119,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             item
           )
 
-        socket = assign(socket, view_config: updated_view_config)
+        socket = ParamsState.assign_view_config(socket, updated_view_config)
 
         # Find and update the view module
         view_module =
@@ -161,7 +161,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             direction
           )
 
-        socket = assign(socket, view_config: updated_view_config)
+        socket = ParamsState.assign_view_config(socket, updated_view_config)
 
         # Find and update the view module
         view_module =
@@ -208,7 +208,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             target_uuid
           )
 
-        socket = assign(socket, view_config: updated_view_config)
+        socket = ParamsState.assign_view_config(socket, updated_view_config)
 
         view_module =
           Enum.find(socket.assigns.views, fn {id, _, _, _} ->

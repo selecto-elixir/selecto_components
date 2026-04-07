@@ -49,6 +49,9 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "rows"
 
     assert html =~
+             ~r/class="[^"]*sc-panel[^"]*responsive-table-wrapper[^"]*" id="detail-table-wrapper-[^"]+"/
+
+    assert html =~
              ~r/Page\s*<span class="font-semibold">3<\/span>\s*of\s*<span class="font-semibold">5<\/span>/
 
     assert html =~ ~r/>\s*5\s*</
@@ -99,6 +102,46 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
 
     assert html =~ "100"
     assert html =~ "101"
+  end
+
+  test "renders stage-aware execution errors" do
+    assigns =
+      base_assigns(%{
+        execution_error: %{
+          stage: :sql_compile,
+          category: :query,
+          code: :sql_compile_failed,
+          summary: "Query error while generating SQL",
+          user_message: "The current configuration could not be compiled into valid SQL.",
+          suggestion: "Check calculated fields, grouping, filters, and ordering.",
+          suggestions: ["Check calculated fields, grouping, filters, and ordering."],
+          detail: "column foo does not exist",
+          severity: :error,
+          recoverable: true,
+          retryable: false,
+          source: :selecto,
+          debug: %{sql: "select * from broken"},
+          error: %{message: "broken"}
+        }
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Query error while generating SQL"
+    assert html =~ "The current configuration could not be compiled into valid SQL."
+    assert html =~ "Check calculated fields, grouping, filters, and ordering."
+    assert html =~ "View cannot be displayed due to the query error shown above."
+    assert html =~ "color: var(--sc-danger);"
+  end
+
+  test "uses themed status messaging for loading and no-results states" do
+    loading_html = render_component(Component, base_assigns(%{executed: false}))
+    empty_html = render_component(Component, base_assigns(%{query_results: nil}))
+
+    assert loading_html =~ "Loading view..."
+    assert loading_html =~ "color: var(--sc-accent);"
+    assert empty_html =~ "No Results"
+    assert empty_html =~ "color: var(--sc-danger);"
   end
 
   test "renders tuple values safely instead of crashing detail cells" do

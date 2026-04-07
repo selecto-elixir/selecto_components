@@ -6,6 +6,8 @@ defmodule SelectoComponents.State do
   without concern for UI rendering or routing logic.
   """
 
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
+
   @doc """
   Initializes the default state for a SelectoComponents form.
   """
@@ -42,7 +44,7 @@ defmodule SelectoComponents.State do
   Sets an execution error in the state.
   """
   def set_execution_error(state, error) do
-    Map.put(state, :execution_error, error)
+    Map.put(state, :execution_error, ErrorBuilder.build(error))
   end
 
   @doc """

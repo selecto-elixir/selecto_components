@@ -6,12 +6,16 @@ defmodule SelectoComponents.ViewConfigManager do
 
   use Phoenix.LiveComponent
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Theme
 
   @impl true
   def mount(socket) do
     {:ok,
      assign(socket,
+       compact: false,
+       theme: Theme.default_theme(:light),
        show_save_dialog: false,
        show_load_menu: false,
        saved_configs: [],
@@ -44,10 +48,13 @@ defmodule SelectoComponents.ViewConfigManager do
 
   @impl true
   def render(assigns) do
+    assigns =
+      assigns |> Map.put_new(:compact, false) |> Map.put_new(:theme, Theme.default_theme(:light))
+
     ~H"""
-    <div class="mb-4 p-4 bg-base-200 border border-base-300 rounded-lg">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-medium text-base-content">
+    <div class={if @compact, do: "flex items-center gap-2", else: Theme.slot(@theme, :panel) <> " mb-4 p-4"} style={if @compact, do: nil, else: "background: var(--sc-surface-bg-alt);"}>
+      <div class="flex items-center justify-between gap-2">
+        <h3 :if={!@compact} class="text-lg font-medium" style="color: var(--sc-text-primary);">
           View Configuration - {get_view_type_label(@view_config.view_mode)} Mode
         </h3>
         <div class="flex items-center gap-2">
@@ -57,7 +64,7 @@ defmodule SelectoComponents.ViewConfigManager do
               type="button"
               phx-click="toggle_load_menu"
               phx-target={@myself}
-              class="inline-flex items-center px-3 py-2 border border-base-300 shadow-sm text-sm leading-4 font-medium rounded-md text-base-content/80 bg-base-100 hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm leading-4 shadow-sm"}
             >
               <svg
                 class="-ml-0.5 mr-2 h-4 w-4"
@@ -91,17 +98,18 @@ defmodule SelectoComponents.ViewConfigManager do
             </button>
             
     <!-- Load dropdown menu -->
-            <div
-              :if={@show_load_menu}
-              class="origin-top-left absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-base-100 ring-1 ring-base-300/60 divide-y divide-base-300 z-50"
-              phx-click-away={JS.push("hide_load_menu", target: @myself)}
-            >
+              <div
+                :if={@show_load_menu}
+                class={Theme.slot(@theme, :panel) <> " origin-top-left absolute left-0 z-50 mt-2 w-56 divide-y"}
+                style="background: var(--sc-surface-bg);"
+                phx-click-away={JS.push("hide_load_menu", target: @myself)}
+              >
               <div class="py-1">
-                <div class="px-3 py-2 text-xs text-base-content/60 uppercase tracking-wider">
+                <div class="px-3 py-2 text-xs uppercase tracking-wider" style="color: var(--sc-text-muted);">
                   {get_view_type_label(@view_config.view_mode)} Views
                 </div>
                 <%= if Enum.empty?(@saved_configs) do %>
-                  <div class="px-3 py-2 text-sm text-base-content/60 italic">
+                  <div class="px-3 py-2 text-sm italic" style="color: var(--sc-text-muted);">
                     No saved {String.downcase(get_view_type_label(@view_config.view_mode))} views
                   </div>
                 <% else %>
@@ -111,13 +119,14 @@ defmodule SelectoComponents.ViewConfigManager do
                       phx-click="load_view_config"
                       phx-value-name={config.name}
                       phx-target={@myself}
-                      class="w-full text-left px-4 py-2 text-sm text-base-content/80 hover:bg-base-200 hover:text-base-content"
+                      class="w-full px-4 py-2 text-left text-sm"
+                      style="color: var(--sc-text-secondary);"
                     >
                       <div class="font-medium">{config.name}</div>
                       <%= if config.description do %>
-                        <div class="text-xs text-base-content/60 mt-1">{config.description}</div>
+                        <div class="mt-1 text-xs" style="color: var(--sc-text-muted);">{config.description}</div>
                       <% end %>
-                      <div class="text-xs text-base-content/50 mt-1">
+                      <div class="mt-1 text-xs" style="color: var(--sc-text-muted); opacity: 0.85;">
                         Updated {format_time_ago(config.updated_at)}
                         <%= if config.user_id do %>
                           • Private
@@ -136,7 +145,7 @@ defmodule SelectoComponents.ViewConfigManager do
           <button
             type="button"
             phx-click={JS.push("show_save_dialog", target: @myself)}
-            class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class={Theme.slot(@theme, :button_primary) <> " px-3 py-2 text-sm leading-4 shadow-sm"}
           >
             <svg
               class="-ml-0.5 mr-2 h-4 w-4"
@@ -159,7 +168,7 @@ defmodule SelectoComponents.ViewConfigManager do
     <!-- Save dialog modal -->
         <%= if @show_save_dialog do %>
           <div
-            class="fixed z-50 inset-0 overflow-y-auto"
+              class="fixed z-50 inset-0 overflow-y-auto"
             aria-labelledby="modal-title"
             role="dialog"
             aria-modal="true"
@@ -168,19 +177,20 @@ defmodule SelectoComponents.ViewConfigManager do
               <!-- Background overlay -->
               <div
                 class="fixed inset-0 bg-neutral/60 transition-opacity"
+                style="background: color-mix(in srgb, var(--sc-text-primary) 35%, transparent);"
                 aria-hidden="true"
                 phx-click={JS.push("hide_save_dialog", target: @myself)}
               >
               </div>
               
-    <!-- Modal panel -->
-              <div class="inline-block align-bottom bg-base-100 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+     <!-- Modal panel -->
+              <div class={Theme.slot(@theme, :panel) <> " inline-block align-bottom text-left overflow-hidden transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"} style="background: var(--sc-surface-bg);">
                 <div>
-                  <div class="bg-base-100 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     <div class="sm:flex sm:items-start">
-                      <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary/20 sm:mx-0 sm:h-10 sm:w-10">
+                      <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full sm:mx-0 sm:h-10 sm:w-10" style="background: var(--sc-accent-soft); color: var(--sc-accent);">
                         <svg
-                          class="h-6 w-6 text-primary"
+                          class="h-6 w-6"
                           xmlns="http://www.w3.org/2000/svg"
                           fill="none"
                           viewBox="0 0 24 24"
@@ -210,14 +220,15 @@ defmodule SelectoComponents.ViewConfigManager do
                             value={@config_name}
                             phx-change="update_config_name"
                             phx-target={@myself}
-                            class="mt-1 block w-full rounded-md border border-base-300 bg-base-100 text-base-content shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            class={Theme.slot(@theme, :input) <> " mt-1 block sm:text-sm"}
                             placeholder="e.g., Weekly Report, Customer Analysis"
                           />
                         </div>
                         <div class="mt-4">
                           <label
                             for="config_description"
-                            class="block text-sm font-medium text-base-content/80"
+                            class="block text-sm font-medium"
+                            style="color: var(--sc-text-secondary);"
                           >
                             Description
                           </label>
@@ -228,21 +239,22 @@ defmodule SelectoComponents.ViewConfigManager do
                             value={@config_description}
                             phx-change="update_config_description"
                             phx-target={@myself}
-                            class="mt-1 block w-full rounded-md border border-base-300 bg-base-100 text-base-content shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            class={Theme.slot(@theme, :input) <> " mt-1 block sm:text-sm"}
                             placeholder="Describe what this view shows..."
                           ><%= @config_description %></textarea>
                         </div>
                         <div class="mt-4">
-                          <label class="inline-flex items-center">
+                          <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center"}>
                             <input
                               type="checkbox"
                               name="is_public"
                               phx-click="toggle_is_public"
                               phx-target={@myself}
                               checked={@is_public}
-                              class="rounded border-base-300 bg-base-100 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                              class="h-4 w-4 rounded border"
+                              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                             />
-                            <span class="ml-2 text-sm text-base-content/70">
+                            <span class="ml-2 text-sm" style="color: var(--sc-text-secondary);">
                               Make this view public (visible to all users)
                             </span>
                           </label>
@@ -250,19 +262,19 @@ defmodule SelectoComponents.ViewConfigManager do
                       </div>
                     </div>
                   </div>
-                  <div class="bg-base-200 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <div class="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse" style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 75%, var(--sc-surface-bg));">
                     <button
                       type="button"
                       phx-click="do_save_view_config"
                       phx-target={@myself}
-                      class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                      class={Theme.slot(@theme, :button_primary) <> " w-full justify-center px-4 py-2 text-base shadow-sm sm:ml-3 sm:w-auto sm:text-sm"}
                     >
                       Save View
                     </button>
                     <button
                       type="button"
                       phx-click={JS.push("hide_save_dialog", target: @myself)}
-                      class="mt-3 w-full inline-flex justify-center rounded-md border border-base-300 shadow-sm px-4 py-2 bg-base-100 text-base font-medium text-base-content/80 hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      class={Theme.slot(@theme, :button_secondary) <> " mt-3 w-full justify-center px-4 py-2 text-base shadow-sm sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"}
                     >
                       Cancel
                     </button>
@@ -339,9 +351,16 @@ defmodule SelectoComponents.ViewConfigManager do
         # The parent can check for this and display a message
         {:noreply, socket}
 
-      {:error, _changeset} ->
-        # Component can't use put_flash directly
-        {:noreply, socket}
+      {:error, reason} ->
+        {:noreply,
+         Phoenix.LiveView.put_flash(
+           socket,
+           :error,
+           saved_view_config_error_message(reason,
+             code: :save_view_config_failed,
+             operation: "do_save_view_config"
+           )
+         )}
     end
   end
 
@@ -363,7 +382,17 @@ defmodule SelectoComponents.ViewConfigManager do
 
     case config do
       nil ->
-        {:noreply, socket}
+        {:noreply,
+         Phoenix.LiveView.put_flash(
+           socket,
+           :error,
+           saved_view_config_error_message("View configuration not found",
+             stage: :persistence,
+             category: :persistence,
+             code: :view_config_not_found,
+             operation: "load_view_config"
+           )
+         )}
 
       config ->
         # Send message to parent LiveView to apply the config
@@ -511,6 +540,19 @@ defmodule SelectoComponents.ViewConfigManager do
   defp get_view_type_label("timeseries"), do: "Time Series"
   defp get_view_type_label("map"), do: "Map"
   defp get_view_type_label(_), do: "Detail"
+
+  defp saved_view_config_error_message(reason, opts) do
+    error =
+      ErrorBuilder.build(
+        if(is_binary(reason), do: reason, else: inspect(reason)),
+        Keyword.merge(
+          [stage: :persistence, category: :persistence],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
+  end
 
   defp format_time_ago(%DateTime{} = datetime) do
     now = DateTime.utc_now()

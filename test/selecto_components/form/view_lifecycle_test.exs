@@ -25,6 +25,81 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     use SelectoComponents.Form.EventHandlers.ViewLifecycle
   end
 
+  test "view validate is ignored while waiting for submit patch" do
+    original_view_config = %{
+      view_mode: "detail",
+      filters: [],
+      views: %{detail: %{selected: [{"d1", "id", %{}}], order_by: []}}
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        validation_locked_until_patch: true,
+        view_config: original_view_config
+      }
+    }
+
+    {:noreply, updated_socket} =
+      TestLive.handle_event("view-validate", %{"view_mode" => "aggregate"}, socket)
+
+    assert updated_socket.assigns.view_config == original_view_config
+    assert updated_socket.assigns.validation_locked_until_patch == true
+  end
+
+  test "view validate clears skip flag but still processes pasted IN values" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        skip_next_validation: true,
+        views: [
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{}},
+          {:detail, SelectoComponents.Views.Detail, "Detail View", %{}},
+          {:graph, SelectoComponents.Views.Graph, "Graph View", %{}}
+        ],
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{x_axis: [], y_axis: [], series: [], chart_type: "bar", options: %{}}
+          }
+        }
+      }
+    }
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "status",
+          "comp" => "IN",
+          "value" => "open",
+          "pending_values" => "closed\npaused",
+          "index" => "0",
+          "section" => "filters"
+        }
+      }
+    }
+
+    {:noreply, updated_socket} = TestLive.handle_event("view-validate", params, socket)
+
+    assert updated_socket.assigns.skip_next_validation == false
+
+    assert updated_socket.assigns.view_config.filters == [
+             {"f1", "filters",
+              %{
+                "comp" => "IN",
+                "filter" => "status",
+                "index" => "0",
+                "section" => "filters",
+                "selected_values" => ["open", "closed", "paused"],
+                "value" => "open,closed,paused"
+              }}
+           ]
+  end
+
   test "save tab persists all view configurations" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
@@ -46,7 +121,7 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
               max_rows: "1000",
               count_mode: "bounded",
               row_click_action: "workspace_spotlight",
-              prevent_denormalization: true
+              prevent_denormalization: false
             },
             aggregate: %{
               group_by: [{"g1", "status", %{"format" => "default"}}],
@@ -75,6 +150,7 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     assert_received {:saved_view, "My Saved View", "/work-items", saved_params}
     assert saved_params["view_mode"] == "detail"
     assert saved_params["views"]["detail"]["row_click_action"] == "workspace_spotlight"
+    assert saved_params["views"]["detail"]["prevent_denormalization"] == false
     assert saved_params["views"]["aggregate"]["grid"] == true
     assert saved_params["views"]["graph"]["chart_type"] == "line"
 

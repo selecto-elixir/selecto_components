@@ -2,6 +2,78 @@
 CHANGES
 =======
 
+V 0.4.5
+----------
+
+- Refactored `SelectoComponents.Form` into focused composed sections including
+  `Header`, `Tabs`, `ViewPanel`, `FilterPanel`, `SavePanel`, `ExportPanel`,
+  `ModalRouter`, `TabPanel`, `SubmitFooter`, and `PromotedFilterEditor`, so the
+  root form module is mostly orchestration.
+- Added focused render/component regression coverage for the extracted form
+  surfaces instead of relying only on the monolithic form tests.
+- Fixed `ParamsState.view_filter_process/2` so `IN`/`NOT IN` filters preserve
+  duplicate submitted `selected_ids` values while still deduping newly committed
+  pasted values.
+- Continued runtime theming across form managers and major view/config surfaces,
+  including aggregate, detail, graph, map, saved-view, exported-view, scheduled
+  export, and filter-set helpers.
+- Replaced release-unsafe runtime `Mix.env/0` calls with a release-safe
+  environment helper across view/error/debug surfaces.
+- Sanitized invalid non-UTF8 binary values before rendering aggregate/detail/
+  graph/map display paths so LiveView JSON encoding does not crash on bad source
+  bytes.
+- Fixed DaisyUI/themed checkbox rendering across aggregate grid/config forms and
+  filter-controller toggles so checked state remains visible.
+- Updated packaged `selecto` compatibility to require `>= 0.4.3`.
+- Bump package version to `0.4.5`.
+
+V 0.4.4
+--------
+
+- Added filter persistence for `ListPicker` and `TreeBuilder` so selected filter
+  state survives the relevant component workflows.
+- Added aggregate `True Count` / `False Count` options and a `Treat NULL as 0`
+  sum toggle, including aggregate summary and processing coverage for the new
+  behaviors.
+- Updated packaged `selecto` compatibility to require `>= 0.4.2`.
+
+V 0.4.3
+--------
+
+- Fixed denormalized detail subselect generation for nested joins that revisit
+  the same target schema, so paths like workspace team members vs. employee
+  managers no longer collapse into the same `json_agg(...)` subquery.
+- Preserved explicit join ancestry in denormalization detection and subselect
+  config generation, and added regression coverage for repeated-schema nested
+  joins.
+- Updated packaged `selecto` compatibility to require `>= 0.4.1` for the
+  nested-subselect correlation fix.
+
+V 0.4.2
+--------
+
+- Updated aggregate Grid view to bypass pagination so the full 2D result renders
+  at once instead of splitting across pages.
+- Added a Grid color-scale legend plus sticky top/left headers inside a scrollable
+  viewport so wide and tall colorized grids stay readable.
+- Updated aggregate Grid exports so CSV and JSON downloads preserve the rendered
+  grid shape instead of falling back to flat aggregate rows.
+- Reworked SelectoComponents error handling so query, configuration, persistence,
+  export, filter-set, and drill-down failures report clearer stage-aware messages
+  with next-step guidance.
+- Added regression coverage for unpaginated grid rendering, legend display, and
+  sticky grid layout behavior, plus grid-shaped export output and stage-aware
+  error rendering.
+
+V 0.4.1
+--------
+
+- Fixed the detail-form denormalization toggle so submit preserves unchecked
+  state instead of re-enabling the checkbox on apply.
+- Fixed denormalization detection for joins targeting composite primary keys by
+  normalizing join-key comparisons before deciding whether a join fans out.
+- Added regression coverage for composite-key denormalization detection.
+
 V 0.4.0
 --------
 

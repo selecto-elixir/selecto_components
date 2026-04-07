@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Debug.ProductionConfig do
   import Bitwise
 
+  alias SelectoComponents.Env
+
   @moduledoc """
   Secure configuration for enabling debug panel in production.
 
@@ -76,11 +78,7 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   end
 
   defp check_mix_env_if_available do
-    if Code.ensure_loaded?(Mix) do
-      Mix.env() in [:dev, :test]
-    else
-      false
-    end
+    Env.dev_or_test?()
   end
 
   defp production_debug_explicitly_enabled? do

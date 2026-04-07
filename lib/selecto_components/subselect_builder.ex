@@ -80,7 +80,8 @@ defmodule SelectoComponents.SubselectBuilder do
         fields: field_names,
         target_schema: target_schema,
         format: :json_agg,
-        alias: normalized_path
+        alias: normalized_path,
+        join_path: normalize_join_path(selecto, normalized_path)
       }
 
       Selecto.subselect(selecto, [config])
@@ -302,5 +303,19 @@ defmodule SelectoComponents.SubselectBuilder do
       _ ->
         nil
     end
+  end
+
+  defp normalize_join_path(selecto, relationship_path) do
+    relationship_path
+    |> String.split(".")
+    |> Enum.reject(&(&1 in ["", "source"]))
+    |> Enum.map(fn segment ->
+      selecto
+      |> Map.get(:config, %{})
+      |> Map.get(:joins, %{})
+      |> Enum.find_value(fn {join_id, _config} ->
+        if to_string(join_id) == segment, do: join_id
+      end) || segment
+    end)
   end
 end

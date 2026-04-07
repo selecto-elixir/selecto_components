@@ -2,6 +2,7 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
   use Phoenix.LiveComponent
 
   import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
   # slot :type, :atom
   # slot :uuid, :string
   # slot :field, :string
@@ -61,19 +62,23 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
           end
       end
 
-    assigns = Map.put(assigns, :display_name, display_name)
+    assigns =
+      assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
+      |> Map.put(:display_name, display_name)
 
     ~H"""
     <div class="space-y-2">
       <div>
-        <div class="font-medium text-sm text-gray-700">Name:</div>
-        <div class="pl-2">{@display_name}</div>
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Name:</div>
+        <div class="pl-2" style="color: var(--sc-text-primary);">{@display_name}</div>
       </div>
 
       <div>
-        <div class="font-medium text-sm text-gray-700">Alias:</div>
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Alias:</div>
         <div class="pl-2">
           <.sc_input
+            theme={@theme}
             name={"#{@prefix}[alias]"}
             value={Map.get(@config, "alias", "")}
             placeholder="Alias"
@@ -96,22 +101,24 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
           :date
         ]
       }>
-        <div class="font-medium text-sm text-gray-700">Options:</div>
-        <div class="pl-2">
+        <div class="text-sm font-medium" style="color: var(--sc-text-secondary);">Options:</div>
+        <div class="space-y-2 pl-2" style="color: var(--sc-text-primary);">
           <%= case Map.get(@col, :type, :string) do %>
             <% x when x in [:int, :id, :decimal, :float, :integer] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[{"default", "Default"}, {"buckets", "Buckets"}]}
                 />
               </label>
               <%= if Map.get(@config, "format") == "buckets" do %>
-                <label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
                     placeholder="e.g., 1, 2-5, 6-14, 15+ or */10"
@@ -119,32 +126,31 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                 </label>
               <% end %>
             <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
-                  options={SelectoComponents.Helpers.aggregate_datetime_format_options()}
+                  options={SelectoComponents.Helpers.datetime_grouping_format_options()}
                 />
               </label>
-              <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets"] do %>
-                <label>
+              <%= if Map.get(@config, "format") in ["age_buckets", "custom_buckets", "year_buckets"] do %>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Bucket Ranges
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[bucket_ranges]"}
                     value={Map.get(@config, "bucket_ranges", "")}
-                    placeholder={
-                      if Map.get(@config, "format") == "age_buckets",
-                        do: "e.g., 0, 1-7, 8-30, 31-90, 91+",
-                        else: "e.g., today, yesterday, 2-7, 8+"
-                    }
+                    placeholder={SelectoComponents.Helpers.datetime_bucket_placeholder(Map.get(@config, "format"))}
                   />
                 </label>
               <% end %>
             <% x when x in [:string, :text, :citext] -> %>
-              <label>
+              <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select
+                  theme={@theme}
                   name={"#{@prefix}[format]"}
                   value={Map.get(@config, "format")}
                   options={[
@@ -155,9 +161,10 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
               </label>
 
               <%= if Map.get(@config, "format") == "text_prefix" do %>
-                <label>
+                <label class="block text-sm" style="color: var(--sc-text-primary);">
                   Prefix Length
                   <.sc_input
+                    theme={@theme}
                     name={"#{@prefix}[prefix_length]"}
                     value={Map.get(@config, "prefix_length", "2")}
                     type="number"
@@ -167,14 +174,15 @@ defmodule SelectoComponents.Views.Aggregate.GroupByConfig do
                   />
                 </label>
 
-                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                <label class={Theme.slot(@theme, :checkbox_label) <> " mt-2 flex items-center gap-2 text-sm"}>
                   <input type="hidden" name={"#{@prefix}[exclude_articles]"} value="false" />
                   <input
                     type="checkbox"
                     name={"#{@prefix}[exclude_articles]"}
                     value="true"
                     checked={Map.get(@config, "exclude_articles", "true") in [true, "true", "on", "1"]}
-                    class="checkbox checkbox-sm"
+                    class="h-4 w-4 rounded border"
+                    style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
                   />
                   Exclude leading articles (a, an, the)
                 </label>

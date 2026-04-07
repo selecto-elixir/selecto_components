@@ -47,23 +47,26 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
         </div>
         <div class="ml-3 flex-1">
           <h3 class={"text-sm font-medium #{severity_text_class(@error_info.severity)}"}>
-            {category_title(@error_info.category)}
+            {@error_info.summary || category_title(@error_info.category)}
             <%= if @error_info.recoverable do %>
               <span class="ml-2 text-xs font-normal">(Recoverable)</span>
             <% end %>
           </h3>
 
           <div class={"mt-2 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
-            <%= if ErrorSanitizer.production_env?() and not @dev_mode do %>
-              {ErrorSanitizer.user_friendly_message(@error_info.category)}
-            <% else %>
-              {ErrorCategorizer.format_message(@error_info)}
-            <% end %>
+            {@error_info.user_message || ErrorCategorizer.format_message(@error_info)}
+          </div>
+
+          <div
+            :if={is_binary(@error_info[:detail]) and @error_info.detail != ""}
+            class={"mt-2 text-xs #{severity_text_class(@error_info.severity, :secondary)}"}
+          >
+            {@error_info.detail}
           </div>
 
           <%= if @error_info[:suggestions] && length(@error_info[:suggestions]) > 0 do %>
             <div class={"mt-3 text-sm #{severity_text_class(@error_info.severity, :secondary)}"}>
-              <strong>Suggestions:</strong>
+              <strong>Next step:</strong>
               <ul class="mt-1 list-disc list-inside">
                 <%= for suggestion <- @error_info[:suggestions] do %>
                   <li>{suggestion}</li>
@@ -73,7 +76,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
           <% end %>
 
           <%!-- Retry button for retryable errors --%>
-          <%= if ErrorRecovery.retryable_error?(@error_info.error) do %>
+          <%= if @error_info.retryable || ErrorRecovery.retryable_error?(@error_info.error) do %>
             <div class="mt-3">
               <ErrorRecovery.retry_button
                 retryable={true}
@@ -97,14 +100,23 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
     <details class="mt-3 text-xs">
       <summary class="cursor-pointer font-medium">Developer Details</summary>
       <div class="mt-2 space-y-1">
+        <div><strong>Stage:</strong> {@error_info.stage}</div>
+        <div><strong>Code:</strong> {@error_info.code}</div>
         <div><strong>Category:</strong> {@error_info.category}</div>
         <div><strong>Severity:</strong> {@error_info.severity}</div>
         <div><strong>Source:</strong> {@error_info.source}</div>
         <div><strong>Recoverable:</strong> {@error_info.recoverable}</div>
+        <div :if={@error_info.operation}><strong>Operation:</strong> {@error_info.operation}</div>
+        <div :if={@error_info.view_mode}><strong>View Mode:</strong> {@error_info.view_mode}</div>
 
         <%= if is_struct(@error_info.error, Selecto.Error) do %>
           <.selecto_error_details error={@error_info.error} />
         <% else %>
+          <div :if={is_map(@error_info.debug)} class="mt-2">
+            <strong>Debug:</strong>
+            <pre class="mt-1 whitespace-pre-wrap text-xs overflow-x-auto"><%= inspect(@error_info.debug, pretty: true, limit: :infinity) %></pre>
+          </div>
+
           <div class="mt-2">
             <strong>Raw Error:</strong>
             <pre class="mt-1 whitespace-pre-wrap text-xs overflow-x-auto">
@@ -260,14 +272,31 @@ defmodule SelectoComponents.ErrorHandling.ErrorDisplay do
 
   defp sanitize_error_info(error_info) do
     %{
+      stage: error_info.stage,
+      stage_label: error_info.stage_label,
       category: error_info.category,
+      category_label: error_info.category_label,
       severity: error_info.severity,
+      code: error_info.code,
       recoverable: error_info.recoverable,
+      retryable: error_info.retryable,
+      summary: error_info.summary,
+      user_message:
+        error_info.user_message
+        |> then(&ErrorSanitizer.sanitize_error(%{message: &1, details: %{}}))
+        |> Map.get(:message),
+      detail: nil,
       # Hide actual source
       source: "application",
-      suggestions: ErrorSanitizer.safe_suggestions(error_info.category),
+      suggestion: nil,
+      suggestions:
+        if(error_info.suggestions != [],
+          do: ErrorSanitizer.sanitize_suggestions(error_info.suggestions),
+          else: ErrorSanitizer.safe_suggestions(error_info.category)
+        ),
       # Remove raw error data
-      error: nil
+      error: nil,
+      debug: %{}
     }
   end
 

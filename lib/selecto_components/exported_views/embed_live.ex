@@ -33,6 +33,7 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
 
   use Phoenix.Component
 
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ExportedViews
   alias SelectoComponents.ExportedViews.Renderer
   alias SelectoComponents.ExportedViews.Service
@@ -85,8 +86,11 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
         <div class="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
           Export unavailable
         </div>
-        <h1 class="mt-4 text-2xl font-semibold text-slate-900">{embed_error_title(@embed_error)}</h1>
-        <p class="mt-2 text-sm text-slate-600">{embed_error_message(@embed_error)}</p>
+        <h1 class="mt-4 text-2xl font-semibold text-slate-900">{@embed_error.summary}</h1>
+        <p class="mt-2 text-sm text-slate-600">{@embed_error.user_message}</p>
+        <p :if={@embed_error.suggestion} class="mt-2 text-sm font-medium text-slate-700">
+          Next step: {@embed_error.suggestion}
+        </p>
       </div>
 
       <div :if={!@embed_error} class="mx-auto max-w-[1600px] rounded-3xl border border-slate-200/80 bg-white p-3 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-5">
@@ -165,8 +169,17 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
   end
 
   defp assign_error(socket, reason) do
+    error =
+      ErrorBuilder.build(inspect(reason),
+        stage: :persistence,
+        category: embed_error_category(reason),
+        code: embed_error_code(reason),
+        user_message: embed_error_message(reason),
+        summary: embed_error_title(reason)
+      )
+
     socket
-    |> assign(:embed_error, reason)
+    |> assign(:embed_error, error)
     |> assign(:embed_status, nil)
     |> assign(:exported_view, nil)
     |> assign(:render_payload, nil)
@@ -178,6 +191,16 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
   defp embed_error_title(:forbidden), do: "Access blocked"
   defp embed_error_title(:disabled), do: "Export disabled"
   defp embed_error_title(_), do: "Export failed"
+
+  defp embed_error_category(reason) when reason in [:not_found, :disabled], do: :persistence
+
+  defp embed_error_category(reason) when reason in [:invalid_signature, :forbidden],
+    do: :authorization
+
+  defp embed_error_category(_), do: :runtime
+
+  defp embed_error_code(reason) when is_atom(reason), do: reason
+  defp embed_error_code(_), do: :export_embed_failed
 
   defp embed_error_message(:not_found), do: "This exported view no longer exists."
   defp embed_error_message(:invalid_signature), do: "The signed request could not be verified."

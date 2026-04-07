@@ -2,6 +2,7 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
   @moduledoc false
 
   alias SelectoComponents.DBSupport
+  alias SelectoComponents.QueryResults
   alias SelectoComponents.Views.Detail.Options
 
   @initial_cached_pages 3
@@ -556,10 +557,12 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
   end
 
   defp normalize_rows_for_cache(rows) when is_list(rows) do
-    Enum.map(rows, fn
+    rows
+    |> Enum.map(fn
       row when is_tuple(row) -> Tuple.to_list(row)
       row -> row
     end)
+    |> QueryResults.normalize_rows()
   end
 
   defp normalize_rows_for_cache(rows), do: rows

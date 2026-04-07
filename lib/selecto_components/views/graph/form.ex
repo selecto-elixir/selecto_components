@@ -1,12 +1,16 @@
 defmodule SelectoComponents.Views.Graph.Form do
   use Phoenix.LiveComponent
 
+  import SelectoComponents.Components.Common
+  alias SelectoComponents.Theme
+
   def render(assigns) do
     graph_view_key = current_view_key(assigns[:view])
     graph_view = view_state(assigns[:view_config], graph_view_key)
 
     assigns =
       assigns
+      |> Map.put_new(:theme, Theme.default_theme(:light))
       |> Map.put(:graph_view_key, graph_view_key)
       |> Map.put(:graph_chart_type, map_get(graph_view, :chart_type, "bar"))
       |> Map.put(:graph_x_axis, map_get(graph_view, :x_axis, []))
@@ -18,25 +22,23 @@ defmodule SelectoComponents.Views.Graph.Form do
     <div class="space-y-6">
       <!-- Chart Type Selection -->
       <div>
-        <label class="block text-sm font-medium text-base-content/80 mb-2">Chart Type</label>
-        <select
-          name="chart_type"
-          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-        >
+        <label class="mb-2 block text-sm font-medium" style="color: var(--sc-text-secondary)">Chart Type</label>
+        <.sc_select_with_slot theme={@theme} name="chart_type">
           <option value="bar" selected={@graph_chart_type == "bar"}>Bar Chart</option>
           <option value="line" selected={@graph_chart_type == "line"}>Line Chart</option>
           <option value="pie" selected={@graph_chart_type == "pie"}>Pie Chart</option>
           <option value="scatter" selected={@graph_chart_type == "scatter"}>Scatter Plot</option>
           <option value="area" selected={@graph_chart_type == "area"}>Area Chart</option>
-        </select>
+        </.sc_select_with_slot>
       </div>
       
     <!-- X-Axis Configuration -->
       <div>
-        <h3 class="text-lg font-medium text-base-content mb-3">X-Axis (Categories)</h3>
+        <h3 class="mb-3 text-lg font-medium" style="color: var(--sc-text-primary);">X-Axis (Categories)</h3>
         <.live_component
           module={SelectoComponents.Components.ListPicker}
           id={"#{@graph_view_key}_x_axis"}
+          theme={@theme}
           fieldname="x_axis"
           view={@view}
           available={
@@ -48,7 +50,7 @@ defmodule SelectoComponents.Views.Graph.Form do
             <% col = Selecto.field(@selecto, item) %>
             <% axis_summary = graph_x_axis_summary(col, config) %>
             <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
-            <span :if={present_summary?(axis_summary)} class="truncate text-sm font-normal text-base-content/60"><%= axis_summary %></span>
+            <span :if={present_summary?(axis_summary)} class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= axis_summary %></span>
           </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"x_axis[#{id}][field]"} type="hidden" value={item} />
@@ -62,6 +64,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               fieldname="x_axis"
               prefix={"x_axis[#{id}]"}
               config={config}
+              theme={@theme}
             />
           </:item_form>
         </.live_component>
@@ -69,10 +72,11 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Y-Axis Configuration -->
       <div>
-        <h3 class="text-lg font-medium text-base-content mb-3">Y-Axis (Values)</h3>
+        <h3 class="mb-3 text-lg font-medium" style="color: var(--sc-text-primary);">Y-Axis (Values)</h3>
         <.live_component
           module={SelectoComponents.Components.ListPicker}
           id={"#{@graph_view_key}_y_axis"}
+          theme={@theme}
           fieldname="y_axis"
           view={@view}
           available={@columns}
@@ -81,7 +85,7 @@ defmodule SelectoComponents.Views.Graph.Form do
           <:item_summary :let={{_id, item, config, _index}}>
             <% col = Selecto.field(@selecto, item) %>
             <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
-            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_y_axis_summary(config) %></span>
+            <span class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= graph_y_axis_summary(config) %></span>
           </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"y_axis[#{id}][field]"} type="hidden" value={item} />
@@ -95,6 +99,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               fieldname="y_axis"
               prefix={"y_axis[#{id}]"}
               config={config}
+              theme={@theme}
             />
           </:item_form>
         </.live_component>
@@ -102,13 +107,14 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Series Configuration (Optional) -->
       <div>
-        <h3 class="text-lg font-medium text-base-content mb-3">Series Grouping (Optional)</h3>
-        <p class="text-sm text-base-content/70 mb-3">
+        <h3 class="mb-3 text-lg font-medium" style="color: var(--sc-text-primary);">Series Grouping (Optional)</h3>
+        <p class="mb-3 text-sm" style="color: var(--sc-text-secondary);">
           Add a secondary grouping to create multiple data series in your chart.
         </p>
         <.live_component
           module={SelectoComponents.Components.ListPicker}
           id={"#{@graph_view_key}_series"}
+          theme={@theme}
           fieldname="series"
           view={@view}
           available={
@@ -119,7 +125,7 @@ defmodule SelectoComponents.Views.Graph.Form do
           <:item_summary :let={{_id, item, config, _index}}>
             <% col = Selecto.field(@selecto, item) %>
             <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
-            <span class="truncate text-sm font-normal text-base-content/60"><%= graph_series_summary(col, config) %></span>
+            <span class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= graph_series_summary(col, config) %></span>
           </:item_summary>
           <:item_form :let={{id, item, config, index}}>
             <input name={"series[#{id}][field]"} type="hidden" value={item} />
@@ -133,6 +139,7 @@ defmodule SelectoComponents.Views.Graph.Form do
               fieldname="series"
               prefix={"series[#{id}]"}
               config={config}
+              theme={@theme}
             />
           </:item_form>
         </.live_component>
@@ -140,54 +147,27 @@ defmodule SelectoComponents.Views.Graph.Form do
       
     <!-- Chart Options -->
       <div>
-        <h3 class="text-lg font-medium text-base-content mb-3">Chart Options</h3>
+        <h3 class="mb-3 text-lg font-medium" style="color: var(--sc-text-primary);">Chart Options</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-base-content/80 mb-1">Chart Title</label>
-            <input
-              name="options[title]"
-              type="text"
-              value={option_value(@graph_options, :title, "")}
-              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Enter chart title"
-            />
+            <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary)">Chart Title</label>
+            <.sc_input theme={@theme} name="options[title]" value={option_value(@graph_options, :title, "")} placeholder="Enter chart title" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-base-content/80 mb-1">X-Axis Label</label>
-            <input
-              name="options[x_axis_label]"
-              type="text"
-              value={option_value(@graph_options, :x_axis_label, "")}
-              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="X-axis label"
-            />
+            <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary)">X-Axis Label</label>
+            <.sc_input theme={@theme} name="options[x_axis_label]" value={option_value(@graph_options, :x_axis_label, "")} placeholder="X-axis label" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-base-content/80 mb-1">Y-Axis Label</label>
-            <input
-              name="options[y_axis_label]"
-              type="text"
-              value={option_value(@graph_options, :y_axis_label, "")}
-              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Y-axis label"
-            />
+            <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary)">Y-Axis Label</label>
+            <.sc_input theme={@theme} name="options[y_axis_label]" value={option_value(@graph_options, :y_axis_label, "")} placeholder="Y-axis label" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-base-content/80 mb-1">Y2-Axis Label</label>
-            <input
-              name="options[y2_axis_label]"
-              type="text"
-              value={option_value(@graph_options, :y2_axis_label, "")}
-              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Secondary Y-axis label"
-            />
+            <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary)">Y2-Axis Label</label>
+            <.sc_input theme={@theme} name="options[y2_axis_label]" value={option_value(@graph_options, :y2_axis_label, "")} placeholder="Secondary Y-axis label" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-base-content/80 mb-1">Legend Position</label>
-            <select
-              name="options[legend_position]"
-              class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content focus:outline-none focus:ring-2 focus:ring-primary"
-            >
+            <label class="mb-1 block text-sm font-medium" style="color: var(--sc-text-secondary)">Legend Position</label>
+            <.sc_select_with_slot theme={@theme} name="options[legend_position]">
               <option value="top" selected={option_value(@graph_options, :legend_position) == "top"}>
                 Top
               </option>
@@ -209,40 +189,43 @@ defmodule SelectoComponents.Views.Graph.Form do
               <option value="none" selected={option_value(@graph_options, :legend_position) == "none"}>
                 Hide Legend
               </option>
-            </select>
+            </.sc_select_with_slot>
           </div>
         </div>
 
         <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label class="flex items-center">
+          <label class={Theme.slot(@theme, :checkbox_label) <> " flex items-center"}>
             <input
               name="options[show_grid]"
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :show_grid, false)}
-              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
+              class="mr-2 h-4 w-4 rounded border"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
-            <span class="text-sm text-base-content/80">Show Grid Lines</span>
+            <span class="text-sm" style="color: var(--sc-text-secondary);">Show Grid Lines</span>
           </label>
-          <label class="flex items-center">
+          <label class={Theme.slot(@theme, :checkbox_label) <> " flex items-center"}>
             <input
               name="options[enable_animations]"
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :enable_animations, true)}
-              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
+              class="mr-2 h-4 w-4 rounded border"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
-            <span class="text-sm text-base-content/80">Enable Animations</span>
+            <span class="text-sm" style="color: var(--sc-text-secondary);">Enable Animations</span>
           </label>
-          <label class="flex items-center">
+          <label class={Theme.slot(@theme, :checkbox_label) <> " flex items-center"}>
             <input
               name="options[responsive]"
               type="checkbox"
               value="true"
               checked={option_checked(@graph_options, :responsive, true)}
-              class="mr-2 h-4 w-4 rounded border-base-300 bg-base-100 text-primary focus:ring-2 focus:ring-primary"
+              class="mr-2 h-4 w-4 rounded border"
+              style="border-color: var(--sc-surface-border); accent-color: var(--sc-accent);"
             />
-            <span class="text-sm text-base-content/80">Responsive</span>
+            <span class="text-sm" style="color: var(--sc-text-secondary);">Responsive</span>
           </label>
         </div>
       </div>

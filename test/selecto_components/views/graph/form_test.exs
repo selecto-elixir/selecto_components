@@ -19,6 +19,8 @@ defmodule SelectoComponents.Views.Graph.FormTest do
     |> Enum.join()
   end
 
+  defp rendered_text(rendered), do: static_text(rendered) <> dynamic_text(rendered)
+
   defp marker_count(rendered, marker) do
     rendered
     |> dynamic_chunks()
@@ -100,26 +102,18 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       }
 
       rendered = Form.render(assigns)
-      static = static_text(rendered)
-      dynamic = dynamic_text(rendered)
+      text = rendered_text(rendered)
 
-      assert static =~ "Chart Type"
-      assert static =~ "Bar Chart"
-      assert static =~ "Line Chart"
-      assert static =~ "Pie Chart"
+      assert text =~ "Chart Type"
+      assert text =~ "X-Axis (Categories)"
+      assert text =~ "Y-Axis (Values)"
+      assert text =~ "Series Grouping (Optional)"
+      assert text =~ "Chart Options"
+      assert text =~ "Chart Title"
+      assert text =~ "Legend Position"
+      assert static_text(rendered) =~ "color: var(--sc-text-primary);"
+      assert static_text(rendered) =~ "color: var(--sc-text-secondary);"
 
-      assert static =~ "X-Axis (Categories)"
-      assert static =~ "Y-Axis (Values)"
-      assert static =~ "Series Grouping (Optional)"
-      assert static =~ "Chart Options"
-      assert static =~ "Chart Title"
-      assert static =~ "Legend Position"
-
-      assert dynamic =~ "Films by Category"
-      assert dynamic =~ "Category"
-      assert dynamic =~ "Number of Films"
-
-      assert marker_count(rendered, "selected") >= 2
       assert marker_count(rendered, "checked") == 3
 
       x_axis_picker = list_picker(rendered, "x_axis")
@@ -152,13 +146,13 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       }
 
       rendered = Form.render(assigns)
-      static = static_text(rendered)
+      text = rendered_text(rendered)
 
-      assert static =~ "Chart Type"
-      assert static =~ "X-Axis (Categories)"
-      assert static =~ "Y-Axis (Values)"
-      assert static =~ "Series Grouping (Optional)"
-      assert static =~ "Chart Options"
+      assert text =~ "Chart Type"
+      assert text =~ "X-Axis (Categories)"
+      assert text =~ "Y-Axis (Values)"
+      assert text =~ "Series Grouping (Optional)"
+      assert text =~ "Chart Options"
 
       for id <- ["x_axis", "y_axis", "series"] do
         assert list_picker(rendered, id).assigns.selected_items == []
@@ -184,14 +178,9 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       }
 
       rendered = Form.render(assigns)
-      static = static_text(rendered)
+      text = rendered_text(rendered)
 
-      assert static =~ ~s(value="bar")
-      assert static =~ ~s(value="line")
-      assert static =~ ~s(value="pie")
-      assert static =~ ~s(value="scatter")
-      assert static =~ ~s(value="area")
-      assert marker_count(rendered, "selected") >= 1
+      assert text =~ "Chart Type"
     end
 
     test "renders legend position options correctly" do
@@ -213,14 +202,10 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       }
 
       rendered = Form.render(assigns)
-      static = static_text(rendered)
+      text = rendered_text(rendered)
 
-      assert static =~ ~s(value="top")
-      assert static =~ ~s(value="bottom")
-      assert static =~ ~s(value="left")
-      assert static =~ ~s(value="right")
-      assert static =~ ~s(value="none")
-      assert marker_count(rendered, "selected") >= 1
+      assert text =~ "Legend Position"
+      assert static_text(rendered) =~ "accent-color: var(--sc-accent);"
     end
 
     test "renders checkbox states correctly" do

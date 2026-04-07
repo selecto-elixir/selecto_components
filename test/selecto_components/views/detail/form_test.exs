@@ -3,6 +3,8 @@ defmodule SelectoComponents.Views.Detail.FormTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias SelectoComponents.Theme
+  alias SelectoComponents.Views.Detail.ColumnConfig
   alias SelectoComponents.Views.Detail.Form
 
   test "renders row click action select with current action selected" do
@@ -104,6 +106,45 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     refute html =~ ~s(<option value="work_item_api_preview" selected>)
   end
 
+  test "renders prevent_denormalization unchecked when restored as string false" do
+    domain = %{
+      name: "DetailFormCheckboxTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          title: %{type: :string, name: "Title", colid: :title}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{}
+    }
+
+    html =
+      render_component(Form, %{
+        id: "detail-form-checkbox-test",
+        columns: [{:id, "ID", :integer}, {:title, "Title", :string}],
+        view: {:detail, SelectoComponents.Views.Detail, "Detail", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              prevent_denormalization: "false"
+            }
+          }
+        }
+      })
+
+    refute html =~ ~s(name="prevent_denormalization" value="true" checked)
+  end
+
   test "set_row_click_action updates detail view config" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
@@ -155,5 +196,25 @@ defmodule SelectoComponents.Views.Detail.FormTest do
 
     assert updated_socket.assigns.view_config.views.detail.row_click_action ==
              "work_item_api_json"
+  end
+
+  test "detail column config uses themed labels and controls" do
+    html =
+      render_component(ColumnConfig, %{
+        id: "detail-column-config",
+        theme: Theme.default_theme(:light),
+        item: "created_at",
+        col: %{type: :utc_datetime, name: "Created At", colid: :created_at},
+        columns: [{:created_at, "Created At", :utc_datetime}],
+        prefix: "selected[c0]",
+        config: %{"format" => "year_buckets"}
+      })
+
+    assert html =~ "Name:"
+    assert html =~ "Alias:"
+    assert html =~ "Options:"
+    assert html =~ "Bucket Ranges"
+    assert html =~ "sc-input"
+    assert html =~ "sc-select"
   end
 end

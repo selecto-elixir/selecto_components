@@ -38,60 +38,18 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   # New indexed format: field0/value0, field1/value1
   defp build_filter_map_indexed(params, socket) do
-    # Extract field/value pairs
-    field_value_pairs = extract_indexed_pairs(params)
+    existing = existing_filters(socket)
+    specs = drill_down_filter_specs(params, socket)
+    reused_refs = allocate_existing_filter_map_refs(existing, specs)
+    cleaned_existing = drop_matching_filter_map_entries(existing, specs)
 
-    Enum.reduce(
-      field_value_pairs,
-      existing_filters(socket),
-      fn {field_name, v, group_idx}, acc ->
-        newid = UUID.uuid4()
-
-        # Get field configuration
-        conf = Selecto.field(socket.assigns.selecto, field_name)
-
-        # If filtering on a join mode ID field, find the display field with metadata
-        conf = find_join_mode_field(socket.assigns.selecto, field_name, conf)
-
-        # Collect group-by context for bucket-aware drill-down filters
-        group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-
-        field_group_config =
-          find_field_group_config(group_by_config, field_name, group_idx)
-
-        drill_context = drill_context_from_group_config(field_group_config)
-
-        # Determine comparison mode and values based on format
-        {comp_mode, v1, v2} = determine_filter_comp_and_values(v, conf, drill_context)
-
-        # Build filter configuration
-        filter_config =
-          %{
-            "comp" => comp_mode,
-            "filter" => field_name,
-            "index" => "0",
-            "section" => "filters",
-            "uuid" => newid,
-            "value" => v1,
-            "value2" => v2,
-            "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
-            "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
-          }
-          |> maybe_put_text_prefix_options(drill_context, comp_mode)
-
-        # Use group_by_filter if configured
-        actual_filter_field =
-          if conf && Map.get(conf, :group_by_filter) do
-            Map.get(conf, :group_by_filter)
-          else
-            field_name
-          end
-
-        # Update the filter config to use the correct field
-        filter_config = Map.put(filter_config, "filter", actual_filter_field)
-        Map.put(acc, newid, filter_config)
-      end
-    )
+    Enum.zip(specs, reused_refs)
+    |> Enum.reduce(cleaned_existing, fn {spec, reused_ref}, acc ->
+      filter_key = reused_ref.key || UUID.uuid4()
+      filter_uuid = reused_ref.uuid || filter_key
+      filter_config = Map.put(spec.filter_config, "uuid", filter_uuid)
+      Map.put(acc, filter_key, filter_config)
+    end)
   end
 
   # Extract field0/value0, field1/value1 pairs from params
@@ -182,7 +140,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       # YYYY-MM-DD format
       String.match?(value, ~r/^\d{4}-\d{2}-\d{2}$/) ->
-        if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+        if field_conf && Selecto.Temporal.date_like?(field_conf) do
           {"DATE=", value, ""}
         else
           {"=", value, ""}
@@ -202,7 +160,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       # Bucket range patterns
       String.match?(value, ~r/^\d+-\d+$/) || String.match?(value, ~r/^\d+\+$/) || value == "Other" ->
-        handle_bucket_range(value, field_conf, context.is_age_bucket)
+        handle_bucket_range(value, field_conf, context)
 
       # Default datetime handling
       field_conf != nil ->
@@ -243,7 +201,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_week_of_year_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       {"WEEK_OF_YEAR", value, ""}
     else
       {"=", value, ""}
@@ -305,55 +263,79 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp handle_bucket_range(value, field_conf, is_age_bucket) do
-    if is_age_bucket && field_conf &&
-         Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
-      # Age buckets on date fields - convert to date ranges
-      today = Date.utc_today()
+  defp handle_bucket_range(value, field_conf, %{format: format, is_age_bucket: is_age_bucket}) do
+    cond do
+      format in ["year_buckets", :year_buckets] && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_year_bucket_range(value)
 
-      cond do
-        # Range like "1-10" or "0-10"
-        String.match?(value, ~r/^(\d+)-(\d+)$/) ->
-          [min_days_str, max_days_str] = String.split(value, "-")
-          max_days = String.to_integer(max_days_str)
-          min_days = String.to_integer(min_days_str)
-          start_date = Date.add(today, -(max_days + 1))
-          end_date = Date.add(today, -min_days)
-          {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+      is_age_bucket && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_age_bucket_range(value)
 
-        # Open-ended range like "11+"
-        String.match?(value, ~r/^(\d+)\+$/) ->
-          days = value |> String.replace("+", "") |> String.to_integer()
-          cutoff_date = Date.add(today, -days)
-          {"<=", Date.to_iso8601(cutoff_date), ""}
+      true ->
+        handle_numeric_bucket_range(value)
+    end
+  end
 
-        # "Other" bucket
-        value == "Other" ->
-          {"=", "", ""}
+  defp handle_age_bucket_range(value) do
+    today = Date.utc_today()
 
-        true ->
-          {"=", value, ""}
-      end
-    else
-      # Numeric buckets
-      cond do
-        # Range like "1-10"
-        String.match?(value, ~r/^(\d+)-(\d+)$/) ->
-          [min_str, max_str] = String.split(value, "-")
-          {"BETWEEN", min_str, max_str}
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_days_str, max_days_str] = String.split(value, "-")
+        max_days = String.to_integer(max_days_str)
+        min_days = String.to_integer(min_days_str)
+        start_date = Date.add(today, -(max_days + 1))
+        end_date = Date.add(today, -min_days)
+        {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
-        # Open-ended range like "11+"
-        String.match?(value, ~r/^(\d+)\+$/) ->
-          min_str = String.replace(value, "+", "")
-          {">=", min_str, ""}
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        days = value |> String.replace("+", "") |> String.to_integer()
+        cutoff_date = Date.add(today, -days)
+        {"<=", Date.to_iso8601(cutoff_date), ""}
 
-        # "Other" bucket
-        value == "Other" ->
-          {"=", "", ""}
+      value == "Other" ->
+        {"=", "", ""}
 
-        true ->
-          {"=", value, ""}
-      end
+      true ->
+        {"=", value, ""}
+    end
+  end
+
+  defp handle_year_bucket_range(value) do
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_year, max_year] = String.split(value, "-")
+        {"DATE_BETWEEN", "#{min_year}-01-01", "#{String.to_integer(max_year) + 1}-01-01"}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        min_year = String.replace(value, "+", "")
+        {">=", "#{min_year}-01-01", ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
+    end
+  end
+
+  defp handle_numeric_bucket_range(value) do
+    cond do
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_str, max_str] = String.split(value, "-")
+        {"BETWEEN", min_str, max_str}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        min_str = String.replace(value, "+", "")
+        {">=", min_str, ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
     end
   end
 
@@ -405,7 +387,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp parse_boolean(_value, default), do: default
 
   defp handle_month_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       [year_str, month_str] = String.split(value, "-")
       {year, _} = Integer.parse(year_str)
       {month, _} = Integer.parse(month_str)
@@ -421,7 +403,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_year_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       {year, _} = Integer.parse(value)
       start_date = Date.new!(year, 1, 1)
       end_date = Date.new!(year + 1, 1, 1)
@@ -433,7 +415,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_quarter_format(value, field_conf) do
-    if field_conf && Map.get(field_conf, :type) in [:utc_datetime, :naive_datetime, :date] do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
       [year_str, quarter_str] = String.split(value, "-")
       {year, _} = Integer.parse(year_str)
       {quarter, _} = Integer.parse(quarter_str)
@@ -456,7 +438,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp handle_datetime_field(value, field_conf) do
-    field_type = Map.get(field_conf, :type, :string)
+    field_type =
+      Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type, :string)
 
     case field_type do
       x when x in [:utc_datetime, :naive_datetime] ->
@@ -474,27 +457,143 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   Build filter tuples for view_config from drill-down parameters (simpler version for view_config.filters).
   """
   def build_filter_tuples(params, socket) do
-    params
-    |> extract_indexed_pairs()
-    |> Enum.map(fn {field_name, v, _group_idx} ->
-      conf = Selecto.field(socket.assigns.selecto, field_name)
+    existing_filters = get_in(socket.assigns, [:view_config, :filters]) || []
+    specs = drill_down_filter_specs(params, socket)
+    reused_refs = allocate_existing_filter_tuple_refs(existing_filters, specs)
 
-      if conf != nil do
-        field_type = Map.get(conf, :type, :string)
-
-        case field_type do
-          x when x in [:utc_datetime, :naive_datetime] ->
-            {v1, v2} = Selecto.Helpers.Date.val_to_dates(%{"value" => v, "value2" => ""})
-            {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v1, "value2" => v2}}
-
-          _ ->
-            {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
-        end
-      else
-        {UUID.uuid4(), "filters", %{"filter" => field_name, "value" => v}}
-      end
+    Enum.zip(specs, reused_refs)
+    |> Enum.map(fn {spec, reused_ref} ->
+      filter_uuid = reused_ref.uuid || UUID.uuid4()
+      filter_section = reused_ref.section || "filters"
+      {filter_uuid, filter_section, Map.put(spec.filter_config, "uuid", filter_uuid)}
     end)
   end
+
+  defp drill_down_filter_specs(params, socket) do
+    params
+    |> extract_indexed_pairs()
+    |> Enum.map(fn {field_name, value, group_idx} ->
+      build_drill_down_filter_spec(socket, field_name, value, group_idx)
+    end)
+  end
+
+  defp build_drill_down_filter_spec(socket, field_name, value, group_idx) do
+    conf =
+      socket.assigns.selecto
+      |> Selecto.field(field_name)
+      |> then(&find_join_mode_field(socket.assigns.selecto, field_name, &1))
+
+    group_by_config = Map.get(used_params_map(socket), "group_by", %{})
+    field_group_config = find_field_group_config(group_by_config, field_name, group_idx)
+    drill_context = drill_context_from_group_config(field_group_config)
+    {comp_mode, v1, v2} = determine_filter_comp_and_values(value, conf, drill_context)
+
+    actual_filter_field =
+      cond do
+        conf && Map.get(conf, :group_by_filter) -> Map.get(conf, :group_by_filter)
+        true -> field_name
+      end
+      |> to_string()
+
+    filter_config =
+      %{
+        "comp" => comp_mode,
+        "filter" => actual_filter_field,
+        "index" => "0",
+        "promote" => "true",
+        "section" => "filters",
+        "value" => v1,
+        "value2" => v2,
+        "value_start" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v1, else: nil),
+        "value_end" => if(comp_mode in ["DATE_BETWEEN", "BETWEEN"], do: v2, else: nil)
+      }
+      |> maybe_put_text_prefix_options(drill_context, comp_mode)
+
+    %{
+      filter_config: filter_config,
+      match_fields: matching_filter_fields(field_name, actual_filter_field)
+    }
+  end
+
+  defp allocate_existing_filter_map_refs(existing_filters, specs) when is_map(existing_filters) do
+    {refs, _used_keys} =
+      Enum.map_reduce(specs, MapSet.new(), fn spec, used_keys ->
+        case Enum.find(existing_filters, fn {key, filter} ->
+               not MapSet.member?(used_keys, key) and filter_matches_spec?(filter, spec)
+             end) do
+          {key, filter} ->
+            {%{key: key, uuid: Map.get(filter, "uuid", key)}, MapSet.put(used_keys, key)}
+
+          nil ->
+            {%{key: nil, uuid: nil}, used_keys}
+        end
+      end)
+
+    refs
+  end
+
+  defp allocate_existing_filter_map_refs(_existing_filters, specs) do
+    Enum.map(specs, fn _ -> %{key: nil, uuid: nil} end)
+  end
+
+  defp drop_matching_filter_map_entries(existing_filters, specs) when is_map(existing_filters) do
+    Enum.reject(existing_filters, fn {_key, filter} ->
+      Enum.any?(specs, &filter_matches_spec?(filter, &1))
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp drop_matching_filter_map_entries(_existing_filters, _specs), do: %{}
+
+  defp allocate_existing_filter_tuple_refs(existing_filters, specs)
+       when is_list(existing_filters) do
+    {refs, _used_uuids} =
+      Enum.map_reduce(specs, MapSet.new(), fn spec, used_uuids ->
+        case Enum.find(existing_filters, fn
+               {uuid, "filters", filter} ->
+                 not MapSet.member?(used_uuids, to_string(uuid)) and
+                   filter_matches_spec?(filter, spec)
+
+               [uuid, "filters", filter] ->
+                 not MapSet.member?(used_uuids, to_string(uuid)) and
+                   filter_matches_spec?(filter, spec)
+
+               _ ->
+                 false
+             end) do
+          {uuid, section, filter} ->
+            {%{uuid: uuid, section: section, filter: filter},
+             MapSet.put(used_uuids, to_string(uuid))}
+
+          [uuid, section, filter] ->
+            {%{uuid: uuid, section: section, filter: filter},
+             MapSet.put(used_uuids, to_string(uuid))}
+
+          nil ->
+            {%{uuid: nil, section: nil, filter: nil}, used_uuids}
+        end
+      end)
+
+    refs
+  end
+
+  defp allocate_existing_filter_tuple_refs(_existing_filters, specs) do
+    Enum.map(specs, fn _ -> %{uuid: nil, section: nil, filter: nil} end)
+  end
+
+  defp matching_filter_fields(field_name, actual_filter_field) do
+    [field_name, actual_filter_field]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_string/1)
+    |> MapSet.new()
+  end
+
+  defp filter_matches_spec?(filter, spec) when is_map(filter) do
+    existing_field = Map.get(filter, "filter") || Map.get(filter, :filter)
+    not is_nil(existing_field) and MapSet.member?(spec.match_fields, to_string(existing_field))
+  end
+
+  defp filter_matches_spec?(_filter, _spec), do: false
 
   defp find_join_mode_field(selecto, field_name, original_conf) do
     cond do

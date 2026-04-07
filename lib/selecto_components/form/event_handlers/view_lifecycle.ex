@@ -22,6 +22,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
   defmacro __using__(_opts) do
     quote do
+      alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Form.ParamsState
       import SelectoComponents.Form.ErrorHandling
 
@@ -39,12 +40,21 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         {:noreply, assign(socket, active_tab: Map.get(params, "tab"))}
       end
 
+      def handle_event("toggle_show_view_configurator", _params, socket) do
+        {:noreply,
+         assign(
+           socket,
+           :show_view_configurator,
+           !Map.get(socket.assigns, :show_view_configurator, false)
+         )}
+      end
+
       @doc """
       Handles form validation events without executing the query.
 
       This allows users to configure aggregates, filters, and other view settings
-      without triggering immediate query execution. Respects skip_next_validation
-      flag to prevent validation after filter add/remove operations.
+      without triggering immediate query execution. Clears skip_next_validation
+      if present so the next real user edit is still processed.
 
       ## Parameters
       - params: Form parameters from phx-change event
@@ -54,19 +64,27 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       `{:noreply, socket}` with updated view_config
       """
       def handle_event("view-validate", params, socket) do
-        # Check if we should skip this validation (e.g., after filter add/remove)
-        if socket.assigns[:skip_next_validation] do
-          # Clear the flag and skip processing
-          {:noreply, assign(socket, skip_next_validation: false)}
-        else
-          with_error_handling(socket, "view-validate", fn ->
-            # Process all parameters including view-specific configs (aggregates, group_by, etc.)
-            socket = ParamsState.form_params_to_state(params, socket)
-
-            # Don't execute view on validation - only on submit
-            # This allows users to configure aggregates without immediate updates
+        # Ignore validations while a submit-driven URL patch is still in flight.
+        cond do
+          socket.assigns[:validation_locked_until_patch] ->
             {:noreply, socket}
-          end)
+
+          true ->
+            with_error_handling(socket, "view-validate", fn ->
+              socket =
+                if socket.assigns[:skip_next_validation] do
+                  assign(socket, skip_next_validation: false)
+                else
+                  socket
+                end
+
+              # Process all parameters including view-specific configs (aggregates, group_by, etc.)
+              socket = ParamsState.form_params_to_state(params, socket)
+
+              # Don't execute view on validation - only on submit
+              # This allows users to configure aggregates without immediate updates
+              {:noreply, socket}
+            end)
         end
       end
 
@@ -89,14 +107,31 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           cond do
             save_as == "" ->
-              {:noreply, put_flash(socket, :error, "Enter a view name before saving")}
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 lifecycle_error_message(
+                   "Enter a view name before saving",
+                   stage: :persistence,
+                   category: :validation,
+                   code: :missing_view_name,
+                   operation: "save_view"
+                 )
+               )}
 
             String.match?(save_as, ~r/[^a-zA-Z0-9_ ]/) ->
               {:noreply,
                put_flash(
                  socket,
                  :error,
-                 "View name can only include letters, numbers, spaces, and underscore"
+                 lifecycle_error_message(
+                   "View name can only include letters, numbers, spaces, and underscore",
+                   stage: :persistence,
+                   category: :validation,
+                   code: :invalid_view_name,
+                   operation: "save_view"
+                 )
                )}
 
             true ->
@@ -117,7 +152,14 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
               params = %{"saved_view" => view.name}
               socket = assign(socket, :current_detail_page, 0)
-              {:noreply, ParamsState.state_to_url(params, socket)}
+
+              {:noreply,
+               ParamsState.state_to_url(
+                 params,
+                 socket
+                 |> assign(:validation_locked_until_patch, true)
+                 |> assign(:show_view_configurator, false)
+               )}
           end
         end)
       end
@@ -150,7 +192,14 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           # Commit the current validated form state; URL is updated only after submit.
           socket = ParamsState.view_from_params(committed_params, socket)
-          {:noreply, ParamsState.state_to_url(committed_params, socket)}
+
+          {:noreply,
+           ParamsState.state_to_url(
+             committed_params,
+             socket
+             |> assign(:validation_locked_until_patch, true)
+             |> assign(:show_view_configurator, false)
+           )}
         end)
       end
 
@@ -178,7 +227,18 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
                  user_id: Map.get(socket.assigns, :current_user_id)
                ) do
             nil ->
-              {:noreply, put_flash(socket, :error, "View configuration not found")}
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 lifecycle_error_message(
+                   "View configuration not found",
+                   stage: :persistence,
+                   category: :persistence,
+                   code: :view_config_not_found,
+                   operation: "load_view_config"
+                 )
+               )}
 
             config ->
               # Decode the saved configuration
@@ -200,9 +260,17 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
                   socket
                 )
 
-              {:noreply, put_flash(socket, :info, "View configuration loaded: #{config.name}")}
+              {:noreply,
+               socket
+               |> assign(:show_view_configurator, false)
+               |> put_flash(:info, "View configuration loaded: #{config.name}")}
           end
         end)
+      end
+
+      defp lifecycle_error_message(message, opts) do
+        error = ErrorBuilder.build(message, opts)
+        error.summary <> ": " <> error.user_message
       end
     end
   end

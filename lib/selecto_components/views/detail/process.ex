@@ -13,9 +13,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       count_mode: Options.normalize_count_mode_param(Map.get(params, "count_mode")),
       row_click_action:
         Options.normalize_row_click_action_param(Map.get(params, "row_click_action")),
-      prevent_denormalization:
-        params["prevent_denormalization"] in ["on", "true"] ||
-          (params["prevent_denormalization"] == nil && params["selected"] == nil)
+      prevent_denormalization: prevent_denormalization_enabled?(params)
     }
   end
 
@@ -58,9 +56,7 @@ defmodule SelectoComponents.Views.Detail.Process do
       )
 
     # Check if denormalization prevention is enabled (checkbox sends "on" when checked)
-    prevent_denorm =
-      params["prevent_denormalization"] in ["on", "true"] ||
-        (params["prevent_denormalization"] == nil && params["selected"] == nil)
+    prevent_denorm = prevent_denormalization_enabled?(params)
 
     # Process columns for denormalization if enabled
     {selected_columns, visible_columns, subselect_configs, denorm_groups} =
@@ -178,6 +174,27 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   defp normalize_selected_entries(_), do: []
+
+  defp prevent_denormalization_enabled?(params) when is_map(params) do
+    case Map.get(params, "prevent_denormalization") do
+      value when value in [true, "true", "on", 1, "1"] ->
+        true
+
+      value when value in [false, "false", 0, "0"] ->
+        false
+
+      [value | _rest] ->
+        value in [true, "true", "on", 1, "1"]
+
+      nil ->
+        Map.get(params, "selected") == nil
+
+      _other ->
+        false
+    end
+  end
+
+  defp prevent_denormalization_enabled?(_params), do: true
 
   defp normalize_selected_entry(%{} = config, fallback_uuid, fallback_index) do
     config
@@ -337,7 +354,7 @@ defmodule SelectoComponents.Views.Detail.Process do
         end
 
       # move to a validation lib
-      case col.type do
+      case Selecto.Temporal.date_like_type(col) || col.type do
         x when x in [:naive_datetime, :utc_datetime, :date] ->
           datetime_selected(col, e, alias, date_formats)
 
@@ -380,6 +397,18 @@ defmodule SelectoComponents.Views.Detail.Process do
             field_with_alias,
             bucket_ranges,
             :date
+          )
+
+        {:field, {:raw_sql, case_sql}, alias_name}
+
+      "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
+        field_with_alias = detail_field_ref(col.colid)
+
+        case_sql =
+          BucketParser.generate_bucket_case_sql(
+            "EXTRACT(YEAR FROM #{field_with_alias})",
+            bucket_ranges,
+            :integer
           )
 
         {:field, {:raw_sql, case_sql}, alias_name}
