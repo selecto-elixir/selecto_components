@@ -3,6 +3,16 @@ defmodule SelectoComponents.Helpers.FiltersTest do
 
   alias SelectoComponents.Helpers.Filters
 
+  defmodule UuidRecord do
+    use Ecto.Schema
+
+    @primary_key {:id, :binary_id, autogenerate: false}
+
+    schema "records" do
+      field(:date_tier_id, Ecto.UUID)
+    end
+  end
+
   defp selecto do
     domain = %{
       name: "FiltersTest",
@@ -81,6 +91,27 @@ defmodule SelectoComponents.Helpers.FiltersTest do
             presentation_type: :utc_datetime,
             datetime_storage: :unix_ms
           }
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp uuid_selecto do
+    domain = %{
+      name: "FiltersUuidTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :date_tier_id],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :string},
+          date_tier_id: %{type: :string}
         },
         associations: %{}
       },
@@ -294,6 +325,29 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       sql = IO.iodata_to_binary(iodata)
       assert sql =~ "TO_TIMESTAMP((selecto_root.occurred_at_epoch) / 1000.0)"
       assert sql =~ "EXTRACT(ISODOW FROM"
+    end
+  end
+
+  describe "filter_recurse/3 uuid coercion" do
+    test "dumps UUID multiselect values using schema metadata" do
+      uuid = "759a4832-4b86-44ea-a69d-7aec6f99caaf"
+      {:ok, dumped_uuid} = Ecto.UUID.dump(uuid)
+
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "date_tier_id",
+            "comp" => "IN",
+            "selected_ids" => [uuid],
+            "value" => uuid
+          }
+        ]
+      }
+
+      [{"date_tier_id", {:in, [^dumped_uuid]}}] =
+        Filters.filter_recurse(uuid_selecto(), filters, "filters")
     end
   end
 end

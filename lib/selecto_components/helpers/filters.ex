@@ -1,5 +1,6 @@
 defmodule SelectoComponents.Helpers.Filters do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.SchemaUtils
 
   ## For cast
   import Ecto.Type
@@ -301,6 +302,115 @@ defmodule SelectoComponents.Helpers.Filters do
         raise ArgumentError, "unsupported string comparison operator #{inspect(comp_norm)}"
     end
   end
+
+  defp _make_uuid_filter(filter) do
+    comp_norm = normalize_comp(filter, "=")
+
+    case comp_norm do
+      "=" ->
+        parse_uuid(Map.get(filter, "value"))
+
+      "NULL" ->
+        nil
+
+      "IS_EMPTY" ->
+        nil
+
+      "IS NULL" ->
+        nil
+
+      "NOT_NULL" ->
+        :not_null
+
+      "IS_NOT_EMPTY" ->
+        :not_null
+
+      "IS NOT NULL" ->
+        :not_null
+
+      "IN" ->
+        values =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
+          |> Enum.map(&parse_uuid/1)
+
+        if values == [], do: raise(ArgumentError, "IN requires at least one value")
+        {:in, values}
+
+      "NOT IN" ->
+        values =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
+          |> Enum.map(&parse_uuid/1)
+
+        if values == [], do: raise(ArgumentError, "NOT IN requires at least one value")
+        {:not_in, values}
+
+      "!=" ->
+        {"!=", parse_uuid(Map.get(filter, "value"))}
+
+      _ ->
+        raise ArgumentError, "unsupported UUID comparison operator #{inspect(comp_norm)}"
+    end
+  end
+
+  defp parse_uuid(value) when is_binary(value) do
+    cond do
+      byte_size(value) == 16 and Kernel.match?({:ok, _uuid}, Ecto.UUID.load(value)) ->
+        value
+
+      true ->
+        case Ecto.UUID.dump(value) do
+          {:ok, uuid} -> uuid
+          :error -> raise ArgumentError, "invalid UUID #{inspect(value)}"
+        end
+    end
+  end
+
+  defp parse_uuid(value), do: value |> to_string() |> parse_uuid()
+
+  defp uuid_filter?(column, filter, filter_key) do
+    id_like_filter_key?(column, filter_key) and
+      filter
+      |> filter_values()
+      |> Enum.any?(&uuid_string?/1)
+  end
+
+  defp filter_values(filter) do
+    selected_ids =
+      case Map.get(filter, "selected_ids") do
+        ids when is_list(ids) -> ids
+        ids when is_binary(ids) -> String.split(ids, ",")
+        _ -> []
+      end
+
+    selected_ids ++ parse_csv_values(Map.get(filter, "value", ""))
+  end
+
+  defp id_like_filter_key?(column, filter_key) do
+    filter_type = Map.get(column, :filter_type) || Map.get(column, "filter_type")
+
+    filter_type == :multi_select_id or
+      filter_type == "multi_select_id" or
+      id_like_name?(Map.get(column, :field)) or
+      id_like_name?(Map.get(column, :colid)) or
+      id_like_name?(filter_key)
+  end
+
+  defp id_like_name?(nil), do: false
+
+  defp id_like_name?(name) do
+    case to_string(name) do
+      "id" -> true
+      value -> String.ends_with?(value, ".id") or String.ends_with?(value, "_id")
+    end
+  end
+
+  defp uuid_string?(value) when is_binary(value) do
+    Kernel.match?({:ok, _uuid}, Ecto.UUID.cast(String.trim(value)))
+  end
+
+  defp uuid_string?(_value), do: false
 
   defp _make_date_filter(filter, field_conf) do
     comp = Map.get(filter, "comp", "=")
@@ -706,6 +816,12 @@ defmodule SelectoComponents.Helpers.Filters do
 
   # Build filter based on column type
   defp build_typed_filter(selecto, column, f, filter_key) do
+    column =
+      column
+      |> Map.put_new(:field, filter_key)
+      |> Map.put_new(:colid, filter_key)
+      |> then(&SchemaUtils.with_resolved_type(selecto, &1))
+
     date_like_type = Selecto.Temporal.date_like_type(column)
 
     cond do
@@ -740,6 +856,12 @@ defmodule SelectoComponents.Helpers.Filters do
           {:error, reason} -> {:skip, {:invalid_numeric, reason}}
         end
 
+      SchemaUtils.uuid_type?(column.type) ->
+        case safe_make_uuid_filter(f) do
+          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
+          {:error, reason} -> {:skip, {:invalid_uuid, reason}}
+        end
+
       column.type == :tsvector ->
         {:ok, [make_text_search_filter(f)]}
 
@@ -752,6 +874,12 @@ defmodule SelectoComponents.Helpers.Filters do
           end
 
         {:ok, [{filter_key, value}]}
+
+      column.type == :string and uuid_filter?(column, f, filter_key) ->
+        case safe_make_uuid_filter(f) do
+          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
+          {:error, reason} -> {:skip, {:invalid_uuid, reason}}
+        end
 
       column.type == :string ->
         case enum_values_for_filter(selecto, filter_key, column) do
@@ -817,6 +945,12 @@ defmodule SelectoComponents.Helpers.Filters do
   # Safe wrapper for string filter creation
   defp safe_make_string_filter(filter) do
     {:ok, _make_string_filter(filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  defp safe_make_uuid_filter(filter) do
+    {:ok, _make_uuid_filter(filter)}
   rescue
     e -> {:error, Exception.message(e)}
   end

@@ -1,5 +1,6 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.SchemaUtils
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Views.Aggregate.Options
 
@@ -163,6 +164,13 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           col
         end
 
+      col =
+        if is_map(col) and selecto do
+          SchemaUtils.with_resolved_type(selecto, col)
+        else
+          col
+        end
+
       # ????
       alias =
         case Map.get(e, "alias") do
@@ -308,22 +316,24 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   defp should_coalesce_field?(col, selecto) do
     resolved_col = resolve_column_metadata(col, selecto)
     field_name = Map.get(resolved_col, :field) || Map.get(col, :field)
+    colid = Map.get(resolved_col, :colid) || Map.get(col, :colid)
     text_type = text_type?(Map.get(resolved_col, :type))
     enum_by_name = enum_field_name_any_schema?(field_name, selecto)
     root_enum = root_enum_field?(col, selecto)
     enum_by_metadata = enum_field?(resolved_col, selecto)
+    filter_type = Map.get(resolved_col, :filter_type) || Map.get(resolved_col, "filter_type")
 
-    text_type and not enum_by_name and not root_enum and not enum_by_metadata
+    id_like =
+      filter_type == :multi_select_id or
+        filter_type == "multi_select_id" or
+        id_like_name?(field_name) or
+        id_like_name?(colid)
+
+    text_type and not enum_by_name and not root_enum and not enum_by_metadata and not id_like
   end
 
   defp resolve_column_metadata(col, selecto) do
-    colid = Map.get(col, :colid)
-
-    if is_binary(colid) or is_atom(colid) do
-      Selecto.field(selecto, colid) || col
-    else
-      col
-    end
+    SchemaUtils.with_resolved_type(selecto, col)
   end
 
   defp enum_field?(col, selecto) do
@@ -364,6 +374,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp root_enum_field?(_, _), do: false
+
+  defp id_like_name?(nil), do: false
+
+  defp id_like_name?(name) do
+    case to_string(name) do
+      "id" -> true
+      value -> String.ends_with?(value, ".id") or String.ends_with?(value, "_id")
+    end
+  end
 
   defp enum_field_name_any_schema?(field, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field) do
