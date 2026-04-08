@@ -4,6 +4,7 @@ defmodule SelectoComponents.Exporter.Dataset do
   @type t :: %{
           kind: :table | :grid,
           headers: [String.t()],
+          row_keys: [String.t()],
           rows: [map()],
           metadata: map()
         }
@@ -69,16 +70,18 @@ defmodule SelectoComponents.Exporter.Dataset do
 
   defp build_table_dataset({rows, columns, _aliases}) do
     headers = headers(columns, rows)
+    row_keys = Enum.map(0..max(length(headers) - 1, 0), &"__col_#{&1}")
 
     normalized_rows =
       Enum.map(rows, fn row ->
-        normalize_row(row, columns, headers)
+        normalize_row(row, columns, headers, row_keys)
       end)
 
     {:ok,
      %{
        kind: :table,
        headers: headers,
+       row_keys: row_keys,
        rows: normalized_rows,
        metadata: %{row_count: length(normalized_rows)}
      }}
@@ -104,6 +107,7 @@ defmodule SelectoComponents.Exporter.Dataset do
      %{
        kind: :grid,
        headers: headers,
+       row_keys: headers,
        rows: normalized_rows,
        metadata: %{row_count: length(normalized_rows), row_header: row_header}
      }}
@@ -281,42 +285,48 @@ defmodule SelectoComponents.Exporter.Dataset do
     end
   end
 
-  defp normalize_row(row, columns, headers) when is_map(row) do
-    Enum.reduce(headers, %{}, fn header, acc ->
-      value = fetch_map_value_for_header(row, header, columns)
-      Map.put(acc, header, sanitize_value(value))
+  defp normalize_row(row, columns, headers, row_keys) when is_map(row) do
+    headers
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {header, idx}, acc ->
+      value = fetch_map_value_for_header(row, header, columns, idx)
+      Map.put(acc, Enum.at(row_keys, idx), sanitize_value(value))
     end)
   end
 
-  defp normalize_row(row, _columns, headers) when is_tuple(row) do
+  defp normalize_row(row, _columns, _headers, row_keys) when is_tuple(row) do
     row
     |> Tuple.to_list()
-    |> normalize_row_from_list(headers)
+    |> normalize_row_from_list(row_keys)
   end
 
-  defp normalize_row(row, _columns, headers) when is_list(row) do
-    normalize_row_from_list(row, headers)
+  defp normalize_row(row, _columns, _headers, row_keys) when is_list(row) do
+    normalize_row_from_list(row, row_keys)
   end
 
-  defp normalize_row(value, _columns, []) do
+  defp normalize_row(value, _columns, _headers, []) do
     %{"value" => sanitize_value(value)}
   end
 
-  defp normalize_row(value, _columns, headers) do
-    header = List.first(headers)
-    Map.new(headers, fn h -> {h, if(h == header, do: sanitize_value(value), else: nil)} end)
+  defp normalize_row(value, _columns, _headers, row_keys) do
+    row_key = List.first(row_keys)
+
+    Map.new(row_keys, fn key ->
+      {key, if(key == row_key, do: sanitize_value(value), else: nil)}
+    end)
   end
 
-  defp normalize_row_from_list(list_row, headers) do
-    headers
+  defp normalize_row_from_list(list_row, row_keys) do
+    row_keys
     |> Enum.zip(list_row)
     |> Enum.into(%{}, fn {header, value} ->
       {header, sanitize_value(value)}
     end)
   end
 
-  defp fetch_map_value_for_header(row, header, columns) do
-    column_reference = Enum.find(columns, fn column -> to_string(column) == header end)
+  defp fetch_map_value_for_header(row, header, columns, idx) do
+    column_reference =
+      Enum.at(columns, idx) || Enum.find(columns, fn column -> to_string(column) == header end)
 
     atom_key =
       cond do

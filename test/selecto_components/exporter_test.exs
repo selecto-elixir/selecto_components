@@ -218,6 +218,45 @@ defmodule SelectoComponents.ExporterTest do
     assert Base.decode64!(export.browser_content) == export.content
   end
 
+  test "preserves distinct values when export headers repeat" do
+    query_results =
+      {
+        [
+          ["Actor Name", "Category Name", "Customer Name", "Employee Name"]
+        ],
+        ["Name", "Name", "Name", "Name"],
+        []
+      }
+
+    assert {:ok, csv_export} =
+             Exporter.build("csv", query_results,
+               view_mode: :detail,
+               exported_at: @exported_at
+             )
+
+    assert csv_export.content ==
+             "Name,Name,Name,Name\nActor Name,Category Name,Customer Name,Employee Name"
+
+    assert {:ok, json_export} =
+             Exporter.build("json", query_results,
+               view_mode: :detail,
+               exported_at: @exported_at
+             )
+
+    decoded = Jason.decode!(json_export.content)
+
+    assert decoded["columns"] == ["Name", "Name", "Name", "Name"]
+
+    assert decoded["rows"] == [
+             %{
+               "Name" => "Actor Name",
+               "Name (2)" => "Category Name",
+               "Name (3)" => "Customer Name",
+               "Name (4)" => "Employee Name"
+             }
+           ]
+  end
+
   test "returns no_results error for invalid query_results" do
     assert {:error, :no_results} = Exporter.build("csv", nil)
   end
