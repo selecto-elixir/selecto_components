@@ -1614,89 +1614,136 @@ defmodule SelectoComponents.Form.FilterRendering do
         join_mode: join_mode,
         current_comp: current_comp,
         display_field: display_field,
-        filter_label: Map.get(join_mode_config, :name) || humanize_field(display_field)
+        filter_label: Map.get(join_mode_config, :name) || humanize_field(display_field),
+        promote_checked: promote_checked?(assigns.filter_value)
       )
 
     ~H"""
     <div class="space-y-2">
-      <%!-- Comparison operator selector --%>
-      <div class="flex items-center gap-2">
-        <select name={"filters[#{@uuid}][comp]"} class="sc-select text-sm">
-          <option value="IN" selected={@current_comp == "IN"}>Is One Of</option>
-          <option value="NOT IN" selected={@current_comp == "NOT IN"}>Is Not One Of</option>
-          <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>Is Not Empty</option>
-        </select>
-      </div>
-
-      <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
-        <div class="text-sm text-gray-500 italic">
-          No value selection needed
+      <div
+        class={[
+          "space-y-2",
+          @promote_checked && "opacity-60"
+        ]}
+        inert={@promote_checked}
+        aria-disabled={to_string(@promote_checked)}
+        data-promoted-lock={to_string(@promote_checked)}
+      >
+        <%!-- Comparison operator selector --%>
+        <div class="flex items-center gap-2">
+          <select name={"filters[#{@uuid}][comp]"} class="sc-select text-sm">
+            <option value="IN" selected={@current_comp == "IN"}>Is One Of</option>
+            <option value="NOT IN" selected={@current_comp == "NOT IN"}>Is Not One Of</option>
+            <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
+            <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>Is Not Empty</option>
+          </select>
         </div>
-      <% else %>
-        <label class="text-sm font-medium text-gray-700">
-          Select {@filter_label}:
-        </label>
 
-        <%= if @join_mode == :lookup and length(@options) < 20 do %>
-          <%!-- Checkbox list for small datasets --%>
-          <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
-            <%= for opt <- @options do %>
-              <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
-                <input
-                  type="checkbox"
-                  name={"filters[#{@uuid}][selected_ids][]"}
-                  value={opt.id}
-                  checked={opt.id in @selected_ids}
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                />
-                <span class="text-sm text-gray-900">{opt.name}</span>
-              </label>
-            <% end %>
+        <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
+          <div class="text-sm text-gray-500 italic">
+            No value selection needed
           </div>
         <% else %>
-          <%!-- Simple multi-select for larger datasets --%>
-          <select
-            multiple
-            size="8"
-            name={"filters[#{@uuid}][selected_ids][]"}
-            phx-debounce="blur"
-            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-          >
-            <%= for opt <- @options do %>
-              <option value={opt.id} selected={opt.id in @selected_ids}>
-                {opt.name}
-              </option>
-            <% end %>
-          </select>
-          <p class="text-xs text-gray-500 mt-1">
-            Hold Ctrl/Cmd to select multiple. Click outside when done.
-          </p>
-        <% end %>
+          <label class="text-sm font-medium text-gray-700">
+            Select {@filter_label}:
+          </label>
 
-        <div class="text-xs text-gray-500">
-          {length(@selected_ids)} of {length(@options)} selected
-        </div>
-      <% end %>
+          <%= if @join_mode == :lookup and length(@options) < 20 do %>
+            <%!-- Checkbox list for small datasets --%>
+            <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
+              <%= for opt <- @options do %>
+                <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name={"filters[#{@uuid}][selected_ids][]"}
+                    value={opt.id}
+                    checked={opt.id in @selected_ids}
+                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                  <span class="text-sm text-gray-900">{opt.name}</span>
+                </label>
+              <% end %>
+            </div>
+          <% else %>
+            <%!-- Simple multi-select for larger datasets --%>
+            <select
+              multiple
+              size="8"
+              name={"filters[#{@uuid}][selected_ids][]"}
+              phx-debounce="blur"
+              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <%= for opt <- @options do %>
+                <option value={opt.id} selected={opt.id in @selected_ids}>
+                  {opt.name}
+                </option>
+              <% end %>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">
+              Hold Ctrl/Cmd to select multiple. Click outside when done.
+            </p>
+          <% end %>
+
+          <div class="text-xs text-gray-500">
+            {length(@selected_ids)} of {length(@options)} selected
+          </div>
+
+          <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
+          <%= if @current_comp in ["IN", "NOT IN"] do %>
+            <input
+              id={"filter-value-#{@uuid}"}
+              type="hidden"
+              name={"filters[#{@uuid}][value]"}
+              value={Enum.join(@selected_ids, ",")}
+            />
+          <% end %>
+        <% end %>
+      </div>
+
+      <p
+        :if={@promote_checked}
+        class="text-xs"
+        style="color: var(--sc-text-muted);"
+      >
+        Edited in View Controller.
+      </p>
+
+      <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
 
       <%!-- Hidden inputs to preserve filter structure --%>
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
-
-      <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
-      <%= if @current_comp in ["IN", "NOT IN"] do %>
-        <input
-          id={"filter-value-#{@uuid}"}
-          type="hidden"
-          name={"filters[#{@uuid}][value]"}
-          value={Enum.join(@selected_ids, ",")}
-        />
-      <% end %>
     </div>
     """
   end
+
+  def join_mode_options(selecto, join_mode_config, limit \\ 100)
+
+  def join_mode_options(selecto, %{} = join_mode_config, limit) do
+    table = Map.get(join_mode_config, :source_table)
+    id_field = Map.get(join_mode_config, :id_field, :id)
+    display_field = Map.get(join_mode_config, :display_field, :name)
+    query_where = Map.get(join_mode_config, :query_where)
+    query_params = Map.get(join_mode_config, :query_params, [])
+
+    if table do
+      query_table_options(
+        selecto,
+        table,
+        id_field,
+        display_field,
+        limit,
+        query_where,
+        query_params
+      )
+    else
+      []
+    end
+  end
+
+  def join_mode_options(_selecto, _join_mode_config, _limit), do: []
 
   # Query database for ID+name pairs using Selecto's connection (Repo)
   defp query_table_options(

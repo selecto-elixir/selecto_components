@@ -171,7 +171,7 @@ defmodule SelectoComponents.Form do
           show_view_configurator={@show_view_configurator}
         >
           <:promoted_filter :let={filter}>
-            <PromotedFilterEditor.editor filter={filter} theme={@theme} />
+            <PromotedFilterEditor.editor filter={filter} theme={@theme} selecto={@selecto} />
           </:promoted_filter>
         </Header.summary>
 
@@ -681,9 +681,6 @@ defmodule SelectoComponents.Form do
       controller_filter_custom_component?(selecto, filter) ->
         :unsupported
 
-      controller_filter_multi_select?(selecto, filter) ->
-        :unsupported
-
       polymorphic_filter?(filter) ->
         :unsupported
 
@@ -702,17 +699,6 @@ defmodule SelectoComponents.Form do
     case controller_filter_definition(selecto, filter) do
       %{type: :component, component: component} when not is_nil(component) -> true
       _ -> false
-    end
-  end
-
-  defp controller_filter_multi_select?(selecto, filter) do
-    case controller_filter_field_conf(selecto, filter) do
-      %{join_mode: join_mode, filter_type: :multi_select_id}
-      when join_mode in [:lookup, :star, :tag] ->
-        true
-
-      _ ->
-        false
     end
   end
 
@@ -739,10 +725,95 @@ defmodule SelectoComponents.Form do
   end
 
   defp controller_filter_field_conf(selecto, filter) do
+    filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
     filter_def = controller_filter_definition(selecto, filter)
     column_def = controller_filter_column_definition(selecto, filter, filter_def)
 
-    filter_def || column_def || controller_filter_field_type(selecto, filter)
+    controller_join_mode_field_conf(selecto, filter_id, filter_def || column_def) ||
+      filter_def || column_def || controller_filter_field_type(selecto, filter)
+  end
+
+  defp controller_join_mode_field_conf(_selecto, _filter_id, %{
+         join_mode: join_mode,
+         filter_type: :multi_select_id
+       } = current_def)
+       when join_mode in [:lookup, :star, :tag],
+       do: current_def
+
+  defp controller_join_mode_field_conf(selecto, filter_id, current_def) when is_binary(filter_id) do
+    domain = Selecto.domain(selecto)
+
+    resolved_conf =
+      cond do
+        String.contains?(filter_id, ".") ->
+          [schema_name, field_part] = String.split(filter_id, ".", parts: 2)
+
+          if field_part == "id" or String.ends_with?(field_part, "_id") do
+            controller_join_mode_conf_from_id_field(domain, schema_name, field_part)
+          end
+
+        String.ends_with?(filter_id, "_id") ->
+          controller_join_mode_conf_from_group_by_filter(domain, filter_id)
+
+        true ->
+          nil
+      end
+
+    case resolved_conf do
+      %{} = join_mode_conf -> Map.merge(current_def || %{}, join_mode_conf)
+      _ -> nil
+    end
+  end
+
+  defp controller_join_mode_field_conf(_selecto, _filter_id, _current_def), do: nil
+
+  defp controller_join_mode_conf_from_id_field(domain, schema_name, field_part) do
+    schema_atom =
+      try do
+        String.to_existing_atom(schema_name)
+      rescue
+        ArgumentError -> nil
+      end
+
+    if schema_atom do
+      domain
+      |> get_in([:schemas, schema_atom, :columns])
+      |> case do
+        columns when is_map(columns) ->
+          Enum.find_value(columns, fn {_col_name, col_config} ->
+            join_mode = Map.get(col_config, :join_mode)
+            id_field = Map.get(col_config, :id_field)
+            filter_type = Map.get(col_config, :filter_type)
+
+            if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+                 (id_field == :id or Atom.to_string(id_field) == field_part) do
+              col_config
+            end
+          end)
+
+        _ ->
+          nil
+      end
+    end
+  end
+
+  defp controller_join_mode_conf_from_group_by_filter(domain, filter_id) do
+    domain
+    |> Map.get(:schemas, %{})
+    |> Enum.find_value(fn {_schema_name, schema_config} ->
+      schema_config
+      |> Map.get(:columns, %{})
+      |> Enum.find_value(fn {_col_name, col_config} ->
+        join_mode = Map.get(col_config, :join_mode)
+        filter_type = Map.get(col_config, :filter_type)
+        group_by_filter = Map.get(col_config, :group_by_filter)
+
+        if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
+             group_by_filter == filter_id do
+          col_config
+        end
+      end)
+    end)
   end
 
   defp controller_filter_definition(selecto, filter) do

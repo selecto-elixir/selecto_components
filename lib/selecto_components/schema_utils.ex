@@ -15,7 +15,8 @@ defmodule SelectoComponents.SchemaUtils do
   def resolved_type(selecto, %{} = column) do
     merged_column =
       case Map.get(column, :colid) do
-        colid when is_binary(colid) or is_atom(colid) ->
+        colid
+        when (is_binary(colid) and colid != "") or (is_atom(colid) and not is_nil(colid)) ->
           case Selecto.field(selecto, colid) do
             nil -> column
             field_info -> Map.merge(field_info, column)
@@ -31,7 +32,8 @@ defmodule SelectoComponents.SchemaUtils do
     end
   end
 
-  def resolved_type(selecto, field) when is_binary(field) or is_atom(field) do
+  def resolved_type(selecto, field)
+      when (is_binary(field) and field != "") or (is_atom(field) and not is_nil(field)) do
     case Selecto.field(selecto, field) do
       nil ->
         resolved_type(selecto, field_fallback_metadata(field))

@@ -486,7 +486,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     group_by_config = Map.get(used_params_map(socket), "group_by", %{})
     field_group_config = find_field_group_config(group_by_config, field_name, group_idx)
     drill_context = drill_context_from_group_config(field_group_config)
-    {comp_mode, v1, v2} = determine_filter_comp_and_values(value, conf, drill_context)
+    {comp_mode, v1, v2} =
+      determine_filter_comp_and_values(value, conf, drill_context)
+      |> normalize_join_mode_filter_comp(conf)
 
     actual_filter_field =
       cond do
@@ -594,6 +596,25 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp filter_matches_spec?(_filter, _spec), do: false
+
+  defp normalize_join_mode_filter_comp({comp_mode, v1, v2}, %{
+         join_mode: join_mode,
+         filter_type: :multi_select_id
+       })
+       when join_mode in [:lookup, :star, :tag] do
+    normalized_comp =
+      case comp_mode do
+        "=" -> "IN"
+        "!=" -> "NOT IN"
+        "IS_EMPTY" -> "IS NULL"
+        "IS_NOT_EMPTY" -> "IS NOT NULL"
+        other -> other
+      end
+
+    {normalized_comp, v1, v2}
+  end
+
+  defp normalize_join_mode_filter_comp(result, _conf), do: result
 
   defp find_join_mode_field(selecto, field_name, original_conf) do
     cond do

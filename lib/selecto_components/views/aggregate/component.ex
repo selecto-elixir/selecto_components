@@ -346,21 +346,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             end
         end
 
-      # Extract the actual value (handle tuples and NULL)
-      filter_value =
-        case value do
-          # Special marker for IS_EMPTY filter (ROLLUP NULL)
-          nil -> "__NULL__"
-          # Empty string from ROLLUP NULL
-          "" -> "__NULL__"
-          # COALESCE result for data NULL
-          "[NULL]" -> "__NULL__"
-          # COALESCE result in tuple
-          {_display, "[NULL]"} -> "__NULL__"
-          {_display, filter_val} when is_nil(filter_val) or filter_val == "" -> "__NULL__"
-          {_display, filter_val} -> filter_val
-          _ -> value
-        end
+      filter_value = filter_value_for_group(value, field, coldef)
 
       # Use indexed phx-value attributes to support multiple group levels
       # phx-value-field0, phx-value-value0, phx-value-field1, phx-value1, etc.
@@ -1447,10 +1433,53 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp format_group_value(value, coldef) do
+    display_value = display_value_for_group(value, coldef)
+
     case Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format") do
-      "D" -> weekday_name(value)
-      _ -> format_value(value)
+      "D" -> weekday_name(display_value)
+      _ -> format_value(display_value)
     end
+  end
+
+  defp display_value_for_group(value, coldef) do
+    if composite_group_value?(coldef) do
+      case value do
+        {display_value, _filter_value} -> display_value
+        [display_value, _filter_value] -> display_value
+        _ -> value
+      end
+    else
+      value
+    end
+  end
+
+  defp filter_value_for_group(value, field, coldef) do
+    extracted_value =
+      if composite_group_value?(coldef) or match?({:row, _fields, _alias}, field) do
+        case value do
+          {_display_value, filter_value} -> filter_value
+          [_display_value, filter_value] -> filter_value
+          _ -> value
+        end
+      else
+        value
+      end
+
+    case extracted_value do
+      nil -> "__NULL__"
+      "" -> "__NULL__"
+      "[NULL]" -> "__NULL__"
+      _ -> extracted_value
+    end
+  end
+
+  defp composite_group_value?(coldef) do
+    join_mode = Map.get(coldef || %{}, :join_mode) || Map.get(coldef || %{}, "join_mode")
+    group_by_filter_select =
+      Map.get(coldef || %{}, :group_by_filter_select) ||
+        Map.get(coldef || %{}, "group_by_filter_select")
+
+    join_mode in [:lookup, :star, :tag] or not is_nil(group_by_filter_select)
   end
 
   defp null_grid_text_class("[NULL]"), do: nil

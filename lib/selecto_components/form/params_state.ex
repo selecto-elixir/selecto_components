@@ -1940,18 +1940,24 @@ defmodule SelectoComponents.Form.ParamsState do
       |> String.trim()
       |> String.upcase()
 
-    case {comp, Map.get(promoted_values, "value")} do
-      {comp, value} when comp in ["IN", "NOT IN"] and is_binary(value) ->
-        Map.put(promoted_values, "value", normalize_promoted_multi_value(value))
-
-      _ ->
-        promoted_values
+    if comp in ["IN", "NOT IN"] do
+      Map.put(promoted_values, "value", normalize_promoted_multi_value(Map.get(promoted_values, "value")))
+    else
+      promoted_values
     end
   end
 
   defp normalize_promoted_multi_value(value) when is_binary(value) do
     value
     |> String.split(~r/[\r\n,]+/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(",")
+  end
+
+  defp normalize_promoted_multi_value(value) when is_list(value) do
+    value
+    |> Enum.map(&to_string/1)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.join(",")
