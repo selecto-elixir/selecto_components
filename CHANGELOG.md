@@ -2,6 +2,21 @@
 CHANGES
 =======
 
+V 0.4.6
+--------
+
+- Fixed UUID-aware filter and aggregate flows so filter widgets, aggregate
+  processors, and related schema helpers correctly preserve and coerce UUID
+  values across apply/restore paths.
+- Fixed exports with duplicate column headers so dataset/export output remains
+  stable when selected fields or aliases collide.
+- Fixed aggregate drill-down filter promotion so promoted filters and related
+  aggregate interactions preserve the expected filter state.
+- Fixed custom datetime bucket SQL so relative date buckets such as
+  `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
+  invalid timestamp-vs-integer SQL.
+- Bump package version to `0.4.6`.
+
 V 0.4.5
 ----------
 

@@ -18,10 +18,11 @@ defmodule SelectoComponents.Exporter.DatasetTest do
 
     assert dataset.kind == :table
     assert dataset.headers == ["title", "release_year"]
+    assert dataset.row_keys == ["__col_0", "__col_1"]
 
     assert dataset.rows == [
-             %{"title" => "Film A", "release_year" => 1901},
-             %{"title" => "Film B", "release_year" => 1902}
+             %{"__col_0" => "Film A", "__col_1" => 1901},
+             %{"__col_0" => "Film B", "__col_1" => 1902}
            ]
 
     assert dataset.metadata.row_count == 2
