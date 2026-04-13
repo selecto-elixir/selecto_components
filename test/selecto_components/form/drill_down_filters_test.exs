@@ -338,6 +338,50 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v2 == "2025-01-01"
     end
 
+    test "handles custom date buckets on date fields" do
+      field_conf = %{type: :date}
+      today = Date.utc_today()
+      today_iso = Date.to_iso8601(today)
+      yesterday_iso = Date.add(today, -1) |> Date.to_iso8601()
+
+      assert {"DATE=", today_value, ""} =
+               DrillDownFilters.determine_filter_comp_and_values(
+                 "today",
+                 field_conf,
+                 %{format: "custom_buckets"}
+               )
+
+      assert today_value == today_iso
+
+      assert {"DATE=", yesterday, ""} =
+               DrillDownFilters.determine_filter_comp_and_values(
+                 "yesterday",
+                 field_conf,
+                 %{format: "custom_buckets"}
+               )
+
+      assert yesterday == yesterday_iso
+
+      assert {"DATE_BETWEEN", two_to_seven_start, two_to_seven_end} =
+               DrillDownFilters.determine_filter_comp_and_values(
+                 "2-7",
+                 field_conf,
+                 %{format: "custom_buckets"}
+               )
+
+      assert two_to_seven_start == Date.add(today, -7) |> Date.to_iso8601()
+      assert two_to_seven_end == Date.add(today, -1) |> Date.to_iso8601()
+
+      assert {"<=", eight_plus_cutoff, ""} =
+               DrillDownFilters.determine_filter_comp_and_values(
+                 "8+",
+                 field_conf,
+                 %{format: "custom_buckets"}
+               )
+
+      assert eight_plus_cutoff == Date.add(today, -8) |> Date.to_iso8601()
+    end
+
     test "prevents SQL injection in date values" do
       field_conf = %{type: :date}
 
@@ -561,6 +605,30 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
 
       assert Enum.any?(filters, fn f -> f["comp"] == "WEEKDAY_SUN1" and f["value"] == "6" end)
       assert Enum.any?(filters, fn f -> f["comp"] == "DAY_OF_MONTH" and f["value"] == "14" end)
+    end
+
+    test "custom bucket drill-down maps date buckets to date-aware filters" do
+      socket =
+        %{assigns: %{selecto: selecto(), used_params: %{}}}
+        |> put_in(
+          [:assigns, :used_params, "group_by"],
+          %{
+            "g0" => %{"field" => "order_date", "index" => "0", "format" => "custom_buckets"}
+          }
+        )
+
+      params = %{
+        "field0" => "order_date",
+        "value0" => "8+",
+        "gidx0" => "0"
+      }
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+      [filter] = Map.values(view_params["filters"])
+
+      assert filter["comp"] == "<="
+      assert filter["filter"] == "order_date"
+      assert filter["value"] == Date.add(Date.utc_today(), -8) |> Date.to_iso8601()
     end
 
     test "aggregate drill-down params replace prior matching filters but preserve unrelated ones" do

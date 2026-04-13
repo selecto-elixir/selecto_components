@@ -134,6 +134,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       value == "__NULL__" ->
         {"IS_EMPTY", "", ""}
 
+      context.format in ["custom_buckets", :custom_buckets] && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_custom_date_bucket_range(value)
+
       # Text prefix buckets from aggregate group-by
       text_prefix_context?(context) ->
         handle_text_prefix_bucket(value, context)
@@ -265,6 +269,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   defp handle_bucket_range(value, field_conf, %{format: format, is_age_bucket: is_age_bucket}) do
     cond do
+      format in ["custom_buckets", :custom_buckets] && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_custom_date_bucket_range(value)
+
       format in ["year_buckets", :year_buckets] && field_conf &&
           Selecto.Temporal.date_like?(field_conf) ->
         handle_year_bucket_range(value)
@@ -275,6 +283,40 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       true ->
         handle_numeric_bucket_range(value)
+    end
+  end
+
+  defp handle_custom_date_bucket_range(value) do
+    today = Date.utc_today()
+
+    cond do
+      String.downcase(value) == "today" ->
+        {"DATE=", Date.to_iso8601(today), ""}
+
+      String.downcase(value) == "yesterday" ->
+        {"DATE=", Date.to_iso8601(Date.add(today, -1)), ""}
+
+      String.downcase(value) == "tomorrow" ->
+        {"DATE=", Date.to_iso8601(Date.add(today, 1)), ""}
+
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_days_str, max_days_str] = String.split(value, "-")
+        max_days = String.to_integer(max_days_str)
+        min_days = String.to_integer(min_days_str)
+        start_date = Date.add(today, -max_days)
+        end_date = Date.add(today, -(min_days - 1))
+        {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        days = value |> String.replace("+", "") |> String.to_integer()
+        cutoff_date = Date.add(today, -days)
+        {"<=", Date.to_iso8601(cutoff_date), ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
     end
   end
 
