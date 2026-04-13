@@ -9,6 +9,23 @@ defmodule SelectoComponents.Helpers.BucketParserTest do
                "selecto_root.inserted_at"
     end
 
+    test "maps custom date buckets to current-date-relative date comparisons" do
+      sql =
+        BucketParser.generate_bucket_case_sql(
+          "selecto_root.inserted_at",
+          "today, yesterday, 2-7, 8+",
+          :date
+        )
+
+      assert sql =~ "DATE(selecto_root.inserted_at) = CURRENT_DATE"
+      assert sql =~ "DATE(selecto_root.inserted_at) = CURRENT_DATE - INTERVAL '1 day'"
+
+      assert sql =~
+               "DATE(selecto_root.inserted_at) BETWEEN CURRENT_DATE - INTERVAL '7 day' AND CURRENT_DATE - INTERVAL '2 day'"
+
+      assert sql =~ "DATE(selecto_root.inserted_at) <= CURRENT_DATE - INTERVAL '8 day'"
+    end
+
     test "rejects invalid increment shorthand values" do
       assert BucketParser.generate_bucket_case_sql("selecto_root.price", "*/0", :integer) ==
                "selecto_root.price"

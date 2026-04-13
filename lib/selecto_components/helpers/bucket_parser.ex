@@ -69,12 +69,24 @@ defmodule SelectoComponents.Helpers.BucketParser do
       else
         case_clauses =
           Enum.map(ranges, fn
+            {min, max, label} when field_type in [:date, :datetime] and is_integer(min) and is_integer(max) ->
+              date_expr = "DATE(#{field_name})"
+
+              if min == max do
+                "WHEN #{date_expr} = CURRENT_DATE - INTERVAL '#{min} day' THEN '#{label}'"
+              else
+                "WHEN #{date_expr} BETWEEN CURRENT_DATE - INTERVAL '#{max} day' AND CURRENT_DATE - INTERVAL '#{min} day' THEN '#{label}'"
+              end
+
             {min, max, label} when is_integer(min) and is_integer(max) ->
               if min == max do
                 "WHEN #{field_name} = #{min} THEN '#{label}'"
               else
                 "WHEN #{field_name} >= #{min} AND #{field_name} <= #{max} THEN '#{label}'"
               end
+
+            {min, :infinity, label} when field_type in [:date, :datetime] ->
+              "WHEN DATE(#{field_name}) <= CURRENT_DATE - INTERVAL '#{min} day' THEN '#{label}'"
 
             {min, :infinity, label} ->
               # For "11+" we want >= 11, not > 11
