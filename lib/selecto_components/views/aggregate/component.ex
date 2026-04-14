@@ -970,8 +970,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     total_pages = if aggregate_total_rows > 0, do: max_page + 1, else: 0
 
+    display_group_axes = visible_group_axes(group_by)
     grid_enabled = truthy?(Map.get(aggregate_meta, :grid_enabled, false))
-    grid_available? = grid_enabled and num_group_by == 2 and length(aggregates_processed) == 1
+
+    grid_available? =
+      grid_enabled and length(display_group_axes) == 2 and length(aggregates_processed) == 1
+
     grid_colorize = truthy?(Map.get(aggregate_meta, :grid_colorize, false))
 
     grid_color_scale =
@@ -986,6 +990,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             rollup_rows,
             num_group_by,
             group_by,
+            display_group_axes,
             grid_colorize,
             grid_color_scale,
             assigns.theme
@@ -999,6 +1004,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         num_group_by: num_group_by,
         group_by: group_by,
         display_group_headers: display_group_headers(group_by),
+        display_group_axes: display_group_axes,
         aggregate: aggregates_processed,
         aggregate_server_paged?: server_paged?,
         aggregate_total_rows: aggregate_total_rows,
@@ -1165,7 +1171,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         class="mb-3 rounded-md border px-3 py-2 text-sm"
         style="background: color-mix(in srgb, var(--sc-accent-soft) 50%, var(--sc-surface-bg)); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
       >
-        Grid view requires exactly 2 Group By fields and 1 Aggregate.
+        Grid view requires exactly 2 Group By axes and 1 Aggregate.
       </div>
 
       <%= if @grid_available? and @grid_data do %>
@@ -1207,8 +1213,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 </th>
                 <%= for col_value <- @grid_data.col_headers do %>
                   <th class="sticky top-0 z-20 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);">
-                    <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef))}>
-                      {format_group_value(col_value, @grid_data.col_coldef)}
+                    <span class={null_grid_text_class(format_grid_axis_value(col_value, @grid_data.col_axis))}>
+                      {format_grid_axis_value(col_value, @grid_data.col_axis)}
                     </span>
                   </th>
                 <% end %>
@@ -1217,8 +1223,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
               <tr :for={row_value <- @grid_data.row_headers}>
                 <td class="sticky left-0 z-10 px-3 py-2 text-sm font-semibold" style="background: var(--sc-surface-bg); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
-                  <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef))}>
-                    {format_group_value(row_value, @grid_data.row_coldef)}
+                  <span class={null_grid_text_class(format_grid_axis_value(row_value, @grid_data.row_axis))}>
+                    {format_grid_axis_value(row_value, @grid_data.row_axis)}
                   </span>
                 </td>
           <td
@@ -1228,7 +1234,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           >
                   <div
                     phx-click="agg_add_filters"
-                    {build_filter_attrs([row_value, col_value], @group_by, 2)}
+                    {build_filter_attrs(
+                      Map.get(@grid_data.cell_group_cols, {row_value, col_value}, []),
+                      @group_by,
+                      @num_group_by
+                    )}
                     class="cursor-pointer whitespace-nowrap hover:underline"
                   >
                     <span class={null_grid_text_class(format_value(Map.get(@grid_data.cells, {row_value, col_value})))}>
@@ -1286,7 +1296,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp truthy?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy?(_), do: false
 
-  defp build_grid_data(paged_rollup_rows, num_group_by, group_by, colorize?, scale_mode, theme) do
+  defp build_grid_data(
+         paged_rollup_rows,
+         num_group_by,
+         _group_by,
+         display_group_axes,
+         colorize?,
+         scale_mode,
+         theme
+       ) do
     detail_rows =
       Enum.reduce(paged_rollup_rows, [], fn
         {level, row, grand_total?}, acc when level == num_group_by ->
@@ -1308,34 +1326,39 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end)
       |> Enum.reverse()
 
-    {row_headers, col_headers, cells} =
-      Enum.reduce(detail_rows, {[], [], %{}}, fn row, {row_acc, col_acc, cells_acc} ->
-        row_value = Enum.at(row, 0)
-        col_value = Enum.at(row, 1)
-        agg_value = Enum.at(row, 2)
+    row_axis = Enum.at(display_group_axes, 0, default_grid_axis("Group 1"))
+    col_axis = Enum.at(display_group_axes, 1, default_grid_axis("Group 2"))
+
+    {row_headers, col_headers, cells, cell_group_cols} =
+      Enum.reduce(detail_rows, {[], [], %{}, %{}}, fn row,
+                                                      {row_acc, col_acc, cells_acc,
+                                                       group_cols_acc} ->
+        row_value = grid_axis_value(row, row_axis)
+        col_value = grid_axis_value(row, col_axis)
+        agg_value = Enum.at(row, num_group_by)
+        group_cols = Enum.take(row, num_group_by)
 
         row_acc = if row_value in row_acc, do: row_acc, else: row_acc ++ [row_value]
         col_acc = if col_value in col_acc, do: col_acc, else: col_acc ++ [col_value]
         cells_acc = Map.put(cells_acc, {row_value, col_value}, agg_value)
+        group_cols_acc = Map.put(group_cols_acc, {row_value, col_value}, group_cols)
 
-        {row_acc, col_acc, cells_acc}
+        {row_acc, col_acc, cells_acc, group_cols_acc}
       end)
 
-    row_coldef = grid_coldef(group_by, 0)
-    col_coldef = grid_coldef(group_by, 1)
-
-    row_headers = sort_group_values(row_headers, row_coldef)
-    col_headers = sort_group_values(col_headers, col_coldef)
+    row_headers = sort_grid_axis_values(row_headers, row_axis)
+    col_headers = sort_grid_axis_values(col_headers, col_axis)
     cell_styles = build_grid_cell_styles(cells, colorize?, scale_mode, theme)
 
     %{
-      row_alias: grid_row_alias(group_by),
+      row_alias: row_axis.alias,
       row_headers: row_headers,
       col_headers: col_headers,
       cells: cells,
+      cell_group_cols: cell_group_cols,
       cell_styles: cell_styles,
-      row_coldef: row_coldef,
-      col_coldef: col_coldef
+      row_axis: row_axis,
+      col_axis: col_axis
     }
   end
 
@@ -1423,21 +1446,45 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp numeric_value(_value), do: nil
 
-  defp grid_row_alias([{alias_name, _} | _]) when is_binary(alias_name), do: alias_name
-  defp grid_row_alias(_), do: "Group 1"
-
   defp selected_field_alias({_kind, _field, alias_name}, _fallback)
        when is_binary(alias_name) and alias_name != "",
        do: alias_name
 
   defp selected_field_alias(_selected_field, fallback), do: fallback
 
-  defp grid_coldef(group_by, idx) do
-    case Enum.at(group_by, idx) do
-      {_alias, {:group_by, _field, coldef}} -> coldef
-      _ -> %{}
-    end
+  defp default_grid_axis(alias_name) do
+    %{alias: alias_name, defs: [], start_idx: 0, end_idx: 0}
   end
+
+  defp format_grid_axis_value(value, %{defs: defs}) when is_list(defs) and defs != [] do
+    defs
+    |> Enum.zip(List.wrap(value))
+    |> Enum.map(fn {{_alias, {:group_by, _field, coldef}}, axis_value} ->
+      format_group_value(axis_value, coldef)
+    end)
+    |> Enum.join(" / ")
+  end
+
+  defp format_grid_axis_value(value, _axis), do: format_value(value)
+
+  defp grid_axis_value(row, %{start_idx: start_idx, end_idx: end_idx})
+       when is_list(row) and is_integer(start_idx) and is_integer(end_idx) do
+    Enum.slice(row, start_idx, end_idx - start_idx + 1)
+  end
+
+  defp grid_axis_value(_row, _axis), do: []
+
+  defp sort_grid_axis_values(values, %{defs: [{_alias, {:group_by, _field, coldef}}]}) do
+    values
+    |> Enum.map(fn
+      [value] -> value
+      value -> value
+    end)
+    |> sort_group_values(coldef)
+    |> Enum.map(&List.wrap/1)
+  end
+
+  defp sort_grid_axis_values(values, _axis), do: values
 
   defp format_group_value(value, coldef) do
     display_value = display_value_for_group(value, coldef)
@@ -1580,16 +1627,31 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp maybe_set_linked_to_next(coldef, _cfg), do: coldef
 
   defp display_group_headers(group_by) when is_list(group_by) do
-    linked_group_ranges(group_by)
-    |> Enum.map(fn {start_idx, end_idx} ->
-      group_by
-      |> Enum.slice(start_idx, end_idx - start_idx + 1)
-      |> Enum.map(fn {alias_name, _definition} -> alias_name end)
-      |> Enum.join(" / ")
-    end)
+    group_by
+    |> visible_group_axes()
+    |> Enum.map(& &1.alias)
   end
 
   defp display_group_headers(_group_by), do: []
+
+  defp visible_group_axes(group_by) when is_list(group_by) do
+    linked_group_ranges(group_by)
+    |> Enum.map(fn {start_idx, end_idx} ->
+      defs = Enum.slice(group_by, start_idx, end_idx - start_idx + 1)
+
+      %{
+        alias:
+          defs
+          |> Enum.map(fn {alias_name, _definition} -> alias_name end)
+          |> Enum.join(" / "),
+        defs: defs,
+        start_idx: start_idx,
+        end_idx: end_idx
+      }
+    end)
+  end
+
+  defp visible_group_axes(_group_by), do: []
 
   defp active_group_range_for_level(_group_by, 0), do: nil
 

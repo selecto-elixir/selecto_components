@@ -5,6 +5,15 @@ CHANGES
 V 0.4.6
 --------
 
+- Added adjacent `Group By` linking controls so aggregate builders can chain
+  neighboring dimensions into a composite rollup/grouping block without manual
+  query editing.
+- Updated aggregate rollup processing to collapse linked `Group By` fields into
+  composite grouping elements, so linked dimensions execute as one grouped
+  block instead of independent rollup steps.
+- Updated aggregate table rendering so linked group blocks display as a single
+  header/value pair such as `State / Title / Rank`, and clicking the combined
+  row applies the full linked drill-down filter set.
 - Fixed UUID-aware filter and aggregate flows so filter widgets, aggregate
   processors, and related schema helpers correctly preserve and coerce UUID
   values across apply/restore paths.
