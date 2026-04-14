@@ -67,6 +67,46 @@ defmodule SelectoComponents.Views.Graph.Form do
               theme={@theme}
             />
           </:item_form>
+          <:between_item :let={{id, _item, config, _index, {next_id, _next_item, _next_config}}}>
+            <% linked? = linked_to_next?(config) %>
+            <% toggle_id = "graph-x-axis-link-#{id}-#{next_id}-#{if linked?, do: "on", else: "off"}" %>
+            <label
+              for={toggle_id}
+              class="group flex items-center gap-1.5"
+              title="Link this category field to the next one"
+              aria-label="Link this category field to the next one"
+            >
+              <span class="h-px w-4 transition" style="background: var(--sc-surface-border);"></span>
+              <input type="hidden" name={"x_axis[#{id}][linked_to_next]"} value="false" />
+              <input
+                id={toggle_id}
+                type="checkbox"
+                name={"x_axis[#{id}][linked_to_next]"}
+                value="true"
+                checked={linked?}
+                class="h-3.5 w-3.5 cursor-pointer rounded-full border transition hover:scale-110"
+                style={
+                  if linked? do
+                    "border-color: var(--sc-accent); background: var(--sc-accent-soft); accent-color: var(--sc-accent);"
+                  else
+                    "border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt); accent-color: var(--sc-accent);"
+                  end
+                }
+              />
+              <span class="sr-only">Link next category field</span>
+              <span
+                class="h-px w-4 transition"
+                style={
+                  if linked? do
+                    "background: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border));"
+                  else
+                    "background: var(--sc-surface-border);"
+                  end
+                }
+              >
+              </span>
+            </label>
+          </:between_item>
         </.live_component>
       </div>
       
@@ -142,6 +182,46 @@ defmodule SelectoComponents.Views.Graph.Form do
               theme={@theme}
             />
           </:item_form>
+          <:between_item :let={{id, _item, config, _index, {next_id, _next_item, _next_config}}}>
+            <% linked? = linked_to_next?(config) %>
+            <% toggle_id = "graph-series-link-#{id}-#{next_id}-#{if linked?, do: "on", else: "off"}" %>
+            <label
+              for={toggle_id}
+              class="group flex items-center gap-1.5"
+              title="Link this series field to the next one"
+              aria-label="Link this series field to the next one"
+            >
+              <span class="h-px w-4 transition" style="background: var(--sc-surface-border);"></span>
+              <input type="hidden" name={"series[#{id}][linked_to_next]"} value="false" />
+              <input
+                id={toggle_id}
+                type="checkbox"
+                name={"series[#{id}][linked_to_next]"}
+                value="true"
+                checked={linked?}
+                class="h-3.5 w-3.5 cursor-pointer rounded-full border transition hover:scale-110"
+                style={
+                  if linked? do
+                    "border-color: var(--sc-accent); background: var(--sc-accent-soft); accent-color: var(--sc-accent);"
+                  else
+                    "border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt); accent-color: var(--sc-accent);"
+                  end
+                }
+              />
+              <span class="sr-only">Link next series field</span>
+              <span
+                class="h-px w-4 transition"
+                style={
+                  if linked? do
+                    "background: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border));"
+                  else
+                    "background: var(--sc-surface-border);"
+                  end
+                }
+              >
+              </span>
+            </label>
+          </:between_item>
         </.live_component>
       </div>
       
@@ -325,4 +405,13 @@ defmodule SelectoComponents.Views.Graph.Form do
   end
 
   defp present_summary?(value), do: value not in [nil, ""]
+
+  defp linked_to_next?(config) when is_map(config) do
+    case Map.get(config, "linked_to_next", Map.get(config, :linked_to_next)) do
+      value when value in [true, "true", "on", "1", 1] -> true
+      _ -> false
+    end
+  end
+
+  defp linked_to_next?(_config), do: false
 end

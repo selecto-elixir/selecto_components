@@ -136,6 +136,95 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
       assert chart_data.labels == []
       assert chart_data.datasets == []
     end
+
+    test "collapses linked x-axis fields into grouped labels and drill-down specs" do
+      assigns = %{
+        selecto: %{
+          set: %{
+            x_axis_groups: [
+              {%{colid: :state, linked_to_next: true}, {:field, :state, "State"}},
+              {%{colid: :title_prefix, linked_to_next: false}, {:field, :title_prefix, "Title"}}
+            ],
+            aggregates: [
+              {:field, {:count, "id"}, "Count"}
+            ],
+            series_groups: [],
+            chart_type: "bar"
+          }
+        }
+      }
+
+      results = [
+        ["done", "ES", 32],
+        ["todo", "BU", 14]
+      ]
+
+      chart_data = Component.prepare_chart_data(assigns, results, ["State", "Title", "Count"])
+
+      assert chart_data.labels == ["done / ES", "todo / BU"]
+
+      [dataset] = chart_data.datasets
+      assert dataset.data == [32, 14]
+
+      assert dataset.drillDown == [
+               [
+                 %{field: "state", value: "done", gidx: "0"},
+                 %{field: "title_prefix", value: "ES", gidx: "1"}
+               ],
+               [
+                 %{field: "state", value: "todo", gidx: "0"},
+                 %{field: "title_prefix", value: "BU", gidx: "1"}
+               ]
+             ]
+    end
+
+    test "builds grouped series datasets with full drill-down specs" do
+      assigns = %{
+        selecto: %{
+          set: %{
+            x_axis_groups: [
+              {%{colid: :state, linked_to_next: false}, {:field, :state, "State"}}
+            ],
+            aggregates: [
+              {:field, {:count, "id"}, "Count"}
+            ],
+            series_groups: [
+              {%{colid: :rank_bucket, linked_to_next: true}, {:field, :rank_bucket, "Rank"}},
+              {%{colid: :assignee_role, linked_to_next: false},
+               {:field, :assignee_role, "Role"}}
+            ],
+            chart_type: "line"
+          }
+        }
+      }
+
+      results = [
+        ["done", "0-4", "software_engineer", 32],
+        ["todo", "0-4", "software_engineer", 10]
+      ]
+
+      chart_data = Component.prepare_chart_data(assigns, results, ["State", "Rank", "Role", "Count"])
+
+      assert chart_data.labels == ["done", "todo"]
+      assert length(chart_data.datasets) == 1
+
+      [dataset] = chart_data.datasets
+      assert dataset.label == "Count - 0-4 / software_engineer"
+      assert dataset.data == [32, 10]
+
+      assert dataset.drillDown == [
+               [
+                 %{field: "state", value: "done", gidx: "0"},
+                 %{field: "rank_bucket", value: "0-4", gidx: "1"},
+                 %{field: "assignee_role", value: "software_engineer", gidx: "2"}
+               ],
+               [
+                 %{field: "state", value: "todo", gidx: "0"},
+                 %{field: "rank_bucket", value: "0-4", gidx: "1"},
+                 %{field: "assignee_role", value: "software_engineer", gidx: "2"}
+               ]
+             ]
+    end
   end
 
   describe "prepare_chart_options/1" do

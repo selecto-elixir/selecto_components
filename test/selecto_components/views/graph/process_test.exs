@@ -7,7 +7,12 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
     test "converts form parameters to view state" do
       params = %{
         "x_axis" => %{
-          "1" => %{"field" => "category", "index" => "0", "alias" => "Category"},
+          "1" => %{
+            "field" => "category",
+            "index" => "0",
+            "alias" => "Category",
+            "linked_to_next" => "true"
+          },
           "2" => %{"field" => "release_year", "index" => "1", "alias" => ""}
         },
         "y_axis" => %{
@@ -37,6 +42,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       [first_x, second_x] = state.x_axis
       assert elem(first_x, 1) == "category"
       assert elem(second_x, 1) == "release_year"
+      assert get_in(elem(first_x, 2), ["linked_to_next"]) == "true"
     end
 
     test "handles empty parameters gracefully" do
@@ -172,6 +178,40 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       group_fields = Enum.map(view_set.groups, fn {col, _} -> col.colid end)
       assert :category in group_fields
       assert :rating in group_fields
+    end
+
+    test "preserves linked graph group metadata on x-axis and series fields", %{columns: columns} do
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "category",
+            "index" => "0",
+            "alias" => "Category",
+            "linked_to_next" => "true"
+          },
+          "2" => %{"field" => "release_year", "index" => "1", "alias" => "Year"}
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        },
+        "series" => %{
+          "1" => %{"field" => "rating", "index" => "0", "alias" => "Rating"}
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, columns, [], nil)
+
+      [{first_x_col, _}, {second_x_col, _}] = view_set.x_axis_groups
+      [{series_col, _}] = view_set.series_groups
+
+      assert first_x_col.linked_to_next == true
+      assert second_x_col.linked_to_next == false
+      assert series_col.linked_to_next == false
     end
 
     test "handles datetime fields with format options", %{columns: columns} do

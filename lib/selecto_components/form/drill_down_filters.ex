@@ -79,13 +79,22 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp find_field_group_config(group_by_config, field_name, group_idx) do
-    by_index = find_field_group_config_by_index(group_by_config, group_idx)
+  defp find_field_group_config(used_params, field_name, group_idx) when is_map(used_params) do
+    group_by_config = Map.get(used_params, "group_by", %{})
+
+    find_field_group_config_in_collection(group_by_config, field_name, group_idx) ||
+      find_graph_group_config(used_params, field_name, group_idx)
+  end
+
+  defp find_field_group_config(_used_params, _field_name, _group_idx), do: nil
+
+  defp find_field_group_config_in_collection(config_map, field_name, group_idx) when is_map(config_map) do
+    by_index = find_field_group_config_by_index(config_map, group_idx)
 
     if by_index do
       by_index
     else
-      Enum.find_value(Map.values(group_by_config), fn config ->
+      Enum.find_value(Map.values(config_map), fn config ->
         if Map.get(config, "field") == field_name do
           config
         else
@@ -94,6 +103,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       end)
     end
   end
+
+  defp find_field_group_config_in_collection(_config_map, _field_name, _group_idx), do: nil
 
   defp find_field_group_config_by_index(group_by_config, group_idx)
        when is_binary(group_idx) and group_idx != "" do
@@ -104,6 +115,49 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp find_field_group_config_by_index(_group_by_config, _group_idx), do: nil
+
+  defp find_graph_group_config(used_params, field_name, group_idx) do
+    used_params
+    |> graph_group_configs()
+    |> Enum.find(fn %{global_index: global_index, config: config} ->
+      global_index == group_idx || Map.get(config, "field") == field_name
+    end)
+    |> case do
+      nil -> nil
+      %{config: config} -> config
+    end
+  end
+
+  defp graph_group_configs(used_params) do
+    x_axis =
+      used_params
+      |> Map.get("x_axis", %{})
+      |> ordered_field_configs()
+
+    series =
+      used_params
+      |> Map.get("series", %{})
+      |> ordered_field_configs()
+
+    (x_axis ++ series)
+    |> Enum.with_index()
+    |> Enum.map(fn {config, global_index} ->
+      %{global_index: Integer.to_string(global_index), config: config}
+    end)
+  end
+
+  defp ordered_field_configs(configs) when is_map(configs) do
+    configs
+    |> Map.values()
+    |> Enum.sort_by(fn config ->
+      config
+      |> Map.get("index", "0")
+      |> to_string()
+      |> String.to_integer()
+    end)
+  end
+
+  defp ordered_field_configs(_configs), do: []
 
   @doc """
   Determine the appropriate comparison operator and values based on the clicked value format.
@@ -525,8 +579,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       |> Selecto.field(field_name)
       |> then(&find_join_mode_field(socket.assigns.selecto, field_name, &1))
 
-    group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-    field_group_config = find_field_group_config(group_by_config, field_name, group_idx)
+    used_params = used_params_map(socket)
+    field_group_config = find_field_group_config(used_params, field_name, group_idx)
     drill_context = drill_context_from_group_config(field_group_config)
     {comp_mode, v1, v2} =
       determine_filter_comp_and_values(value, conf, drill_context)

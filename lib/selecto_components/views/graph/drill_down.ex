@@ -1,12 +1,56 @@
 defmodule SelectoComponents.Views.Graph.DrillDown do
   @moduledoc false
 
+  alias SelectoComponents.Form.DrillDownFilters
   alias SelectoComponents.Form.ParamsState
   alias SelectoComponents.SafeAtom
 
   @drill_down_error_message "Could not drill down for that chart value. Try a different slice or bar."
 
   def apply(socket, params) do
+    if indexed_drill_down?(params) do
+      apply_indexed_drill_down(socket, params)
+    else
+      apply_single_label_drill_down(socket, params)
+    end
+  end
+
+  defp apply_indexed_drill_down(socket, params) do
+    current_view_mode = socket.assigns.view_config.view_mode
+    new_view_mode = determine_drill_down_view(socket, current_view_mode)
+
+    view_params =
+      DrillDownFilters.build_agg_drill_down_params(params, socket)
+      |> Map.put("view_mode", normalize_view_mode_param(new_view_mode))
+
+    filter_tuples = DrillDownFilters.build_filter_tuples(params, socket)
+    clicked_fields = clicked_filter_fields(filter_tuples)
+
+    updated_filters =
+      Enum.filter(socket.assigns.view_config.filters, fn
+        {_id, "filters", %{} = filter} ->
+          not MapSet.member?(clicked_fields, Map.get(filter, "filter"))
+
+        [_, "filters", %{} = filter] ->
+          not MapSet.member?(clicked_fields, Map.get(filter, "filter"))
+
+        _ ->
+          true
+      end) ++ filter_tuples
+
+    updated_socket =
+      socket
+      |> Phoenix.Component.assign(
+        :view_config,
+        %{socket.assigns.view_config | view_mode: new_view_mode, filters: updated_filters}
+      )
+
+    updated_socket = ParamsState.view_from_params(view_params, updated_socket)
+
+    {:ok, updated_socket, view_params}
+  end
+
+  defp apply_single_label_drill_down(socket, params) do
     label = Map.get(params, "label")
     graph_config = current_graph_config(socket)
 
@@ -48,6 +92,12 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
     end
   end
 
+  defp indexed_drill_down?(params) when is_map(params) do
+    Enum.any?(Map.keys(params), &String.starts_with?(&1, "field"))
+  end
+
+  defp indexed_drill_down?(_params), do: false
+
   defp determine_drill_down_view(socket, current_view_mode) do
     selected_view = SafeAtom.to_view_mode(current_view_mode)
 
@@ -61,6 +111,26 @@ defmodule SelectoComponents.Views.Graph.DrillDown do
   defp normalize_view_mode_param(view_mode) when is_atom(view_mode), do: Atom.to_string(view_mode)
   defp normalize_view_mode_param(view_mode) when is_binary(view_mode), do: view_mode
   defp normalize_view_mode_param(_view_mode), do: "detail"
+
+  defp clicked_filter_fields(filter_tuples) do
+    filter_tuples
+    |> Enum.reduce(MapSet.new(), fn
+      {_uuid, "filters", %{} = filter}, acc ->
+        case Map.get(filter, "filter") do
+          nil -> acc
+          field_name -> MapSet.put(acc, field_name)
+        end
+
+      [_, "filters", %{} = filter], acc ->
+        case Map.get(filter, "filter") do
+          nil -> acc
+          field_name -> MapSet.put(acc, field_name)
+        end
+
+      _, acc ->
+        acc
+    end)
+  end
 
   defp current_graph_config(socket) do
     selected_view = SafeAtom.to_view_mode(socket.assigns.view_config.view_mode)
