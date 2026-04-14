@@ -83,7 +83,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       end
 
     rollup_group_by =
-      case Enum.map(group_by_with_coalesce, fn {_col, sel} -> sel end) do
+      case collapse_linked_rollup_groups(group_by_with_coalesce) do
         [] -> []
         selectors -> [{:rollup, selectors}]
       end
@@ -110,6 +110,33 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy_param?(_), do: false
+
+  defp collapse_linked_rollup_groups(group_by_with_coalesce) do
+    {groups, current_group} =
+      Enum.reduce(group_by_with_coalesce, {[], []}, fn {col, sel}, {groups, current_group} ->
+        current_group = current_group ++ [sel]
+
+        if linked_to_next?(col) do
+          {groups, current_group}
+        else
+          {groups ++ [finalize_rollup_group(current_group)], []}
+        end
+      end)
+
+    groups ++ finalize_trailing_rollup_group(current_group)
+  end
+
+  defp finalize_rollup_group([selector]), do: selector
+  defp finalize_rollup_group(selectors), do: {:grouping_set, selectors}
+
+  defp finalize_trailing_rollup_group([]), do: []
+  defp finalize_trailing_rollup_group(current_group), do: [finalize_rollup_group(current_group)]
+
+  defp linked_to_next?(col) when is_map(col) do
+    truthy_param?(Map.get(col, :linked_to_next, Map.get(col, "linked_to_next")))
+  end
+
+  defp linked_to_next?(_col), do: false
 
   def group_by(group_by, columns, selecto) do
     group_by
@@ -160,6 +187,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           col
           |> Map.put(:group_format, Map.get(e, "format"))
           |> Map.put("group_format", Map.get(e, "format"))
+          |> Map.put(:linked_to_next, truthy_param?(Map.get(e, "linked_to_next")))
+          |> Map.put("linked_to_next", truthy_param?(Map.get(e, "linked_to_next")))
         else
           col
         end
@@ -332,6 +361,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     text_type and not enum_by_name and not root_enum and not enum_by_metadata and not id_like
   end
 
+  defp resolve_column_metadata(col, nil), do: col
   defp resolve_column_metadata(col, selecto) do
     SchemaUtils.with_resolved_type(selecto, col)
   end
@@ -353,6 +383,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp enum_field_by_metadata?(_, _), do: false
 
+  defp enum_field_by_colid?(_col, nil), do: false
   defp enum_field_by_colid?(%{colid: colid}, selecto) when is_binary(colid) or is_atom(colid) do
     case Selecto.field(selecto, colid) do
       nil -> false
@@ -362,6 +393,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp enum_field_by_colid?(_, _), do: false
 
+  defp root_enum_field?(_col, nil), do: false
   defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field),
          module when is_atom(module) <- get_in(Selecto.domain(selecto), [:source, :schema_module]),
@@ -384,6 +416,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     end
   end
 
+  defp enum_field_name_any_schema?(_field, nil), do: false
   defp enum_field_name_any_schema?(field, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field) do
       domain = Selecto.domain(selecto)

@@ -449,33 +449,33 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         filter_attrs: filter_attrs,
         continued?: continued?,
         display_level: display_level,
-        grand_total?: grand_total?
+        grand_total?: grand_total?,
+        active_group_range: active_group_range_for_level(assigns.group_by, display_level),
+        group_blocks: row_group_blocks(assigns.group_by, group_cols)
       )
 
     ~H"""
     <tr style={@row_style}>
-      <%!-- Render group by columns --%>
-      <%= for {{value, {_alias, {:group_by, _field, coldef}}}, idx} <- Enum.zip(@group_cols, @group_by) |> Enum.with_index() do %>
+      <%!-- Render visible group-by blocks --%>
+      <%= for block <- @group_blocks do %>
         <td class={"px-3 py-2 text-sm #{@font_weight}"} style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
-          <div style={"padding-left: #{if idx == 0, do: @indent_px, else: 0}px"}>
-            <%= if @grand_total? and @display_level == 0 and idx == 0 do %>
+          <div style={"padding-left: #{group_block_padding(block, @active_group_range, @indent_px)}px"}>
+            <%= if @grand_total? and @display_level == 0 and block.start_idx == 0 do %>
               <%!-- Grand total row --%>
               <span style="color: var(--sc-text-muted); font-style: italic;">Total</span>
             <% else %>
-              <%!-- Show value only for the rightmost filled/unfilled column at this level --%>
-              <%!-- For level N, show column at index N-1 (0-indexed) --%>
-              <%= if idx == @display_level - 1 do %>
+              <%= if display_group_block?(block, @active_group_range) do %>
                 <%= if @continued? do %>
-                    <span style="color: var(--sc-accent);">
-                      {format_group_value(value, coldef)} (continued)
-                    </span>
+                  <span style="color: var(--sc-accent);">
+                    {group_block_value(block)} (continued)
+                  </span>
                 <% else %>
                   <div
                     phx-click="agg_add_filters"
                     {@filter_attrs}
                     class="cursor-pointer hover:underline"
                   >
-                    {format_group_value(value, coldef)}
+                    {group_block_value(block)}
                   </div>
                 <% end %>
               <% end %>
@@ -698,9 +698,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     # Count the actual group by fields (not the ROLLUP wrapper)
     num_group_by =
-      case rollup_group_by do
-        [{:rollup, positions}] when is_list(positions) -> Enum.count(positions)
-        _ -> 0
+      case Map.get(assigns.selecto.set, :groups, []) do
+        groups when is_list(groups) and groups != [] ->
+          length(groups)
+
+        _ ->
+          case rollup_group_by do
+            [{:rollup, positions}] when is_list(positions) -> Enum.count(positions)
+            _ -> 0
+          end
       end
 
     # num_aggregates = Enum.count(selected_fields) - num_group_by
@@ -992,6 +998,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         paged_rollup_rows: paged_rollup_rows,
         num_group_by: num_group_by,
         group_by: group_by,
+        display_group_headers: display_group_headers(group_by),
         aggregate: aggregates_processed,
         aggregate_server_paged?: server_paged?,
         aggregate_total_rows: aggregate_total_rows,
@@ -1242,7 +1249,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <thead style="background: var(--sc-surface-bg-alt);">
               <tr>
                 <%!-- Headers for group by columns --%>
-                <%= for {alias, {:group_by, _field, _coldef}} <- @group_by do %>
+                <%= for alias <- @display_group_headers do %>
                   <th class="px-3 py-3.5 text-left text-sm font-semibold" style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
                     {alias}
                   </th>
@@ -1475,6 +1482,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp composite_group_value?(coldef) do
     join_mode = Map.get(coldef || %{}, :join_mode) || Map.get(coldef || %{}, "join_mode")
+
     group_by_filter_select =
       Map.get(coldef || %{}, :group_by_filter_select) ||
         Map.get(coldef || %{}, "group_by_filter_select")
@@ -1551,12 +1559,131 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       coldef
       |> Map.put(:group_format, format)
       |> Map.put("group_format", format)
+      |> maybe_set_linked_to_next(cfg)
     else
-      coldef
+      maybe_set_linked_to_next(coldef, cfg)
     end
   end
 
   defp maybe_set_group_by_format(coldef, _), do: coldef
+
+  defp maybe_set_linked_to_next(coldef, cfg) when is_map(coldef) and is_map(cfg) do
+    linked? =
+      Map.get(cfg, "linked_to_next", Map.get(cfg, :linked_to_next))
+      |> truthy?()
+
+    coldef
+    |> Map.put(:linked_to_next, linked?)
+    |> Map.put("linked_to_next", linked?)
+  end
+
+  defp maybe_set_linked_to_next(coldef, _cfg), do: coldef
+
+  defp display_group_headers(group_by) when is_list(group_by) do
+    linked_group_ranges(group_by)
+    |> Enum.map(fn {start_idx, end_idx} ->
+      group_by
+      |> Enum.slice(start_idx, end_idx - start_idx + 1)
+      |> Enum.map(fn {alias_name, _definition} -> alias_name end)
+      |> Enum.join(" / ")
+    end)
+  end
+
+  defp display_group_headers(_group_by), do: []
+
+  defp active_group_range_for_level(_group_by, 0), do: nil
+
+  defp active_group_range_for_level(group_by, display_level)
+       when is_list(group_by) and display_level > 0 do
+    display_idx = display_level - 1
+
+    linked_group_ranges(group_by)
+    |> Enum.find(fn {start_idx, end_idx} ->
+      display_idx >= start_idx and display_idx <= end_idx
+    end)
+  end
+
+  defp active_group_range_for_level(_group_by, _display_level), do: nil
+
+  defp linked_group_ranges(group_by) when is_list(group_by) do
+    {ranges, current_start} =
+      Enum.with_index(group_by)
+      |> Enum.reduce({[], nil}, fn {{_alias, {:group_by, _field, coldef}}, idx},
+                                   {ranges, current_start} ->
+        current_start = if is_nil(current_start), do: idx, else: current_start
+
+        if linked_to_next?(coldef) do
+          {ranges, current_start}
+        else
+          {ranges ++ [{current_start, idx}], nil}
+        end
+      end)
+
+    case current_start do
+      nil -> ranges
+      start_idx -> ranges ++ [{start_idx, max(length(group_by) - 1, start_idx)}]
+    end
+  end
+
+  defp linked_group_ranges(_group_by), do: []
+
+  defp linked_to_next?(coldef) when is_map(coldef) do
+    truthy?(Map.get(coldef, :linked_to_next, Map.get(coldef, "linked_to_next")))
+  end
+
+  defp linked_to_next?(_coldef), do: false
+
+  defp row_group_blocks(group_by, group_cols) when is_list(group_by) and is_list(group_cols) do
+    linked_group_ranges(group_by)
+    |> Enum.map(fn {start_idx, end_idx} ->
+      %{
+        start_idx: start_idx,
+        end_idx: end_idx,
+        defs: Enum.slice(group_by, start_idx, end_idx - start_idx + 1),
+        values: Enum.slice(group_cols, start_idx, end_idx - start_idx + 1)
+      }
+    end)
+  end
+
+  defp row_group_blocks(_group_by, _group_cols), do: []
+
+  defp group_block_value(%{defs: defs, values: values}) do
+    formatted_values =
+      values
+      |> Enum.zip(defs)
+      |> Enum.take_while(fn {value, _definition} -> value not in [nil, ""] end)
+      |> Enum.map(fn {value, {_alias, {:group_by, _field, coldef}}} ->
+        format_group_value(value, coldef)
+      end)
+
+    case formatted_values do
+      [] ->
+        case Enum.zip(values, defs) do
+          [{value, {_alias, {:group_by, _field, coldef}}} | _rest] ->
+            format_group_value(value, coldef)
+
+          _ ->
+            ""
+        end
+
+      values_to_join ->
+        Enum.join(values_to_join, " / ")
+    end
+  end
+
+  defp group_block_value(_block), do: ""
+
+  defp display_group_block?(_block, nil), do: false
+
+  defp display_group_block?(%{start_idx: start_idx, end_idx: end_idx}, {active_start, active_end}) do
+    start_idx == active_start and end_idx == active_end
+  end
+
+  defp group_block_padding(%{start_idx: start_idx}, {active_start, _active_end}, indent_px)
+       when start_idx == active_start,
+       do: indent_px
+
+  defp group_block_padding(_block, _active_group_range, _indent_px), do: 0
 
   @impl true
   def handle_event("set_aggregate_page", %{"page" => page_param}, socket) do

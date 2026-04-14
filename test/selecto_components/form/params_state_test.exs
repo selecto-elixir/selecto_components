@@ -125,6 +125,30 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert params["aggregate"]["k0"]["uuid"] == "51a3f4f6-fcce-4530-8b24-d7927bd120d6"
   end
 
+  test "view_config_to_params preserves linked group-by metadata" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [],
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"12b1e264-6359-4f7d-881a-f3c659fd8606", "shipper.co_name",
+             %{"alias" => "", "format" => "default", "linked_to_next" => true}},
+            {"51a3f4f6-fcce-4530-8b24-d7927bd120d6", "shipper.region",
+             %{"alias" => "", "format" => "default"}}
+          ],
+          aggregate: [],
+          per_page: "100"
+        }
+      }
+    }
+
+    params = ParamsState.view_config_to_params(view_config)
+
+    assert params["group_by"]["k0"]["linked_to_next"] == true
+    refute Map.has_key?(params["group_by"]["k1"], "linked_to_next")
+  end
+
   test "view_config_to_params includes aggregate grid toggle" do
     view_config = %{
       view_mode: "aggregate",

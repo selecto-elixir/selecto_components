@@ -137,20 +137,25 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       }
     }
 
-    assert Process.group_by(
-             %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
-             columns,
-             nil
-           ) ==
-             [
-               {%{
-                  "group_format" => "default",
-                  name: "Category: Category name",
-                  type: :string,
-                  colid: "category.category_name",
-                  group_format: "default"
-                }, {:field, "category.category_name", "Category Name"}}
-             ]
+    [{coldef, selector}] =
+      Process.group_by(
+        %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
+        columns,
+        nil
+      )
+
+    assert selector == {:field, "category.category_name", "Category Name"}
+
+    assert Map.take(coldef, [:name, :type, :colid, :group_format, :linked_to_next]) == %{
+             name: "Category: Category name",
+             type: :string,
+             colid: "category.category_name",
+             group_format: "default",
+             linked_to_next: false
+           }
+
+    assert coldef["group_format"] == "default"
+    assert coldef["linked_to_next"] == false
   end
 
   test "aggregates use friendly default labels" do
@@ -232,5 +237,42 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       )
 
     assert {:field, "date_tier.id", "Date Tier"} = hd(view_set.selected)
+  end
+
+  test "view collapses linked group by items into rollup grouping sets" do
+    columns = %{
+      "city" => %{name: "City", type: :string, colid: "city"},
+      "state" => %{name: "State", type: :string, colid: "state"},
+      "country" => %{name: "Country", type: :string, colid: "country"}
+    }
+
+    {view_set, _meta} =
+      Process.view(
+        nil,
+        %{
+          "group_by" => %{
+            "g0" => %{"field" => "city", "index" => "0", "linked_to_next" => "true"},
+            "g1" => %{"field" => "state", "index" => "1"},
+            "g2" => %{"field" => "country", "index" => "2"}
+          }
+        },
+        columns,
+        [],
+        nil
+      )
+
+    assert view_set.group_by == [
+             {:rollup,
+              [
+                {:grouping_set,
+                 [
+                   {:field, {:coalesce, ["city", {:literal, "[NULL]"}]}, "City"},
+                   {:field, {:coalesce, ["state", {:literal, "[NULL]"}]}, "State"}
+                 ]},
+                {:field, {:coalesce, ["country", {:literal, "[NULL]"}]}, "Country"}
+              ]}
+           ]
+
+    assert length(view_set.groups) == 3
   end
 end
