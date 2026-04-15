@@ -1447,7 +1447,8 @@ defmodule SelectoComponents.Form.FilterRendering do
   def build_filter_list(selecto) do
     # Include explicit filters and only columns that are marked as filterable
     filterable_columns =
-      Map.values(Selecto.columns(selecto))
+      Selecto.columns(selecto)
+      |> Enum.map(fn {colid, column} -> Map.put_new(column, :colid, colid) end)
       |> Enum.filter(fn column ->
         # Only include columns that are explicitly marked as filterable
         # or don't have component formatting (which indicates they're display-only)

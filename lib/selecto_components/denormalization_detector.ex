@@ -253,15 +253,19 @@ defmodule SelectoComponents.DenormalizationDetector do
   end
 
   defp one_to_many_join?(selecto, join_segment, join_config) do
+    if Map.get(join_config, :source_kind) == :cte do
+      false
+    else
     target_primary_key = find_target_primary_key(selecto, join_segment, join_config)
     join_target_key = Map.get(join_config, :my_key)
 
-    cond do
-      not is_nil(target_primary_key) and not is_nil(join_target_key) ->
-        normalize_join_key(join_target_key) != normalize_join_key(target_primary_key)
+      cond do
+        not is_nil(target_primary_key) and not is_nil(join_target_key) ->
+          normalize_join_key(join_target_key) != normalize_join_key(target_primary_key)
 
-      true ->
-        relationship_type_from_name(join_segment) == :one_to_many
+        true ->
+          relationship_type_from_name(join_segment) == :one_to_many
+      end
     end
   end
 

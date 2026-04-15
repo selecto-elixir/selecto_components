@@ -1094,17 +1094,19 @@ defmodule SelectoComponents.Form do
   ### __using___
 
   defp build_column_list(selecto) do
-    Map.values(Selecto.columns(selecto))
-    |> Enum.sort(fn a, b -> a.name <= b.name end)
-    |> Enum.map(fn c ->
-      {c.colid, c.name,
+    Selecto.columns(selecto)
+    |> Enum.map(fn {colid, column} ->
+      column = Map.put_new(column, :colid, colid)
+
+      {column.colid, column.name,
        %{
-         type: Selecto.Temporal.date_like_type(c) || Map.get(c, :type),
-         format: Map.get(c, :format),
-         icon: Map.get(c, :icon),
-         icon_family: Map.get(c, :icon_family)
+         type: Selecto.Temporal.date_like_type(column) || Map.get(column, :type),
+         format: Map.get(column, :format),
+         icon: Map.get(column, :icon),
+         icon_family: Map.get(column, :icon_family)
        }}
     end)
+    |> Enum.sort(fn {_, left_name, _}, {_, right_name, _} -> left_name <= right_name end)
   end
 
   # defp build_available_fields(selecto) do
