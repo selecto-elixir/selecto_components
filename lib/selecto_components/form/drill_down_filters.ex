@@ -382,8 +382,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         [min_days_str, max_days_str] = String.split(value, "-")
         max_days = String.to_integer(max_days_str)
         min_days = String.to_integer(min_days_str)
-        start_date = Date.add(today, -(max_days + 1))
-        end_date = Date.add(today, -min_days)
+        start_date = Date.add(today, -max_days)
+        end_date = Date.add(today, -(min_days - 1))
         {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
       String.match?(value, ~r/^(\d+)\+$/) ->
