@@ -139,26 +139,19 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
 
   @impl true
   def handle_event("toggle", %{"id" => id_str}, socket) do
-    case Integer.parse(id_str) do
-      {id, ""} ->
-        selected_ids = socket.assigns.selected_ids
+    selected_ids = socket.assigns.selected_ids
 
-        selected_ids =
-          if id in selected_ids do
-            List.delete(selected_ids, id)
-          else
-            [id | selected_ids]
-          end
+    selected_ids =
+      if id_str in selected_ids do
+        List.delete(selected_ids, id_str)
+      else
+        [id_str | selected_ids]
+      end
 
-        # Update parent component with new value (comma-separated IDs)
-        value = Enum.join(selected_ids, ",")
-        send(self(), {:multi_select_changed, socket.assigns.filter_id, value})
+    value = Enum.join(selected_ids, ",")
+    send(self(), {:multi_select_changed, socket.assigns.filter_id, value})
 
-        {:noreply, assign(socket, selected_ids: selected_ids)}
-
-      _ ->
-        {:noreply, socket}
-    end
+    {:noreply, assign(socket, selected_ids: selected_ids)}
   end
 
   @impl true
@@ -247,7 +240,7 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
       case execute_options_query(connection, query, [limit]) do
         {:ok, %{rows: rows}} ->
           Enum.map(rows, fn [id, name] ->
-            %{id: id, name: to_string(name)}
+            %{id: normalize_option_id(id), name: to_string(name)}
           end)
 
         {:error, error} ->
@@ -309,14 +302,17 @@ defmodule SelectoComponents.Filter.MultiSelectFilter do
     |> String.split(",")
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
-    |> Enum.map(fn id_str ->
-      case Integer.parse(id_str) do
-        {id, _} -> id
-        :error -> nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&normalize_option_id/1)
   end
 
   defp parse_ids(_), do: []
+
+  defp normalize_option_id(id) when is_binary(id) do
+    case Ecto.UUID.load(id) do
+      {:ok, uuid} -> uuid
+      :error -> id
+    end
+  end
+
+  defp normalize_option_id(id), do: to_string(id)
 end

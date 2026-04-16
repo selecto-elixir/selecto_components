@@ -6,14 +6,16 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
 
   attr(:filter, :map, required: true)
   attr(:theme, :map, required: true)
+  attr(:selecto, :any, required: true)
 
   def editor(assigns) do
     assigns = assign(assigns, :comp_label, filter_badge_label(assigns.filter))
 
-    case assigns.filter.render_kind do
-      :datetime -> datetime_filter_editor(assigns)
-      :text_search -> text_search_filter_editor(assigns)
-      _ -> standard_filter_editor(assigns)
+    cond do
+      promoted_multiselect_filter?(assigns.filter) -> multiselect_filter_editor(assigns)
+      assigns.filter.render_kind == :datetime -> datetime_filter_editor(assigns)
+      assigns.filter.render_kind == :text_search -> text_search_filter_editor(assigns)
+      true -> standard_filter_editor(assigns)
     end
   end
 
@@ -74,6 +76,56 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
             class={Theme.slot(@theme, :input)}
             phx-debounce="300"
           />
+      <% end %>
+    </div>
+    """
+  end
+
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
+  attr(:selecto, :any, required: true)
+
+  defp multiselect_filter_editor(assigns) do
+    options = FilterRendering.join_mode_options(assigns.selecto, assigns.filter.field_conf)
+
+    assigns =
+      assigns
+      |> assign(
+        options: options,
+        selected_ids: parse_selected_ids(assigns.filter.value),
+        current_comp: normalize_multiselect_comp(assigns.filter.comp)
+      )
+
+    ~H"""
+    <div class="space-y-2">
+      <span
+        class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+        style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+      >
+        {@comp_label}
+      </span>
+
+      <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
+        <p class="text-sm" style="color: var(--sc-text-muted);">
+          No value needed for this filter.
+        </p>
+      <% else %>
+        <input type="hidden" name={"promoted_filters[#{@filter.uuid}][value][]"} value="" />
+        <select
+          multiple
+          size="6"
+          name={"promoted_filters[#{@filter.uuid}][value][]"}
+          class={Theme.slot(@theme, :input) <> " min-h-32"}
+        >
+          <%= for opt <- @options do %>
+            <option value={opt.id} selected={opt.id in @selected_ids}>
+              {opt.name}
+            </option>
+          <% end %>
+        </select>
+        <p class="text-xs" style="color: var(--sc-text-muted);">
+          Hold Ctrl/Cmd to select multiple.
+        </p>
       <% end %>
     </div>
     """
@@ -258,6 +310,41 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
 
   defp filter_badge_label(%{render_kind: :text_search}), do: "Text Search"
   defp filter_badge_label(filter), do: filter_comp_label(filter.comp)
+
+  defp promoted_multiselect_filter?(%{
+         field_conf: %{join_mode: join_mode, filter_type: :multi_select_id}
+       })
+       when join_mode in [:lookup, :star, :tag],
+       do: true
+
+  defp promoted_multiselect_filter?(_filter), do: false
+
+  defp parse_selected_ids(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_selected_ids(value) when is_list(value) do
+    value
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_selected_ids(_value), do: []
+
+  defp normalize_multiselect_comp(comp) when is_binary(comp) do
+    comp
+    |> String.trim()
+    |> String.upcase()
+  end
+
+  defp normalize_multiselect_comp(comp) when is_atom(comp),
+    do: comp |> Atom.to_string() |> normalize_multiselect_comp()
+
+  defp normalize_multiselect_comp(_comp), do: "IN"
 
   defp weekday_options do
     [

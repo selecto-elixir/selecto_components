@@ -19,6 +19,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
   slot(:item_form)
   slot(:item_summary)
+  slot(:between_item)
 
   def render(assigns) do
     {view_id, _, _, _} = assigns.view
@@ -163,64 +164,77 @@ defmodule SelectoComponents.Components.ListPicker do
 
           <div
             :for={{{id, item, conf}, index} <- Enum.with_index(@selected_items)}
-            id={"#{@component_dom_id}-item-#{id}"}
-            phx-hook=".ListPickerEditor"
-            draggable="true"
-            data-picker-item-id={id}
-            class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
-            style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+            id={"#{@component_dom_id}-selection-#{id}"}
+            class="space-y-2"
           >
-            <% selected_type = selected_item_type(@available, item) %>
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                class="cursor-grab active:cursor-grabbing"
-                style="color: var(--sc-text-muted);"
-                title="Drag to reorder"
-              >
-                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
-                </svg>
-              </button>
+            <div
+              id={"#{@component_dom_id}-item-#{id}"}
+              phx-hook=".ListPickerEditor"
+              draggable="true"
+              data-picker-item-id={id}
+              class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
+              style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+            >
+              <% selected_type = selected_item_type(@available, item) %>
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  class="cursor-grab active:cursor-grabbing"
+                  style="color: var(--sc-text-muted);"
+                  title="Drag to reorder"
+                >
+                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                  </svg>
+                </button>
 
-              <div class="min-w-0 flex-1">
-                <div class="flex min-w-0 items-center gap-2 text-sm">
-                  <.type_badge type={selected_type} />
-                  <div class="min-w-0 flex-1 truncate font-medium">
-                    <%= if @item_summary != [] do %>
-                      {render_slot(@item_summary, {id, item, conf, index})}
-                    <% else %>
-                      <span class="truncate">{item}</span>
-                    <% end %>
+                <div class="min-w-0 flex-1">
+                  <div class="flex min-w-0 items-center gap-2 text-sm">
+                    <.type_badge type={selected_type} />
+                    <div class="min-w-0 flex-1 truncate font-medium">
+                      <%= if @item_summary != [] do %>
+                        {render_slot(@item_summary, {id, item, conf, index})}
+                      <% else %>
+                        <span class="truncate">{item}</span>
+                      <% end %>
+                    </div>
                   </div>
+                </div>
+
+                <div class="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    data-editor-toggle
+                    class={[Theme.slot(@theme, :button_secondary), "h-7", "px-2", "text-xs"]}
+                  >
+                    <span data-editor-open-label>Edit</span>
+                    <span data-editor-close-label class="hidden">Close</span>
+                  </button>
+                  <.sc_x_button
+                    theme={@theme}
+                    data-picker-action="remove"
+                    data-view-id={@view_id}
+                    data-list-id={@fieldname}
+                    data-item-id={id}
+                  />
                 </div>
               </div>
 
-              <div class="flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  data-editor-toggle
-                  class={[Theme.slot(@theme, :button_secondary), "h-7", "px-2", "text-xs"]}
-                >
-                  <span data-editor-open-label>Edit</span>
-                  <span data-editor-close-label class="hidden">Close</span>
-                </button>
-                <.sc_x_button
-                  theme={@theme}
-                  data-picker-action="remove"
-                  data-view-id={@view_id}
-                  data-list-id={@fieldname}
-                  data-item-id={id}
-                />
+              <div
+                data-editor-content
+                class="mt-3 hidden border-t pt-3"
+                style="border-color: var(--sc-surface-border);"
+              >
+                {render_slot(@item_form, {id, item, conf, index})}
               </div>
             </div>
 
             <div
-              data-editor-content
-              class="mt-3 hidden border-t pt-3"
-              style="border-color: var(--sc-surface-border);"
+              :if={@between_item != [] and index < length(@selected_items) - 1}
+              id={"#{@component_dom_id}-between-#{id}-#{elem(Enum.at(@selected_items, index + 1), 0)}"}
+              class="flex justify-center"
             >
-              {render_slot(@item_form, {id, item, conf, index})}
+              {render_slot(@between_item, {id, item, conf, index, Enum.at(@selected_items, index + 1)})}
             </div>
           </div>
         </div>
@@ -773,6 +787,10 @@ defmodule SelectoComponents.Components.ListPicker do
           <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M4.75 3a1.75 1.75 0 1 0 0 3.5A1.75 1.75 0 0 0 4.75 3ZM13.5 5.5a1.5 1.5 0 0 1 1.5 1.5v1.2a2.3 2.3 0 0 0-.7-.1H9.44a2.75 2.75 0 0 0-2.44-1.5H6.3a2.74 2.74 0 0 0-.31-1.2H13.5ZM15.25 13.5a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 0 0 0-3.5ZM5 9.1A1.5 1.5 0 0 1 6.5 7.6h.5A1.5 1.5 0 0 1 8.5 9.1v.4h5.8A1.7 1.7 0 0 1 16 11.2v1.1a2.74 2.74 0 0 0-1.2-.3h-.46A2.75 2.75 0 0 0 11.7 10H8.4A2.4 2.4 0 0 1 6 12.4H5V9.1Z" />
           </svg>
+        <% :cte -> %>
+          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M4.75 4A1.75 1.75 0 1 0 4.75 7.5 1.75 1.75 0 0 0 4.75 4ZM4.75 12.5A1.75 1.75 0 1 0 4.75 16a1.75 1.75 0 0 0 0-3.5ZM8 5a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 8 5Zm0 8.5a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 8 13.5Zm-.25-3.5A1.75 1.75 0 0 1 9.5 8.25h1v-1a.75.75 0 0 1 1.5 0v1h1A1.75 1.75 0 0 1 14.75 10v.5a.75.75 0 0 1-1.5 0V10a.25.25 0 0 0-.25-.25h-1v1a.75.75 0 0 1-1.5 0v-1h-1a.25.25 0 0 0-.25.25v.5a.75.75 0 0 1-1.5 0V10Z" />
+          </svg>
         <% :list -> %>
           <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M5 4.75A1.25 1.25 0 1 1 2.5 4.75 1.25 1.25 0 0 1 5 4.75ZM6.75 4a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75ZM5 10a1.25 1.25 0 1 1-2.5 0A1.25 1.25 0 0 1 5 10Zm1.75-.75a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75ZM5 15.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0ZM6.75 14.5a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75Z" />
@@ -812,6 +830,7 @@ defmodule SelectoComponents.Components.ListPicker do
       :boolean -> "Boolean"
       :text -> "Text"
       :relation -> "Relation"
+      :cte -> "CTE"
       :list -> "List"
       :json -> "JSON"
       :uuid -> "UUID"
@@ -846,6 +865,9 @@ defmodule SelectoComponents.Components.ListPicker do
 
       :relation ->
         "color: color-mix(in srgb, var(--sc-text-primary) 84%, #b16b80); opacity: 0.82;"
+
+      :cte ->
+        "color: color-mix(in srgb, var(--sc-text-primary) 84%, #2d7c88); opacity: 0.9;"
 
       :list ->
         "color: color-mix(in srgb, var(--sc-text-primary) 84%, #6b89b5); opacity: 0.82;"

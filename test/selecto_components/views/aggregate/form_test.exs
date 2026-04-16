@@ -178,6 +178,53 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
     refute html =~ "Count Distinct"
   end
 
+  test "group by form shows link controls between adjacent selected items" do
+    domain = %{
+      name: "AggregateFormTest",
+      source: %{
+        source_table: "items",
+        primary_key: :id,
+        fields: [:city, :state],
+        redact_fields: [],
+        columns: %{
+          city: %{type: :string, name: "City", colid: :city},
+          state: %{type: :string, name: "State", colid: :state}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    html =
+      render_component(Form, %{
+        id: "aggregate-form-group-link-test",
+        columns: [{:city, "City", :string}, {:state, "State", :string}],
+        view: {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            aggregate: %{
+              group_by: [
+                {"group-1", "city", %{"format" => "default", "linked_to_next" => true}},
+                {"group-2", "state", %{"format" => "default"}}
+              ],
+              aggregate: [],
+              per_page: "30"
+            }
+          }
+        }
+      })
+
+    assert html =~
+             ~r/<input[^>]+type="hidden"[^>]+name="group_by\[group-1\]\[linked_to_next\]"[^>]+value="false"/
+
+    assert html =~
+             ~r/<input[^>]+id="group-by-link-group-1-group-2-on"[^>]+name="group_by\[group-1\]\[linked_to_next\]"[^>]+checked/
+
+    refute html =~ ~s(id="group-by-link-group-2-group-)
+  end
+
   test "aggregate config uses themed labels and checkbox surfaces" do
     html =
       render_component(Config, %{

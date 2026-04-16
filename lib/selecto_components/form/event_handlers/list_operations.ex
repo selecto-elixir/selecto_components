@@ -72,6 +72,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             list,
             item_tuple
           )
+          |> ParamsState.sync_view_config_ctes(socket.assigns.selecto)
 
         socket = ParamsState.assign_view_config(socket, updated_view_config)
 
@@ -118,6 +119,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             list,
             item
           )
+          |> ParamsState.sync_view_config_ctes(socket.assigns.selecto)
 
         socket = ParamsState.assign_view_config(socket, updated_view_config)
 
@@ -160,6 +162,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             uuid,
             direction
           )
+          |> ParamsState.sync_view_config_ctes(socket.assigns.selecto)
 
         socket = ParamsState.assign_view_config(socket, updated_view_config)
 
@@ -207,6 +210,7 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
             dragged_uuid,
             target_uuid
           )
+          |> ParamsState.sync_view_config_ctes(socket.assigns.selecto)
 
         socket = ParamsState.assign_view_config(socket, updated_view_config)
 

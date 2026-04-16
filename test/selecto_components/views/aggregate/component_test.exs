@@ -188,6 +188,102 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "Total"
   end
 
+  test "linked group-by blocks collapse into one header and preserve multi-filter drill-down" do
+    domain = %{
+      name: "AggregateLinkedGroupComponentTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :state, :title, :rank, :inserted_at],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          state: %{type: :string},
+          title: %{type: :string},
+          rank: %{type: :integer},
+          inserted_at: %{type: :date}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    linked_selecto = Selecto.configure(domain, nil)
+
+    assigns = %{
+      id: "aggregate-linked-group-render-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "state", "index" => "0", "linked_to_next" => true},
+          "g1" => %{"field" => "title", "index" => "1", "linked_to_next" => true},
+          "g2" => %{
+            "field" => "rank",
+            "index" => "2",
+            "format" => "buckets",
+            "bucket_ranges" => "0-4",
+            "linked_to_next" => false
+          },
+          "g3" => %{"field" => "inserted_at", "index" => "3"}
+        }
+      },
+      selecto: %{
+        linked_selecto
+        | set: %{
+            selected: [
+              {:field, "state", "State"},
+              {:field, "title", "Title"},
+              {:field, "rank", "Rank"},
+              {:field, "inserted_at", "Inserted At"},
+              {:field, {:count, :id}, "ID Count"}
+            ],
+            groups: [
+              {:field, "state", "State"},
+              {:field, "title", "Title"},
+              {:field, "rank", "Rank"},
+              {:field, "inserted_at", "Inserted At"}
+            ],
+            group_by: [
+              {:rollup,
+               [
+                 {:grouping_set,
+                  [
+                    {:literal_position, 1},
+                    {:literal_position, 2},
+                    {:literal_position, 3}
+                  ]},
+                 {:literal_position, 4}
+               ]}
+            ],
+            aggregates: [{:field, {:count, :id}, "ID Count"}]
+          }
+      },
+      query_results:
+        {[
+           ["done", "ES", "0-4", nil, 32],
+           [nil, nil, nil, nil, 32]
+         ], [], ["state", "title", "rank", "inserted_at", "id_count"]},
+      view_meta: %{exe_id: "aggregate-linked-group-render-test-run"}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "State / Title / Rank"
+    assert html =~ "Inserted At"
+    assert html =~ "done / ES / 0-4"
+    assert html =~ ~s(phx-value-field0="state")
+    assert html =~ ~s(phx-value-value0="done")
+    assert html =~ ~s(phx-value-field1="title")
+    assert html =~ ~s(phx-value-value1="ES")
+    assert html =~ ~s(phx-value-field2="rank")
+    assert html =~ ~s(phx-value-value2="0-4")
+    refute html =~ ~s(phx-value-field3="inserted_at")
+  end
+
   test "renders aggregate grid when enabled with 2 group-by and 1 aggregate" do
     assigns = %{
       id: "aggregate-grid-test",
@@ -319,7 +415,113 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
         aggregate_assigns(%{view_meta: %{exe_id: "aggregate-grid-message", grid_enabled: true}})
       )
 
-    assert html =~ "Grid view requires exactly 2 Group By fields and 1 Aggregate"
+    assert html =~ "Grid view requires exactly 2 Group By axes and 1 Aggregate"
+  end
+
+  test "grid can use a linked group-by block as one axis" do
+    domain = %{
+      name: "AggregateLinkedGridComponentTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :state, :title, :rank],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          state: %{type: :string},
+          title: %{type: :string},
+          rank: %{type: :integer}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    linked_selecto = Selecto.configure(domain, nil)
+
+    assigns = %{
+      id: "aggregate-grid-linked-axis-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "state", "index" => "0", "linked_to_next" => true},
+          "g1" => %{
+            "field" => "title",
+            "index" => "1",
+            "format" => "text_prefix",
+            "prefix_length" => "2"
+          },
+          "g2" => %{
+            "field" => "rank",
+            "index" => "2",
+            "format" => "buckets",
+            "bucket_ranges" => "0-4"
+          }
+        }
+      },
+      selecto: %{
+        linked_selecto
+        | set: %{
+            selected: [
+              {:field, "state", "State"},
+              {:field, "title", "Title"},
+              {:field, "rank", "Rank"},
+              {:field, {:count, :id}, "ID Count"}
+            ],
+            groups: [
+              {:field, "state", "State"},
+              {:field, "title", "Title"},
+              {:field, "rank", "Rank"}
+            ],
+            group_by: [
+              {:rollup,
+               [
+                 {:grouping_set, [{:literal_position, 1}, {:literal_position, 2}]},
+                 {:literal_position, 3}
+               ]}
+            ],
+            aggregates: [{:field, {:count, :id}, "ID Count"}],
+            gb_params: %{
+              "g0" => %{"field" => "state", "index" => "0", "linked_to_next" => true},
+              "g1" => %{
+                "field" => "title",
+                "index" => "1",
+                "format" => "text_prefix",
+                "prefix_length" => "2"
+              },
+              "g2" => %{
+                "field" => "rank",
+                "index" => "2",
+                "format" => "buckets",
+                "bucket_ranges" => "0-4"
+              }
+            }
+          }
+      },
+      query_results:
+        {[
+           ["done", "ES", "0-4", 32],
+           ["planned", "BU", "0-4", 8]
+         ], [], ["state", "title", "rank", "id_count"]},
+      view_meta: %{exe_id: "aggregate-grid-linked-axis-run", grid_enabled: true}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Aggregate Grid"
+    assert html =~ "State / Title"
+    assert html =~ "done / ES"
+    assert html =~ "planned / BU"
+    assert html =~ ~s(phx-value-field0="state")
+    assert html =~ ~s(phx-value-value0="done")
+    assert html =~ ~s(phx-value-field1="title")
+    assert html =~ ~s(phx-value-value1="ES")
+    assert html =~ ~s(phx-value-field2="rank")
+    assert html =~ ~s(phx-value-value2="0-4")
   end
 
   test "grid view sorts hour-of-day columns numerically" do

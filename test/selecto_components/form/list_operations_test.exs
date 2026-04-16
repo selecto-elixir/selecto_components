@@ -1,9 +1,45 @@
 defmodule SelectoComponents.Form.ListOperationsTest do
   use ExUnit.Case, async: true
 
+  alias Selecto.Expr, as: X
+
   defmodule TestLive do
     use Phoenix.LiveView
     use SelectoComponents.Form.EventHandlers.ListOperations
+  end
+
+  defp selecto do
+    domain = %{
+      name: "ListOperationsTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :status, :priority],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID"},
+          status: %{type: :string, name: "Status"},
+          priority: %{type: :integer, name: "Priority"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      query_members: %{
+        ctes: %{
+          active_delivery_projects: %{
+            query: fn selecto ->
+              selecto
+              |> Selecto.select(["id", X.as("priority", "priority")])
+            end,
+            columns: ["id", "priority"],
+            join: [owner_key: :id, related_key: :id, fields: :infer]
+          }
+        }
+      }
+    }
+
+    Selecto.configure(domain, nil)
   end
 
   defp base_socket do
@@ -11,7 +47,7 @@ defmodule SelectoComponents.Form.ListOperationsTest do
       assigns: %{
         __changed__: %{},
         columns: [],
-        selecto: %{domain: %{}},
+        selecto: selecto(),
         views: [
           {:detail, SelectoComponents.Views.Detail, "Detail", []},
           {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", []},
@@ -241,6 +277,25 @@ defmodule SelectoComponents.Form.ListOperationsTest do
 
     assert is_binary(new_uuid)
     assert new_uuid != ""
+  end
+
+  test "detail list picker add auto-includes required ctes for cte-backed fields" do
+    {:noreply, updated} =
+      TestLive.handle_info(
+        {:list_picker_add, detail_form_state_query(), "detail", "selected",
+         "active_delivery_projects.priority"},
+        base_socket()
+      )
+
+    assert [
+             {"detail-col-1", "id", _id_cfg},
+             {"detail-col-2", "status", _status_cfg},
+             {_new_uuid, "active_delivery_projects.priority", %{}}
+           ] = updated.assigns.view_config.views.detail.selected
+
+    assert updated.assigns.view_config.ctes == [
+             {"auto-cte-active_delivery_projects", "active_delivery_projects", %{}}
+           ]
   end
 
   test "detail list picker remove preserves aggregate state" do

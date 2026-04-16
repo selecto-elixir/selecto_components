@@ -1,5 +1,6 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.SchemaUtils
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.Views.Aggregate.Options
 
@@ -82,7 +83,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       end
 
     rollup_group_by =
-      case Enum.map(group_by_with_coalesce, fn {_col, sel} -> sel end) do
+      case collapse_linked_rollup_groups(group_by_with_coalesce) do
         [] -> []
         selectors -> [{:rollup, selectors}]
       end
@@ -109,6 +110,33 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy_param?(_), do: false
+
+  defp collapse_linked_rollup_groups(group_by_with_coalesce) do
+    {groups, current_group} =
+      Enum.reduce(group_by_with_coalesce, {[], []}, fn {col, sel}, {groups, current_group} ->
+        current_group = current_group ++ [sel]
+
+        if linked_to_next?(col) do
+          {groups, current_group}
+        else
+          {groups ++ [finalize_rollup_group(current_group)], []}
+        end
+      end)
+
+    groups ++ finalize_trailing_rollup_group(current_group)
+  end
+
+  defp finalize_rollup_group([selector]), do: selector
+  defp finalize_rollup_group(selectors), do: {:grouping_set, selectors}
+
+  defp finalize_trailing_rollup_group([]), do: []
+  defp finalize_trailing_rollup_group(current_group), do: [finalize_rollup_group(current_group)]
+
+  defp linked_to_next?(col) when is_map(col) do
+    truthy_param?(Map.get(col, :linked_to_next, Map.get(col, "linked_to_next")))
+  end
+
+  defp linked_to_next?(_col), do: false
 
   def group_by(group_by, columns, selecto) do
     group_by
@@ -159,6 +187,15 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           col
           |> Map.put(:group_format, Map.get(e, "format"))
           |> Map.put("group_format", Map.get(e, "format"))
+          |> Map.put(:linked_to_next, truthy_param?(Map.get(e, "linked_to_next")))
+          |> Map.put("linked_to_next", truthy_param?(Map.get(e, "linked_to_next")))
+        else
+          col
+        end
+
+      col =
+        if is_map(col) and selecto do
+          SchemaUtils.with_resolved_type(selecto, col)
         else
           col
         end
@@ -308,22 +345,26 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   defp should_coalesce_field?(col, selecto) do
     resolved_col = resolve_column_metadata(col, selecto)
     field_name = Map.get(resolved_col, :field) || Map.get(col, :field)
+    colid = Map.get(resolved_col, :colid) || Map.get(col, :colid)
     text_type = text_type?(Map.get(resolved_col, :type))
     enum_by_name = enum_field_name_any_schema?(field_name, selecto)
     root_enum = root_enum_field?(col, selecto)
     enum_by_metadata = enum_field?(resolved_col, selecto)
+    filter_type = Map.get(resolved_col, :filter_type) || Map.get(resolved_col, "filter_type")
 
-    text_type and not enum_by_name and not root_enum and not enum_by_metadata
+    id_like =
+      filter_type == :multi_select_id or
+        filter_type == "multi_select_id" or
+        id_like_name?(field_name) or
+        id_like_name?(colid)
+
+    text_type and not enum_by_name and not root_enum and not enum_by_metadata and not id_like
   end
 
-  defp resolve_column_metadata(col, selecto) do
-    colid = Map.get(col, :colid)
+  defp resolve_column_metadata(col, nil), do: col
 
-    if is_binary(colid) or is_atom(colid) do
-      Selecto.field(selecto, colid) || col
-    else
-      col
-    end
+  defp resolve_column_metadata(col, selecto) do
+    SchemaUtils.with_resolved_type(selecto, col)
   end
 
   defp enum_field?(col, selecto) do
@@ -343,6 +384,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp enum_field_by_metadata?(_, _), do: false
 
+  defp enum_field_by_colid?(_col, nil), do: false
+
   defp enum_field_by_colid?(%{colid: colid}, selecto) when is_binary(colid) or is_atom(colid) do
     case Selecto.field(selecto, colid) do
       nil -> false
@@ -351,6 +394,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp enum_field_by_colid?(_, _), do: false
+
+  defp root_enum_field?(_col, nil), do: false
 
   defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field),
@@ -364,6 +409,17 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp root_enum_field?(_, _), do: false
+
+  defp id_like_name?(nil), do: false
+
+  defp id_like_name?(name) do
+    case to_string(name) do
+      "id" -> true
+      value -> String.ends_with?(value, ".id") or String.ends_with?(value, "_id")
+    end
+  end
+
+  defp enum_field_name_any_schema?(_field, nil), do: false
 
   defp enum_field_name_any_schema?(field, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field) do
@@ -444,7 +500,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
         case_sql =
           BucketParser.generate_bucket_case_sql(
-            "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+            "(CURRENT_DATE - DATE(#{field_with_alias}))",
             bucket_ranges,
             :integer
           )

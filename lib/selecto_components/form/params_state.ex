@@ -50,11 +50,13 @@ defmodule SelectoComponents.Form.ParamsState do
   """
   def view_config_to_params(view_config) do
     view_mode = get_map_value(view_config, :view_mode, "aggregate")
+    ctes = get_map_value(view_config, :ctes, [])
     filters = get_map_value(view_config, :filters, [])
     views = get_map_value(view_config, :views, %{})
 
     params = %{
       "view_mode" => view_mode,
+      "ctes" => ctes_to_params(ctes),
       "filters" => filters_to_params(filters)
     }
 
@@ -96,6 +98,7 @@ defmodule SelectoComponents.Form.ParamsState do
   def view_config_to_saved_params(view_config) when is_map(view_config) do
     %{
       "view_mode" => get_map_value(view_config, :view_mode, "aggregate"),
+      "ctes" => normalize_saved_ctes_for_storage(get_map_value(view_config, :ctes, [])),
       "filters" => normalize_saved_filters_for_storage(get_map_value(view_config, :filters, [])),
       "views" => normalize_saved_views_for_storage(get_map_value(view_config, :views, %{}))
     }
@@ -133,6 +136,39 @@ defmodule SelectoComponents.Form.ParamsState do
         item_acc
     end)
   end
+
+  defp ctes_to_params(ctes) when is_list(ctes) do
+    ctes
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn
+      {{uuid, name, config}, index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          Map.merge(stringify_map_keys(config), %{
+            "uuid" => uuid,
+            "name" => name,
+            "index" => to_string(index)
+          })
+        )
+
+      {[uuid, name, config], index}, acc ->
+        Map.put(
+          acc,
+          compact_param_key(index),
+          Map.merge(stringify_map_keys(config), %{
+            "uuid" => uuid,
+            "name" => name,
+            "index" => to_string(index)
+          })
+        )
+
+      {_unknown_item, _index}, acc ->
+        acc
+    end)
+  end
+
+  defp ctes_to_params(_ctes), do: %{}
 
   defp merge_scalar_view_param(acc, :aggregate, key, value)
        when key in [:per_page, "per_page"] do
@@ -562,20 +598,11 @@ defmodule SelectoComponents.Form.ParamsState do
             adapter: old_selecto.adapter,
             validate: false
           )
+          |> maybe_apply_ctes(params)
 
         raw_columns = Selecto.columns(selecto)
 
-        columns_list =
-          raw_columns
-          |> Enum.map(fn {key, col} ->
-            {key, col.name,
-             %{
-               type: Selecto.Temporal.date_like_type(col) || col.type,
-               format: Map.get(col, :format),
-               icon: Map.get(col, :icon),
-               icon_family: Map.get(col, :icon_family)
-             }}
-          end)
+        columns_list = SelectoComponents.Form.ColumnCatalog.picker_columns(selecto)
 
         columns_map =
           raw_columns
@@ -633,7 +660,9 @@ defmodule SelectoComponents.Form.ParamsState do
               raise "View mode '#{selected_view}' not found in configured views"
           end
 
-        selecto = Map.put(selecto, :set, view_set)
+        selecto =
+          selecto
+          |> Map.put(:set, Map.merge(Map.get(selecto, :set, %{}), view_set))
 
         view_mode = Map.get(params, "view_mode", "detail")
         selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
@@ -1412,14 +1441,16 @@ defmodule SelectoComponents.Form.ParamsState do
       end)
       |> preserve_missing_detail_view_params(existing_config, params)
 
-    # Preserve existing view_config and only update what's in params
-    assign_view_config(
-      socket,
+    provisional_config =
       Map.merge(existing_config, %{
         filters: filters,
         views: view_configs,
         view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
       })
+
+    assign_view_config(
+      socket,
+      sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
     )
   end
 
@@ -1445,13 +1476,16 @@ defmodule SelectoComponents.Form.ParamsState do
       end)
       |> preserve_missing_detail_view_params(existing_config, params)
 
-    assign_view_config(
-      socket,
+    provisional_config =
       Map.merge(existing_config, %{
         filters: filters,
         views: view_configs,
         view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
       })
+
+    assign_view_config(
+      socket,
+      sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
     )
   end
 
@@ -1473,13 +1507,28 @@ defmodule SelectoComponents.Form.ParamsState do
         views: restore_saved_views(saved_params, existing_config, socket)
       }
 
-      assign_view_config(socket, Map.merge(existing_config, restored_config))
+      socket
+      |> assign_view_config(
+        existing_config
+        |> Map.merge(restored_config)
+        |> sync_view_config_ctes(socket.assigns[:selecto])
+      )
     else
       params_to_state(saved_params, socket)
     end
   end
 
   def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
+
+  def sync_view_config_ctes(view_config, %Selecto{} = selecto) when is_map(view_config) do
+    derived_names = derived_cte_names_from_view_config(view_config, selecto)
+    existing_ctes = get_map_value(view_config, :ctes, [])
+    synced_ctes = build_cte_entries(derived_names, existing_ctes)
+
+    Map.put(view_config, :ctes, synced_ctes)
+  end
+
+  def sync_view_config_ctes(view_config, _selecto), do: view_config
 
   defp submitted_view_state(view, view_tuple, params, existing_config, socket, stale_submit?) do
     existing_view = get_in(existing_config, [:views, view])
@@ -1758,6 +1807,9 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp normalize_saved_views_for_storage(_views), do: %{}
 
+  defp normalize_saved_ctes_for_storage(ctes) when is_list(ctes), do: normalize_saved_term(ctes)
+  defp normalize_saved_ctes_for_storage(_ctes), do: []
+
   defp normalize_saved_filters_for_storage(filters) when is_list(filters) do
     Enum.map(filters, &normalize_saved_term/1)
   end
@@ -1940,18 +1992,28 @@ defmodule SelectoComponents.Form.ParamsState do
       |> String.trim()
       |> String.upcase()
 
-    case {comp, Map.get(promoted_values, "value")} do
-      {comp, value} when comp in ["IN", "NOT IN"] and is_binary(value) ->
-        Map.put(promoted_values, "value", normalize_promoted_multi_value(value))
-
-      _ ->
-        promoted_values
+    if comp in ["IN", "NOT IN"] do
+      Map.put(
+        promoted_values,
+        "value",
+        normalize_promoted_multi_value(Map.get(promoted_values, "value"))
+      )
+    else
+      promoted_values
     end
   end
 
   defp normalize_promoted_multi_value(value) when is_binary(value) do
     value
     |> String.split(~r/[\r\n,]+/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(",")
+  end
+
+  defp normalize_promoted_multi_value(value) when is_list(value) do
+    value
+    |> Enum.map(&to_string/1)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.join(",")
@@ -1984,7 +2046,8 @@ defmodule SelectoComponents.Form.ParamsState do
 
     # Convert the view-specific lists to params format
     params = %{
-      "view_mode" => view_type
+      "view_mode" => view_type,
+      "ctes" => ctes_to_params(get_map_value(saved_params, :ctes, []))
     }
 
     # Convert selected items
@@ -2469,8 +2532,212 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp url_compactable_keys do
-    ["filters", "selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
+    [
+      "ctes",
+      "filters",
+      "selected",
+      "order_by",
+      "group_by",
+      "aggregate",
+      "x_axis",
+      "y_axis",
+      "series"
+    ]
   end
+
+  defp maybe_apply_ctes(selecto, params) when is_map(params) do
+    explicit_names =
+      params
+      |> ctes_from_params([])
+      |> Enum.map(&cte_entry_name/1)
+      |> Enum.reject(&is_nil/1)
+
+    derived_names = derived_cte_names_from_params(params, selecto)
+
+    Enum.reduce(explicit_names ++ derived_names, selecto, fn
+      name, acc when is_binary(name) and name != "" ->
+        if name in SelectoComponents.Form.ColumnCatalog.available_cte_names(acc) and
+             not cte_already_applied?(acc, name) do
+          Selecto.with_cte(acc, name)
+        else
+          acc
+        end
+
+      _name, acc ->
+        acc
+    end)
+  end
+
+  defp maybe_apply_ctes(selecto, _params), do: selecto
+
+  defp ctes_from_params(params, default) when is_map(params) do
+    case Map.get(params, "ctes") do
+      section when is_map(section) ->
+        section
+        |> Enum.sort_by(fn {_uuid, value} -> sort_index_for_compaction(value) end)
+        |> Enum.map(fn {uuid, value} ->
+          cte_uuid = get_map_value(value, :uuid, uuid)
+          name = get_map_value(value, :name)
+
+          {cte_uuid, name, Map.drop(stringify_map_keys(value), ["uuid", "name", "index"])}
+        end)
+        |> Enum.reject(fn {_uuid, name, _config} -> is_nil(name) or to_string(name) == "" end)
+
+      _ ->
+        default
+    end
+  end
+
+  defp ctes_from_params(_params, default), do: default
+
+  defp derived_cte_names_from_params(params, %Selecto{} = selecto) when is_map(params) do
+    field_ids =
+      params
+      |> field_ids_from_params()
+      |> Kernel.++(filter_ids_from_params(params))
+
+    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
+  end
+
+  defp derived_cte_names_from_params(_params, _selecto), do: []
+
+  defp derived_cte_names_from_view_config(view_config, %Selecto{} = selecto)
+       when is_map(view_config) do
+    field_ids =
+      view_config
+      |> field_ids_from_view_config()
+      |> Kernel.++(filter_ids_from_view_config(view_config))
+
+    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
+  end
+
+  defp derived_cte_names_from_view_config(_view_config, _selecto), do: []
+
+  defp field_ids_from_params(params) when is_map(params) do
+    ["selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
+    |> Enum.flat_map(fn section ->
+      params
+      |> Map.get(section, %{})
+      |> list_field_ids_from_param_section()
+    end)
+  end
+
+  defp field_ids_from_params(_params), do: []
+
+  defp list_field_ids_from_param_section(section) when is_map(section) do
+    section
+    |> Map.values()
+    |> Enum.map(&get_map_value(&1, :field))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp list_field_ids_from_param_section(_section), do: []
+
+  defp filter_ids_from_params(params) when is_map(params) do
+    params
+    |> Map.get("filters", %{})
+    |> Map.values()
+    |> Enum.map(&get_map_value(&1, :filter))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp filter_ids_from_params(_params), do: []
+
+  defp field_ids_from_view_config(view_config) when is_map(view_config) do
+    view_config
+    |> get_map_value(:views, %{})
+    |> Map.values()
+    |> Enum.flat_map(&field_ids_from_view_state/1)
+  end
+
+  defp field_ids_from_view_config(_view_config), do: []
+
+  defp field_ids_from_view_state(view_state) when is_map(view_state) do
+    [:selected, :order_by, :group_by, :aggregate, :x_axis, :y_axis, :series]
+    |> Enum.flat_map(fn key ->
+      view_state
+      |> get_map_value(key, [])
+      |> list_field_ids_from_items()
+    end)
+  end
+
+  defp field_ids_from_view_state(_view_state), do: []
+
+  defp list_field_ids_from_items(items) when is_list(items) do
+    Enum.map(items, fn
+      {_uuid, field, _config} -> field
+      [_, field, _config] -> field
+      _other -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp list_field_ids_from_items(_items), do: []
+
+  defp filter_ids_from_view_config(view_config) when is_map(view_config) do
+    view_config
+    |> get_map_value(:filters, [])
+    |> Enum.map(fn
+      {_uuid, _section, filter_value} -> get_map_value(filter_value, :filter)
+      [_, _, filter_value] -> get_map_value(filter_value, :filter)
+      _other -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp filter_ids_from_view_config(_view_config), do: []
+
+  defp build_cte_entries(names, existing_ctes) when is_list(names) do
+    existing_by_name =
+      Map.new(existing_ctes, fn entry ->
+        case normalize_cte_entry(entry) do
+          {uuid, name, config} -> {name, {uuid, name, config}}
+          nil -> {nil, nil}
+        end
+      end)
+
+    names
+    |> Enum.uniq()
+    |> Enum.map(fn name ->
+      Map.get(existing_by_name, name, {"auto-cte-#{name}", name, %{}})
+    end)
+  end
+
+  defp build_cte_entries(_names, _existing_ctes), do: []
+
+  defp normalize_cte_entry({uuid, name, config}),
+    do: {to_string(uuid), to_string(name), config || %{}}
+
+  defp normalize_cte_entry([uuid, name, config]),
+    do: {to_string(uuid), to_string(name), config || %{}}
+
+  defp normalize_cte_entry(_entry), do: nil
+
+  defp cte_entry_name({_, name, _}) when is_binary(name), do: name
+  defp cte_entry_name([_, name, _]) when is_binary(name), do: name
+  defp cte_entry_name(_entry), do: nil
+
+  defp cte_already_applied?(%Selecto{} = selecto, name) do
+    selecto
+    |> get_in([Access.key(:set, %{}), Access.key(:ctes, [])])
+    |> Enum.any?(fn spec ->
+      spec_name =
+        Map.get(spec, :name) ||
+          Map.get(spec, :as) ||
+          Map.get(spec, "name") ||
+          Map.get(spec, "as")
+
+      to_string(spec_name || "") == name
+    end)
+  end
+
+  defp cte_already_applied?(_selecto, _name), do: false
+
+  defp stringify_map_keys(map) when is_map(map) do
+    Map.new(map, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp stringify_map_keys(_value), do: %{}
 
   defp sort_index_for_compaction(value) when is_map(value) do
     case Map.get(value, "index") do

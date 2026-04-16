@@ -97,6 +97,17 @@ defmodule SelectoComponents.Views.Graph.Process do
       if col == nil do
         nil
       else
+        col =
+          if is_map(col) do
+            linked? = truthy_param?(Map.get(field_config, "linked_to_next"))
+
+            col
+            |> Map.put(:linked_to_next, linked?)
+            |> Map.put("linked_to_next", linked?)
+          else
+            col
+          end
+
         # Generate alias
         alias_name =
           case field_config["alias"] do
@@ -128,6 +139,9 @@ defmodule SelectoComponents.Views.Graph.Process do
     end)
     |> Enum.reject(&is_nil/1)
   end
+
+  defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
+  defp truthy_param?(_), do: false
 
   @doc """
   Process aggregate fields (for Y-axis)
@@ -207,7 +221,7 @@ defmodule SelectoComponents.Views.Graph.Process do
 
         case_sql =
           BucketParser.generate_bucket_case_sql(
-            "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+            "(CURRENT_DATE - DATE(#{field_with_alias}))",
             bucket_ranges,
             :integer
           )

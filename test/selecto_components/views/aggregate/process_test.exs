@@ -3,6 +3,67 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
 
   alias SelectoComponents.Views.Aggregate.Process
 
+  defmodule Registration do
+    use Ecto.Schema
+
+    @primary_key {:id, :binary_id, autogenerate: false}
+
+    schema "registrations" do
+      field(:date_tier_id, Ecto.UUID)
+    end
+  end
+
+  defmodule DateTier do
+    use Ecto.Schema
+
+    @primary_key {:id, :binary_id, autogenerate: false}
+
+    schema "date_tiers" do
+      field(:name, :string)
+    end
+  end
+
+  defp uuid_join_selecto do
+    domain = %{
+      name: "AggregateUuidTest",
+      source: %{
+        source_table: "registrations",
+        primary_key: :id,
+        fields: [:id, :date_tier_id],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :string},
+          date_tier_id: %{type: :string}
+        },
+        associations: %{}
+      },
+      schemas: %{
+        date_tier: %{
+          source_table: "date_tiers",
+          primary_key: :id,
+          fields: [:id, :name],
+          columns: %{
+            id: %{
+              name: "Date Tier",
+              type: :string,
+              join_mode: :lookup,
+              filter_type: :multi_select_id,
+              display_field: :name,
+              group_by_filter: "date_tier_id"
+            },
+            name: %{
+              name: "Date Tier Name",
+              type: :string
+            }
+          }
+        }
+      },
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   test "param_to_state reads aggregate grid toggle" do
     state = Process.param_to_state(%{"aggregate_grid" => "true"}, %{})
     assert state.grid == true
@@ -76,20 +137,25 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       }
     }
 
-    assert Process.group_by(
-             %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
-             columns,
-             nil
-           ) ==
-             [
-               {%{
-                  "group_format" => "default",
-                  name: "Category: Category name",
-                  type: :string,
-                  colid: "category.category_name",
-                  group_format: "default"
-                }, {:field, "category.category_name", "Category Name"}}
-             ]
+    [{coldef, selector}] =
+      Process.group_by(
+        %{"g1" => %{"field" => "category.category_name", "format" => "default"}},
+        columns,
+        nil
+      )
+
+    assert selector == {:field, "category.category_name", "Category Name"}
+
+    assert Map.take(coldef, [:name, :type, :colid, :group_format, :linked_to_next]) == %{
+             name: "Category: Category name",
+             type: :string,
+             colid: "category.category_name",
+             group_format: "default",
+             linked_to_next: false
+           }
+
+    assert coldef["group_format"] == "default"
+    assert coldef["linked_to_next"] == false
   end
 
   test "aggregates use friendly default labels" do
@@ -152,5 +218,61 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert {:field, {:raw_sql, sql}, "Delivery Team Inserted At"} = selector
     assert sql =~ "EXTRACT(YEAR FROM delivery_team.inserted_at)"
     refute sql =~ "EXTRACT(YEAR FROM t.inserted_at)"
+  end
+
+  test "view does not wrap UUID group-bys in text coalesce" do
+    selecto = uuid_join_selecto()
+
+    columns = %{
+      "date_tier.id" => %{name: "Date Tier", type: :string, colid: "date_tier.id"}
+    }
+
+    {view_set, _meta} =
+      Process.view(
+        nil,
+        %{"group_by" => %{"g1" => %{"field" => "date_tier.id", "index" => "0"}}},
+        columns,
+        [],
+        selecto
+      )
+
+    assert {:field, "date_tier.id", "Date Tier"} = hd(view_set.selected)
+  end
+
+  test "view collapses linked group by items into rollup grouping sets" do
+    columns = %{
+      "city" => %{name: "City", type: :string, colid: "city"},
+      "state" => %{name: "State", type: :string, colid: "state"},
+      "country" => %{name: "Country", type: :string, colid: "country"}
+    }
+
+    {view_set, _meta} =
+      Process.view(
+        nil,
+        %{
+          "group_by" => %{
+            "g0" => %{"field" => "city", "index" => "0", "linked_to_next" => "true"},
+            "g1" => %{"field" => "state", "index" => "1"},
+            "g2" => %{"field" => "country", "index" => "2"}
+          }
+        },
+        columns,
+        [],
+        nil
+      )
+
+    assert view_set.group_by == [
+             {:rollup,
+              [
+                {:grouping_set,
+                 [
+                   {:field, {:coalesce, ["city", {:literal, "[NULL]"}]}, "City"},
+                   {:field, {:coalesce, ["state", {:literal, "[NULL]"}]}, "State"}
+                 ]},
+                {:field, {:coalesce, ["country", {:literal, "[NULL]"}]}, "Country"}
+              ]}
+           ]
+
+    assert length(view_set.groups) == 3
   end
 end

@@ -136,6 +136,46 @@ defmodule SelectoComponents.Views.Aggregate.Form do
             theme={@theme}
           />
         </:item_form>
+        <:between_item :let={{id, _item, config, _index, {next_id, _next_item, _next_config}}}>
+          <% linked? = linked_to_next?(config) %>
+          <% toggle_id = "group-by-link-#{id}-#{next_id}-#{if linked?, do: "on", else: "off"}" %>
+          <label
+            for={toggle_id}
+            class="group flex items-center gap-1.5"
+            title="Link this group-by to the next one"
+            aria-label="Link this group-by to the next one"
+          >
+            <span class="h-px w-4 transition" style="background: var(--sc-surface-border);"></span>
+            <input type="hidden" name={"group_by[#{id}][linked_to_next]"} value="false" />
+            <input
+              id={toggle_id}
+              type="checkbox"
+              name={"group_by[#{id}][linked_to_next]"}
+              value="true"
+              checked={linked?}
+              class="h-3.5 w-3.5 cursor-pointer rounded-full border transition hover:scale-110"
+              style={
+                if linked? do
+                  "border-color: var(--sc-accent); background: var(--sc-accent-soft); accent-color: var(--sc-accent);"
+                else
+                  "border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt); accent-color: var(--sc-accent);"
+                end
+              }
+            />
+            <span class="sr-only">Link next group-by</span>
+            <span
+              class="h-px w-4 transition"
+              style={
+                if linked? do
+                  "background: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border));"
+                else
+                  "background: var(--sc-surface-border);"
+                end
+              }
+            >
+            </span>
+          </label>
+        </:between_item>
       </.live_component>
       Aggregates:
       <.live_component
@@ -223,6 +263,13 @@ defmodule SelectoComponents.Views.Aggregate.Form do
 
   defp normalize_checkbox(value) when value in [true, "true", "on", "1", 1], do: true
   defp normalize_checkbox(_value), do: false
+
+  defp linked_to_next?(config) when is_map(config) do
+    value = Map.get(config, "linked_to_next", Map.get(config, :linked_to_next))
+    normalize_checkbox(value)
+  end
+
+  defp linked_to_next?(_config), do: false
 
   defp column_display_name(columns, item, col) do
     item_str =

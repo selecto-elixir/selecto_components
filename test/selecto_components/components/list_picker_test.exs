@@ -5,7 +5,7 @@ defmodule SelectoComponents.Components.ListPickerTest do
 
   alias SelectoComponents.Components.ListPicker
 
-  defp base_assigns(overrides \\ %{}) do
+  defp base_assigns(overrides) do
     base = %{
       id: "test-list-picker",
       view: {"detail", nil, nil, nil},
@@ -52,5 +52,20 @@ defmodule SelectoComponents.Components.ListPickerTest do
     html = render_component(ListPicker, base_assigns(%{selected_items: []}))
 
     assert html =~ "Pick items from the available list to add them here."
+  end
+
+  test "renders a dedicated badge for cte-backed columns" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"active_delivery_projects.priority", "Active Project Priority",
+             %{type: :integer, icon: :cte, icon_family: :cte}}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-type-icon="CTE")
   end
 end

@@ -118,11 +118,15 @@ defmodule SelectoComponents.Views.Graph.FormTest do
 
       x_axis_picker = list_picker(rendered, "x_axis")
       y_axis_picker = list_picker(rendered, "y_axis")
+      series_picker = list_picker(rendered, "series")
 
       assert x_axis_picker.assigns.fieldname == "x_axis"
       assert y_axis_picker.assigns.fieldname == "y_axis"
+      assert series_picker.assigns.fieldname == "series"
       assert x_axis_picker.assigns.selected_items != []
       assert y_axis_picker.assigns.selected_items != []
+      assert x_axis_picker.assigns.between_item != []
+      assert series_picker.assigns.between_item != []
     end
 
     test "renders with minimal configuration" do

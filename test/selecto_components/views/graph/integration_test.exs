@@ -116,8 +116,11 @@ defmodule SelectoComponents.Views.Graph.IntegrationTest do
       chart_data = Component.prepare_chart_data(assigns, query_results, aliases)
 
       # Should group data properly for multi-series bar chart
-      assert length(chart_data.labels) > 0
-      assert length(chart_data.datasets) > 0
+      assert chart_data.labels == ["Action", "Comedy", "Drama"]
+      assert length(chart_data.datasets) == 3
+      assert Enum.any?(chart_data.datasets, &(&1.label == "Number of Films - PG-13"))
+      assert Enum.any?(chart_data.datasets, &(&1.label == "Number of Films - R"))
+      assert Enum.any?(chart_data.datasets, &(&1.label == "Number of Films - PG"))
 
       # Step 7: Test component rendering
       render_assigns = %{

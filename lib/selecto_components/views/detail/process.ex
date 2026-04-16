@@ -382,7 +382,7 @@ defmodule SelectoComponents.Views.Detail.Process do
 
         case_sql =
           BucketParser.generate_bucket_case_sql(
-            "EXTRACT(DAY FROM AGE(CURRENT_DATE, #{field_with_alias}))",
+            "(CURRENT_DATE - DATE(#{field_with_alias}))",
             bucket_ranges,
             :integer
           )

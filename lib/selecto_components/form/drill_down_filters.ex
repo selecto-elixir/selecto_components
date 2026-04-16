@@ -79,13 +79,23 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
-  defp find_field_group_config(group_by_config, field_name, group_idx) do
-    by_index = find_field_group_config_by_index(group_by_config, group_idx)
+  defp find_field_group_config(used_params, field_name, group_idx) when is_map(used_params) do
+    group_by_config = Map.get(used_params, "group_by", %{})
+
+    find_field_group_config_in_collection(group_by_config, field_name, group_idx) ||
+      find_graph_group_config(used_params, field_name, group_idx)
+  end
+
+  defp find_field_group_config(_used_params, _field_name, _group_idx), do: nil
+
+  defp find_field_group_config_in_collection(config_map, field_name, group_idx)
+       when is_map(config_map) do
+    by_index = find_field_group_config_by_index(config_map, group_idx)
 
     if by_index do
       by_index
     else
-      Enum.find_value(Map.values(group_by_config), fn config ->
+      Enum.find_value(Map.values(config_map), fn config ->
         if Map.get(config, "field") == field_name do
           config
         else
@@ -94,6 +104,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       end)
     end
   end
+
+  defp find_field_group_config_in_collection(_config_map, _field_name, _group_idx), do: nil
 
   defp find_field_group_config_by_index(group_by_config, group_idx)
        when is_binary(group_idx) and group_idx != "" do
@@ -104,6 +116,49 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp find_field_group_config_by_index(_group_by_config, _group_idx), do: nil
+
+  defp find_graph_group_config(used_params, field_name, group_idx) do
+    used_params
+    |> graph_group_configs()
+    |> Enum.find(fn %{global_index: global_index, config: config} ->
+      global_index == group_idx || Map.get(config, "field") == field_name
+    end)
+    |> case do
+      nil -> nil
+      %{config: config} -> config
+    end
+  end
+
+  defp graph_group_configs(used_params) do
+    x_axis =
+      used_params
+      |> Map.get("x_axis", %{})
+      |> ordered_field_configs()
+
+    series =
+      used_params
+      |> Map.get("series", %{})
+      |> ordered_field_configs()
+
+    (x_axis ++ series)
+    |> Enum.with_index()
+    |> Enum.map(fn {config, global_index} ->
+      %{global_index: Integer.to_string(global_index), config: config}
+    end)
+  end
+
+  defp ordered_field_configs(configs) when is_map(configs) do
+    configs
+    |> Map.values()
+    |> Enum.sort_by(fn config ->
+      config
+      |> Map.get("index", "0")
+      |> to_string()
+      |> String.to_integer()
+    end)
+  end
+
+  defp ordered_field_configs(_configs), do: []
 
   @doc """
   Determine the appropriate comparison operator and values based on the clicked value format.
@@ -133,6 +188,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       # Special marker for NULL values - create IS_EMPTY filter
       value == "__NULL__" ->
         {"IS_EMPTY", "", ""}
+
+      context.format in ["custom_buckets", :custom_buckets] && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_custom_date_bucket_range(value)
 
       # Text prefix buckets from aggregate group-by
       text_prefix_context?(context) ->
@@ -265,6 +324,10 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   defp handle_bucket_range(value, field_conf, %{format: format, is_age_bucket: is_age_bucket}) do
     cond do
+      format in ["custom_buckets", :custom_buckets] && field_conf &&
+          Selecto.Temporal.date_like?(field_conf) ->
+        handle_custom_date_bucket_range(value)
+
       format in ["year_buckets", :year_buckets] && field_conf &&
           Selecto.Temporal.date_like?(field_conf) ->
         handle_year_bucket_range(value)
@@ -278,6 +341,40 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     end
   end
 
+  defp handle_custom_date_bucket_range(value) do
+    today = Date.utc_today()
+
+    cond do
+      String.downcase(value) == "today" ->
+        {"DATE=", Date.to_iso8601(today), ""}
+
+      String.downcase(value) == "yesterday" ->
+        {"DATE=", Date.to_iso8601(Date.add(today, -1)), ""}
+
+      String.downcase(value) == "tomorrow" ->
+        {"DATE=", Date.to_iso8601(Date.add(today, 1)), ""}
+
+      String.match?(value, ~r/^(\d+)-(\d+)$/) ->
+        [min_days_str, max_days_str] = String.split(value, "-")
+        max_days = String.to_integer(max_days_str)
+        min_days = String.to_integer(min_days_str)
+        start_date = Date.add(today, -max_days)
+        end_date = Date.add(today, -(min_days - 1))
+        {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+
+      String.match?(value, ~r/^(\d+)\+$/) ->
+        days = value |> String.replace("+", "") |> String.to_integer()
+        cutoff_date = Date.add(today, -days)
+        {"<=", Date.to_iso8601(cutoff_date), ""}
+
+      value == "Other" ->
+        {"=", "", ""}
+
+      true ->
+        {"=", value, ""}
+    end
+  end
+
   defp handle_age_bucket_range(value) do
     today = Date.utc_today()
 
@@ -286,8 +383,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         [min_days_str, max_days_str] = String.split(value, "-")
         max_days = String.to_integer(max_days_str)
         min_days = String.to_integer(min_days_str)
-        start_date = Date.add(today, -(max_days + 1))
-        end_date = Date.add(today, -min_days)
+        start_date = Date.add(today, -max_days)
+        end_date = Date.add(today, -(min_days - 1))
         {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
       String.match?(value, ~r/^(\d+)\+$/) ->
@@ -483,10 +580,13 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       |> Selecto.field(field_name)
       |> then(&find_join_mode_field(socket.assigns.selecto, field_name, &1))
 
-    group_by_config = Map.get(used_params_map(socket), "group_by", %{})
-    field_group_config = find_field_group_config(group_by_config, field_name, group_idx)
+    used_params = used_params_map(socket)
+    field_group_config = find_field_group_config(used_params, field_name, group_idx)
     drill_context = drill_context_from_group_config(field_group_config)
-    {comp_mode, v1, v2} = determine_filter_comp_and_values(value, conf, drill_context)
+
+    {comp_mode, v1, v2} =
+      determine_filter_comp_and_values(value, conf, drill_context)
+      |> normalize_join_mode_filter_comp(conf)
 
     actual_filter_field =
       cond do
@@ -594,6 +694,25 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   end
 
   defp filter_matches_spec?(_filter, _spec), do: false
+
+  defp normalize_join_mode_filter_comp({comp_mode, v1, v2}, %{
+         join_mode: join_mode,
+         filter_type: :multi_select_id
+       })
+       when join_mode in [:lookup, :star, :tag] do
+    normalized_comp =
+      case comp_mode do
+        "=" -> "IN"
+        "!=" -> "NOT IN"
+        "IS_EMPTY" -> "IS NULL"
+        "IS_NOT_EMPTY" -> "IS NOT NULL"
+        other -> other
+      end
+
+    {normalized_comp, v1, v2}
+  end
+
+  defp normalize_join_mode_filter_comp(result, _conf), do: result
 
   defp find_join_mode_field(selecto, field_name, original_conf) do
     cond do

@@ -42,7 +42,7 @@ defmodule SelectoComponents.Exporter do
       view_mode: view_mode,
       row_count: length(dataset.rows),
       columns: dataset.headers,
-      rows: dataset.rows
+      rows: json_rows(dataset)
     }
 
     {:ok,
@@ -95,8 +95,7 @@ defmodule SelectoComponents.Exporter do
 
     data_rows =
       Enum.map(dataset.rows, fn row_map ->
-        dataset.headers
-        |> Enum.map(fn header -> Map.get(row_map, header) end)
+        row_values(dataset, row_map)
         |> Enum.map_join(delimiter, fn value ->
           value
           |> Dataset.value_to_string()
@@ -160,7 +159,7 @@ defmodule SelectoComponents.Exporter do
 
   defp worksheet_xml(dataset) do
     rows =
-      [dataset.headers | Enum.map(dataset.rows, &row_values(dataset.headers, &1))]
+      [dataset.headers | Enum.map(dataset.rows, &row_values(dataset, &1))]
       |> Enum.with_index(1)
       |> Enum.map_join("", fn {row, row_index} ->
         "<row r=\"#{row_index}\">#{cells_xml(row, row_index)}</row>"
@@ -198,8 +197,30 @@ defmodule SelectoComponents.Exporter do
     "<c r=\"#{ref}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">#{escaped}</t></is></c>"
   end
 
-  defp row_values(headers, row_map) do
-    Enum.map(headers, &Map.get(row_map, &1))
+  defp row_values(dataset, row_map) do
+    keys = Map.get(dataset, :row_keys, dataset.headers)
+    Enum.map(keys, &Map.get(row_map, &1))
+  end
+
+  defp json_rows(dataset) do
+    headers = unique_json_headers(dataset.headers)
+
+    Enum.map(dataset.rows, fn row_map ->
+      headers
+      |> Enum.zip(row_values(dataset, row_map))
+      |> Map.new()
+    end)
+  end
+
+  defp unique_json_headers(headers) do
+    {unique_headers, _counts} =
+      Enum.map_reduce(headers, %{}, fn header, counts ->
+        count = Map.get(counts, header, 0) + 1
+        unique_header = if count == 1, do: header, else: "#{header} (#{count})"
+        {unique_header, Map.put(counts, header, count)}
+      end)
+
+    unique_headers
   end
 
   defp cell_ref(col_index, row_index) do

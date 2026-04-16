@@ -16,6 +16,8 @@ defmodule SelectoComponents.Form.FilterRendering do
   use Phoenix.Component
   require Logger
 
+  alias SelectoComponents.SchemaUtils
+
   @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
 
   @doc """
@@ -54,6 +56,16 @@ defmodule SelectoComponents.Form.FilterRendering do
       else
         filter_def
       end
+
+    filter_def =
+      if is_map(filter_def),
+        do: SchemaUtils.with_resolved_type(assigns.selecto, filter_def),
+        else: filter_def
+
+    column_def =
+      if is_map(column_def),
+        do: SchemaUtils.with_resolved_type(assigns.selecto, column_def),
+        else: column_def
 
     # Determine the field type
     field_type =
@@ -306,7 +318,9 @@ defmodule SelectoComponents.Form.FilterRendering do
                   <option value="next_month" selected={@filter_value["value"] == "next_month"}>
                     Next Month
                   </option>
-                  <option value="mtd" selected={@filter_value["value"] == "mtd"}>Month to Date</option>
+                  <option value="mtd" selected={@filter_value["value"] == "mtd"}>
+                    Month to Date
+                  </option>
                 </optgroup>
                 <optgroup label="Quarters">
                   <option value="this_quarter" selected={@filter_value["value"] == "this_quarter"}>
@@ -574,169 +588,170 @@ defmodule SelectoComponents.Form.FilterRendering do
         </select>
 
         <%= cond do %>
-        <% @current_comp == "BETWEEN" -> %>
-          <div class="col-span-2 grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              name={"filters[#{@uuid}][value_start]"}
-              value={@between_start}
-              placeholder="Start"
-              class="sc-input"
-              phx-debounce="300"
-            />
-            <input
-              type="text"
-              name={"filters[#{@uuid}][value_end]"}
-              value={@between_end}
-              placeholder="End"
-              class="sc-input"
-              phx-debounce="300"
-            />
-          </div>
-        <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
-          <div
-            id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @current_comp})}"}
-            class="col-span-2 space-y-2"
-          >
-            <textarea
-              id={"filter-pending-values-#{@uuid}"}
-              name={"filters[#{@uuid}][pending_values]"}
-              rows="3"
-              placeholder="Paste one value per line"
-              class="sc-input min-h-24 resize-y"
-              phx-debounce="300"
-              phx-hook=".FilterPendingValuesSync"
-              data-pending-value={@pending_in_values}
-              data-filter-uuid={@uuid}
-            >{@pending_in_values}</textarea>
+          <% @current_comp == "BETWEEN" -> %>
+            <div class="col-span-2 grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                name={"filters[#{@uuid}][value_start]"}
+                value={@between_start}
+                placeholder="Start"
+                class="sc-input"
+                phx-debounce="300"
+              />
+              <input
+                type="text"
+                name={"filters[#{@uuid}][value_end]"}
+                value={@between_end}
+                placeholder="End"
+                class="sc-input"
+                phx-debounce="300"
+              />
+            </div>
+          <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
+            <div
+              id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @current_comp})}"}
+              class="col-span-2 space-y-2"
+            >
+              <textarea
+                id={"filter-pending-values-#{@uuid}"}
+                name={"filters[#{@uuid}][pending_values]"}
+                rows="3"
+                placeholder="Paste one value per line"
+                class="sc-input min-h-24 resize-y"
+                phx-debounce="300"
+                phx-hook=".FilterPendingValuesSync"
+                data-pending-value={@pending_in_values}
+                data-filter-uuid={@uuid}
+              >{@pending_in_values}</textarea>
 
-            <input
-              type="hidden"
-              name={"filters[#{@uuid}][value]"}
-              value={Enum.join(@selected_in_values, ",")}
-            />
+              <input
+                type="hidden"
+                name={"filters[#{@uuid}][value]"}
+                value={Enum.join(@selected_in_values, ",")}
+              />
 
-            <%= if @selected_in_values != [] do %>
-              <div
-                class="rounded-md border p-2"
-                style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);"
-              >
-                <div class="mb-2 flex items-center justify-between gap-2">
-                  <p class="text-xs font-medium" style="color: var(--sc-text-secondary);">
-                    {length(@selected_in_values)} selected value{if(length(@selected_in_values) == 1,
-                      do: "",
-                      else: "s"
-                    )}
-                  </p>
+              <%= if @selected_in_values != [] do %>
+                <div
+                  class="rounded-md border p-2"
+                  style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt);"
+                >
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <p class="text-xs font-medium" style="color: var(--sc-text-secondary);">
+                      {length(@selected_in_values)} selected value{if(
+                        length(@selected_in_values) == 1,
+                        do: "",
+                        else: "s"
+                      )}
+                    </p>
 
-                  <button
-                    type="button"
-                    phx-click="clear_filter_selected_values"
-                    phx-value-filter-uuid={@uuid}
-                    class="text-xs font-medium underline-offset-2 hover:underline"
-                    style="color: var(--sc-accent);"
-                  >
-                    Uncheck all
-                  </button>
+                    <button
+                      type="button"
+                      phx-click="clear_filter_selected_values"
+                      phx-value-filter-uuid={@uuid}
+                      class="text-xs font-medium underline-offset-2 hover:underline"
+                      style="color: var(--sc-accent);"
+                    >
+                      Uncheck all
+                    </button>
+                  </div>
+
+                  <div class="max-h-40 space-y-1 overflow-y-auto pr-1">
+                    <button
+                      :for={selected_value <- @selected_in_values}
+                      id={"filter-selected-value-#{@uuid}-#{:erlang.phash2(selected_value)}"}
+                      type="button"
+                      phx-click="toggle_filter_selected_value"
+                      phx-value-filter-uuid={@uuid}
+                      phx-value-item={selected_value}
+                      class="flex w-full items-start gap-2 rounded px-2 py-1 text-left text-sm"
+                      style="color: var(--sc-text-primary);"
+                    >
+                      <input
+                        type="checkbox"
+                        checked
+                        disabled
+                        aria-hidden="true"
+                        class="pointer-events-none"
+                        style="margin-top: 0.15rem;"
+                      />
+                      <span class="break-all">{selected_value}</span>
+                    </button>
+                  </div>
                 </div>
+              <% else %>
+                <p class="text-xs" style="color: var(--sc-text-muted);">
+                  Paste values above to add them as selectable items.
+                </p>
+              <% end %>
 
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1">
-                  <button
-                    :for={selected_value <- @selected_in_values}
-                    id={"filter-selected-value-#{@uuid}-#{:erlang.phash2(selected_value)}"}
-                    type="button"
-                    phx-click="toggle_filter_selected_value"
-                    phx-value-filter-uuid={@uuid}
-                    phx-value-item={selected_value}
-                    class="flex w-full items-start gap-2 rounded px-2 py-1 text-left text-sm"
-                    style="color: var(--sc-text-primary);"
-                  >
-                    <input
-                      type="checkbox"
-                      checked
-                      disabled
-                      aria-hidden="true"
-                      class="pointer-events-none"
-                      style="margin-top: 0.15rem;"
-                    />
-                    <span class="break-all">{selected_value}</span>
-                  </button>
-                </div>
+              <script :type={Phoenix.LiveView.ColocatedHook} name=".FilterPendingValuesSync">
+                export default {
+                  commitPendingValues() {
+                    const pendingValue = this.el.value || "";
+
+                    if (pendingValue.trim() === "") {
+                      return;
+                    }
+
+                    this.pushEvent("commit_filter_pending_values", {
+                      "filter-uuid": this.el.dataset.filterUuid,
+                      "pending-values": pendingValue
+                    });
+                  },
+
+                  syncFromServer() {
+                    const pendingValue = this.el.dataset.pendingValue || "";
+
+                    if (this.el.value !== pendingValue) {
+                      this.el.value = pendingValue;
+                    }
+                  },
+
+                  mounted() {
+                    this.onBlur = () => this.commitPendingValues();
+                    this.el.addEventListener("blur", this.onBlur);
+                    this.syncFromServer();
+                  },
+
+                  updated() {
+                    this.syncFromServer();
+                  },
+
+                  destroyed() {
+                    if (this.onBlur) {
+                      this.el.removeEventListener("blur", this.onBlur);
+                    }
+                  }
+                };
+              </script>
+            </div>
+          <% @is_multi_select_id -> %>
+            <%!-- Multi-select ID filter input with helpful placeholder --%>
+            <div class="col-span-2">
+              <input
+                type="text"
+                name={"filters[#{@uuid}][value]"}
+                value={@filter_value["value"]}
+                placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
+                class="sc-input"
+                phx-debounce="300"
+                disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
+              />
+              <div class="mt-1 text-xs" style="color: var(--sc-accent);">
+                💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
               </div>
-            <% else %>
-              <p class="text-xs" style="color: var(--sc-text-muted);">
-                Paste values above to add them as selectable items.
-              </p>
-            <% end %>
-
-            <script :type={Phoenix.LiveView.ColocatedHook} name=".FilterPendingValuesSync">
-              export default {
-                commitPendingValues() {
-                  const pendingValue = this.el.value || "";
-
-                  if (pendingValue.trim() === "") {
-                    return;
-                  }
-
-                  this.pushEvent("commit_filter_pending_values", {
-                    "filter-uuid": this.el.dataset.filterUuid,
-                    "pending-values": pendingValue
-                  });
-                },
-
-                syncFromServer() {
-                  const pendingValue = this.el.dataset.pendingValue || "";
-
-                  if (this.el.value !== pendingValue) {
-                    this.el.value = pendingValue;
-                  }
-                },
-
-                mounted() {
-                  this.onBlur = () => this.commitPendingValues();
-                  this.el.addEventListener("blur", this.onBlur);
-                  this.syncFromServer();
-                },
-
-                updated() {
-                  this.syncFromServer();
-                },
-
-                destroyed() {
-                  if (this.onBlur) {
-                    this.el.removeEventListener("blur", this.onBlur);
-                  }
-                }
-              };
-            </script>
-          </div>
-        <% @is_multi_select_id -> %>
-          <%!-- Multi-select ID filter input with helpful placeholder --%>
-          <div class="col-span-2">
+            </div>
+          <% true -> %>
+            <%!-- Standard text input --%>
             <input
               type="text"
               name={"filters[#{@uuid}][value]"}
               value={@filter_value["value"]}
-              placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
-              class="sc-input"
+              placeholder="Enter value..."
+              class="sc-input col-span-2"
               phx-debounce="300"
               disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
             />
-            <div class="mt-1 text-xs" style="color: var(--sc-accent);">
-              💡 Tip: Use numeric IDs for filtering (e.g., 1,2,3)
-            </div>
-          </div>
-        <% true -> %>
-          <%!-- Standard text input --%>
-          <input
-            type="text"
-            name={"filters[#{@uuid}][value]"}
-            value={@filter_value["value"]}
-            placeholder="Enter value..."
-            class="sc-input col-span-2"
-            phx-debounce="300"
-            disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
-          />
         <% end %>
 
         <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
@@ -750,7 +765,9 @@ defmodule SelectoComponents.Form.FilterRendering do
               class="checkbox checkbox-sm"
               name={"filters[#{@uuid}][exclude_articles]"}
               value="true"
-              checked={Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]}
+              checked={
+                Map.get(@filter_value, "exclude_articles", "false") in [true, "true", "on", "1"]
+              }
               style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
             /> Ignore leading articles (a, an, the)
           </div>
@@ -813,6 +830,16 @@ defmodule SelectoComponents.Form.FilterRendering do
             {"<", "Less Than"},
             {"<=", "Less or Equal"},
             {"BETWEEN", "Between"},
+            {"IS NULL", "Is Empty"},
+            {"IS NOT NULL", "Is Not Empty"}
+          ]
+
+        :uuid ->
+          [
+            {"=", "Equals"},
+            {"!=", "Not Equals"},
+            {"IN", "Is One Of"},
+            {"NOT IN", "Is Not One Of"},
             {"IS NULL", "Is Empty"},
             {"IS NOT NULL", "Is Not Empty"}
           ]
@@ -1420,7 +1447,8 @@ defmodule SelectoComponents.Form.FilterRendering do
   def build_filter_list(selecto) do
     # Include explicit filters and only columns that are marked as filterable
     filterable_columns =
-      Map.values(Selecto.columns(selecto))
+      Selecto.columns(selecto)
+      |> Enum.map(fn {colid, column} -> Map.put_new(column, :colid, colid) end)
       |> Enum.filter(fn column ->
         # Only include columns that are explicitly marked as filterable
         # or don't have component formatting (which indicates they're display-only)
@@ -1554,9 +1582,20 @@ defmodule SelectoComponents.Form.FilterRendering do
     join_mode = Map.get(join_mode_config, :join_mode, :lookup)
 
     # Query options from database using selecto's connection pool
+    query_where = Map.get(join_mode_config, :query_where)
+    query_params = Map.get(join_mode_config, :query_params, [])
+
     options =
       if table do
-        query_table_options(assigns.selecto, table, id_field, display_field, 100)
+        query_table_options(
+          assigns.selecto,
+          table,
+          id_field,
+          display_field,
+          100,
+          query_where,
+          query_params
+        )
       else
         []
       end
@@ -1575,109 +1614,169 @@ defmodule SelectoComponents.Form.FilterRendering do
         selected_ids: selected_ids,
         join_mode: join_mode,
         current_comp: current_comp,
-        display_field: display_field
+        display_field: display_field,
+        filter_label: Map.get(join_mode_config, :name) || humanize_field(display_field),
+        promote_checked: promote_checked?(assigns.filter_value)
       )
 
     ~H"""
     <div class="space-y-2">
-      <%!-- Comparison operator selector --%>
-      <div class="flex items-center gap-2">
-        <select name={"filters[#{@uuid}][comp]"} class="sc-select text-sm">
-          <option value="IN" selected={@current_comp == "IN"}>Is One Of</option>
-          <option value="NOT IN" selected={@current_comp == "NOT IN"}>Is Not One Of</option>
-          <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
-          <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>Is Not Empty</option>
-        </select>
-      </div>
-
-      <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
-        <div class="text-sm text-gray-500 italic">
-          No value selection needed
+      <div
+        class={[
+          "space-y-2",
+          @promote_checked && "opacity-60"
+        ]}
+        inert={@promote_checked}
+        aria-disabled={to_string(@promote_checked)}
+        data-promoted-lock={to_string(@promote_checked)}
+      >
+        <%!-- Comparison operator selector --%>
+        <div class="flex items-center gap-2">
+          <select name={"filters[#{@uuid}][comp]"} class="sc-select text-sm">
+            <option value="IN" selected={@current_comp == "IN"}>Is One Of</option>
+            <option value="NOT IN" selected={@current_comp == "NOT IN"}>Is Not One Of</option>
+            <option value="IS NULL" selected={@current_comp == "IS NULL"}>Is Empty</option>
+            <option value="IS NOT NULL" selected={@current_comp == "IS NOT NULL"}>Is Not Empty</option>
+          </select>
         </div>
-      <% else %>
-        <label class="text-sm font-medium text-gray-700">
-          Select {@display_field}:
-        </label>
 
-        <%= if @join_mode == :lookup and length(@options) < 20 do %>
-          <%!-- Checkbox list for small datasets --%>
-          <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
-            <%= for opt <- @options do %>
-              <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
-                <input
-                  type="checkbox"
-                  name={"filters[#{@uuid}][selected_ids][]"}
-                  value={opt.id}
-                  checked={opt.id in @selected_ids}
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                />
-                <span class="text-sm text-gray-900">{opt.name}</span>
-              </label>
-            <% end %>
+        <%= if @current_comp in ["IS NULL", "IS NOT NULL"] do %>
+          <div class="text-sm text-gray-500 italic">
+            No value selection needed
           </div>
         <% else %>
-          <%!-- Simple multi-select for larger datasets --%>
-          <select
-            multiple
-            size="8"
-            name={"filters[#{@uuid}][selected_ids][]"}
-            phx-debounce="blur"
-            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-          >
-            <%= for opt <- @options do %>
-              <option value={opt.id} selected={opt.id in @selected_ids}>
-                {opt.name}
-              </option>
-            <% end %>
-          </select>
-          <p class="text-xs text-gray-500 mt-1">
-            Hold Ctrl/Cmd to select multiple. Click outside when done.
-          </p>
-        <% end %>
+          <label class="text-sm font-medium text-gray-700">
+            Select {@filter_label}:
+          </label>
 
-        <div class="text-xs text-gray-500">
-          {length(@selected_ids)} of {length(@options)} selected
-        </div>
-      <% end %>
+          <%= if @join_mode == :lookup and length(@options) < 20 do %>
+            <%!-- Checkbox list for small datasets --%>
+            <div class="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white space-y-1">
+              <%= for opt <- @options do %>
+                <label class="flex items-center space-x-2 hover:bg-blue-50 px-2 py-1 rounded cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name={"filters[#{@uuid}][selected_ids][]"}
+                    value={opt.id}
+                    checked={opt.id in @selected_ids}
+                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                  <span class="text-sm text-gray-900">{opt.name}</span>
+                </label>
+              <% end %>
+            </div>
+          <% else %>
+            <%!-- Simple multi-select for larger datasets --%>
+            <select
+              multiple
+              size="8"
+              name={"filters[#{@uuid}][selected_ids][]"}
+              phx-debounce="blur"
+              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <%= for opt <- @options do %>
+                <option value={opt.id} selected={opt.id in @selected_ids}>
+                  {opt.name}
+                </option>
+              <% end %>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">
+              Hold Ctrl/Cmd to select multiple. Click outside when done.
+            </p>
+          <% end %>
+
+          <div class="text-xs text-gray-500">
+            {length(@selected_ids)} of {length(@options)} selected
+          </div>
+
+          <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
+          <%= if @current_comp in ["IN", "NOT IN"] do %>
+            <input
+              id={"filter-value-#{@uuid}"}
+              type="hidden"
+              name={"filters[#{@uuid}][value]"}
+              value={Enum.join(@selected_ids, ",")}
+            />
+          <% end %>
+        <% end %>
+      </div>
+
+      <p
+        :if={@promote_checked}
+        class="text-xs"
+        style="color: var(--sc-text-muted);"
+      >
+        Edited in View Controller.
+      </p>
+
+      <.promote_checkbox uuid={@uuid} checked={@promote_checked} />
 
       <%!-- Hidden inputs to preserve filter structure --%>
       <input type="hidden" name={"filters[#{@uuid}][uuid]"} value={@uuid} />
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
-
-      <%!-- Hidden field to store comma-separated IDs (only needed for IN/NOT IN) --%>
-      <%= if @current_comp in ["IN", "NOT IN"] do %>
-        <input
-          id={"filter-value-#{@uuid}"}
-          type="hidden"
-          name={"filters[#{@uuid}][value]"}
-          value={Enum.join(@selected_ids, ",")}
-        />
-      <% end %>
     </div>
     """
   end
 
+  def join_mode_options(selecto, join_mode_config, limit \\ 100)
+
+  def join_mode_options(selecto, %{} = join_mode_config, limit) do
+    table = Map.get(join_mode_config, :source_table)
+    id_field = Map.get(join_mode_config, :id_field, :id)
+    display_field = Map.get(join_mode_config, :display_field, :name)
+    query_where = Map.get(join_mode_config, :query_where)
+    query_params = Map.get(join_mode_config, :query_params, [])
+
+    if table do
+      query_table_options(
+        selecto,
+        table,
+        id_field,
+        display_field,
+        limit,
+        query_where,
+        query_params
+      )
+    else
+      []
+    end
+  end
+
+  def join_mode_options(_selecto, _join_mode_config, _limit), do: []
+
   # Query database for ID+name pairs using Selecto's connection (Repo)
-  defp query_table_options(selecto, table, id_field, display_field, limit) do
+  defp query_table_options(
+         selecto,
+         table,
+         id_field,
+         display_field,
+         limit,
+         query_where,
+         query_params
+       ) do
     with {:ok, safe_table} <- safe_sql_identifier(table),
          {:ok, safe_id_field} <- safe_sql_identifier(id_field),
          {:ok, safe_display_field} <- safe_sql_identifier(display_field) do
+      where_clause =
+        if is_binary(query_where) and query_where != "", do: "AND #{query_where}", else: ""
+
       query = """
       SELECT #{safe_id_field} as id, #{safe_display_field} as name
       FROM #{safe_table}
       WHERE #{safe_display_field} IS NOT NULL
+      #{where_clause}
       ORDER BY #{safe_display_field}
       LIMIT $1
       """
 
       connection = selecto.connection
 
-      case execute_options_query(connection, query, [limit]) do
+      case execute_options_query(connection, query, [limit | query_params]) do
         {:ok, %{rows: rows}} ->
           Enum.map(rows, fn [id, name] ->
-            %{id: id, name: to_string(name)}
+            %{id: normalize_option_id(id), name: to_string(name)}
           end)
 
         {:error, error} ->
@@ -1722,6 +1821,26 @@ defmodule SelectoComponents.Form.FilterRendering do
     end
   end
 
+  defp normalize_option_id(id) when is_binary(id) do
+    case Ecto.UUID.load(id) do
+      {:ok, uuid} -> uuid
+      :error -> id
+    end
+  end
+
+  defp normalize_option_id(id), do: to_string(id)
+
+  defp humanize_field(field) when is_atom(field),
+    do: field |> Atom.to_string() |> humanize_field()
+
+  defp humanize_field(field) when is_binary(field) do
+    field
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp humanize_field(field), do: to_string(field)
+
   defp safe_sql_identifier(value) when is_atom(value),
     do: safe_sql_identifier(Atom.to_string(value))
 
@@ -1743,13 +1862,6 @@ defmodule SelectoComponents.Form.FilterRendering do
     |> String.split(",")
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
-    |> Enum.map(fn id_str ->
-      case Integer.parse(id_str) do
-        {id, _} -> id
-        :error -> nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
   end
 
   defp parse_filter_ids(_), do: []
