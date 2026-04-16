@@ -20,6 +20,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.QueryResults
+  alias SelectoComponents.Presentation
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
@@ -589,6 +590,11 @@ defmodule SelectoComponents.Form.ParamsState do
             execution_error: nil
           )
 
+        presentation_context =
+          socket.assigns
+          |> Map.get(:presentation_context, %{})
+          |> Presentation.resolve_context()
+
         old_selecto = socket.assigns.selecto
 
         selecto =
@@ -791,6 +797,7 @@ defmodule SelectoComponents.Form.ParamsState do
                 selecto: selecto,
                 columns: columns_list,
                 field_filters: Selecto.filters(selecto),
+                presentation_context: presentation_context,
                 query_results: {normalized_rows, columns, aliases},
                 used_params: params,
                 applied_view: get_map_value(params, :view_mode),
@@ -839,6 +846,7 @@ defmodule SelectoComponents.Form.ParamsState do
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
+              presentation_context: presentation_context,
               query_results: nil,
               used_params: params,
               applied_view: get_map_value(params, :view_mode),
@@ -881,6 +889,7 @@ defmodule SelectoComponents.Form.ParamsState do
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
+              presentation_context: presentation_context,
               query_results: nil,
               used_params: params,
               applied_view: get_map_value(params, :view_mode),

@@ -17,6 +17,7 @@ defmodule SelectoComponents.Results do
         applied_view: Map.get(assigns, :applied_view),
         executed: Map.get(assigns, :executed, false),
         query_results: Map.get(assigns, :query_results),
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         theme: Theme.resolve_theme(assigns),
         theme_stylesheet: Map.get(assigns, :theme_stylesheet, Theme.stylesheet())
       )
@@ -117,6 +118,7 @@ defmodule SelectoComponents.Results do
           theme={@theme}
           selecto={@selecto}
           query_results={@query_results}
+          presentation_context={@presentation_context}
           view_meta={@view_meta}
           view_opts={@view_opts}
           enable_modal_detail={Map.get(assigns, :enable_modal_detail, false)}

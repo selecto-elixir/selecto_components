@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Exporter.Dataset do
   @moduledoc false
 
+  alias SelectoComponents.Presentation
+
   @type t :: %{
           kind: :table | :grid,
           headers: [String.t()],
@@ -15,7 +17,7 @@ defmodule SelectoComponents.Exporter.Dataset do
     if aggregate_grid_export?(opts) do
       build_grid_dataset(query_results, opts)
     else
-      build_table_dataset(query_results)
+      build_table_dataset(query_results, opts)
     end
   end
 
@@ -68,13 +70,20 @@ defmodule SelectoComponents.Exporter.Dataset do
 
   def value_to_string(value), do: to_string(sanitize_value(value))
 
-  defp build_table_dataset({rows, columns, _aliases}) do
+  defp build_table_dataset({rows, columns, _aliases} = query_results, opts) do
     headers = headers(columns, rows)
     row_keys = Enum.map(0..max(length(headers) - 1, 0), &"__col_#{&1}")
+    row_column_defs = row_column_defs(opts, query_results)
+    presentation_context = Keyword.get(opts, :presentation_context, %{})
+    export_mode = Keyword.get(opts, :export_mode, :raw)
 
     normalized_rows =
       Enum.map(rows, fn row ->
-        normalize_row(row, columns, headers, row_keys)
+        normalize_row(row, columns, headers, row_keys,
+          row_column_defs: row_column_defs,
+          presentation_context: presentation_context,
+          export_mode: export_mode
+        )
       end)
 
     {:ok,
@@ -83,7 +92,11 @@ defmodule SelectoComponents.Exporter.Dataset do
        headers: headers,
        row_keys: row_keys,
        rows: normalized_rows,
-       metadata: %{row_count: length(normalized_rows)}
+       metadata: %{
+         row_count: length(normalized_rows),
+         export_mode: export_mode,
+         presentation_context: presentation_context
+       }
      }}
   end
 
@@ -285,43 +298,110 @@ defmodule SelectoComponents.Exporter.Dataset do
     end
   end
 
-  defp normalize_row(row, columns, headers, row_keys) when is_map(row) do
+  defp row_column_defs(opts, {_rows, columns, aliases}) do
+    selecto = Keyword.get(opts, :selecto)
+
+    Enum.with_index(columns)
+    |> Enum.reduce(%{}, fn {column_name, idx}, acc ->
+      alias_name = Enum.at(aliases, idx)
+      column_def = find_column_def(selecto, column_name, alias_name)
+
+      acc
+      |> Map.put(idx, column_def)
+      |> maybe_put_alias_column_def(alias_name, column_def)
+      |> Map.put_new(to_string(column_name), column_def)
+    end)
+  end
+
+  defp row_column_defs(_opts, _query_results), do: %{}
+
+  defp maybe_put_alias_column_def(acc, nil, _column_def), do: acc
+
+  defp maybe_put_alias_column_def(acc, alias_name, column_def),
+    do: Map.put_new(acc, to_string(alias_name), column_def)
+
+  defp find_column_def(nil, _column_name, _alias_name), do: nil
+
+  defp find_column_def(selecto, column_name, alias_name) do
+    configured_column(selecto, column_name) ||
+      configured_column(selecto, alias_name) ||
+      Selecto.field(selecto, column_name) ||
+      if(alias_name, do: Selecto.field(selecto, alias_name), else: nil)
+  end
+
+  defp configured_column(_selecto, nil), do: nil
+
+  defp configured_column(selecto, key) do
+    columns = Selecto.columns(selecto)
+
+    Map.get(columns, key) ||
+      case key do
+        value when is_binary(value) ->
+          case safe_existing_atom(value) do
+            nil -> nil
+            atom_key -> Map.get(columns, atom_key)
+          end
+
+        _ ->
+          nil
+      end
+  end
+
+  defp normalize_row(row, columns, headers, row_keys, opts) when is_map(row) do
     headers
     |> Enum.with_index()
     |> Enum.reduce(%{}, fn {header, idx}, acc ->
       value = fetch_map_value_for_header(row, header, columns, idx)
-      Map.put(acc, Enum.at(row_keys, idx), sanitize_value(value))
+      Map.put(acc, Enum.at(row_keys, idx), format_export_value(value, idx, header, opts))
     end)
   end
 
-  defp normalize_row(row, _columns, _headers, row_keys) when is_tuple(row) do
+  defp normalize_row(row, _columns, headers, row_keys, opts) when is_tuple(row) do
     row
     |> Tuple.to_list()
-    |> normalize_row_from_list(row_keys)
+    |> normalize_row_from_list(row_keys, headers, opts)
   end
 
-  defp normalize_row(row, _columns, _headers, row_keys) when is_list(row) do
-    normalize_row_from_list(row, row_keys)
+  defp normalize_row(row, _columns, headers, row_keys, opts) when is_list(row) do
+    normalize_row_from_list(row, row_keys, headers, opts)
   end
 
-  defp normalize_row(value, _columns, _headers, []) do
-    %{"value" => sanitize_value(value)}
+  defp normalize_row(value, _columns, headers, [], opts) do
+    %{"value" => format_export_value(value, 0, List.first(headers), opts)}
   end
 
-  defp normalize_row(value, _columns, _headers, row_keys) do
+  defp normalize_row(value, _columns, headers, row_keys, opts) do
     row_key = List.first(row_keys)
 
     Map.new(row_keys, fn key ->
-      {key, if(key == row_key, do: sanitize_value(value), else: nil)}
+      {key,
+       if(key == row_key,
+         do: format_export_value(value, 0, List.first(headers), opts),
+         else: nil
+       )}
     end)
   end
 
-  defp normalize_row_from_list(list_row, row_keys) do
+  defp normalize_row_from_list(list_row, row_keys, headers, opts) do
     row_keys
-    |> Enum.zip(list_row)
-    |> Enum.into(%{}, fn {header, value} ->
-      {header, sanitize_value(value)}
+    |> Enum.with_index()
+    |> Enum.into(%{}, fn {header, idx} ->
+      value = Enum.at(list_row, idx)
+      {header, format_export_value(value, idx, Enum.at(headers, idx), opts)}
     end)
+  end
+
+  defp format_export_value(value, idx, header, opts) do
+    export_mode = Keyword.get(opts, :export_mode, :raw)
+    presentation_context = Keyword.get(opts, :presentation_context, %{})
+    row_column_defs = Keyword.get(opts, :row_column_defs, %{})
+
+    column_def =
+      Map.get(row_column_defs, idx) || Map.get(row_column_defs, to_string(header || ""))
+
+    value
+    |> Presentation.format_value(column_def, presentation_context, mode: export_mode)
+    |> sanitize_value()
   end
 
   defp fetch_map_value_for_header(row, header, columns, idx) do

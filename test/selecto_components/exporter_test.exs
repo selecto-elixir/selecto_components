@@ -257,6 +257,89 @@ defmodule SelectoComponents.ExporterTest do
            ]
   end
 
+  test "formats exports in display mode using presentation metadata" do
+    query_results =
+      {
+        [[0, 1_704_067_200]],
+        ["temperature_c", "recorded_at"],
+        ["Temperature", "Recorded At"]
+      }
+
+    selecto =
+      Selecto.configure(
+        %{
+          name: "ExporterPresentationTest",
+          source: %{
+            source_table: "measurements",
+            primary_key: :id,
+            fields: [:id, :temperature_c, :recorded_at],
+            redact_fields: [],
+            columns: %{
+              id: %{type: :integer},
+              temperature_c: %{
+                type: :decimal,
+                presentation: %{
+                  semantic_type: :measurement,
+                  quantity: :temperature,
+                  canonical_unit: :celsius,
+                  default_unit: :celsius,
+                  format: %{maximum_fraction_digits: 1}
+                }
+              },
+              recorded_at: %{
+                type: :integer,
+                presentation_type: :utc_datetime,
+                datetime_storage: :unix_seconds,
+                presentation: %{
+                  semantic_type: :temporal,
+                  temporal_kind: :instant,
+                  display_timezone: :viewer
+                }
+              }
+            },
+            associations: %{}
+          },
+          schemas: %{},
+          joins: %{}
+        },
+        nil
+      )
+
+    assert {:ok, csv_export} =
+             Exporter.build("csv", query_results,
+               view_mode: :detail,
+               exported_at: @exported_at,
+               selecto: selecto,
+               export_mode: :display,
+               presentation_context: %{unit_system: :us_customary, timezone: "America/New_York"}
+             )
+
+    assert csv_export.content ==
+             "temperature_c,recorded_at\n32.0 F,2023-12-31 19:00"
+
+    assert {:ok, json_export} =
+             Exporter.build("json", query_results,
+               view_mode: :detail,
+               exported_at: @exported_at,
+               selecto: selecto,
+               export_mode: :display,
+               presentation_context: %{unit_system: :us_customary, timezone: "America/New_York"}
+             )
+
+    decoded = Jason.decode!(json_export.content)
+
+    assert decoded["export_mode"] == "display"
+
+    assert decoded["presentation_context"] == %{
+             "timezone" => "America/New_York",
+             "unit_system" => "us_customary"
+           }
+
+    assert decoded["rows"] == [
+             %{"temperature_c" => "32.0 F", "recorded_at" => "2023-12-31 19:00"}
+           ]
+  end
+
   test "returns no_results error for invalid query_results" do
     assert {:error, :no_results} = Exporter.build("csv", nil)
   end

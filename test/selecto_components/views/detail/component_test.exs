@@ -173,6 +173,68 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "{{2026, 3, 17}, {8, 0, 0, 0}}"
   end
 
+  test "renders presentation-formatted detail values" do
+    detail_selecto =
+      Selecto.configure(
+        %{
+          name: "DetailPresentationTest",
+          source: %{
+            source_table: "records",
+            primary_key: :id,
+            fields: [:id, :temperature_c, :recorded_at],
+            redact_fields: [],
+            columns: %{
+              id: %{type: :integer},
+              temperature_c: %{
+                type: :decimal,
+                presentation: %{
+                  semantic_type: :measurement,
+                  quantity: :temperature,
+                  canonical_unit: :celsius,
+                  default_unit: :celsius,
+                  format: %{maximum_fraction_digits: 1}
+                }
+              },
+              recorded_at: %{
+                type: :integer,
+                presentation_type: :utc_datetime,
+                datetime_storage: :unix_seconds,
+                presentation: %{
+                  semantic_type: :temporal,
+                  temporal_kind: :instant,
+                  display_timezone: :viewer
+                }
+              }
+            },
+            associations: %{}
+          },
+          schemas: %{},
+          joins: %{}
+        },
+        nil
+      )
+      |> Map.put(:set, %{
+        columns: [
+          %{"field" => "temperature_c", "alias" => "temperature_c", "uuid" => "temp-col"},
+          %{"field" => "recorded_at", "alias" => "recorded_at", "uuid" => "recorded-col"}
+        ]
+      })
+
+    assigns =
+      base_assigns(%{
+        selecto: detail_selecto,
+        query_results:
+          {[[0, 1_704_067_200]], ["temperature_c", "recorded_at"], ["Temperature", "Recorded At"]},
+        view_meta: %{page: 0, per_page: 10, total_rows: 1, subselect_configs: []},
+        presentation_context: %{unit_system: :us_customary, timezone: "America/New_York"}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "32.0 F"
+    assert html =~ "2023-12-31 19:00"
+  end
+
   test "renders row values when column uuid does not match row-data uuid mapping" do
     assigns =
       base_assigns(%{

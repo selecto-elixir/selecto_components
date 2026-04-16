@@ -7,7 +7,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.Sorting
-  alias SelectoComponents.QueryResults
+  alias SelectoComponents.Presentation
   alias SelectoComponents.Theme
   alias SelectoComponents.Views.Detail.RowActions
   use Phoenix.LiveComponent
@@ -46,6 +46,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       socket
       |> assign(assigns)
       |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
+      |> assign(:presentation_context, Map.get(assigns, :presentation_context, %{}))
       |> assign(:columns_config, init_columns_config(columns))
 
     {:ok, socket}
@@ -454,7 +455,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                           map_get_flexible(resrow, column_alias) ||
                           Enum.at(resrow_list, column_idx)
                     end %>
-                  <% def = Selecto.columns(@selecto)[column_field] %>
+                  <% def = resolve_column_definition(@selecto, column_field, column_alias) %>
                   <%= case def do %>
                     <% %{format: :component} = def -> %>
                       {safe_render_component(def.component, %{
@@ -464,7 +465,7 @@ defmodule SelectoComponents.Views.Detail.Component do
                     <% %{format: :link} = def -> %>
                       {safe_render_link(def.link_parts, row_value)}
                     <% _ -> %>
-                      {safe_cell_value(row_value)}
+                      {safe_cell_value(row_value, def, @presentation_context)}
                   <% end %>
                 </td>
 
@@ -1039,7 +1040,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   defp config_get(_config, _key), do: nil
 
-  defp safe_cell_value(value) do
+  defp safe_cell_value(value, column_def \\ nil, presentation_context \\ %{}) do
     case value do
       {:safe, _} = safe_value ->
         safe_value
@@ -1047,19 +1048,58 @@ defmodule SelectoComponents.Views.Detail.Component do
       value when is_tuple(value) ->
         inspect(value)
 
+      nil ->
+        ""
+
+      value when is_atom(value) ->
+        Atom.to_string(value)
+
       _ ->
-        if Phoenix.HTML.Safe.impl_for(value) do
-          value
-        else
-          case value do
-            nil -> ""
-            value when is_atom(value) -> Atom.to_string(value)
-            value when is_binary(value) -> QueryResults.normalize_value(value)
-            _ -> inspect(value)
-          end
-        end
+        Presentation.format_cell(
+          value,
+          maybe_normalized_column(column_def),
+          presentation_context
+        )
     end
   end
+
+  defp resolve_column_definition(nil, _field, _alias), do: nil
+
+  defp resolve_column_definition(selecto, field, alias_name) do
+    configured_column(selecto, field) ||
+      configured_column(selecto, alias_name) ||
+      Selecto.field(selecto, field) ||
+      if(alias_name, do: Selecto.field(selecto, alias_name), else: nil)
+  end
+
+  defp configured_column(_selecto, nil), do: nil
+
+  defp configured_column(selecto, key) do
+    columns = Selecto.columns(selecto)
+
+    Map.get(columns, key) ||
+      case key do
+        value when is_binary(value) ->
+          case safe_existing_atom(value) do
+            nil -> nil
+            atom_key -> Map.get(columns, atom_key)
+          end
+
+        _ ->
+          nil
+      end
+  end
+
+  defp safe_existing_atom(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp safe_existing_atom(_value), do: nil
+
+  defp maybe_normalized_column(nil), do: nil
+  defp maybe_normalized_column(column_def), do: Selecto.Presentation.normalize_column(column_def)
 
   defp safe_render_component(component_fn, params) do
     try do
