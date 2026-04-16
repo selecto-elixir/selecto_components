@@ -787,6 +787,10 @@ defmodule SelectoComponents.Components.ListPicker do
           <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M4.75 3a1.75 1.75 0 1 0 0 3.5A1.75 1.75 0 0 0 4.75 3ZM13.5 5.5a1.5 1.5 0 0 1 1.5 1.5v1.2a2.3 2.3 0 0 0-.7-.1H9.44a2.75 2.75 0 0 0-2.44-1.5H6.3a2.74 2.74 0 0 0-.31-1.2H13.5ZM15.25 13.5a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 0 0 0-3.5ZM5 9.1A1.5 1.5 0 0 1 6.5 7.6h.5A1.5 1.5 0 0 1 8.5 9.1v.4h5.8A1.7 1.7 0 0 1 16 11.2v1.1a2.74 2.74 0 0 0-1.2-.3h-.46A2.75 2.75 0 0 0 11.7 10H8.4A2.4 2.4 0 0 1 6 12.4H5V9.1Z" />
           </svg>
+        <% :cte -> %>
+          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M4.75 4A1.75 1.75 0 1 0 4.75 7.5 1.75 1.75 0 0 0 4.75 4ZM4.75 12.5A1.75 1.75 0 1 0 4.75 16a1.75 1.75 0 0 0 0-3.5ZM8 5a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 8 5Zm0 8.5a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 8 13.5Zm-.25-3.5A1.75 1.75 0 0 1 9.5 8.25h1v-1a.75.75 0 0 1 1.5 0v1h1A1.75 1.75 0 0 1 14.75 10v.5a.75.75 0 0 1-1.5 0V10a.25.25 0 0 0-.25-.25h-1v1a.75.75 0 0 1-1.5 0v-1h-1a.25.25 0 0 0-.25.25v.5a.75.75 0 0 1-1.5 0V10Z" />
+          </svg>
         <% :list -> %>
           <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M5 4.75A1.25 1.25 0 1 1 2.5 4.75 1.25 1.25 0 0 1 5 4.75ZM6.75 4a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75ZM5 10a1.25 1.25 0 1 1-2.5 0A1.25 1.25 0 0 1 5 10Zm1.75-.75a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75ZM5 15.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0ZM6.75 14.5a.75.75 0 0 0 0 1.5H16a.75.75 0 0 0 0-1.5H6.75Z" />
@@ -826,6 +830,7 @@ defmodule SelectoComponents.Components.ListPicker do
       :boolean -> "Boolean"
       :text -> "Text"
       :relation -> "Relation"
+      :cte -> "CTE"
       :list -> "List"
       :json -> "JSON"
       :uuid -> "UUID"
@@ -860,6 +865,9 @@ defmodule SelectoComponents.Components.ListPicker do
 
       :relation ->
         "color: color-mix(in srgb, var(--sc-text-primary) 84%, #b16b80); opacity: 0.82;"
+
+      :cte ->
+        "color: color-mix(in srgb, var(--sc-text-primary) 84%, #2d7c88); opacity: 0.9;"
 
       :list ->
         "color: color-mix(in srgb, var(--sc-text-primary) 84%, #6b89b5); opacity: 0.82;"

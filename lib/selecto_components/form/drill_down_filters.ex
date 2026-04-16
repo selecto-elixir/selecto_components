@@ -88,7 +88,8 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
   defp find_field_group_config(_used_params, _field_name, _group_idx), do: nil
 
-  defp find_field_group_config_in_collection(config_map, field_name, group_idx) when is_map(config_map) do
+  defp find_field_group_config_in_collection(config_map, field_name, group_idx)
+       when is_map(config_map) do
     by_index = find_field_group_config_by_index(config_map, group_idx)
 
     if by_index do
@@ -582,6 +583,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     used_params = used_params_map(socket)
     field_group_config = find_field_group_config(used_params, field_name, group_idx)
     drill_context = drill_context_from_group_config(field_group_config)
+
     {comp_mode, v1, v2} =
       determine_filter_comp_and_values(value, conf, drill_context)
       |> normalize_join_mode_filter_comp(conf)

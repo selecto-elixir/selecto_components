@@ -1,6 +1,7 @@
 defmodule SelectoComponents.Form.ParamsStateTest do
   use ExUnit.Case, async: true
 
+  alias Selecto.Expr, as: X
   alias SelectoComponents.Form.ParamsState
 
   defmodule BrokenView do
@@ -20,13 +21,29 @@ defmodule SelectoComponents.Form.ParamsStateTest do
       source: %{
         source_table: "records",
         primary_key: :id,
-        fields: [:id, :status],
+        fields: [:id, :status, :priority],
         redact_fields: [],
-        columns: %{id: %{type: :integer}, status: %{type: :string}},
+        columns: %{
+          id: %{type: :integer, name: "ID"},
+          status: %{type: :string, name: "Status"},
+          priority: %{type: :integer, name: "Priority"}
+        },
         associations: %{}
       },
       schemas: %{},
-      joins: %{}
+      joins: %{},
+      query_members: %{
+        ctes: %{
+          active_delivery_projects: %{
+            query: fn selecto ->
+              selecto
+              |> Selecto.select(["id", X.as("priority", "priority")])
+            end,
+            columns: ["id", "priority"],
+            join: [owner_key: :id, related_key: :id, fields: :infer]
+          }
+        }
+      }
     }
 
     Selecto.configure(domain, nil)
@@ -167,6 +184,43 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert params["view_mode"] == "aggregate"
     assert params["aggregate_grid"] == "true"
+  end
+
+  test "form_params_to_state derives ctes from cte-backed selected fields" do
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{
+        "k0" => %{
+          "field" => "active_delivery_projects.priority",
+          "index" => "0",
+          "uuid" => "cte-col-1"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, base_socket())
+
+    assert updated.assigns.view_config.ctes == [
+             {"auto-cte-active_delivery_projects", "active_delivery_projects", %{}}
+           ]
+  end
+
+  test "view_config_to_params includes derived ctes after cte-backed field selection" do
+    params = %{
+      "view_mode" => "detail",
+      "selected" => %{
+        "k0" => %{
+          "field" => "active_delivery_projects.priority",
+          "index" => "0",
+          "uuid" => "cte-col-1"
+        }
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, base_socket())
+    encoded = ParamsState.view_config_to_params(updated.assigns.view_config)
+
+    assert encoded["ctes"]["k0"]["name"] == "active_delivery_projects"
   end
 
   test "view_filter_process preserves duplicate selected_ids values for IN filters" do

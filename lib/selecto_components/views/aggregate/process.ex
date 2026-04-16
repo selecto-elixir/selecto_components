@@ -362,6 +362,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp resolve_column_metadata(col, nil), do: col
+
   defp resolve_column_metadata(col, selecto) do
     SchemaUtils.with_resolved_type(selecto, col)
   end
@@ -384,6 +385,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   defp enum_field_by_metadata?(_, _), do: false
 
   defp enum_field_by_colid?(_col, nil), do: false
+
   defp enum_field_by_colid?(%{colid: colid}, selecto) when is_binary(colid) or is_atom(colid) do
     case Selecto.field(selecto, colid) do
       nil -> false
@@ -394,6 +396,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   defp enum_field_by_colid?(_, _), do: false
 
   defp root_enum_field?(_col, nil), do: false
+
   defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field),
          module when is_atom(module) <- get_in(Selecto.domain(selecto), [:source, :schema_module]),
@@ -417,6 +420,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp enum_field_name_any_schema?(_field, nil), do: false
+
   defp enum_field_name_any_schema?(field, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field) do
       domain = Selecto.domain(selecto)

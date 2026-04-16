@@ -190,8 +190,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
             ],
             series_groups: [
               {%{colid: :rank_bucket, linked_to_next: true}, {:field, :rank_bucket, "Rank"}},
-              {%{colid: :assignee_role, linked_to_next: false},
-               {:field, :assignee_role, "Role"}}
+              {%{colid: :assignee_role, linked_to_next: false}, {:field, :assignee_role, "Role"}}
             ],
             chart_type: "line"
           }
@@ -203,7 +202,8 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
         ["todo", "0-4", "software_engineer", 10]
       ]
 
-      chart_data = Component.prepare_chart_data(assigns, results, ["State", "Rank", "Role", "Count"])
+      chart_data =
+        Component.prepare_chart_data(assigns, results, ["State", "Rank", "Role", "Count"])
 
       assert chart_data.labels == ["done", "todo"]
       assert length(chart_data.datasets) == 1

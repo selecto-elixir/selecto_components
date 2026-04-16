@@ -5,6 +5,7 @@ defmodule SelectoComponents.Form do
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ErrorHandling.ErrorSanitizer
   alias SelectoComponents.ErrorHandling.ErrorDisplay
+  alias SelectoComponents.Form.ColumnCatalog
   alias SelectoComponents.Form.ExportPanel
   alias SelectoComponents.Form.FilterPanel
   alias SelectoComponents.Form.FilterRendering
@@ -28,12 +29,15 @@ defmodule SelectoComponents.Form do
 
   @impl true
   def render(assigns) do
+    form_selecto = ColumnCatalog.picker_selecto(assigns.selecto)
+
     controller_filters =
       controller_filters(assigns.selecto, Map.get(assigns.view_config, :filters, []))
 
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
+        form_selecto: form_selecto,
         field_filters: FilterRendering.build_filter_list(assigns.selecto),
         controller_title: Map.get(assigns, :controller_title, "View Controller"),
         show_view_configurator: Map.get(assigns, :show_view_configurator, true),
@@ -193,7 +197,7 @@ defmodule SelectoComponents.Form do
             parent_id={@myself}
             views={@views}
             columns={@columns}
-            selecto={@selecto}
+            selecto={@form_selecto}
           />
 
           <FilterPanel.panel
@@ -733,14 +737,19 @@ defmodule SelectoComponents.Form do
       filter_def || column_def || controller_filter_field_type(selecto, filter)
   end
 
-  defp controller_join_mode_field_conf(_selecto, _filter_id, %{
-         join_mode: join_mode,
-         filter_type: :multi_select_id
-       } = current_def)
+  defp controller_join_mode_field_conf(
+         _selecto,
+         _filter_id,
+         %{
+           join_mode: join_mode,
+           filter_type: :multi_select_id
+         } = current_def
+       )
        when join_mode in [:lookup, :star, :tag],
        do: current_def
 
-  defp controller_join_mode_field_conf(selecto, filter_id, current_def) when is_binary(filter_id) do
+  defp controller_join_mode_field_conf(selecto, filter_id, current_def)
+       when is_binary(filter_id) do
     domain = Selecto.domain(selecto)
 
     resolved_conf =
@@ -1093,21 +1102,7 @@ defmodule SelectoComponents.Form do
 
   ### __using___
 
-  defp build_column_list(selecto) do
-    Selecto.columns(selecto)
-    |> Enum.map(fn {colid, column} ->
-      column = Map.put_new(column, :colid, colid)
-
-      {column.colid, column.name,
-       %{
-         type: Selecto.Temporal.date_like_type(column) || Map.get(column, :type),
-         format: Map.get(column, :format),
-         icon: Map.get(column, :icon),
-         icon_family: Map.get(column, :icon_family)
-       }}
-    end)
-    |> Enum.sort(fn {_, left_name, _}, {_, right_name, _} -> left_name <= right_name end)
-  end
+  defp build_column_list(selecto), do: ColumnCatalog.picker_columns(selecto)
 
   # defp build_available_fields(selecto) do
   #   Selecto.columns(selecto)

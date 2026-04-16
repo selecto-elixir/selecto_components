@@ -69,7 +69,8 @@ defmodule SelectoComponents.Helpers.BucketParser do
       else
         case_clauses =
           Enum.map(ranges, fn
-            {min, max, label} when field_type in [:date, :datetime] and is_integer(min) and is_integer(max) ->
+            {min, max, label}
+            when field_type in [:date, :datetime] and is_integer(min) and is_integer(max) ->
               date_expr = "DATE(#{field_name})"
 
               if min == max do

@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   """
 
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Form.ColumnCatalog
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
   @doc """
@@ -32,7 +33,6 @@ defmodule SelectoComponents.Form.ListPickerOperations do
         _ -> true
       end)
 
-    # Update the view_config
     put_in(view_config.views[view][list], filtered_list)
   end
 
@@ -115,6 +115,7 @@ defmodule SelectoComponents.Form.ListPickerOperations do
         {dragged_item, remaining_items} = List.pop_at(item_list, dragged_index)
 
         reordered_items = List.insert_at(remaining_items, target_index, dragged_item)
+
         put_in(view_config.views[view][list], reordered_items)
     end
   end
@@ -134,7 +135,6 @@ defmodule SelectoComponents.Form.ListPickerOperations do
     # Append the new item
     updated_list = current_list ++ [item]
 
-    # Update the view_config
     put_in(view_config.views[view][list], updated_list)
   end
 
@@ -151,9 +151,9 @@ defmodule SelectoComponents.Form.ListPickerOperations do
     Phoenix.LiveView.send_update(ViewRuntime.form_component(view_module),
       id: component_id,
       view_config: updated_view_config,
-      columns: socket_assigns.columns,
+      columns: ColumnCatalog.picker_columns(socket_assigns.selecto),
       view: view_module,
-      selecto: socket_assigns.selecto
+      selecto: ColumnCatalog.picker_selecto(socket_assigns.selecto)
     )
   end
 end

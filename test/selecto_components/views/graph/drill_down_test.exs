@@ -55,12 +55,12 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
           views: %{
             graph: %{
               x_axis: [
-                {"x1", "state", %{"field" => "state", "index" => "0", "linked_to_next" => "true"}},
+                {"x1", "state",
+                 %{"field" => "state", "index" => "0", "linked_to_next" => "true"}},
                 {"x2", "title", %{"field" => "title", "index" => "1", "format" => "text_prefix"}}
               ],
               series: [
-                {"s1", "rank",
-                 %{"field" => "rank", "index" => "0", "bucket_ranges" => "*/5"}}
+                {"s1", "rank", %{"field" => "rank", "index" => "0", "bucket_ranges" => "*/5"}}
               ]
             }
           },
@@ -77,7 +77,11 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
           config: %{columns: %{}, domain_data: %{}},
           set: %{}
         },
-        columns: [{"state", "State", :string}, {"title", "Title", :string}, {"rank", "Rank", :integer}],
+        columns: [
+          {"state", "State", :string},
+          {"title", "Title", :string},
+          {"rank", "Rank", :integer}
+        ],
         views: [{:graph, nil, "Graph", %{drill_down: :detail}}],
         used_params: %{
           "x_axis" => %{
@@ -113,7 +117,8 @@ defmodule SelectoComponents.Views.Graph.DrillDownTest do
            end)
 
     assert Enum.any?(filters, fn {_id, _section, filter} ->
-             filter["filter"] == "title" and filter["comp"] == "STARTS" and filter["value"] == "es"
+             filter["filter"] == "title" and filter["comp"] == "STARTS" and
+               filter["value"] == "es"
            end)
 
     assert Enum.any?(filters, fn {_id, _section, filter} ->

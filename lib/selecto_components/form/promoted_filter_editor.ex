@@ -311,7 +311,9 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
   defp filter_badge_label(%{render_kind: :text_search}), do: "Text Search"
   defp filter_badge_label(filter), do: filter_comp_label(filter.comp)
 
-  defp promoted_multiselect_filter?(%{field_conf: %{join_mode: join_mode, filter_type: :multi_select_id}})
+  defp promoted_multiselect_filter?(%{
+         field_conf: %{join_mode: join_mode, filter_type: :multi_select_id}
+       })
        when join_mode in [:lookup, :star, :tag],
        do: true
 

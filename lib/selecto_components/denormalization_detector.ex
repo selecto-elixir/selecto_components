@@ -256,8 +256,8 @@ defmodule SelectoComponents.DenormalizationDetector do
     if Map.get(join_config, :source_kind) == :cte do
       false
     else
-    target_primary_key = find_target_primary_key(selecto, join_segment, join_config)
-    join_target_key = Map.get(join_config, :my_key)
+      target_primary_key = find_target_primary_key(selecto, join_segment, join_config)
+      join_target_key = Map.get(join_config, :my_key)
 
       cond do
         not is_nil(target_primary_key) and not is_nil(join_target_key) ->

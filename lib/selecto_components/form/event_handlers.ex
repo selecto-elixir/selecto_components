@@ -146,20 +146,7 @@ defmodule SelectoComponents.Form.EventHandlers do
             })
           end)
 
-        # Set up columns in the same format as view_from_params
-        raw_columns = Selecto.columns(selecto)
-
-        columns_list =
-          raw_columns
-          |> Enum.map(fn {key, col} ->
-            {key, col.name,
-             %{
-               type: Selecto.Temporal.date_like_type(col) || col.type,
-               format: Map.get(col, :format),
-               icon: Map.get(col, :icon),
-               icon_family: Map.get(col, :icon_family)
-             }}
-          end)
+        columns_list = SelectoComponents.Form.ColumnCatalog.picker_columns(selecto)
 
         initial_view_config = %{
           view_mode: default_view_mode,

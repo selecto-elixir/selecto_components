@@ -5,6 +5,12 @@ CHANGES
 V 0.4.6
 --------
 
+- Added CTE-backed fields directly to the normal view-column pickers with a
+  dedicated `CTE` badge, so users can discover and select overlay CTE columns
+  without a separate CTE-management control.
+- Automatically derive, persist, and re-apply required CTEs when CTE-backed
+  fields are selected, reordered, submitted, or restored from saved views, so
+  CTE-backed project views load and round-trip cleanly.
 - Added adjacent `Group By` linking controls so aggregate builders can chain
   neighboring dimensions into a composite rollup/grouping block without manual
   query editing.

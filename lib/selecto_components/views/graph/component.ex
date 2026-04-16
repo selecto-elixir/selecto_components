@@ -406,7 +406,14 @@ defmodule SelectoComponents.Views.Graph.Component do
               format_numeric_value(value)
             end)
 
-          build_cartesian_dataset(metric_def, chart_type, index, data, metric_def.alias, drill_down)
+          build_cartesian_dataset(
+            metric_def,
+            chart_type,
+            index,
+            data,
+            metric_def.alias,
+            drill_down
+          )
         end)
 
       %{labels: labels, datasets: datasets}
@@ -679,7 +686,13 @@ defmodule SelectoComponents.Views.Graph.Component do
   defp linked_group_ranges(_group_defs), do: []
 
   defp linked_to_next?(coldef) when is_map(coldef) do
-    Map.get(coldef, :linked_to_next, Map.get(coldef, "linked_to_next")) in [true, "true", "on", "1", 1]
+    Map.get(coldef, :linked_to_next, Map.get(coldef, "linked_to_next")) in [
+      true,
+      "true",
+      "on",
+      "1",
+      1
+    ]
   end
 
   defp linked_to_next?(_coldef), do: false
