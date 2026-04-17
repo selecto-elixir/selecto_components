@@ -53,6 +53,10 @@ defmodule SelectoComponents.Presentation do
     mile_per_hour: "mph"
   }
 
+  @comma_decimal_locales ~w(
+    bg cs da de el es et fi fr hr hu it lt lv nb nl pl pt ro sk sl sr sv tr uk
+  )
+
   @spec resolve_context(map() | nil) :: map()
   def resolve_context(context) when is_map(context) do
     %{
@@ -64,7 +68,15 @@ defmodule SelectoComponents.Presentation do
         normalize_unit_overrides(
           Map.get(context, :unit_overrides) || Map.get(context, "unit_overrides", %{})
         ),
-      conventions: Map.get(context, :conventions) || Map.get(context, "conventions") || %{}
+      conventions: Map.get(context, :conventions) || Map.get(context, "conventions") || %{},
+      locale_adapter:
+        normalize_locale_adapter(
+          Map.get(context, :locale_adapter) || Map.get(context, "locale_adapter")
+        ),
+      locale_adapter_options:
+        normalize_locale_adapter_options(
+          Map.get(context, :locale_adapter_options) || Map.get(context, "locale_adapter_options")
+        )
     }
   end
 
@@ -74,7 +86,9 @@ defmodule SelectoComponents.Presentation do
       timezone: "Etc/UTC",
       unit_system: :metric,
       unit_overrides: %{},
-      conventions: %{}
+      conventions: %{},
+      locale_adapter: nil,
+      locale_adapter_options: %{}
     }
   end
 
@@ -99,6 +113,33 @@ defmodule SelectoComponents.Presentation do
     formatted = format_value(value, column, context, opts)
     value_to_string(formatted)
   end
+
+  @spec parse_number(term(), map() | nil) :: float() | nil
+  def parse_number(value, context \\ nil)
+
+  def parse_number(value, _context) when is_integer(value), do: value * 1.0
+  def parse_number(value, _context) when is_float(value), do: value
+  def parse_number(%D{} = value, _context), do: D.to_float(value)
+
+  def parse_number(value, context) when is_binary(value) do
+    context = resolve_context(context)
+
+    case parse_number_with_adapter(value, context) do
+      {:ok, float} when is_float(float) ->
+        float
+
+      _ ->
+        with normalized when is_binary(normalized) and normalized != "" <-
+               normalize_number_string(value, context),
+             {float, ""} <- Float.parse(normalized) do
+          float
+        else
+          _ -> nil
+        end
+    end
+  end
+
+  def parse_number(_value, _context), do: nil
 
   @spec display_unit(map() | nil, map() | nil) :: atom() | String.t() | nil
   def display_unit(column, context) do
@@ -200,6 +241,12 @@ defmodule SelectoComponents.Presentation do
 
   defp normalize_locale(_locale), do: nil
 
+  defp normalize_locale_adapter(value) when is_atom(value), do: value
+  defp normalize_locale_adapter(_value), do: nil
+
+  defp normalize_locale_adapter_options(options) when is_map(options), do: options
+  defp normalize_locale_adapter_options(_options), do: %{}
+
   defp normalize_timezone(nil), do: "Etc/UTC"
 
   defp normalize_timezone(timezone) when is_binary(timezone) do
@@ -269,18 +316,142 @@ defmodule SelectoComponents.Presentation do
 
   defp timezone_label(%DateTime{} = datetime), do: datetime.time_zone || "UTC"
 
-  defp format_number(value, presentation, _context) do
+  defp format_number(value, presentation, context) do
     digits =
       presentation
       |> Map.get(:format, %{})
       |> Map.get(:maximum_fraction_digits, default_digits(value))
 
-    case to_float(value) do
-      nil -> value_to_string(value)
-      float when digits <= 0 -> float |> Float.round(0) |> trunc() |> Integer.to_string()
-      float -> :erlang.float_to_binary(float, decimals: digits)
+    case format_number_with_adapter(value, context, digits, presentation) do
+      {:ok, formatted} when is_binary(formatted) ->
+        formatted
+
+      _ ->
+        case to_float(value) do
+          nil -> value_to_string(value)
+          float when digits <= 0 -> float |> Float.round(0) |> trunc() |> Integer.to_string()
+          float -> :erlang.float_to_binary(float, decimals: digits)
+        end
     end
   end
+
+  defp parse_number_with_adapter(value, context) do
+    case Map.get(context, :locale_adapter) do
+      adapter when is_atom(adapter) ->
+        if function_exported?(adapter, :parse_number, 2) do
+          adapter.parse_number(value, context)
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  defp format_number_with_adapter(value, context, digits, presentation) do
+    case Map.get(context, :locale_adapter) do
+      adapter when is_atom(adapter) ->
+        if function_exported?(adapter, :format_number, 3) do
+          adapter.format_number(value, context,
+            digits: digits,
+            presentation: presentation,
+            locale_adapter_options: Map.get(context, :locale_adapter_options, %{})
+          )
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  defp normalize_number_string(value, context) when is_binary(value) do
+    trimmed =
+      value
+      |> String.trim()
+      |> String.replace(~r/[−–—]/u, "-")
+
+    if trimmed == "" do
+      nil
+    else
+      conventions = number_conventions(context)
+      decimal_separator = Map.get(conventions, :decimal_separator, ".")
+      grouping_separators = Map.get(conventions, :grouping_separators, [])
+
+      normalized =
+        trimmed
+        |> remove_grouping_separators(grouping_separators)
+        |> normalize_decimal_separator(decimal_separator)
+
+      if Regex.match?(~r/^[-+]?(?:\d+|\d*\.\d+)$/u, normalized), do: normalized, else: nil
+    end
+  end
+
+  defp number_conventions(context) do
+    conventions = Map.get(context, :conventions, %{}) || %{}
+    locale = Map.get(context, :locale)
+    decimal_separator = convention_decimal_separator(conventions, locale)
+    grouping_separators = convention_grouping_separators(conventions, decimal_separator)
+
+    %{
+      decimal_separator: decimal_separator,
+      grouping_separators: grouping_separators
+    }
+  end
+
+  defp convention_decimal_separator(conventions, locale) do
+    case Map.get(conventions, :decimal_separator) || Map.get(conventions, "decimal_separator") do
+      separator when separator in [".", ","] -> separator
+      _ -> default_decimal_separator(locale)
+    end
+  end
+
+  defp convention_grouping_separators(conventions, decimal_separator) do
+    explicit =
+      Map.get(conventions, :grouping_separators) ||
+        Map.get(conventions, "grouping_separators") ||
+        Map.get(conventions, :grouping_separator) ||
+        Map.get(conventions, "grouping_separator") ||
+        Map.get(conventions, :group_separator) ||
+        Map.get(conventions, "group_separator")
+
+    separators =
+      case explicit do
+        values when is_list(values) -> values
+        value when is_binary(value) -> [value]
+        _ -> default_grouping_separators(decimal_separator)
+      end
+
+    separators
+    |> Enum.map(&to_string/1)
+    |> Enum.reject(&(&1 in [nil, "", decimal_separator]))
+    |> Enum.uniq()
+  end
+
+  defp default_decimal_separator(locale) when is_binary(locale) do
+    locale_prefix = locale |> String.downcase() |> String.split(~r/[-_]/u, parts: 2) |> hd()
+    if locale_prefix in @comma_decimal_locales, do: ",", else: "."
+  end
+
+  defp default_decimal_separator(_locale), do: "."
+
+  defp default_grouping_separators("."), do: [",", " ", <<194, 160>>, <<226, 128, 175>>, "'", "’"]
+  defp default_grouping_separators(","), do: [".", " ", <<194, 160>>, <<226, 128, 175>>, "'", "’"]
+  defp default_grouping_separators(_), do: [",", ".", " "]
+
+  defp remove_grouping_separators(value, separators) do
+    Enum.reduce(separators, value, fn separator, acc -> String.replace(acc, separator, "") end)
+  end
+
+  defp normalize_decimal_separator(value, "."), do: value
+  defp normalize_decimal_separator(value, ","), do: String.replace(value, ",", ".")
+  defp normalize_decimal_separator(value, separator), do: String.replace(value, separator, ".")
 
   defp default_digits(value) when is_integer(value), do: 0
   defp default_digits(%D{}), do: 2
@@ -353,10 +524,7 @@ defmodule SelectoComponents.Presentation do
   defp to_float(%D{} = value), do: D.to_float(value)
 
   defp to_float(value) when is_binary(value) do
-    case Float.parse(String.trim(value)) do
-      {float, ""} -> float
-      _ -> nil
-    end
+    parse_number(value, nil)
   end
 
   defp to_float(_value), do: nil

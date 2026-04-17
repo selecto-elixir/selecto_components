@@ -396,6 +396,91 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "presentation-aware filter inputs" do
+    test "renders canonical measurement filters back in display units" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :decimal,
+          filter_value: %{
+            "filter" => "temperature_c",
+            "comp" => "=",
+            "value" => "0",
+            "display_value" => "32"
+          },
+          selecto: render_presentation_selecto(),
+          column_def: %{
+            type: :decimal,
+            presentation: %{
+              semantic_type: :measurement,
+              quantity: :temperature,
+              canonical_unit: :celsius,
+              default_unit: :celsius
+            }
+          },
+          filter_def: %{type: :decimal},
+          presentation_context: %{unit_system: :us_customary}
+        })
+
+      assert html =~ ~s(value="32")
+    end
+
+    test "renders canonical instant datetime filters in viewer local time" do
+      html =
+        render_component(&FilterRendering.render_datetime_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :utc_datetime,
+          filter_value: %{
+            "filter" => "recorded_at",
+            "comp" => ">=",
+            "value" => "2024-01-01T12:00:00Z",
+            "display_value" => "2024-01-01T07:00"
+          },
+          selecto: render_presentation_selecto(),
+          column_def: %{
+            type: :integer,
+            presentation_type: :utc_datetime,
+            datetime_storage: :unix_seconds,
+            presentation: %{
+              semantic_type: :temporal,
+              temporal_kind: :instant,
+              display_timezone: :viewer
+            }
+          },
+          filter_def: %{type: :utc_datetime},
+          presentation_context: %{timezone: "America/New_York"}
+        })
+
+      assert html =~ ~s(value="2024-01-01T07:00")
+    end
+
+    test "renders canonical plain numeric filters back in display-local form" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :decimal,
+          filter_value: %{
+            "filter" => "amount",
+            "comp" => ">=",
+            "value" => "1234.5",
+            "display_value" => "1.234,5"
+          },
+          selecto: render_presentation_selecto(),
+          column_def: %{type: :decimal},
+          filter_def: %{type: :decimal},
+          presentation_context: %{locale: "de-DE"}
+        })
+
+      assert html =~ ~s(value="1.234,5")
+    end
+  end
+
   describe "Security notes" do
     test "documents security measures for filter rendering" do
       # Security measures in FilterRendering:
@@ -425,6 +510,54 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
         columns: %{
           id: %{type: :integer, colid: :id, name: "ID"},
           status: %{type: :string, colid: :status, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp render_presentation_selecto do
+    domain = %{
+      name: "FilterRenderingPresentationTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :temperature_c, :recorded_at, :amount],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: :id, name: "ID"},
+          temperature_c: %{
+            type: :decimal,
+            colid: :temperature_c,
+            name: "Temperature",
+            presentation: %{
+              semantic_type: :measurement,
+              quantity: :temperature,
+              canonical_unit: :celsius,
+              default_unit: :celsius
+            }
+          },
+          recorded_at: %{
+            type: :integer,
+            colid: :recorded_at,
+            name: "Recorded At",
+            presentation_type: :utc_datetime,
+            datetime_storage: :unix_seconds,
+            presentation: %{
+              semantic_type: :temporal,
+              temporal_kind: :instant,
+              display_timezone: :viewer
+            }
+          },
+          amount: %{
+            type: :decimal,
+            colid: :amount,
+            name: "Amount"
+          }
         },
         associations: %{}
       },

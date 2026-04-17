@@ -275,6 +275,45 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert {:field, {:to_char, {:created_at, "YYYY-Q"}}, "Quarter"} = field_selector
     end
 
+    test "uses viewer timezone for instant datetime graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "created_at", %{
+          colid: :created_at,
+          type: :utc_datetime,
+          presentation: %{
+            semantic_type: :temporal,
+            temporal_kind: :instant,
+            display_timezone: :viewer
+          }
+        })
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "created_at",
+            "index" => "0",
+            "alias" => "Month",
+            "format" => "YYYY-MM"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        },
+        "_presentation_context" => %{"timezone" => "America/New_York"}
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:raw_sql, sql}, "Month"} = field_selector
+      assert sql == "to_char(selecto_root.created_at AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+    end
+
     test "supports year buckets in graph grouping", %{columns: columns} do
       datetime_columns =
         Map.put(columns, "created_at", %{colid: :created_at, type: :utc_datetime})
@@ -304,6 +343,50 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
 
       assert {:field, {:raw_sql, sql}, "Year Buckets"} = field_selector
       assert sql =~ "EXTRACT(YEAR FROM selecto_root.created_at)"
+    end
+
+    test "uses viewer timezone for instant year buckets in graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "occurred_at_epoch", %{
+          colid: :occurred_at_epoch,
+          type: :integer,
+          presentation_type: :utc_datetime,
+          datetime_storage: :unix_seconds,
+          presentation: %{
+            semantic_type: :temporal,
+            temporal_kind: :instant,
+            display_timezone: :viewer
+          }
+        })
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "occurred_at_epoch",
+            "index" => "0",
+            "alias" => "Year Buckets",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        },
+        "_presentation_context" => %{"timezone" => "America/New_York"}
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:raw_sql, sql}, "Year Buckets"} = field_selector
+
+      assert sql =~
+               "EXTRACT(YEAR FROM to_timestamp(selecto_root.occurred_at_epoch) AT TIME ZONE 'America/New_York')"
     end
 
     test "generates proper order_by and group_by clauses", %{columns: columns} do
@@ -365,7 +448,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
     end
   end
 
-  describe "group_by_fields/2" do
+  describe "group_by_fields/3" do
     setup do
       columns = %{
         "category" => %{colid: :category, type: :string},
@@ -399,6 +482,18 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       }
 
       result = Process.group_by_fields(field_params, columns)
+
+      [{col, field_selector}] = result
+      assert col.colid == :created_at
+      assert field_selector == {:field, {:to_char, {:created_at, "YYYY"}}, "Year"}
+    end
+
+    test "keeps naive datetime grouping unchanged when timezone is present", %{columns: columns} do
+      field_params = %{
+        "1" => %{"field" => "created_at", "index" => "0", "alias" => "Year", "format" => "YYYY"}
+      }
+
+      result = Process.group_by_fields(field_params, columns, %{timezone: "America/New_York"})
 
       [{col, field_selector}] = result
       assert col.colid == :created_at

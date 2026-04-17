@@ -740,4 +740,78 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "Friday"
     refute html =~ ">6<"
   end
+
+  test "renders presentation-formatted aggregate values and group labels" do
+    selecto =
+      Selecto.configure(
+        %{
+          name: "AggregatePresentationTest",
+          source: %{
+            source_table: "records",
+            primary_key: :id,
+            fields: [:id, :temperature_c, :recorded_at],
+            redact_fields: [],
+            columns: %{
+              id: %{type: :integer},
+              temperature_c: %{
+                type: :decimal,
+                presentation: %{
+                  semantic_type: :measurement,
+                  quantity: :temperature,
+                  canonical_unit: :celsius,
+                  default_unit: :celsius,
+                  format: %{maximum_fraction_digits: 1}
+                }
+              },
+              recorded_at: %{
+                type: :integer,
+                presentation_type: :utc_datetime,
+                datetime_storage: :unix_seconds,
+                presentation: %{
+                  semantic_type: :temporal,
+                  temporal_kind: :instant,
+                  display_timezone: :viewer
+                }
+              }
+            },
+            associations: %{}
+          },
+          schemas: %{},
+          joins: %{}
+        },
+        nil
+      )
+
+    assigns = %{
+      id: "aggregate-presentation-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "recorded_at", "index" => "0"}
+        }
+      },
+      selecto: %{
+        selecto
+        | set: %{
+            selected: [
+              {:field, :recorded_at, "recorded_at"},
+              {:field, {:avg, :temperature_c}, "avg_temperature_c"}
+            ],
+            group_by: [{:rollup, [{:literal_position, 1}]}],
+            aggregates: [{:field, {:avg, :temperature_c}, "avg_temperature_c"}]
+          }
+      },
+      query_results: {[[1_704_067_200, 0]], [], ["recorded_at", "avg_temperature_c"]},
+      view_meta: %{exe_id: "aggregate-presentation-run"},
+      presentation_context: %{unit_system: :us_customary, timezone: "America/New_York"}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "2023-12-31 19:00"
+    assert html =~ "32.0 F"
+  end
 end

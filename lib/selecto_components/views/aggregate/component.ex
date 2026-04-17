@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   """
   use Phoenix.LiveComponent
   alias SelectoComponents.Env
+  alias SelectoComponents.Presentation
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
   alias SelectoComponents.Views.Aggregate.Options
@@ -47,6 +48,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         aggregate_server_paged?: incoming_server_paged?,
         aggregate_page_loading?: false,
         aggregate_requested_page: nil,
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         theme:
           Map.get(assigns, :theme, Map.get(socket.assigns, :theme, Theme.default_theme(:light))),
         last_update: System.system_time(:microsecond)
@@ -160,7 +162,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   # Format a value for display
   # With COALESCE, "[NULL]" strings are already in the data and should be displayed as-is
   # ROLLUP NULLs (nil/empty) should also be shown as "[NULL]"
-  defp format_value(value) do
+  defp format_value(value, column_def \\ nil, presentation_context \\ %{}) do
     case value do
       nil ->
         "[NULL]"
@@ -170,26 +172,38 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         "[NULL]"
 
       {coefficient, scale} when is_integer(coefficient) and is_integer(scale) and scale >= 0 ->
-        format_decimal_tuple(coefficient, scale)
+        safe_cell_value(
+          format_decimal_tuple(coefficient, scale),
+          column_def,
+          presentation_context
+        )
 
       {display_value, _id} when is_nil(display_value) or display_value == "" ->
         "[NULL]"
 
       {display_value, _id} ->
-        safe_cell_value(display_value)
+        safe_cell_value(display_value, column_def, presentation_context)
 
       tuple when is_tuple(tuple) ->
         elem_val = elem(tuple, 0)
-        if is_nil(elem_val) or elem_val == "", do: "[NULL]", else: safe_cell_value(elem_val)
+
+        if is_nil(elem_val) or elem_val == "" do
+          "[NULL]"
+        else
+          safe_cell_value(elem_val, column_def, presentation_context)
+        end
 
       # Includes "[NULL]" strings from COALESCE
       _ ->
-        safe_cell_value(value)
+        safe_cell_value(value, column_def, presentation_context)
     end
   end
 
-  defp safe_cell_value(value) do
+  defp safe_cell_value(value, column_def, presentation_context) do
     case value do
+      {:safe, _} = safe_value ->
+        safe_value
+
       nil ->
         ""
 
@@ -197,33 +211,28 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       when is_integer(coefficient) and is_integer(scale) and scale >= 0 ->
         format_decimal_tuple(coefficient, scale)
 
-      value when is_tuple(value) ->
-        inspect(value)
-
       value when is_atom(value) ->
         Atom.to_string(value)
 
-      value when is_binary(value) ->
-        QueryResults.normalize_value(value)
+      value when is_tuple(value) ->
+        inspect(value)
 
       _ ->
-        if Phoenix.HTML.Safe.impl_for(value) do
-          value
-        else
-          inspect(value)
-        end
+        value
+        |> Presentation.format_cell(maybe_normalized_column(column_def), presentation_context)
+        |> QueryResults.normalize_value()
     end
   end
 
   # Format an aggregate value, applying format function if present
-  defp format_aggregate_value(value, coldef) do
+  defp format_aggregate_value(value, coldef, presentation_context) do
     formatted =
       case coldef do
         %{format: fmt_fun} when is_function(fmt_fun) -> fmt_fun.(value)
         _ -> value
       end
 
-    format_value(formatted)
+    format_value(formatted, coldef, presentation_context)
   end
 
   defp format_decimal_tuple(coefficient, 0), do: Integer.to_string(coefficient)
@@ -467,7 +476,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               <%= if display_group_block?(block, @active_group_range) do %>
                 <%= if @continued? do %>
                   <span style="color: var(--sc-accent);">
-                    {group_block_value(block)} (continued)
+                    {group_block_value(block, @presentation_context)} (continued)
                   </span>
                 <% else %>
                   <div
@@ -475,7 +484,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     {@filter_attrs}
                     class="cursor-pointer hover:underline"
                   >
-                    {group_block_value(block)}
+                    {group_block_value(block, @presentation_context)}
                   </div>
                 <% end %>
               <% end %>
@@ -490,7 +499,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           <%= if @continued? do %>
             <span style="color: var(--sc-accent);">-</span>
           <% else %>
-            {format_aggregate_value(value, coldef)}
+            {format_aggregate_value(value, coldef, @presentation_context)}
           <% end %>
         </td>
       <% end %>
@@ -764,11 +773,14 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           case field do
             {:field, {:to_char, {field_name, _format}}, _alias} ->
               # Handle formatted date fields
-              Selecto.field(assigns.selecto, field_name) || %{name: display_alias, format: nil}
+              configured_column(assigns.selecto, field_name) ||
+                Selecto.field(assigns.selecto, field_name) || %{name: display_alias, format: nil}
 
             {:field, field_id, _alias} when is_binary(field_id) or is_atom(field_id) ->
               # Selecto.field now returns full custom column definitions with group_by_filter
-              result = Selecto.field(assigns.selecto, field_id)
+              result =
+                configured_column(assigns.selecto, field_id) ||
+                  Selecto.field(assigns.selecto, field_id)
 
               if result == nil do
                 # Field not found - use basic definition
@@ -779,7 +791,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
             {:field, {_extract_type, field_id, _format}, _alias} ->
               # Handle extracted fields (e.g., date parts)
-              Selecto.field(assigns.selecto, field_id) || %{name: display_alias}
+              configured_column(assigns.selecto, field_id) ||
+                Selecto.field(assigns.selecto, field_id) || %{name: display_alias}
 
             {:row, [display_field | _rest], _alias} ->
               # For row selectors (e.g., join mode columns), look up the actual column definition
@@ -818,7 +831,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     nil
                   end
                 else
-                  Selecto.field(assigns.selecto, field_name)
+                  configured_column(assigns.selecto, field_name) ||
+                    Selecto.field(assigns.selecto, field_name)
                 end
 
               if result == nil do
@@ -847,10 +861,20 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         coldef =
           case agg do
             {:field, {_func, field_id}, _alias} when is_atom(field_id) ->
-              Selecto.field(assigns.selecto, field_id)
+              configured_column(assigns.selecto, field_id) ||
+                Selecto.field(assigns.selecto, field_id)
 
             {:field, field_id, _alias} when is_atom(field_id) ->
-              Selecto.field(assigns.selecto, field_id)
+              configured_column(assigns.selecto, field_id) ||
+                Selecto.field(assigns.selecto, field_id)
+
+            {:field, {_func, field_id}, _alias} when is_binary(field_id) ->
+              configured_column(assigns.selecto, field_id) ||
+                Selecto.field(assigns.selecto, field_id)
+
+            {:field, field_id, _alias} when is_binary(field_id) ->
+              configured_column(assigns.selecto, field_id) ||
+                Selecto.field(assigns.selecto, field_id)
 
             _ ->
               # Fallback to empty map for unknown aggregate types
@@ -990,7 +1014,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             rollup_rows,
             num_group_by,
             group_by,
-            display_group_axes,
+            aggregates_processed,
             grid_colorize,
             grid_color_scale,
             assigns.theme
@@ -999,6 +1023,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     assigns =
       assign(assigns,
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         rollup_rows: rollup_rows,
         paged_rollup_rows: paged_rollup_rows,
         num_group_by: num_group_by,
@@ -1213,8 +1238,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 </th>
                 <%= for col_value <- @grid_data.col_headers do %>
                   <th class="sticky top-0 z-20 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);">
-                    <span class={null_grid_text_class(format_grid_axis_value(col_value, @grid_data.col_axis))}>
-                      {format_grid_axis_value(col_value, @grid_data.col_axis)}
+                    <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef, @presentation_context))}>
+                      {format_group_value(col_value, @grid_data.col_coldef, @presentation_context)}
                     </span>
                   </th>
                 <% end %>
@@ -1223,8 +1248,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
               <tr :for={row_value <- @grid_data.row_headers}>
                 <td class="sticky left-0 z-10 px-3 py-2 text-sm font-semibold" style="background: var(--sc-surface-bg); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
-                  <span class={null_grid_text_class(format_grid_axis_value(row_value, @grid_data.row_axis))}>
-                    {format_grid_axis_value(row_value, @grid_data.row_axis)}
+                  <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef, @presentation_context))}>
+                    {format_group_value(row_value, @grid_data.row_coldef, @presentation_context)}
                   </span>
                 </td>
           <td
@@ -1241,8 +1266,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                     )}
                     class="cursor-pointer whitespace-nowrap hover:underline"
                   >
-                    <span class={null_grid_text_class(format_value(Map.get(@grid_data.cells, {row_value, col_value})))}>
-                      {format_value(Map.get(@grid_data.cells, {row_value, col_value}))}
+                    <span class={null_grid_text_class(format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context))}>
+                      {format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context)}
                     </span>
                   </div>
                 </td>
@@ -1283,6 +1308,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 num_group_by={@num_group_by}
                 group_by={@group_by}
                 aggregate={@aggregate}
+                presentation_context={@presentation_context}
                 theme={@theme}
               />
             </tbody>
@@ -1299,8 +1325,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp build_grid_data(
          paged_rollup_rows,
          num_group_by,
-         _group_by,
-         display_group_axes,
+         group_by,
+         aggregates,
          colorize?,
          scale_mode,
          theme
@@ -1326,6 +1352,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       end)
       |> Enum.reverse()
 
+    display_group_axes = visible_group_axes(group_by)
     row_axis = Enum.at(display_group_axes, 0, default_grid_axis("Group 1"))
     col_axis = Enum.at(display_group_axes, 1, default_grid_axis("Group 2"))
 
@@ -1346,8 +1373,12 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         {row_acc, col_acc, cells_acc, group_cols_acc}
       end)
 
-    row_headers = sort_grid_axis_values(row_headers, row_axis)
-    col_headers = sort_grid_axis_values(col_headers, col_axis)
+    row_coldef = grid_axis_coldef(row_axis)
+    col_coldef = grid_axis_coldef(col_axis)
+    agg_coldef = grid_coldef(aggregates, 0)
+
+    row_headers = sort_group_values(row_headers, row_coldef)
+    col_headers = sort_group_values(col_headers, col_coldef)
     cell_styles = build_grid_cell_styles(cells, colorize?, scale_mode, theme)
 
     %{
@@ -1357,8 +1388,9 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       cells: cells,
       cell_group_cols: cell_group_cols,
       cell_styles: cell_styles,
-      row_axis: row_axis,
-      col_axis: col_axis
+      row_coldef: row_coldef,
+      col_coldef: col_coldef,
+      agg_coldef: agg_coldef
     }
   end
 
@@ -1452,48 +1484,73 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp selected_field_alias(_selected_field, fallback), do: fallback
 
+  defp grid_coldef(group_by, idx) do
+    case Enum.at(group_by, idx) do
+      {_alias, {:group_by, _field, coldef}} -> coldef
+      {_alias, {:agg, _field, coldef}} -> coldef
+      _ -> %{}
+    end
+  end
+
+  defp grid_axis_coldef(%{defs: [{_alias, {:group_by, _field, coldef}}]}), do: coldef
+
+  defp grid_axis_coldef(%{defs: defs}) when is_list(defs) do
+    %{
+      linked_defs: Enum.map(defs, fn {_alias, {:group_by, _field, coldef}} -> coldef end)
+    }
+  end
+
+  defp grid_axis_coldef(_axis), do: %{}
+
   defp default_grid_axis(alias_name) do
-    %{alias: alias_name, defs: [], start_idx: 0, end_idx: 0}
+    %{
+      alias: alias_name,
+      defs: [],
+      start_idx: nil,
+      end_idx: nil
+    }
   end
-
-  defp format_grid_axis_value(value, %{defs: defs}) when is_list(defs) and defs != [] do
-    defs
-    |> Enum.zip(List.wrap(value))
-    |> Enum.map(fn {{_alias, {:group_by, _field, coldef}}, axis_value} ->
-      format_group_value(axis_value, coldef)
-    end)
-    |> Enum.join(" / ")
-  end
-
-  defp format_grid_axis_value(value, _axis), do: format_value(value)
 
   defp grid_axis_value(row, %{start_idx: start_idx, end_idx: end_idx})
        when is_list(row) and is_integer(start_idx) and is_integer(end_idx) do
-    Enum.slice(row, start_idx, end_idx - start_idx + 1)
-  end
+    values = Enum.slice(row, start_idx, end_idx - start_idx + 1)
 
-  defp grid_axis_value(_row, _axis), do: []
-
-  defp sort_grid_axis_values(values, %{defs: [{_alias, {:group_by, _field, coldef}}]}) do
-    values
-    |> Enum.map(fn
-      [value] -> value
-      value -> value
-    end)
-    |> sort_group_values(coldef)
-    |> Enum.map(&List.wrap/1)
-  end
-
-  defp sort_grid_axis_values(values, _axis), do: values
-
-  defp format_group_value(value, coldef) do
-    display_value = display_value_for_group(value, coldef)
-
-    case Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format") do
-      "D" -> weekday_name(display_value)
-      _ -> format_value(display_value)
+    case values do
+      [single] -> single
+      many -> many
     end
   end
+
+  defp grid_axis_value(_row, _axis), do: nil
+
+  defp format_group_value(value, coldef, presentation_context) do
+    if linked_grid_axis?(coldef) and is_list(value) do
+      value
+      |> Enum.zip(Map.get(coldef, :linked_defs, []))
+      |> Enum.map(fn {part_value, part_coldef} ->
+        format_group_value(part_value, part_coldef, presentation_context)
+      end)
+      |> Enum.join(" / ")
+    else
+      display_value = display_value_for_group(value, coldef)
+
+      case Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format") do
+        "D" ->
+          weekday_name(display_value)
+
+        format when is_binary(format) and format != "" ->
+          format_value(display_value, nil, presentation_context)
+
+        _ ->
+          format_value(display_value, coldef, presentation_context)
+      end
+    end
+  end
+
+  defp linked_grid_axis?(coldef) when is_map(coldef),
+    do: is_list(Map.get(coldef, :linked_defs)) and Map.get(coldef, :linked_defs) != []
+
+  defp linked_grid_axis?(_coldef), do: false
 
   defp display_value_for_group(value, coldef) do
     if composite_group_value?(coldef) do
@@ -1563,6 +1620,38 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp parse_int(_), do: nil
+
+  defp configured_column(_selecto, nil), do: nil
+
+  defp configured_column(selecto, key) do
+    columns = Selecto.columns(selecto)
+
+    Map.get(columns, key) ||
+      case key do
+        value when is_atom(value) ->
+          Map.get(columns, Atom.to_string(value))
+
+        value when is_binary(value) ->
+          case safe_existing_atom(value) do
+            nil -> nil
+            atom_key -> Map.get(columns, atom_key)
+          end
+
+        _ ->
+          nil
+      end
+  end
+
+  defp safe_existing_atom(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp safe_existing_atom(_value), do: nil
+
+  defp maybe_normalized_column(nil), do: nil
+  defp maybe_normalized_column(column_def), do: Selecto.Presentation.normalize_column(column_def)
 
   defp sort_group_values(values, coldef) when is_list(values) do
     format = Map.get(coldef || %{}, :group_format) || Map.get(coldef || %{}, "group_format")
@@ -1709,20 +1798,22 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp row_group_blocks(_group_by, _group_cols), do: []
 
-  defp group_block_value(%{defs: defs, values: values}) do
+  defp group_block_value(block, presentation_context \\ %{})
+
+  defp group_block_value(%{defs: defs, values: values}, presentation_context) do
     formatted_values =
       values
       |> Enum.zip(defs)
       |> Enum.take_while(fn {value, _definition} -> value not in [nil, ""] end)
       |> Enum.map(fn {value, {_alias, {:group_by, _field, coldef}}} ->
-        format_group_value(value, coldef)
+        format_group_value(value, coldef, presentation_context)
       end)
 
     case formatted_values do
       [] ->
         case Enum.zip(values, defs) do
           [{value, {_alias, {:group_by, _field, coldef}}} | _rest] ->
-            format_group_value(value, coldef)
+            format_group_value(value, coldef, presentation_context)
 
           _ ->
             ""
@@ -1733,7 +1824,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     end
   end
 
-  defp group_block_value(_block), do: ""
+  defp group_block_value(_block, _presentation_context), do: ""
 
   defp display_group_block?(_block, nil), do: false
 

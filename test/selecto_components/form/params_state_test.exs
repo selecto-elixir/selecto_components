@@ -21,12 +21,55 @@ defmodule SelectoComponents.Form.ParamsStateTest do
       source: %{
         source_table: "records",
         primary_key: :id,
-        fields: [:id, :status, :priority],
+        fields: [:id, :status, :priority, :amount],
         redact_fields: [],
         columns: %{
           id: %{type: :integer, name: "ID"},
           status: %{type: :string, name: "Status"},
-          priority: %{type: :integer, name: "Priority"}
+          priority: %{type: :integer, name: "Priority"},
+          amount: %{type: :decimal, name: "Amount"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp presentation_selecto do
+    domain = %{
+      name: "ParamsStatePresentationTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :temperature_c, :recorded_at],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          temperature_c: %{
+            type: :decimal,
+            presentation: %{
+              semantic_type: :measurement,
+              quantity: :temperature,
+              canonical_unit: :celsius,
+              default_unit: :celsius,
+              format: %{maximum_fraction_digits: 1}
+            }
+          },
+          recorded_at: %{
+            type: :integer,
+            presentation_type: :utc_datetime,
+            datetime_storage: :unix_seconds,
+            presentation: %{
+              semantic_type: :temporal,
+              temporal_kind: :instant,
+              display_timezone: :viewer
+            }
+          },
+          priority: %{type: :integer, name: "Priority"},
+          amount: %{type: :decimal, name: "Amount"}
         },
         associations: %{}
       },
@@ -198,7 +241,14 @@ defmodule SelectoComponents.Form.ParamsStateTest do
       }
     }
 
-    updated = ParamsState.form_params_to_state(params, base_socket())
+    updated =
+      params
+      |> then(
+        &ParamsState.form_params_to_state(
+          &1,
+          base_socket() |> Phoenix.Component.assign(:selecto, presentation_selecto())
+        )
+      )
 
     assert updated.assigns.view_config.ctes == [
              {"auto-cte-active_delivery_projects", "active_delivery_projects", %{}}
@@ -217,7 +267,15 @@ defmodule SelectoComponents.Form.ParamsStateTest do
       }
     }
 
-    updated = ParamsState.form_params_to_state(params, base_socket())
+    updated =
+      params
+      |> then(
+        &ParamsState.form_params_to_state(
+          &1,
+          base_socket() |> Phoenix.Component.assign(:selecto, presentation_selecto())
+        )
+      )
+
     encoded = ParamsState.view_config_to_params(updated.assigns.view_config)
 
     assert encoded["ctes"]["k0"]["name"] == "active_delivery_projects"
@@ -388,6 +446,60 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     [{"f1", "filters", filter}] = updated.assigns.view_config.filters
 
     assert filter["value"] == "last_week"
+  end
+
+  test "params_to_state canonicalizes measurement filter values while preserving display input" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(:selecto, presentation_selecto())
+      |> Phoenix.Component.assign(:presentation_context, %{unit_system: :us_customary})
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "temperature_c",
+          "comp" => "=",
+          "value" => "32",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["value"] == "0"
+    assert filter["display_value"] == "32"
+  end
+
+  test "params_to_state canonicalizes instant datetime filters from viewer timezone" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(:selecto, presentation_selecto())
+      |> Phoenix.Component.assign(:presentation_context, %{timezone: "America/New_York"})
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "recorded_at",
+          "comp" => ">=",
+          "value" => "2024-01-01T07:00",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["value"] == "2024-01-01T12:00:00Z"
+    assert filter["display_value"] == "2024-01-01T07:00"
   end
 
   test "params_to_state preserves detail row click action when params omit it" do
@@ -1195,6 +1307,129 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(canonicalized, "promoted_filters")
   end
 
+  test "canonicalize_form_params parses locale-aware measurement values when units differ" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "temperature_c",
+          "comp" => "=",
+          "value" => "32,5 F"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        presentation_selecto(),
+        %{locale: "de-DE", unit_system: :us_customary}
+      )
+
+    assert canonicalized["filters"]["k0"]["display_value"] == "32,5 F"
+    assert canonicalized["filters"]["k0"]["value"] == "0.277777777778"
+  end
+
+  test "canonicalize_form_params normalizes locale-aware measurement values even when unit stays canonical" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "temperature_c",
+          "comp" => "BETWEEN",
+          "value_start" => "1.234,5",
+          "value_end" => "2.345,5"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        presentation_selecto(),
+        %{locale: "de-DE", unit_system: :metric}
+      )
+
+    assert canonicalized["filters"]["k0"]["display_value_start"] == "1.234,5"
+    assert canonicalized["filters"]["k0"]["display_value_end"] == "2.345,5"
+    assert canonicalized["filters"]["k0"]["value_start"] == "1234.5"
+    assert canonicalized["filters"]["k0"]["value_end"] == "2345.5"
+  end
+
+  test "canonicalize_form_params honors explicit numeric conventions overrides for measurements" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "temperature_c",
+          "comp" => "=",
+          "value" => "1.234,5"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        presentation_selecto(),
+        %{
+          locale: "en-US",
+          unit_system: :metric,
+          conventions: %{decimal_separator: ",", grouping_separators: [".", " "]}
+        }
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "1234.5"
+  end
+
+  test "canonicalize_form_params parses locale-aware plain numeric values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "amount",
+          "comp" => "BETWEEN",
+          "value_start" => "1.234,5",
+          "value_end" => "2.345,5"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        selecto(),
+        %{locale: "de-DE"}
+      )
+
+    assert canonicalized["filters"]["k0"]["display_value_start"] == "1.234,5"
+    assert canonicalized["filters"]["k0"]["display_value_end"] == "2.345,5"
+    assert canonicalized["filters"]["k0"]["value_start"] == "1234.5"
+    assert canonicalized["filters"]["k0"]["value_end"] == "2345.5"
+  end
+
+  test "params_to_state preserves display-local plain numeric filter input" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(:presentation_context, %{locale: "de-DE"})
+
+    params = %{
+      "view_mode" => "detail",
+      "filters" => %{
+        "f1" => %{
+          "filter" => "amount",
+          "comp" => ">=",
+          "value" => "1.234,5",
+          "index" => "0",
+          "section" => "filters",
+          "uuid" => "f1"
+        }
+      }
+    }
+
+    updated = ParamsState.params_to_state(params, socket)
+    [{"f1", "filters", filter}] = updated.assigns.view_config.filters
+
+    assert filter["value"] == "1234.5"
+    assert filter["display_value"] == "1.234,5"
+  end
+
   test "canonicalize_form_params normalizes promoted non-equals controller values" do
     params = %{
       "filters" => %{
@@ -1263,6 +1498,22 @@ defmodule SelectoComponents.Form.ParamsStateTest do
 
     assert Map.has_key?(compacted["group_by"], "k0")
     assert compacted["group_by"]["k0"]["uuid"] == "12b1e264-6359-4f7d-881a-f3c659fd8606"
+  end
+
+  test "compact_url_params leaves runtime presentation context untouched" do
+    params = %{
+      "view_mode" => "graph",
+      "x_axis" => %{
+        "axis-1" => %{"field" => "created_at", "index" => "0"}
+      },
+      "_presentation_context" => %{"timezone" => "America/New_York"}
+    }
+
+    compacted = ParamsState.compact_url_params(params)
+
+    assert compacted["view_mode"] == "graph"
+    assert compacted["x_axis"]["k0"]["field"] == "created_at"
+    assert compacted["_presentation_context"]["timezone"] == "America/New_York"
   end
 
   test "view_config_to_params includes map scalar config" do

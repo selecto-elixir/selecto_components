@@ -70,6 +70,7 @@ defmodule SelectoComponents.Form do
         tree_builder_suffix: FilterRendering.hash_filter_structure(assigns.view_config.filters),
         detail_modal_visible: detail_modal_visible?(assigns),
         detail_modal_component: Map.get(assigns, :detail_modal_component),
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         form: to_form(%{}, as: "view_config")
       )
 

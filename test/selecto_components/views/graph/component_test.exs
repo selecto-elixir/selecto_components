@@ -137,6 +137,42 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
       assert chart_data.datasets == []
     end
 
+    test "formats graph labels with presentation context and preserves raw labels" do
+      assigns = %{
+        selecto: %{
+          set: %{
+            x_axis_groups: [
+              {%{
+                 colid: :recorded_at,
+                 type: :integer,
+                 presentation_type: :utc_datetime,
+                 datetime_storage: :unix_seconds,
+                 presentation: %{
+                   semantic_type: :temporal,
+                   temporal_kind: :instant,
+                   display_timezone: :viewer
+                 }
+               }, {:field, :recorded_at, "Recorded At"}}
+            ],
+            aggregates: [
+              {:field, {:count, "film_id"}, "Film Count"}
+            ],
+            series_groups: [],
+            chart_type: "bar"
+          }
+        },
+        presentation_context: %{timezone: "America/New_York"}
+      }
+
+      results = [[1_704_067_200, 30]]
+      aliases = ["Recorded At", "Film Count"]
+
+      chart_data = Component.prepare_chart_data(assigns, results, aliases)
+
+      assert chart_data.labels == ["2023-12-31 19:00"]
+      assert chart_data.rawLabels == [1_704_067_200]
+    end
+
     test "collapses linked x-axis fields into grouped labels and drill-down specs" do
       assigns = %{
         selecto: %{
@@ -161,7 +197,8 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
 
       chart_data = Component.prepare_chart_data(assigns, results, ["State", "Title", "Count"])
 
-      assert chart_data.labels == ["done / ES", "todo / BU"]
+      assert chart_data.labels == ["done • ES", "todo • BU"]
+      assert chart_data.rawLabels == ["done • ES", "todo • BU"]
 
       [dataset] = chart_data.datasets
       assert dataset.data == [32, 14]
@@ -209,7 +246,7 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
       assert length(chart_data.datasets) == 1
 
       [dataset] = chart_data.datasets
-      assert dataset.label == "Count - 0-4 / software_engineer"
+      assert dataset.label == "Count - 0-4 • software_engineer"
       assert dataset.data == [32, 10]
 
       assert dataset.drillDown == [
@@ -224,6 +261,51 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
                  %{field: "assignee_role", value: "software_engineer", gidx: "2"}
                ]
              ]
+    end
+
+    test "adds measurement unit to metric labels when presentation metadata is available" do
+      assigns = %{
+        selecto: %{
+          set: %{
+            x_axis_groups: [
+              {%{colid: :category, type: :string}, {:field, :category, "Category"}}
+            ],
+            aggregates: [
+              {:field, {:avg, "temperature_c"}, "Average Temperature"}
+            ],
+            graph_series_defs: [
+              %{
+                alias: "Average Temperature",
+                series_type: "auto",
+                axis: "left",
+                color: nil,
+                column_def: %{
+                  colid: :temperature_c,
+                  type: :decimal,
+                  presentation: %{
+                    semantic_type: :measurement,
+                    quantity: :temperature,
+                    canonical_unit: :celsius,
+                    default_unit: :celsius,
+                    format: %{maximum_fraction_digits: 1}
+                  }
+                }
+              }
+            ],
+            series_groups: [],
+            chart_type: "line"
+          }
+        },
+        presentation_context: %{unit_system: :us_customary}
+      }
+
+      results = [["Action", 0]]
+      aliases = ["Category", "Average Temperature"]
+
+      chart_data = Component.prepare_chart_data(assigns, results, aliases)
+
+      [dataset] = chart_data.datasets
+      assert dataset.label == "Average Temperature (F)"
     end
   end
 
