@@ -23,6 +23,20 @@ defmodule SelectoComponents.PresentationTest do
 
       {:ok, "adapter:" <> formatted}
     end
+
+    @impl true
+    def format_temporal(%Date{} = value, _context, _opts),
+      do: {:ok, "date:" <> Date.to_iso8601(value)}
+
+    def format_temporal(%DateTime{} = value, _context, _opts) do
+      {:ok, "datetime:" <> Calendar.strftime(value, "%d/%m/%Y %H:%M")}
+    end
+
+    def format_temporal(%NaiveDateTime{} = value, _context, _opts) do
+      {:ok, "naive:" <> Calendar.strftime(value, "%d/%m/%Y %H:%M")}
+    end
+
+    def format_temporal(_value, _context, _opts), do: :error
   end
 
   test "formats measurements using viewer unit preferences" do
@@ -57,6 +71,35 @@ defmodule SelectoComponents.PresentationTest do
 
     assert Presentation.format_cell(1_704_067_200, column, %{timezone: "America/New_York"}) ==
              "2023-12-31 19:00"
+  end
+
+  test "formats temporal values through a custom locale adapter when configured" do
+    column = %{
+      type: :integer,
+      presentation_type: :utc_datetime,
+      datetime_storage: :unix_seconds,
+      presentation: %{
+        semantic_type: :temporal,
+        temporal_kind: :instant,
+        display_timezone: :viewer
+      }
+    }
+
+    context = %{timezone: "America/New_York", locale_adapter: TestLocaleAdapter}
+
+    assert Presentation.format_cell(1_704_067_200, column, context) ==
+             "datetime:31/12/2023 19:00"
+  end
+
+  test "formats date values through a custom locale adapter when configured" do
+    column = %{
+      type: :date,
+      presentation: %{semantic_type: :temporal, temporal_kind: :date}
+    }
+
+    context = %{locale_adapter: TestLocaleAdapter}
+
+    assert Presentation.format_cell(~D[2024-01-02], column, context) == "date:2024-01-02"
   end
 
   test "raw mode preserves original values" do
@@ -110,6 +153,24 @@ defmodule SelectoComponents.PresentationTest do
     context = %{locale_adapter: TestLocaleAdapter}
 
     assert Presentation.format_cell(12.5, column, context, show_unit: false) == "adapter:12.5"
+  end
+
+  test "falls back to built-in temporal formatting when locale adapter does not handle a value" do
+    column = %{
+      type: :integer,
+      presentation_type: :utc_datetime,
+      datetime_storage: :unix_seconds,
+      presentation: %{
+        semantic_type: :temporal,
+        temporal_kind: :instant,
+        display_timezone: :viewer
+      }
+    }
+
+    context = %{timezone: "America/New_York", locale_adapter: TestLocaleAdapter}
+
+    assert Presentation.format_cell("2024-01-01T12:00:00Z", column, context) ==
+             "2024-01-01T12:00:00Z"
   end
 
   test "falls back to built-in parsing when locale adapter does not handle a value" do

@@ -206,19 +206,28 @@ defmodule SelectoComponents.Presentation do
     local_value = temporal_to_display(value, column, temporal_kind, timezone)
     include_timezone? = Keyword.get(opts, :include_timezone, false)
 
-    case local_value do
-      %Date{} = date ->
-        Date.to_iso8601(date)
+    case format_temporal_with_adapter(local_value, context, column, presentation, opts) do
+      {:ok, formatted} when is_binary(formatted) ->
+        formatted
 
-      %NaiveDateTime{} = naive ->
-        Calendar.strftime(naive, "%Y-%m-%d %H:%M")
+      _ ->
+        case local_value do
+          %Date{} = date ->
+            Date.to_iso8601(date)
 
-      %DateTime{} = datetime ->
-        formatted = Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
-        if include_timezone?, do: formatted <> " " <> timezone_label(datetime), else: formatted
+          %NaiveDateTime{} = naive ->
+            Calendar.strftime(naive, "%Y-%m-%d %H:%M")
 
-      other ->
-        value_to_string(other)
+          %DateTime{} = datetime ->
+            formatted = Calendar.strftime(datetime, "%Y-%m-%d %H:%M")
+
+            if include_timezone?,
+              do: formatted <> " " <> timezone_label(datetime),
+              else: formatted
+
+          other ->
+            value_to_string(other)
+        end
     end
   end
 
@@ -358,6 +367,27 @@ defmodule SelectoComponents.Presentation do
           adapter.format_number(value, context,
             digits: digits,
             presentation: presentation,
+            locale_adapter_options: Map.get(context, :locale_adapter_options, %{})
+          )
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  defp format_temporal_with_adapter(value, context, column, presentation, opts) do
+    case Map.get(context, :locale_adapter) do
+      adapter when is_atom(adapter) ->
+        if function_exported?(adapter, :format_temporal, 3) do
+          adapter.format_temporal(value, context,
+            column: column,
+            presentation: presentation,
+            include_timezone: Keyword.get(opts, :include_timezone, false),
             locale_adapter_options: Map.get(context, :locale_adapter_options, %{})
           )
         else

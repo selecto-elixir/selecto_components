@@ -3,4 +3,5 @@ defmodule SelectoComponents.Presentation.LocaleAdapter do
 
   @callback parse_number(String.t(), map()) :: {:ok, float()} | :error
   @callback format_number(term(), map(), keyword()) :: {:ok, String.t()} | :error
+  @callback format_temporal(term(), map(), keyword()) :: {:ok, String.t()} | :error
 end

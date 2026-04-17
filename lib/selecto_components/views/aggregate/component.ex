@@ -1798,8 +1798,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp row_group_blocks(_group_by, _group_cols), do: []
 
-  defp group_block_value(block, presentation_context \\ %{})
-
   defp group_block_value(%{defs: defs, values: values}, presentation_context) do
     formatted_values =
       values
