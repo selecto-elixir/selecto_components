@@ -129,6 +129,9 @@ defmodule SelectoComponents.ScheduledExports.Service do
            Exporter.build(format, query_results,
              view_mode: Keyword.get(opts, :view_mode, "results"),
              view_config: Keyword.get(opts, :view_config),
+             selecto: Keyword.get(opts, :selecto),
+             presentation_context: Keyword.get(opts, :presentation_context, %{}),
+             export_mode: Keyword.get(opts, :export_mode, :raw),
              exported_at: exported_at
            ),
          :ok <-

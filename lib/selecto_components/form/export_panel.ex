@@ -31,16 +31,25 @@ defmodule SelectoComponents.Form.ExportPanel do
       </p>
 
       <div class="flex flex-wrap gap-2">
-        <.sc_button type="button" phx-click="export_data" phx-value-format="csv" theme={@theme}>
+        <div class="flex items-center gap-2 pr-2">
+          <label class="text-sm font-medium" style="color: var(--sc-text-secondary);" for={"export-mode-#{@id}"}>
+            Export Mode
+          </label>
+          <select id={"export-mode-#{@id}"} class={Theme.slot(@theme, :select)}>
+            <option value="raw" selected>Raw</option>
+            <option value="display">Display</option>
+          </select>
+        </div>
+        <.sc_button type="button" data-export-download-button="true" data-format="csv" data-export-mode-input={"export-mode-#{@id}"} theme={@theme}>
           Download CSV
         </.sc_button>
-        <.sc_button type="button" phx-click="export_data" phx-value-format="tsv" theme={@theme}>
+        <.sc_button type="button" data-export-download-button="true" data-format="tsv" data-export-mode-input={"export-mode-#{@id}"} theme={@theme}>
           Download TSV
         </.sc_button>
-        <.sc_button type="button" phx-click="export_data" phx-value-format="json" theme={@theme}>
+        <.sc_button type="button" data-export-download-button="true" data-format="json" data-export-mode-input={"export-mode-#{@id}"} theme={@theme}>
           Download JSON
         </.sc_button>
-        <.sc_button type="button" phx-click="export_data" phx-value-format="xlsx" theme={@theme}>
+        <.sc_button type="button" data-export-download-button="true" data-format="xlsx" data-export-mode-input={"export-mode-#{@id}"} theme={@theme}>
           Download XLSX
         </.sc_button>
       </div>
@@ -98,6 +107,20 @@ defmodule SelectoComponents.Form.ExportPanel do
             <label
               class="text-sm font-medium"
               style="color: var(--sc-text-secondary);"
+              for={"export-email-mode-#{@id}"}
+            >
+              Export Mode
+            </label>
+            <select id={"export-email-mode-#{@id}"} class={Theme.slot(@theme, :select)}>
+              <option value="raw" selected>Raw</option>
+              <option value="display">Display</option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium"
+              style="color: var(--sc-text-secondary);"
               for={"export-email-subject-#{@id}"}
             >
               Subject
@@ -135,6 +158,7 @@ defmodule SelectoComponents.Form.ExportPanel do
             data-export-email-button="true"
             data-recipients-input={"export-email-recipients-#{@id}"}
             data-format-input={"export-email-format-#{@id}"}
+            data-export-mode-input={"export-email-mode-#{@id}"}
             data-subject-input={"export-email-subject-#{@id}"}
             data-body-input={"export-email-body-#{@id}"}
             class={Theme.slot(@theme, :button_primary) <> " px-4 py-2 text-sm shadow-sm"}

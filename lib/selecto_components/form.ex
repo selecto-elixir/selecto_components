@@ -70,6 +70,7 @@ defmodule SelectoComponents.Form do
         tree_builder_suffix: FilterRendering.hash_filter_structure(assigns.view_config.filters),
         detail_modal_visible: detail_modal_visible?(assigns),
         detail_modal_component: Map.get(assigns, :detail_modal_component),
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         form: to_form(%{}, as: "view_config")
       )
 
@@ -257,6 +258,7 @@ defmodule SelectoComponents.Form do
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ExportDownloads">
         export default {
           mounted() {
+            this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
 
@@ -296,6 +298,7 @@ defmodule SelectoComponents.Form do
           },
 
           updated() {
+            this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
           },
@@ -303,6 +306,10 @@ defmodule SelectoComponents.Form do
           destroyed() {
             if (this.emailExportCleanup) {
               this.emailExportCleanup();
+            }
+
+            if (this.exportDownloadCleanup) {
+              this.exportDownloadCleanup();
             }
 
             if (this.scheduledExportCleanup) {
@@ -327,12 +334,14 @@ defmodule SelectoComponents.Form do
 
               const recipients = document.getElementById(button.dataset.recipientsInput)?.value || "";
               const format = document.getElementById(button.dataset.formatInput)?.value || "csv";
+              const exportMode = document.getElementById(button.dataset.exportModeInput)?.value || "raw";
               const subject = document.getElementById(button.dataset.subjectInput)?.value || "";
               const body = document.getElementById(button.dataset.bodyInput)?.value || "";
 
               this.pushEvent("send_export_email", {
                 recipients,
                 format,
+                export_mode: exportMode,
                 subject,
                 body
               });
@@ -340,6 +349,39 @@ defmodule SelectoComponents.Form do
 
             button.addEventListener("click", handler);
             this.emailExportCleanup = () => button.removeEventListener("click", handler);
+          },
+
+          bindExportDownloadButtons() {
+            if (this.exportDownloadCleanup) {
+              this.exportDownloadCleanup();
+              this.exportDownloadCleanup = null;
+            }
+
+            const buttons = Array.from(this.el.querySelectorAll("[data-export-download-button='true']"));
+
+            if (buttons.length === 0) {
+              return;
+            }
+
+            const handlers = buttons.map((button) => {
+              const handler = (event) => {
+                event.preventDefault();
+
+                const exportMode = document.getElementById(button.dataset.exportModeInput)?.value || "raw";
+
+                this.pushEvent("export_data", {
+                  format: button.dataset.format || "csv",
+                  export_mode: exportMode
+                });
+              };
+
+              button.addEventListener("click", handler);
+              return { button, handler };
+            });
+
+            this.exportDownloadCleanup = () => {
+              handlers.forEach(({ button, handler }) => button.removeEventListener("click", handler));
+            };
           },
 
           bindScheduledExportButton() {

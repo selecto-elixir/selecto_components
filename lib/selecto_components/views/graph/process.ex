@@ -44,16 +44,17 @@ defmodule SelectoComponents.Views.Graph.Process do
     y_axis_params = Map.get(params, "y_axis", %{})
     series_params = Map.get(params, "series", %{})
     chart_type = Map.get(params, "chart_type", "bar")
+    presentation_context = runtime_presentation_context(params)
 
     # Process X-axis (grouping fields)
-    x_axis_fields = x_axis_params |> group_by_fields(columns)
+    x_axis_fields = x_axis_params |> group_by_fields(columns, presentation_context)
 
     # Process Y-axis (aggregate fields)
     y_axis_defs = y_axis_params |> aggregate_defs(columns)
     y_axis_fields = Enum.map(y_axis_defs, & &1.select_field)
 
     # Process Series (optional secondary grouping)
-    series_fields = series_params |> group_by_fields(columns)
+    series_fields = series_params |> group_by_fields(columns, presentation_context)
 
     # Combine all grouping fields (x_axis + series)
     all_group_by = x_axis_fields ++ series_fields
@@ -86,7 +87,7 @@ defmodule SelectoComponents.Views.Graph.Process do
   @doc """
   Process group by fields (for X-axis and Series)
   """
-  def group_by_fields(field_params, columns) do
+  def group_by_fields(field_params, columns, presentation_context \\ %{}) do
     field_params
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
@@ -102,6 +103,7 @@ defmodule SelectoComponents.Views.Graph.Process do
             linked? = truthy_param?(Map.get(field_config, "linked_to_next"))
 
             col
+            |> maybe_set_group_format(Map.get(field_config, "format"))
             |> Map.put(:linked_to_next, linked?)
             |> Map.put("linked_to_next", linked?)
           else
@@ -121,7 +123,8 @@ defmodule SelectoComponents.Views.Graph.Process do
           case Selecto.Temporal.date_like_type(col) || col.type do
             x
             when x in [:naive_datetime, :utc_datetime, :naive_datetime_usec, :utc_datetime_usec] ->
-              {:field, datetime_group_by_processor(col, field_config), alias_name}
+              {:field, datetime_group_by_processor(col, field_config, presentation_context),
+               alias_name}
 
             :custom_column ->
               case Map.get(col, :requires_select) do
@@ -152,11 +155,13 @@ defmodule SelectoComponents.Views.Graph.Process do
     |> Enum.map(& &1.select_field)
   end
 
-  def aggregate_defs(aggregate_params, _columns) do
+  def aggregate_defs(aggregate_params, columns) do
     aggregate_params
     |> Map.values()
     |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
     |> Enum.map(fn field_config ->
+      column_def = Map.get(columns, field_config["field"])
+
       # Generate alias
       alias_name =
         case field_config["alias"] do
@@ -202,23 +207,37 @@ defmodule SelectoComponents.Views.Graph.Process do
         function: aggregate_function,
         series_type: series_type,
         axis: axis,
-        color: color
+        color: color,
+        column_def: column_def
       }
     end)
   end
 
+  defp maybe_set_group_format(col, format)
+       when is_map(col) and is_binary(format) and format != "" do
+    col
+    |> Map.put(:group_format, format)
+    |> Map.put("group_format", format)
+  end
+
+  defp maybe_set_group_format(col, _format), do: col
+
   # Process datetime fields for grouping (Year, Month, Day, etc.)
-  defp datetime_group_by_processor(col, config) do
+  defp datetime_group_by_processor(col, config, presentation_context) do
     format = config["format"]
     bucket_ranges = config["bucket_ranges"]
+    field_with_alias = graph_field_ref(col.colid)
 
     case format do
       format when format in ~w(YYYY-MM-DD YYYY-WW YYYY-MM YYYY-Q YYYY MM DD D HH24) ->
-        {:to_char, {col.colid, format}}
+        maybe_timezone_aware_datetime_selector(
+          col,
+          field_with_alias,
+          format,
+          presentation_context
+        )
 
       "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        field_with_alias = graph_field_ref(col.colid)
-
         case_sql =
           BucketParser.generate_bucket_case_sql(
             "(CURRENT_DATE - DATE(#{field_with_alias}))",
@@ -229,8 +248,6 @@ defmodule SelectoComponents.Views.Graph.Process do
         {:raw_sql, case_sql}
 
       "custom_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        field_with_alias = graph_field_ref(col.colid)
-
         case_sql =
           BucketParser.generate_bucket_case_sql(
             field_with_alias,
@@ -241,11 +258,9 @@ defmodule SelectoComponents.Views.Graph.Process do
         {:raw_sql, case_sql}
 
       "year_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
-        field_with_alias = graph_field_ref(col.colid)
-
         case_sql =
           BucketParser.generate_bucket_case_sql(
-            "EXTRACT(YEAR FROM #{field_with_alias})",
+            year_bucket_extract_sql(col, field_with_alias, presentation_context),
             bucket_ranges,
             :integer
           )
@@ -261,4 +276,55 @@ defmodule SelectoComponents.Views.Graph.Process do
     colid_str = to_string(colid)
     if String.contains?(colid_str, "."), do: colid_str, else: "selecto_root." <> colid_str
   end
+
+  defp runtime_presentation_context(params) when is_map(params) do
+    Map.get(params, "_presentation_context", %{})
+  end
+
+  defp runtime_presentation_context(_params), do: %{}
+
+  defp maybe_timezone_aware_datetime_selector(col, field_ref, format, presentation_context) do
+    if timezone_grouping_applicable?(col, presentation_context) do
+      {:raw_sql, timezone_aware_to_char_sql(col, field_ref, format, presentation_context)}
+    else
+      {:to_char, {col.colid, format}}
+    end
+  end
+
+  defp year_bucket_extract_sql(col, field_ref, presentation_context) do
+    if timezone_grouping_applicable?(col, presentation_context) do
+      "EXTRACT(YEAR FROM #{timezone_grouping_expression(col, field_ref, presentation_context)})"
+    else
+      "EXTRACT(YEAR FROM #{field_ref})"
+    end
+  end
+
+  defp timezone_grouping_applicable?(col, presentation_context) do
+    Selecto.Presentation.temporal_kind(col) == :instant and
+      is_binary(runtime_timezone(presentation_context)) and
+      runtime_timezone(presentation_context) != ""
+  end
+
+  defp timezone_aware_to_char_sql(col, field_ref, format, presentation_context) do
+    "to_char(#{timezone_grouping_expression(col, field_ref, presentation_context)}, '#{format}')"
+  end
+
+  defp timezone_grouping_expression(col, field_ref, presentation_context) do
+    timezone = runtime_timezone(presentation_context)
+
+    case Selecto.Temporal.epoch_storage(col) do
+      :unix_seconds -> "to_timestamp(#{field_ref}) AT TIME ZONE '#{timezone}'"
+      :unix_milliseconds -> "to_timestamp((#{field_ref}) / 1000.0) AT TIME ZONE '#{timezone}'"
+      _ -> "#{field_ref} AT TIME ZONE '#{timezone}'"
+    end
+  end
+
+  defp runtime_timezone(presentation_context) when is_map(presentation_context) do
+    case Map.get(presentation_context, :timezone, Map.get(presentation_context, "timezone")) do
+      timezone when is_binary(timezone) and timezone != "" -> timezone
+      _ -> nil
+    end
+  end
+
+  defp runtime_timezone(_presentation_context), do: nil
 end

@@ -24,14 +24,18 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
       - `json`
       - `xlsx`
       """
-      def handle_event("export_data", %{"format" => format}, socket) do
+      def handle_event("export_data", %{"format" => format} = params, socket) do
         with_error_handling(socket, "export_data", fn ->
           query_results = socket.assigns[:query_results]
           view_mode = socket.assigns[:applied_view] || socket.assigns.view_config.view_mode
+          export_mode = normalize_export_mode(Map.get(params, "export_mode"))
 
           case Exporter.build(format, query_results,
                  view_mode: view_mode,
-                 view_config: socket.assigns[:view_config]
+                 view_config: socket.assigns[:view_config],
+                 selecto: socket.assigns[:selecto],
+                 presentation_context: socket.assigns[:presentation_context] || %{},
+                 export_mode: export_mode
                ) do
             {:ok, export} ->
               if byte_size(export.content) > @max_export_payload_bytes do
@@ -92,6 +96,9 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
                      format: Map.get(params, "format", "csv"),
                      view_mode: view_mode,
                      view_config: socket.assigns[:view_config],
+                     selecto: socket.assigns[:selecto],
+                     presentation_context: socket.assigns[:presentation_context] || %{},
+                     export_mode: normalize_export_mode(Map.get(params, "export_mode")),
                      path: Map.get(socket.assigns, :path) || Map.get(socket.assigns, :my_path),
                      delivery_opts: [
                        current_user_id: Map.get(socket.assigns, :current_user_id),
@@ -198,6 +205,9 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
 
         error.summary <> ": " <> error.user_message
       end
+
+      defp normalize_export_mode(value) when value in ["display", :display], do: :display
+      defp normalize_export_mode(_value), do: :raw
     end
   end
 end

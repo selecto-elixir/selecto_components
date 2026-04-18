@@ -6,6 +6,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   require Logger
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Presentation
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
 
@@ -208,7 +209,7 @@ defmodule SelectoComponents.Views.Graph.Component do
                       const index = element.index;
                       const dataset = chartData.datasets[datasetIndex];
                       const value = dataset.data[index];
-                      const label = chartData.labels[index];
+                      const rawLabel = (chartData.rawLabels || [])[index] ?? chartData.labels[index];
                       const drillSpecs = Array.isArray(dataset.drillDown) ? dataset.drillDown[index] : [];
 
                       const indexedPayload = Array.isArray(drillSpecs)
@@ -232,7 +233,7 @@ defmodule SelectoComponents.Views.Graph.Component do
                       const yFieldName = dataset.label;
 
                       pushEvent('chart_click', {
-                        label: label,
+                        label: rawLabel,
                         value: value,
                         dataset_label: dataset.label,
                         x_field: xFieldName,
@@ -290,25 +291,64 @@ defmodule SelectoComponents.Views.Graph.Component do
     y_axis_aggregates = selecto_set[:aggregates] || []
     metric_defs = build_metric_defs(selecto_set[:graph_series_defs], y_axis_aggregates)
     series_groups = selecto_set[:series_groups] || []
+    presentation_context = Map.get(assigns, :presentation_context, %{})
 
     case chart_type do
       type when type in ["pie", "doughnut"] ->
-        prepare_pie_data(results, aliases, x_axis_groups, metric_defs)
+        prepare_pie_data(results, aliases, x_axis_groups, metric_defs, presentation_context)
 
       type when type in ["line", "area"] ->
-        prepare_line_data(results, aliases, x_axis_groups, metric_defs, series_groups, chart_type)
+        prepare_line_data(
+          results,
+          aliases,
+          x_axis_groups,
+          metric_defs,
+          series_groups,
+          chart_type,
+          presentation_context
+        )
 
       "scatter" ->
-        prepare_scatter_data(results, aliases, x_axis_groups, metric_defs, series_groups)
+        prepare_scatter_data(
+          results,
+          aliases,
+          x_axis_groups,
+          metric_defs,
+          series_groups,
+          presentation_context
+        )
 
       # Default to bar chart
       _ ->
-        prepare_bar_data(results, aliases, x_axis_groups, metric_defs, series_groups, chart_type)
+        prepare_bar_data(
+          results,
+          aliases,
+          x_axis_groups,
+          metric_defs,
+          series_groups,
+          chart_type,
+          presentation_context
+        )
     end
   end
 
-  defp prepare_bar_data(results, _aliases, x_axis_groups, metric_defs, series_groups, chart_type) do
-    prepare_cartesian_data(results, x_axis_groups, metric_defs, series_groups, chart_type)
+  defp prepare_bar_data(
+         results,
+         _aliases,
+         x_axis_groups,
+         metric_defs,
+         series_groups,
+         chart_type,
+         presentation_context
+       ) do
+    prepare_cartesian_data(
+      results,
+      x_axis_groups,
+      metric_defs,
+      series_groups,
+      chart_type,
+      presentation_context
+    )
   end
 
   defp prepare_line_data(
@@ -317,9 +357,17 @@ defmodule SelectoComponents.Views.Graph.Component do
          x_axis_groups,
          metric_defs,
          series_groups,
-         chart_type
+         chart_type,
+         presentation_context
        ) do
-    prepare_cartesian_data(results, x_axis_groups, metric_defs, series_groups, chart_type)
+    prepare_cartesian_data(
+      results,
+      x_axis_groups,
+      metric_defs,
+      series_groups,
+      chart_type,
+      presentation_context
+    )
   end
 
   defp filter_rollup_rows(results, num_x_fields, num_series_fields) do
@@ -331,28 +379,29 @@ defmodule SelectoComponents.Views.Graph.Component do
     end)
   end
 
-  defp prepare_pie_data(results, _aliases, x_axis_groups, _metric_defs) do
+  defp prepare_pie_data(results, _aliases, x_axis_groups, _metric_defs, presentation_context) do
     num_x_fields = max(Enum.count(x_axis_groups), 1)
     x_defs = build_group_defs(x_axis_groups, 0)
 
-    labels =
+    label_pairs =
       Enum.map(results, fn row ->
-        row
-        |> Enum.take(num_x_fields)
-        |> axis_label(x_defs)
+        values = Enum.take(row, num_x_fields)
+
+        %{
+          label: axis_label(values, x_defs, presentation_context),
+          raw_label: raw_axis_label(values, x_defs),
+          drill_down: drill_down_specs(values, x_defs)
+        }
       end)
 
+    labels = Enum.map(label_pairs, & &1.label)
+    raw_labels = Enum.map(label_pairs, & &1.raw_label)
     data = Enum.map(results, fn row -> format_numeric_value(Enum.at(row, num_x_fields)) end)
-
-    drill_down =
-      Enum.map(results, fn row ->
-        row
-        |> Enum.take(num_x_fields)
-        |> drill_down_specs(x_defs)
-      end)
+    drill_down = Enum.map(label_pairs, & &1.drill_down)
 
     %{
       labels: labels,
+      rawLabels: raw_labels,
       datasets: [
         %{
           data: data,
@@ -367,7 +416,14 @@ defmodule SelectoComponents.Views.Graph.Component do
     }
   end
 
-  defp prepare_cartesian_data(results, x_axis_groups, metric_defs, series_groups, chart_type) do
+  defp prepare_cartesian_data(
+         results,
+         x_axis_groups,
+         metric_defs,
+         series_groups,
+         chart_type,
+         presentation_context
+       ) do
     num_x_fields = max(Enum.count(x_axis_groups), 1)
     num_series_fields = Enum.count(series_groups)
     x_defs = build_group_defs(x_axis_groups, 0)
@@ -382,19 +438,20 @@ defmodule SelectoComponents.Views.Graph.Component do
       end
 
     if num_series_fields == 0 do
-      labels =
+      label_pairs =
         Enum.map(filtered_results, fn row ->
-          row
-          |> Enum.take(num_x_fields)
-          |> axis_label(x_defs)
+          values = Enum.take(row, num_x_fields)
+
+          %{
+            label: axis_label(values, x_defs, presentation_context),
+            raw_label: raw_axis_label(values, x_defs),
+            drill_down: drill_down_specs(values, x_defs)
+          }
         end)
 
-      drill_down =
-        Enum.map(filtered_results, fn row ->
-          row
-          |> Enum.take(num_x_fields)
-          |> drill_down_specs(x_defs)
-        end)
+      labels = Enum.map(label_pairs, & &1.label)
+      raw_labels = Enum.map(label_pairs, & &1.raw_label)
+      drill_down = Enum.map(label_pairs, & &1.drill_down)
 
       datasets =
         metric_defs
@@ -411,28 +468,34 @@ defmodule SelectoComponents.Views.Graph.Component do
             chart_type,
             index,
             data,
-            metric_def.alias,
+            format_metric_label(metric_def, presentation_context),
             drill_down
           )
         end)
 
-      %{labels: labels, datasets: datasets}
+      %{labels: labels, rawLabels: raw_labels, datasets: datasets}
     else
-      labels =
+      label_pairs =
         filtered_results
         |> Enum.map(fn row ->
-          row
-          |> Enum.take(num_x_fields)
-          |> axis_label(x_defs)
+          values = Enum.take(row, num_x_fields)
+
+          %{
+            label: axis_label(values, x_defs, presentation_context),
+            raw_label: raw_axis_label(values, x_defs)
+          }
         end)
-        |> Enum.uniq()
+        |> Enum.uniq_by(& &1.label)
+
+      labels = Enum.map(label_pairs, & &1.label)
+      raw_labels = Enum.map(label_pairs, & &1.raw_label)
 
       series_labels =
         filtered_results
         |> Enum.map(fn row ->
           row
           |> Enum.slice(num_x_fields, num_series_fields)
-          |> axis_label(series_defs)
+          |> axis_label(series_defs, presentation_context)
         end)
         |> Enum.uniq()
 
@@ -447,7 +510,7 @@ defmodule SelectoComponents.Views.Graph.Component do
               Enum.filter(filtered_results, fn row ->
                 row
                 |> Enum.slice(num_x_fields, num_series_fields)
-                |> axis_label(series_defs) == series_label
+                |> axis_label(series_defs, presentation_context) == series_label
               end)
 
             rows_by_label =
@@ -455,7 +518,7 @@ defmodule SelectoComponents.Views.Graph.Component do
                 label =
                   row
                   |> Enum.take(num_x_fields)
-                  |> axis_label(x_defs)
+                  |> axis_label(x_defs, presentation_context)
 
                 {label, row}
               end)
@@ -495,7 +558,9 @@ defmodule SelectoComponents.Views.Graph.Component do
               end)
 
             dataset_offset = metric_index * max(length(series_labels), 1) + series_index
-            dataset_label = "#{metric_def.alias} - #{series_label}"
+
+            dataset_label =
+              "#{format_metric_label(metric_def, presentation_context)} - #{series_label}"
 
             build_cartesian_dataset(
               metric_def,
@@ -508,7 +573,7 @@ defmodule SelectoComponents.Views.Graph.Component do
           end)
         end)
 
-      %{labels: labels, datasets: datasets}
+      %{labels: labels, rawLabels: raw_labels, datasets: datasets}
     end
   end
 
@@ -563,23 +628,56 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp group_alias(_), do: "Group"
 
-  defp axis_label(values, group_defs) when is_list(values) and is_list(group_defs) do
+  defp axis_label(values, group_defs, presentation_context)
+       when is_list(values) and is_list(group_defs) do
     values
-    |> axis_value_blocks(group_defs)
+    |> axis_value_blocks(group_defs, presentation_context)
     |> Enum.map(& &1.display)
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join(" • ")
   end
 
-  defp axis_label(values, _group_defs) when is_list(values) do
+  defp axis_label(values, _group_defs, presentation_context) when is_list(values) do
     values
-    |> Enum.map(&format_chart_label/1)
+    |> Enum.map(&format_chart_label(&1, nil, presentation_context))
     |> Enum.join(" / ")
   end
 
-  defp axis_label(_values, _group_defs), do: ""
+  defp axis_label(_values, _group_defs, _presentation_context), do: ""
 
-  defp axis_value_blocks(values, group_defs) when is_list(values) and is_list(group_defs) do
+  defp raw_axis_label(values, group_defs) when is_list(values) and is_list(group_defs) do
+    case linked_group_ranges(group_defs) do
+      [{0, 0}] ->
+        raw_axis_component(List.first(values), List.first(group_defs))
+
+      ranges ->
+        ranges
+        |> Enum.map(fn {start_idx, end_idx} ->
+          values
+          |> Enum.slice(start_idx, end_idx - start_idx + 1)
+          |> Enum.with_index(start_idx)
+          |> Enum.map(fn {value, idx} ->
+            value
+            |> raw_axis_component(Enum.at(group_defs, idx))
+            |> raw_chart_label()
+          end)
+          |> Enum.join(" • ")
+        end)
+        |> Enum.reject(&(&1 in [nil, ""]))
+        |> Enum.join(" • ")
+    end
+  end
+
+  defp raw_axis_label(values, _group_defs) when is_list(values) do
+    values
+    |> Enum.map(&raw_chart_label/1)
+    |> Enum.join(" / ")
+  end
+
+  defp raw_axis_label(_values, _group_defs), do: ""
+
+  defp axis_value_blocks(values, group_defs, presentation_context)
+       when is_list(values) and is_list(group_defs) do
     linked_group_ranges(group_defs)
     |> Enum.map(fn {start_idx, end_idx} ->
       defs = Enum.slice(group_defs, start_idx, end_idx - start_idx + 1)
@@ -589,14 +687,13 @@ defmodule SelectoComponents.Views.Graph.Component do
         defs: defs,
         values: block_values,
         display:
-          block_values
-          |> Enum.map(&display_value_for_group/1)
-          |> Enum.join(" / ")
+          display_values_for_block(block_values, defs, presentation_context)
+          |> Enum.join(" • ")
       }
     end)
   end
 
-  defp axis_value_blocks(_values, _group_defs), do: []
+  defp axis_value_blocks(_values, _group_defs, _presentation_context), do: []
 
   defp drill_down_specs(values, group_defs) when is_list(values) and is_list(group_defs) do
     Enum.zip(group_defs, values)
@@ -625,11 +722,40 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp filter_field_name(_), do: ""
 
-  defp display_value_for_group(value) do
+  defp display_values_for_block(
+         values,
+         defs,
+         presentation_context,
+         formatter \\ &display_value_for_group/3
+       ) do
+    values
+    |> Enum.with_index()
+    |> Enum.map(fn {value, idx} ->
+      formatter.(value, Enum.at(defs, idx), presentation_context)
+    end)
+  end
+
+  defp display_value_for_group(value, %{col: col}, presentation_context) do
     case value do
-      {display_value, _filter_value} -> format_chart_label(display_value)
-      [display_value, _filter_value] -> format_chart_label(display_value)
-      _ -> format_chart_label(value)
+      {display_value, _filter_value} ->
+        format_chart_label(display_value, col, presentation_context)
+
+      [display_value, _filter_value] ->
+        format_chart_label(display_value, col, presentation_context)
+
+      _ ->
+        format_chart_label(value, col, presentation_context)
+    end
+  end
+
+  defp display_value_for_group(value, _group_def, presentation_context),
+    do: format_chart_label(value, nil, presentation_context)
+
+  defp raw_axis_component(value, _group_def) do
+    case value do
+      {display_value, _filter_value} -> display_value
+      [display_value, _filter_value] -> display_value
+      _ -> value
     end
   end
 
@@ -702,7 +828,8 @@ defmodule SelectoComponents.Views.Graph.Component do
          _aliases,
          _x_axis_groups,
          _metric_defs,
-         _series_groups
+         _series_groups,
+         _presentation_context
        ) do
     # Simplified scatter data
     %{
@@ -828,12 +955,15 @@ defmodule SelectoComponents.Views.Graph.Component do
   def get_aggregate_label({:max, field_name}) when is_binary(field_name), do: "max(#{field_name})"
   def get_aggregate_label(_), do: "Value"
 
-  def format_chart_label(value) when is_nil(value), do: "N/A"
+  def format_chart_label(value, column_def \\ nil, presentation_context \\ %{})
 
-  def format_chart_label({value, _meta}) when is_binary(value) or is_number(value),
-    do: normalize_chart_label(value)
+  def format_chart_label(nil, _column_def, _presentation_context), do: "N/A"
 
-  def format_chart_label(value) when is_tuple(value) do
+  def format_chart_label({value, _meta}, column_def, presentation_context)
+      when is_binary(value) or is_number(value),
+      do: display_chart_label(value, column_def, presentation_context)
+
+  def format_chart_label(value, _column_def, _presentation_context) when is_tuple(value) do
     case value do
       {:field, {:count, field_name}, display_name}
       when is_binary(field_name) and is_binary(display_name) ->
@@ -853,10 +983,42 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  def format_chart_label(value), do: normalize_chart_label(value)
+  def format_chart_label(value, column_def, presentation_context),
+    do: display_chart_label(value, column_def, presentation_context)
+
+  defp display_chart_label(value, column_def, presentation_context) do
+    column_def = maybe_chart_column(column_def)
+
+    if grouped_temporal_value?(column_def) do
+      normalize_chart_label(value)
+    else
+      value
+      |> Presentation.format_cell(column_def, presentation_context)
+      |> normalize_chart_label()
+    end
+  end
+
+  defp raw_chart_label(nil), do: "N/A"
+
+  defp raw_chart_label({value, _meta}) when is_binary(value) or is_number(value),
+    do: normalize_chart_label(value)
+
+  defp raw_chart_label(value), do: normalize_chart_label(value)
 
   defp normalize_chart_label(value) when is_binary(value), do: QueryResults.normalize_value(value)
   defp normalize_chart_label(value), do: to_string(value)
+
+  defp maybe_chart_column(nil), do: nil
+  defp maybe_chart_column(column_def), do: Selecto.Presentation.normalize_column(column_def)
+
+  defp grouped_temporal_value?(column_def) when is_map(column_def) do
+    presentation = Map.get(column_def, :presentation) || %{}
+    temporal? = Map.get(presentation, :semantic_type) == :temporal
+    group_format = Map.get(column_def, :group_format) || Map.get(column_def, "group_format")
+    temporal? and is_binary(group_format) and group_format != ""
+  end
+
+  defp grouped_temporal_value?(_), do: false
 
   def format_numeric_value(value) when is_number(value), do: value
   def format_numeric_value({value, _meta}), do: format_numeric_value(value)
@@ -947,7 +1109,8 @@ defmodule SelectoComponents.Views.Graph.Component do
         alias: Map.get(defn, :alias) || "Value",
         series_type: Map.get(defn, :series_type, "auto"),
         axis: Map.get(defn, :axis, "left"),
-        color: Map.get(defn, :color)
+        color: Map.get(defn, :color),
+        column_def: Map.get(defn, :column_def)
       }
     end)
   end
@@ -958,9 +1121,35 @@ defmodule SelectoComponents.Views.Graph.Component do
         alias: format_aggregate_label(agg),
         series_type: "auto",
         axis: "left",
-        color: nil
+        color: nil,
+        column_def: aggregate_column_def(agg)
       }
     end)
+  end
+
+  defp aggregate_column_def({:field, {_func, field_name}, _alias})
+       when is_binary(field_name) or is_atom(field_name),
+       do: maybe_chart_column(%{colid: field_name})
+
+  defp aggregate_column_def(_), do: nil
+
+  defp format_metric_label(metric_def, presentation_context) do
+    case metric_def do
+      %{alias: alias_name, column_def: column_def} ->
+        unit_label = Presentation.display_unit_label(column_def, presentation_context)
+
+        if is_binary(unit_label) and unit_label != "" do
+          "#{alias_name} (#{unit_label})"
+        else
+          alias_name
+        end
+
+      %{alias: alias_name} ->
+        alias_name
+
+      _ ->
+        "Value"
+    end
   end
 
   defp dataset_type(metric_def, chart_type) do

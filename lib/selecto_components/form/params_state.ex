@@ -20,6 +20,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.QueryResults
+  alias SelectoComponents.Presentation
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
@@ -580,14 +581,20 @@ defmodule SelectoComponents.Form.ParamsState do
   def view_from_params(params, socket) do
     result_socket =
       try do
-        params = canonicalize_form_params(params)
-
         socket =
           Phoenix.Component.assign(socket,
             query_results: nil,
             executed: false,
             execution_error: nil
           )
+
+        presentation_context =
+          socket.assigns
+          |> Map.get(:presentation_context, %{})
+          |> Presentation.resolve_context()
+
+        params = canonicalize_form_params(params, socket.assigns[:selecto], presentation_context)
+        params = put_runtime_presentation_context(params, presentation_context)
 
         old_selecto = socket.assigns.selecto
 
@@ -791,8 +798,9 @@ defmodule SelectoComponents.Form.ParamsState do
                 selecto: selecto,
                 columns: columns_list,
                 field_filters: Selecto.filters(selecto),
+                presentation_context: presentation_context,
                 query_results: {normalized_rows, columns, aliases},
-                used_params: params,
+                used_params: drop_runtime_only_params(params),
                 applied_view: get_map_value(params, :view_mode),
                 view_meta: view_meta,
                 detail_page_cache: detail_cache_assignment,
@@ -839,8 +847,9 @@ defmodule SelectoComponents.Form.ParamsState do
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
+              presentation_context: presentation_context,
               query_results: nil,
-              used_params: params,
+              used_params: drop_runtime_only_params(params),
               applied_view: get_map_value(params, :view_mode),
               view_meta: view_meta,
               detail_page_cache:
@@ -881,8 +890,9 @@ defmodule SelectoComponents.Form.ParamsState do
               selecto: selecto,
               columns: columns_list,
               field_filters: Selecto.filters(selecto),
+              presentation_context: presentation_context,
               query_results: nil,
-              used_params: params,
+              used_params: drop_runtime_only_params(params),
               applied_view: get_map_value(params, :view_mode),
               view_meta: view_meta,
               detail_page_cache:
@@ -918,7 +928,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
           Phoenix.Component.assign(socket,
             query_results: nil,
-            used_params: params,
+            used_params: drop_runtime_only_params(params),
             applied_view: view_mode_value(params, socket.assigns[:applied_view]),
             executed: false,
             execution_error: sanitized_error,
@@ -931,7 +941,7 @@ defmodule SelectoComponents.Form.ParamsState do
         :exit, reason ->
           Phoenix.Component.assign(socket,
             query_results: nil,
-            used_params: params,
+            used_params: drop_runtime_only_params(params),
             applied_view: view_mode_value(params, socket.assigns[:applied_view]),
             executed: false,
             execution_error:
@@ -1423,7 +1433,13 @@ defmodule SelectoComponents.Form.ParamsState do
   Build view_config from URL params, updating full state including view-specific configs.
   """
   def params_to_state(params, socket) do
-    params = canonicalize_form_params(params)
+    params =
+      canonicalize_form_params(
+        params,
+        socket.assigns[:selecto],
+        socket.assigns[:presentation_context]
+      )
+
     filters = view_filter_process(params, "filters")
     existing_config = socket.assigns[:view_config] || %{}
 
@@ -1461,7 +1477,13 @@ defmodule SelectoComponents.Form.ParamsState do
   so every view can be reconstructed from the browser state in one pass.
   """
   def form_params_to_state(params, socket) do
-    params = canonicalize_form_params(params)
+    params =
+      canonicalize_form_params(
+        params,
+        socket.assigns[:selecto],
+        socket.assigns[:presentation_context]
+      )
+
     existing_config = socket.assigns[:view_config] || %{}
     stale_submit? = stale_form_submit?(params, socket)
     filters = submitted_filters_state(params, existing_config, stale_submit?)
@@ -1927,8 +1949,13 @@ defmodule SelectoComponents.Form.ParamsState do
   defp detail_param_atom("count_mode"), do: :count_mode
   defp detail_param_atom("prevent_denormalization"), do: :prevent_denormalization
 
-  def canonicalize_form_params(params) when is_map(params) do
-    params = merge_promoted_filter_params(params)
+  def canonicalize_form_params(params, selecto \\ nil, presentation_context \\ %{})
+
+  def canonicalize_form_params(params, selecto, presentation_context) when is_map(params) do
+    params =
+      params
+      |> merge_promoted_filter_params()
+      |> canonicalize_filter_params(selecto, presentation_context)
 
     row_click_action =
       normalize_optional_scalar(get_map_value(params, "row_click_action_ui")) ||
@@ -1941,7 +1968,7 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
-  def canonicalize_form_params(params), do: params
+  def canonicalize_form_params(params, _selecto, _presentation_context), do: params
 
   defp merge_promoted_filter_params(params) when not is_map(params), do: params
 
@@ -2000,6 +2027,421 @@ defmodule SelectoComponents.Form.ParamsState do
       )
     else
       promoted_values
+    end
+  end
+
+  defp canonicalize_filter_params(params, nil, _presentation_context), do: params
+
+  defp canonicalize_filter_params(params, selecto, presentation_context) when is_map(params) do
+    if valid_selecto_for_filter_canonicalization?(selecto) do
+      case Map.get(params, "filters") do
+        filters when is_map(filters) ->
+          normalized_filters =
+            Enum.into(filters, %{}, fn {uuid, filter} ->
+              {uuid, canonicalize_filter_map(filter, selecto, presentation_context)}
+            end)
+
+          Map.put(params, "filters", normalized_filters)
+
+        _ ->
+          params
+      end
+    else
+      params
+    end
+  end
+
+  defp valid_selecto_for_filter_canonicalization?(%Selecto{config: config}) when is_map(config),
+    do: true
+
+  defp valid_selecto_for_filter_canonicalization?(_), do: false
+
+  defp canonicalize_filter_map(filter, _selecto, _presentation_context) when not is_map(filter),
+    do: filter
+
+  defp canonicalize_filter_map(filter, selecto, presentation_context) do
+    filter_id = get_map_value(filter, "filter")
+    column = resolve_filter_column(selecto, filter_id)
+
+    cond do
+      is_nil(column) ->
+        filter
+
+      Selecto.Presentation.measurement?(column) ->
+        canonicalize_measurement_filter(filter, column, presentation_context)
+
+      Selecto.Presentation.temporal?(column) or Selecto.Temporal.date_like?(column) ->
+        canonicalize_temporal_filter(filter, column, presentation_context)
+
+      locale_numeric_column?(column) ->
+        canonicalize_numeric_filter(filter, presentation_context)
+
+      true ->
+        filter
+    end
+  end
+
+  defp resolve_filter_column(nil, _filter_id), do: nil
+  defp resolve_filter_column(_selecto, nil), do: nil
+
+  defp resolve_filter_column(selecto, filter_id) do
+    Selecto.columns(selecto)[filter_id] ||
+      Enum.find_value(Selecto.columns(selecto), fn {_key, col} ->
+        if col.colid == filter_id or to_string(col.colid) == filter_id or col.name == filter_id,
+          do: col,
+          else: nil
+      end) || Selecto.field(selecto, filter_id)
+  end
+
+  defp canonicalize_measurement_filter(filter, column, presentation_context) do
+    display_unit = Presentation.display_unit(column, presentation_context)
+    canonical_unit = Selecto.Presentation.canonical_unit(column)
+    comp = normalize_filter_comp(filter)
+
+    filter
+    |> maybe_put_display_value("value")
+    |> maybe_put_display_value("value_start")
+    |> maybe_put_display_value("value_end")
+    |> maybe_put_display_value("value2")
+    |> maybe_canonicalize_measurement_key(
+      "value",
+      comp,
+      display_unit,
+      canonical_unit,
+      presentation_context
+    )
+    |> maybe_canonicalize_measurement_key(
+      "value_start",
+      comp,
+      display_unit,
+      canonical_unit,
+      presentation_context
+    )
+    |> maybe_canonicalize_measurement_key(
+      "value_end",
+      comp,
+      display_unit,
+      canonical_unit,
+      presentation_context
+    )
+    |> maybe_canonicalize_measurement_key(
+      "value2",
+      comp,
+      display_unit,
+      canonical_unit,
+      presentation_context
+    )
+  end
+
+  defp maybe_canonicalize_measurement_key(
+         filter,
+         _key,
+         comp,
+         _display_unit,
+         _canonical_unit,
+         _presentation_context
+       )
+       when comp in [
+              "SHORTCUT",
+              "RELATIVE",
+              "IS NULL",
+              "IS NOT NULL",
+              "WEEKDAY",
+              "WEEKDAY_SUN1",
+              "WEEK_OF_YEAR",
+              "MONTH_OF_YEAR",
+              "DAY_OF_MONTH",
+              "HOUR_OF_DAY"
+            ] do
+    filter
+  end
+
+  defp maybe_canonicalize_measurement_key(
+         filter,
+         key,
+         _comp,
+         display_unit,
+         canonical_unit,
+         presentation_context
+       ) do
+    case convert_measurement_filter_value(
+           Map.get(filter, key),
+           display_unit,
+           canonical_unit,
+           presentation_context
+         ) do
+      {:ok, converted} -> Map.put(filter, key, converted)
+      :skip -> filter
+    end
+  end
+
+  defp convert_measurement_filter_value(
+         value,
+         _display_unit,
+         _canonical_unit,
+         _presentation_context
+       )
+       when value in [nil, ""],
+       do: :skip
+
+  defp convert_measurement_filter_value(value, display_unit, canonical_unit, presentation_context) do
+    case split_measurement_value(value) do
+      {numeric, suffix} ->
+        with number when not is_nil(number) <-
+               Presentation.parse_number(numeric, presentation_context),
+             true <- suffix in [nil, "", measurement_unit_label(display_unit)],
+             converted when not is_nil(converted) <-
+               maybe_convert_measurement_to_canonical(number, display_unit, canonical_unit) do
+          {:ok, float_to_filter_string(converted)}
+        else
+          _ -> :skip
+        end
+    end
+  end
+
+  defp split_measurement_value(value) when is_binary(value) do
+    case Regex.run(~r/^\s*([-+]?[0-9][0-9\s.,'’  ]*[0-9]|[-+]?[0-9])\s*([^0-9\s].*)?\s*$/u, value) do
+      [_, number] -> {number, nil}
+      [_, number, suffix] -> {number, String.trim(suffix)}
+      _ -> {String.trim(value), nil}
+    end
+  end
+
+  defp split_measurement_value(value), do: {to_string(value), nil}
+
+  defp float_to_filter_string(value) when is_float(value) do
+    value
+    |> Float.round(12)
+    |> :erlang.float_to_binary(decimals: 12)
+    |> String.trim_trailing("0")
+    |> String.trim_trailing(".")
+  end
+
+  defp measurement_unit_label(unit) do
+    case Presentation.display_unit_label(
+           %{presentation: %{default_unit: unit, canonical_unit: unit}},
+           %{}
+         ) do
+      nil -> nil
+      label -> String.trim(label)
+    end
+  end
+
+  defp measurement_to_canonical(value, :fahrenheit, :celsius), do: (value - 32) * 5 / 9
+  defp measurement_to_canonical(value, :kelvin, :celsius), do: value - 273.15
+  defp measurement_to_canonical(value, :celsius, :fahrenheit), do: value * 9 / 5 + 32
+  defp measurement_to_canonical(value, :celsius, :kelvin), do: value + 273.15
+
+  defp measurement_to_canonical(value, display_unit, canonical_unit)
+       when display_unit == canonical_unit, do: value
+
+  defp measurement_to_canonical(value, display_unit, canonical_unit) do
+    with {:ok, display_factor} <- measurement_factor(display_unit),
+         {:ok, canonical_factor} <- measurement_factor(canonical_unit) do
+      value * display_factor / canonical_factor
+    else
+      _ -> nil
+    end
+  end
+
+  defp measurement_factor(:millimeter), do: {:ok, 0.001}
+  defp measurement_factor(:centimeter), do: {:ok, 0.01}
+  defp measurement_factor(:meter), do: {:ok, 1.0}
+  defp measurement_factor(:kilometer), do: {:ok, 1000.0}
+  defp measurement_factor(:inch), do: {:ok, 0.0254}
+  defp measurement_factor(:foot), do: {:ok, 0.3048}
+  defp measurement_factor(:yard), do: {:ok, 0.9144}
+  defp measurement_factor(:mile), do: {:ok, 1609.344}
+  defp measurement_factor(:gram), do: {:ok, 1.0}
+  defp measurement_factor(:kilogram), do: {:ok, 1000.0}
+  defp measurement_factor(:ounce), do: {:ok, 28.349523125}
+  defp measurement_factor(:pound), do: {:ok, 453.59237}
+  defp measurement_factor(:milliliter), do: {:ok, 0.001}
+  defp measurement_factor(:liter), do: {:ok, 1.0}
+  defp measurement_factor(:fluid_ounce), do: {:ok, 0.0295735295625}
+  defp measurement_factor(:gallon), do: {:ok, 3.785411784}
+  defp measurement_factor(:square_meter), do: {:ok, 1.0}
+  defp measurement_factor(:square_foot), do: {:ok, 0.09290304}
+  defp measurement_factor(:acre), do: {:ok, 4046.8564224}
+  defp measurement_factor(:hectare), do: {:ok, 10000.0}
+  defp measurement_factor(:meter_per_second), do: {:ok, 1.0}
+  defp measurement_factor(:kilometer_per_hour), do: {:ok, 0.2777777778}
+  defp measurement_factor(:mile_per_hour), do: {:ok, 0.44704}
+  defp measurement_factor(_unit), do: :error
+
+  defp maybe_convert_measurement_to_canonical(value, display_unit, canonical_unit)
+       when is_nil(display_unit) or is_nil(canonical_unit) or display_unit == canonical_unit,
+       do: value
+
+  defp maybe_convert_measurement_to_canonical(value, display_unit, canonical_unit),
+    do: measurement_to_canonical(value, display_unit, canonical_unit)
+
+  defp canonicalize_numeric_filter(filter, presentation_context) do
+    comp = normalize_filter_comp(filter)
+
+    filter
+    |> maybe_put_display_value("value")
+    |> maybe_put_display_value("value_start")
+    |> maybe_put_display_value("value_end")
+    |> maybe_put_display_value("value2")
+    |> maybe_canonicalize_numeric_key("value", comp, presentation_context)
+    |> maybe_canonicalize_numeric_key("value_start", comp, presentation_context)
+    |> maybe_canonicalize_numeric_key("value_end", comp, presentation_context)
+    |> maybe_canonicalize_numeric_key("value2", comp, presentation_context)
+  end
+
+  defp maybe_canonicalize_numeric_key(filter, _key, comp, _presentation_context)
+       when comp in [
+              "SHORTCUT",
+              "RELATIVE",
+              "IS NULL",
+              "IS NOT NULL",
+              "WEEKDAY",
+              "WEEKDAY_SUN1",
+              "WEEK_OF_YEAR",
+              "MONTH_OF_YEAR",
+              "DAY_OF_MONTH",
+              "HOUR_OF_DAY"
+            ] do
+    filter
+  end
+
+  defp maybe_canonicalize_numeric_key(filter, key, _comp, presentation_context) do
+    case Map.get(filter, key) do
+      value when value in [nil, ""] ->
+        filter
+
+      value ->
+        case Presentation.parse_number(value, presentation_context) do
+          number when is_float(number) -> Map.put(filter, key, float_to_filter_string(number))
+          _ -> filter
+        end
+    end
+  end
+
+  defp locale_numeric_column?(column) when is_map(column) do
+    normalized_type = Selecto.Temporal.date_like_type(column) || Map.get(column, :type)
+    normalized_type in [:integer, :float, :decimal]
+  end
+
+  defp locale_numeric_column?(_column), do: false
+
+  defp canonicalize_temporal_filter(filter, column, presentation_context) do
+    comp = normalize_filter_comp(filter)
+    timezone = presentation_timezone(presentation_context)
+
+    filter
+    |> maybe_put_display_value("value")
+    |> maybe_put_display_value("value_start")
+    |> maybe_put_display_value("value_end")
+    |> maybe_put_display_value("value2")
+    |> maybe_canonicalize_temporal_key("value", comp, column, timezone)
+    |> maybe_canonicalize_temporal_key("value_start", comp, column, timezone)
+    |> maybe_canonicalize_temporal_key("value_end", comp, column, timezone)
+    |> maybe_canonicalize_temporal_key("value2", comp, column, timezone)
+  end
+
+  defp maybe_canonicalize_temporal_key(filter, _key, comp, _column, _timezone)
+       when comp in [
+              "SHORTCUT",
+              "RELATIVE",
+              "WEEKDAY",
+              "WEEKDAY_SUN1",
+              "WEEK_OF_YEAR",
+              "MONTH_OF_YEAR",
+              "DAY_OF_MONTH",
+              "HOUR_OF_DAY",
+              "DATE=",
+              "DATE!=",
+              "DATE_BETWEEN"
+            ] do
+    filter
+  end
+
+  defp maybe_canonicalize_temporal_key(filter, key, _comp, column, timezone) do
+    case local_input_to_utc_string(Map.get(filter, key), column, timezone) do
+      nil -> filter
+      converted -> Map.put(filter, key, converted)
+    end
+  end
+
+  defp local_input_to_utc_string(value, column, timezone) when is_binary(value) do
+    if Selecto.Presentation.temporal_kind(column) == :instant do
+      trimmed = String.trim(value)
+
+      cond do
+        trimmed == "" ->
+          nil
+
+        match?({:ok, _}, NaiveDateTime.from_iso8601(trimmed)) ->
+          {:ok, naive} = NaiveDateTime.from_iso8601(trimmed)
+          timezone_naive_to_utc_string(naive, timezone)
+
+        match?({:ok, _}, NaiveDateTime.from_iso8601(trimmed <> ":00")) ->
+          {:ok, naive} = NaiveDateTime.from_iso8601(trimmed <> ":00")
+          timezone_naive_to_utc_string(naive, timezone)
+
+        String.contains?(trimmed, " ") and
+            match?({:ok, _}, NaiveDateTime.from_iso8601(String.replace(trimmed, " ", "T"))) ->
+          {:ok, naive} = trimmed |> String.replace(" ", "T") |> NaiveDateTime.from_iso8601()
+          timezone_naive_to_utc_string(naive, timezone)
+
+        String.contains?(trimmed, " ") and
+            match?(
+              {:ok, _},
+              NaiveDateTime.from_iso8601(String.replace(trimmed, " ", "T") <> ":00")
+            ) ->
+          {:ok, naive} =
+            trimmed
+            |> String.replace(" ", "T")
+            |> Kernel.<>(":00")
+            |> NaiveDateTime.from_iso8601()
+
+          timezone_naive_to_utc_string(naive, timezone)
+
+        true ->
+          nil
+      end
+    end
+  end
+
+  defp local_input_to_utc_string(_value, _column, _timezone), do: nil
+
+  defp timezone_naive_to_utc_string(naive, timezone) do
+    case DateTime.from_naive(naive, timezone) do
+      {:ok, datetime} ->
+        datetime
+        |> DateTime.shift_zone!("Etc/UTC")
+        |> DateTime.to_iso8601()
+
+      {:ambiguous, datetime, _other} ->
+        datetime
+        |> DateTime.shift_zone!("Etc/UTC")
+        |> DateTime.to_iso8601()
+
+      _ ->
+        nil
+    end
+  end
+
+  defp presentation_timezone(context) do
+    context
+    |> Presentation.resolve_context()
+    |> Map.get(:timezone, "Etc/UTC")
+  end
+
+  defp normalize_filter_comp(filter) do
+    filter
+    |> get_map_value("comp", "=")
+    |> to_string()
+    |> String.trim()
+    |> String.upcase()
+  end
+
+  defp maybe_put_display_value(filter, key) do
+    case Map.get(filter, key) do
+      nil -> filter
+      value -> Map.put_new(filter, "display_#{key}", value)
     end
   end
 
@@ -2757,11 +3199,25 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp sort_index_for_compaction(_value), do: 0
 
+  defp put_runtime_presentation_context(params, presentation_context) when is_map(params) do
+    Map.put(params, "_presentation_context", presentation_context || %{})
+  end
+
+  defp put_runtime_presentation_context(params, _presentation_context), do: params
+
+  defp drop_runtime_only_params(params) when is_map(params) do
+    Map.delete(params, "_presentation_context")
+  end
+
+  defp drop_runtime_only_params(params), do: params
+
   defp drop_unused_form_params(params) when is_map(params) do
     params
     |> Enum.reject(fn {key, _value} ->
       key_str = to_string(key)
-      String.starts_with?(key_str, "_unused_") or key_str in ["_target", "save_as"]
+
+      String.starts_with?(key_str, "_unused_") or
+        key_str in ["_target", "save_as", "_presentation_context"]
     end)
     |> Enum.into(%{}, fn {key, value} -> {key, drop_unused_form_params(value)} end)
   end

@@ -16,6 +16,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   use Phoenix.Component
   require Logger
 
+  alias SelectoComponents.Presentation
   alias SelectoComponents.SchemaUtils
 
   @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
@@ -239,9 +240,11 @@ defmodule SelectoComponents.Form.FilterRendering do
                 type="date"
                 name={"filters[#{@uuid}][value_start]"}
                 value={
-                  format_datetime_value(
-                    @filter_value["value_start"],
-                    @column_def || @filter_def || :date
+                  filter_input_value(
+                    @filter_value,
+                    "value_start",
+                    @column_def || @filter_def || :date,
+                    @presentation_context
                   )
                 }
                 class="sc-input"
@@ -252,9 +255,11 @@ defmodule SelectoComponents.Form.FilterRendering do
                 type="date"
                 name={"filters[#{@uuid}][value_end]"}
                 value={
-                  format_datetime_value(
-                    @filter_value["value_end"],
-                    @column_def || @filter_def || :date
+                  filter_input_value(
+                    @filter_value,
+                    "value_end",
+                    @column_def || @filter_def || :date,
+                    @presentation_context
                   )
                 }
                 class="sc-input"
@@ -460,7 +465,12 @@ defmodule SelectoComponents.Form.FilterRendering do
               type="date"
               name={"filters[#{@uuid}][value]"}
               value={
-                format_datetime_value(@filter_value["value"], @column_def || @filter_def || :date)
+                filter_input_value(
+                  @filter_value,
+                  "value",
+                  @column_def || @filter_def || :date,
+                  @presentation_context
+                )
               }
               class="sc-input col-span-2"
             />
@@ -473,9 +483,11 @@ defmodule SelectoComponents.Form.FilterRendering do
               type={if @field_type == :date, do: "date", else: "datetime-local"}
               name={"filters[#{@uuid}][value]"}
               value={
-                format_datetime_value(
-                  @filter_value["value"],
-                  @column_def || @filter_def || @field_type
+                filter_input_value(
+                  @filter_value,
+                  "value",
+                  @column_def || @filter_def || @field_type,
+                  @presentation_context
                 )
               }
               class="sc-input col-span-2"
@@ -531,11 +543,33 @@ defmodule SelectoComponents.Form.FilterRendering do
       end
 
     between_start =
-      value_for(assigns.filter_value, "value_start") || value_for(assigns.filter_value, "value") ||
+      filter_input_value(
+        assigns.filter_value,
+        "value_start",
+        column_def,
+        assigns[:presentation_context]
+      ) ||
+        filter_input_value(
+          assigns.filter_value,
+          "value",
+          column_def,
+          assigns[:presentation_context]
+        ) ||
         ""
 
     between_end =
-      value_for(assigns.filter_value, "value_end") || value_for(assigns.filter_value, "value2") ||
+      filter_input_value(
+        assigns.filter_value,
+        "value_end",
+        column_def,
+        assigns[:presentation_context]
+      ) ||
+        filter_input_value(
+          assigns.filter_value,
+          "value2",
+          column_def,
+          assigns[:presentation_context]
+        ) ||
         ""
 
     assigns =
@@ -549,6 +583,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         between_end: between_end,
         selected_in_values: selected_in_values(assigns.filter_value),
         pending_in_values: value_for(assigns.filter_value, "pending_values") || "",
+        presentation_context: Map.get(assigns, :presentation_context, %{}),
         ignore_case_checked:
           Map.get(assigns.filter_value, "ignore_case", "false") in [
             true,
@@ -731,7 +766,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               <input
                 type="text"
                 name={"filters[#{@uuid}][value]"}
-                value={@filter_value["value"]}
+                value={filter_input_value(@filter_value, "value", @column_def || @filter_def, @presentation_context)}
                 placeholder="Enter IDs (comma-separated, e.g., 1,2,3)"
                 class="sc-input"
                 phx-debounce="300"
@@ -745,13 +780,13 @@ defmodule SelectoComponents.Form.FilterRendering do
             <%!-- Standard text input --%>
             <input
               type="text"
-              name={"filters[#{@uuid}][value]"}
-              value={@filter_value["value"]}
-              placeholder="Enter value..."
-              class="sc-input col-span-2"
-              phx-debounce="300"
-              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
-            />
+                name={"filters[#{@uuid}][value]"}
+                value={filter_input_value(@filter_value, "value", @column_def || @filter_def, @presentation_context)}
+                placeholder="Enter value..."
+                class="sc-input col-span-2"
+                phx-debounce="300"
+                disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
+              />
         <% end %>
 
         <%= if @is_text_field and @current_comp in ["=", "STARTS"] do %>
@@ -1097,6 +1132,69 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   def format_datetime_value(value, _type), do: value
+
+  defp filter_input_value(filter_value, key, field_conf, presentation_context)
+       when is_map(filter_value) do
+    display_key = "display_#{key}"
+
+    cond do
+      is_binary(Map.get(filter_value, display_key)) ->
+        Map.get(filter_value, display_key)
+
+      Selecto.Presentation.measurement?(field_conf) ->
+        Presentation.format_cell(Map.get(filter_value, key), field_conf, presentation_context,
+          show_unit: false
+        )
+
+      Selecto.Presentation.temporal?(field_conf) or Selecto.Temporal.date_like?(field_conf) ->
+        temporal_input_value(Map.get(filter_value, key), field_conf, presentation_context)
+
+      true ->
+        value_for(filter_value, key)
+    end
+  end
+
+  defp filter_input_value(_filter_value, _key, _field_conf, _presentation_context), do: nil
+
+  defp temporal_input_value(value, field_conf, presentation_context) do
+    timezone =
+      presentation_context
+      |> Presentation.resolve_context()
+      |> Map.get(:timezone, "Etc/UTC")
+
+    field_conf
+    |> Selecto.Temporal.to_display_temporal(value)
+    |> maybe_shift_temporal_display(field_conf, timezone)
+    |> case do
+      %Date{} = date ->
+        format_datetime_value(Date.to_iso8601(date), :date)
+
+      %NaiveDateTime{} = dt ->
+        format_datetime_value(NaiveDateTime.to_iso8601(dt), :naive_datetime)
+
+      %DateTime{} = dt ->
+        format_datetime_value(DateTime.to_iso8601(dt), :utc_datetime)
+
+      other ->
+        format_datetime_value(
+          other,
+          Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type)
+        )
+    end
+  end
+
+  defp maybe_shift_temporal_display(%DateTime{} = datetime, field_conf, timezone) do
+    if Selecto.Presentation.temporal_kind(field_conf) == :instant do
+      case DateTime.shift_zone(datetime, timezone) do
+        {:ok, shifted} -> shifted
+        _ -> datetime
+      end
+    else
+      datetime
+    end
+  end
+
+  defp maybe_shift_temporal_display(value, _field_conf, _timezone), do: value
 
   @doc """
   Check if a value is a date shortcut (today, this_week, last_month, etc.).

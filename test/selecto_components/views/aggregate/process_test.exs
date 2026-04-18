@@ -193,6 +193,93 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert sql =~ "CASE WHEN"
   end
 
+  test "group by uses viewer timezone for instant datetime formatting" do
+    columns = %{
+      "created_at" => %{
+        name: "Created At",
+        type: :utc_datetime,
+        colid: :created_at,
+        presentation: %{
+          semantic_type: :temporal,
+          temporal_kind: :instant,
+          display_timezone: :viewer
+        }
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{"g1" => %{"field" => "created_at", "format" => "YYYY-MM", "index" => "0"}},
+        columns,
+        nil,
+        %{timezone: "America/New_York"}
+      )
+
+    assert {:field, {:raw_sql, sql}, "Created At"} = selector
+    assert sql == "to_char(selecto_root.created_at AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+  end
+
+  test "group by uses viewer timezone for epoch-backed instant year buckets" do
+    columns = %{
+      "occurred_at_epoch" => %{
+        name: "Occurred At",
+        type: :integer,
+        colid: :occurred_at_epoch,
+        presentation_type: :utc_datetime,
+        datetime_storage: :unix_seconds,
+        presentation: %{
+          semantic_type: :temporal,
+          temporal_kind: :instant,
+          display_timezone: :viewer
+        }
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "occurred_at_epoch",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5",
+            "index" => "0"
+          }
+        },
+        columns,
+        nil,
+        %{timezone: "America/New_York"}
+      )
+
+    assert {:field, {:raw_sql, sql}, "Occurred At"} = selector
+
+    assert sql =~
+             "EXTRACT(YEAR FROM to_timestamp(selecto_root.occurred_at_epoch) AT TIME ZONE 'America/New_York')"
+  end
+
+  test "group by leaves naive datetime formatting unchanged" do
+    columns = %{
+      "created_at" => %{
+        name: "Created At",
+        type: :naive_datetime,
+        colid: :created_at,
+        presentation: %{
+          semantic_type: :temporal,
+          temporal_kind: :naive_datetime
+        }
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{"g1" => %{"field" => "created_at", "format" => "YYYY-MM", "index" => "0"}},
+        columns,
+        nil,
+        %{timezone: "America/New_York"}
+      )
+
+    assert {:field, {:to_char, {:created_at, "YYYY-MM"}}, "Created At"} = selector
+  end
+
   test "group by preserves joined field references for datetime year buckets" do
     columns = %{
       "delivery_team.inserted_at" => %{

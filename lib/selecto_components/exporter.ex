@@ -36,10 +36,14 @@ defmodule SelectoComponents.Exporter do
     exported_at = exported_at(opts)
     view_mode = normalize_view_mode(Keyword.get(opts, :view_mode, "results"))
     filename = "selecto_#{view_mode}_#{filename_timestamp(exported_at)}.json"
+    export_mode = normalize_export_mode(Keyword.get(opts, :export_mode, :raw))
+    presentation_context = Keyword.get(opts, :presentation_context, %{})
 
     payload = %{
       exported_at: DateTime.to_iso8601(exported_at),
       view_mode: view_mode,
+      export_mode: export_mode,
+      presentation_context: presentation_context,
       row_count: length(dataset.rows),
       columns: dataset.headers,
       rows: json_rows(dataset)
@@ -352,6 +356,10 @@ defmodule SelectoComponents.Exporter do
   defp normalize_view_mode(view_mode) when is_atom(view_mode), do: Atom.to_string(view_mode)
   defp normalize_view_mode(view_mode) when is_binary(view_mode), do: view_mode
   defp normalize_view_mode(_view_mode), do: "results"
+
+  defp normalize_export_mode(mode) when mode in [:raw, :display], do: Atom.to_string(mode)
+  defp normalize_export_mode("display"), do: "display"
+  defp normalize_export_mode(_mode), do: "raw"
 
   defp exported_at(opts) do
     case Keyword.get(opts, :exported_at) do
