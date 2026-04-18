@@ -162,6 +162,51 @@ defmodule SelectoComponents.FormTest do
     refute html =~ ~s(type="text" name="promoted_filters[f4][value]")
   end
 
+  test "renders promoted numeric filters using display-local values when present" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: false,
+          presentation_context: %{locale: "de-DE"},
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "estimate",
+                 "comp" => ">=",
+                 "value" => "145.5",
+                 "display_value" => "145,5",
+                 "promote" => "true"
+               }},
+              {"f2", "filters",
+               %{
+                 "filter" => "estimate",
+                 "comp" => "BETWEEN",
+                 "value_start" => "1234.5",
+                 "value_end" => "2345.5",
+                 "display_value_start" => "1.234,5",
+                 "display_value_end" => "2.345,5",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(name="promoted_filters[f1][value]")
+    assert html =~ ~s(value="145,5")
+    assert html =~ ~s(name="promoted_filters[f2][value_start]")
+    assert html =~ ~s(value="1.234,5")
+    assert html =~ ~s(name="promoted_filters[f2][value_end]")
+    assert html =~ ~s(value="2.345,5")
+  end
+
   test "pending IN textarea text does not change remount ids while typing" do
     html_with_partial =
       render_component(

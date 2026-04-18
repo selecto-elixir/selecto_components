@@ -674,17 +674,22 @@ defmodule SelectoComponents.Form do
   end
 
   defp controller_filter_value(filter) do
-    Map.get(filter, "value") || Map.get(filter, :value) || ""
+    Map.get(filter, "display_value") || Map.get(filter, :display_value) ||
+      Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
   defp controller_filter_start_value(filter) do
-    Map.get(filter, "value_start") || Map.get(filter, :value_start) || Map.get(filter, "value") ||
-      Map.get(filter, :value) || ""
+    Map.get(filter, "display_value_start") || Map.get(filter, :display_value_start) ||
+      Map.get(filter, "value_start") || Map.get(filter, :value_start) ||
+      Map.get(filter, "display_value") || Map.get(filter, :display_value) ||
+      Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
   defp controller_filter_end_value(filter) do
-    Map.get(filter, "value_end") || Map.get(filter, :value_end) || Map.get(filter, "value2") ||
-      Map.get(filter, :value2) || ""
+    Map.get(filter, "display_value_end") || Map.get(filter, :display_value_end) ||
+      Map.get(filter, "value_end") || Map.get(filter, :value_end) ||
+      Map.get(filter, "display_value2") || Map.get(filter, :display_value2) ||
+      Map.get(filter, "value2") || Map.get(filter, :value2) || ""
   end
 
   defp controller_filter_list_value(filter) do
