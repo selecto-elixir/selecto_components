@@ -1954,7 +1954,7 @@ defmodule SelectoComponents.Form.ParamsState do
   def canonicalize_form_params(params, selecto, presentation_context) when is_map(params) do
     params =
       params
-      |> merge_promoted_filter_params()
+      |> merge_promoted_filter_params(selecto, presentation_context)
       |> canonicalize_filter_params(selecto, presentation_context)
 
     row_click_action =
@@ -1970,9 +1970,11 @@ defmodule SelectoComponents.Form.ParamsState do
 
   def canonicalize_form_params(params, _selecto, _presentation_context), do: params
 
-  defp merge_promoted_filter_params(params) when not is_map(params), do: params
+  defp merge_promoted_filter_params(params, _selecto, _presentation_context)
+       when not is_map(params),
+       do: params
 
-  defp merge_promoted_filter_params(params) do
+  defp merge_promoted_filter_params(params, selecto, presentation_context) do
     case {Map.get(params, "filters"), Map.get(params, "promoted_filters")} do
       {filters, promoted_filters} when is_map(filters) and is_map(promoted_filters) ->
         merged_filters =
@@ -1981,7 +1983,12 @@ defmodule SelectoComponents.Form.ParamsState do
               current_filter = Map.get(acc, uuid, %{})
 
               normalized_values =
-                normalize_promoted_filter_values(current_filter, promoted_values)
+                normalize_promoted_filter_values(
+                  current_filter,
+                  promoted_values,
+                  selecto,
+                  presentation_context
+                )
 
               Map.put(
                 acc,
@@ -1990,9 +1997,13 @@ defmodule SelectoComponents.Form.ParamsState do
                   current_filter,
                   Map.take(normalized_values, [
                     "value",
+                    "display_value",
                     "value_start",
+                    "display_value_start",
                     "value_end",
+                    "display_value_end",
                     "value2",
+                    "display_value2",
                     "mode"
                   ])
                 )
@@ -2011,7 +2022,12 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
-  defp normalize_promoted_filter_values(current_filter, promoted_values) do
+  defp normalize_promoted_filter_values(
+         current_filter,
+         promoted_values,
+         selecto,
+         _presentation_context
+       ) do
     comp =
       current_filter
       |> get_map_value("comp", "=")
@@ -2019,14 +2035,27 @@ defmodule SelectoComponents.Form.ParamsState do
       |> String.trim()
       |> String.upcase()
 
-    if comp in ["IN", "NOT IN"] do
-      Map.put(
-        promoted_values,
-        "value",
-        normalize_promoted_multi_value(Map.get(promoted_values, "value"))
-      )
-    else
-      promoted_values
+    filter_id = get_map_value(current_filter, "filter")
+    column = resolve_filter_column(selecto, filter_id)
+
+    cond do
+      comp in ["IN", "NOT IN"] and locale_sensitive_in_filter_column?(column) ->
+        normalized_display_value =
+          normalize_locale_sensitive_multi_value_input(Map.get(promoted_values, "value"))
+
+        promoted_values
+        |> Map.put("value", normalized_display_value)
+        |> Map.put("display_value", normalized_display_value)
+
+      comp in ["IN", "NOT IN"] ->
+        Map.put(
+          promoted_values,
+          "value",
+          normalize_promoted_multi_value(Map.get(promoted_values, "value"))
+        )
+
+      true ->
+        promoted_values
     end
   end
 
@@ -2098,39 +2127,48 @@ defmodule SelectoComponents.Form.ParamsState do
     canonical_unit = Selecto.Presentation.canonical_unit(column)
     comp = normalize_filter_comp(filter)
 
-    filter
-    |> maybe_put_display_value("value")
-    |> maybe_put_display_value("value_start")
-    |> maybe_put_display_value("value_end")
-    |> maybe_put_display_value("value2")
-    |> maybe_canonicalize_measurement_key(
-      "value",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value_start",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value_end",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value2",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
+    if comp in ["IN", "NOT IN"] do
+      canonicalize_measurement_multi_value_filter(
+        filter,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+    else
+      filter
+      |> maybe_put_display_value("value")
+      |> maybe_put_display_value("value_start")
+      |> maybe_put_display_value("value_end")
+      |> maybe_put_display_value("value2")
+      |> maybe_canonicalize_measurement_key(
+        "value",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value_start",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value_end",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value2",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+    end
   end
 
   defp maybe_canonicalize_measurement_key(
@@ -2165,7 +2203,7 @@ defmodule SelectoComponents.Form.ParamsState do
          presentation_context
        ) do
     case convert_measurement_filter_value(
-           Map.get(filter, key),
+           canonicalization_source_value(filter, key),
            display_unit,
            canonical_unit,
            presentation_context
@@ -2279,15 +2317,19 @@ defmodule SelectoComponents.Form.ParamsState do
   defp canonicalize_numeric_filter(filter, presentation_context) do
     comp = normalize_filter_comp(filter)
 
-    filter
-    |> maybe_put_display_value("value")
-    |> maybe_put_display_value("value_start")
-    |> maybe_put_display_value("value_end")
-    |> maybe_put_display_value("value2")
-    |> maybe_canonicalize_numeric_key("value", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value_start", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value_end", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value2", comp, presentation_context)
+    if comp in ["IN", "NOT IN"] do
+      canonicalize_numeric_multi_value_filter(filter, presentation_context)
+    else
+      filter
+      |> maybe_put_display_value("value")
+      |> maybe_put_display_value("value_start")
+      |> maybe_put_display_value("value_end")
+      |> maybe_put_display_value("value2")
+      |> maybe_canonicalize_numeric_key("value", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value_start", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value_end", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value2", comp, presentation_context)
+    end
   end
 
   defp maybe_canonicalize_numeric_key(filter, _key, comp, _presentation_context)
@@ -2307,7 +2349,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp maybe_canonicalize_numeric_key(filter, key, _comp, presentation_context) do
-    case Map.get(filter, key) do
+    case canonicalization_source_value(filter, key) do
       value when value in [nil, ""] ->
         filter
 
@@ -2325,6 +2367,134 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp locale_numeric_column?(_column), do: false
+
+  defp locale_sensitive_in_filter_column?(column) when is_map(column) do
+    Selecto.Presentation.measurement?(column) or locale_numeric_column?(column)
+  end
+
+  defp locale_sensitive_in_filter_column?(_column), do: false
+
+  defp canonicalize_measurement_multi_value_filter(
+         filter,
+         display_unit,
+         canonical_unit,
+         presentation_context
+       ) do
+    with {display_tokens, source} when display_tokens != [] <-
+           multi_value_tokens_for_locale_aware_filter(filter),
+         canonical_tokens when canonical_tokens != :error <-
+           map_multi_value_tokens_while(display_tokens, fn token ->
+             case convert_measurement_filter_value(
+                    token,
+                    display_unit,
+                    canonical_unit,
+                    presentation_context
+                  ) do
+               {:ok, converted} -> {:cont, converted}
+               :skip -> {:halt, :error}
+             end
+           end) do
+      filter
+      |> Map.put("value", Enum.join(canonical_tokens, ","))
+      |> maybe_put_multi_value_display(source, display_tokens)
+    else
+      _ -> filter
+    end
+  end
+
+  defp canonicalize_numeric_multi_value_filter(filter, presentation_context) do
+    with {display_tokens, source} when display_tokens != [] <-
+           multi_value_tokens_for_locale_aware_filter(filter),
+         canonical_tokens when canonical_tokens != :error <-
+           map_multi_value_tokens_while(display_tokens, fn token ->
+             case Presentation.parse_number(token, presentation_context) do
+               number when is_float(number) -> {:cont, float_to_filter_string(number)}
+               _ -> {:halt, :error}
+             end
+           end) do
+      filter
+      |> Map.put("value", Enum.join(canonical_tokens, ","))
+      |> maybe_put_multi_value_display(source, display_tokens)
+    else
+      _ -> filter
+    end
+  end
+
+  defp multi_value_tokens_for_locale_aware_filter(filter) when is_map(filter) do
+    cond do
+      is_binary(Map.get(filter, "display_value")) ->
+        {multi_value_display_tokens(Map.get(filter, "display_value"), true), :display}
+
+      is_binary(Map.get(filter, :display_value)) ->
+        {multi_value_display_tokens(Map.get(filter, :display_value), true), :display}
+
+      true ->
+        {multi_value_display_tokens(Map.get(filter, "value") || Map.get(filter, :value), false),
+         :value}
+    end
+  end
+
+  defp multi_value_tokens_for_locale_aware_filter(_filter), do: {[], :value}
+
+  defp multi_value_display_tokens(values, _preserve_commas?) when is_list(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp multi_value_display_tokens(values, preserve_commas?) when is_binary(values) do
+    normalized = String.replace(values, ~r/\r\n|\r/, "\n")
+
+    cond do
+      normalized == "" ->
+        []
+
+      String.contains?(normalized, "\n") ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      String.contains?(normalized, ";") ->
+        normalized
+        |> String.split(";")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      preserve_commas? ->
+        [String.trim(normalized)]
+        |> Enum.reject(&(&1 == ""))
+
+      true ->
+        normalized
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp multi_value_display_tokens(_values, _preserve_commas?), do: []
+
+  defp maybe_put_multi_value_display(filter, :display, display_tokens) do
+    Map.put(filter, "display_value", Enum.join(display_tokens, "\n"))
+  end
+
+  defp maybe_put_multi_value_display(filter, _source, _display_tokens), do: filter
+
+  defp map_multi_value_tokens_while(tokens, mapper)
+       when is_list(tokens) and is_function(mapper, 1) do
+    Enum.reduce_while(tokens, [], fn token, acc ->
+      case mapper.(token) do
+        {:cont, value} -> {:cont, [value | acc]}
+        {:halt, value} -> {:halt, value}
+      end
+    end)
+    |> case do
+      :error -> :error
+      values when is_list(values) -> Enum.reverse(values)
+    end
+  end
 
   defp canonicalize_temporal_filter(filter, column, presentation_context) do
     comp = normalize_filter_comp(filter)
@@ -2359,7 +2529,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp maybe_canonicalize_temporal_key(filter, key, _comp, column, timezone) do
-    case local_input_to_utc_string(Map.get(filter, key), column, timezone) do
+    case local_input_to_utc_string(canonicalization_source_value(filter, key), column, timezone) do
       nil -> filter
       converted -> Map.put(filter, key, converted)
     end
@@ -2444,6 +2614,35 @@ defmodule SelectoComponents.Form.ParamsState do
       value -> Map.put_new(filter, "display_#{key}", value)
     end
   end
+
+  defp canonicalization_source_value(filter, key) when is_map(filter) do
+    Map.get(filter, "display_#{key}") || Map.get(filter, key)
+  end
+
+  defp normalize_locale_sensitive_multi_value_input(value) when is_binary(value) do
+    normalized = String.replace(value, ~r/\r\n|\r/, "\n")
+
+    cond do
+      String.contains?(normalized, "\n") ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.join("\n")
+
+      String.contains?(normalized, ";") ->
+        normalized
+        |> String.split(";")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.join("\n")
+
+      true ->
+        String.trim(normalized)
+    end
+  end
+
+  defp normalize_locale_sensitive_multi_value_input(value), do: value
 
   defp normalize_promoted_multi_value(value) when is_binary(value) do
     value
@@ -2914,7 +3113,7 @@ defmodule SelectoComponents.Form.ParamsState do
     params =
       params
       |> compact_url_params()
-      |> merge_special_debug_params(socket)
+      |> merge_passthrough_url_params(socket)
 
     params_encoded = Plug.Conn.Query.encode(params)
     my_path = socket.assigns.my_path
@@ -2923,20 +3122,29 @@ defmodule SelectoComponents.Form.ParamsState do
     Phoenix.LiveView.push_patch(socket, Keyword.merge([to: full_path], opts))
   end
 
-  defp merge_special_debug_params(params, socket) do
+  defp merge_passthrough_url_params(params, socket) do
     existing_params = Map.get(socket.assigns, :params, %{})
 
-    debug_params =
-      %{
-        "selecto_debug" => get_map_value(existing_params, :selecto_debug),
-        "debug" => get_map_value(existing_params, :debug),
-        "debug_token" => get_map_value(existing_params, :debug_token)
-      }
-      |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-      |> Map.new()
+    passthrough_keys =
+      ["selecto_theme", "selecto_debug", "debug", "debug_token"] ++
+        normalize_passthrough_keys(Map.get(socket.assigns, :url_passthrough_params, []))
 
-    Map.merge(debug_params, params)
+    passthrough_params =
+      passthrough_keys
+      |> Enum.uniq()
+      |> Enum.reduce(%{}, fn key, acc ->
+        case get_map_value(existing_params, key) do
+          nil -> acc
+          "" -> acc
+          value -> Map.put(acc, to_string(key), value)
+        end
+      end)
+
+    Map.merge(passthrough_params, params)
   end
+
+  defp normalize_passthrough_keys(keys) when is_list(keys), do: Enum.map(keys, &to_string/1)
+  defp normalize_passthrough_keys(_keys), do: []
 
   defp get_map_value(map, key, default \\ nil)
 

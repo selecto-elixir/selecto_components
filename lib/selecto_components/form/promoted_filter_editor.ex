@@ -59,7 +59,7 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
             id={"promoted-filter-value-#{@filter.uuid}"}
             name={"promoted_filters[#{@filter.uuid}][value]"}
             rows="3"
-            placeholder="Enter one value per line or use commas"
+            placeholder="Enter one value per line"
             class={Theme.slot(@theme, :input) <> " min-h-24 resize-y"}
             phx-debounce="300"
           >{@filter.list_value}</textarea>

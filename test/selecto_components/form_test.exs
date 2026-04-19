@@ -207,6 +207,39 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(value="2.345,5")
   end
 
+  test "renders promoted locale-aware IN filters as newline-delimited display values" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_view_configurator: false,
+          presentation_context: %{locale: "de-DE"},
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "amount",
+                 "comp" => "IN",
+                 "value" => "145.5,146.5",
+                 "display_value" => "145,5\n146,5",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(name="promoted_filters[f1][value]")
+    assert html =~ "145,5\n146,5"
+    assert html =~ ~s(placeholder="Enter one value per line")
+    refute html =~ "Enter one value per line or use commas"
+  end
+
   test "pending IN textarea text does not change remount ids while typing" do
     html_with_partial =
       render_component(
@@ -307,13 +340,14 @@ defmodule SelectoComponents.FormTest do
       source: %{
         source_table: "work_items",
         primary_key: :id,
-        fields: [:id, :status, :title, :estimate, :due_on, :search],
+        fields: [:id, :status, :title, :estimate, :amount, :due_on, :search],
         redact_fields: [],
         columns: %{
           id: %{type: :integer, name: "ID", colid: :id},
           status: %{type: :string, name: "Status", colid: :status},
           title: %{type: :string, name: "Title", colid: :title},
           estimate: %{type: :integer, name: "Estimate", colid: :estimate},
+          amount: %{type: :decimal, name: "Amount", colid: :amount},
           due_on: %{type: :date, name: "Due On", colid: :due_on},
           search: %{type: :tsvector, name: "Search", colid: :search}
         },

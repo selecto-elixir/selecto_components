@@ -464,6 +464,8 @@ defmodule SelectoComponents.Form do
     label = filter_label(selecto, filter)
     comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
     summary = filter_summary(selecto, filter)
+    field_conf = controller_filter_field_conf(selecto, filter)
+    field_type = controller_filter_field_type(selecto, filter)
     render_kind = controller_filter_render_kind(selecto, filter, comp)
 
     case {label, summary} do
@@ -483,9 +485,9 @@ defmodule SelectoComponents.Form do
           value_start: controller_filter_start_value(filter),
           value_end: controller_filter_end_value(filter),
           mode: controller_filter_mode(selecto, filter, render_kind),
-          list_value: controller_filter_list_value(filter),
-          field_type: controller_filter_field_type(selecto, filter),
-          field_conf: controller_filter_field_conf(selecto, filter),
+          list_value: controller_filter_list_value(filter, field_conf),
+          field_type: field_type,
+          field_conf: field_conf,
           render_kind: render_kind,
           text_search_mode_options: controller_filter_mode_options(selecto, render_kind),
           editable: promoted_filter?(filter) and render_kind != :unsupported
@@ -692,15 +694,61 @@ defmodule SelectoComponents.Form do
       Map.get(filter, "value2") || Map.get(filter, :value2) || ""
   end
 
-  defp controller_filter_list_value(filter) do
-    filter
-    |> controller_filter_value()
-    |> to_string()
-    |> String.split(~r/[\r\n,]+/)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n")
+  defp controller_filter_list_value(filter, field_conf) do
+    display_value =
+      Map.get(filter, "display_value") || Map.get(filter, :display_value)
+
+    values =
+      cond do
+        locale_sensitive_controller_list_field?(field_conf) and is_binary(display_value) ->
+          split_controller_list_value(display_value, true)
+
+        true ->
+          filter
+          |> controller_filter_value()
+          |> split_controller_list_value(false)
+      end
+
+    Enum.join(values, "\n")
   end
+
+  defp split_controller_list_value(value, preserve_commas?) do
+    normalized =
+      value
+      |> to_string()
+      |> String.replace(~r/\r\n|\r/, "\n")
+
+    cond do
+      normalized == "" ->
+        []
+
+      preserve_commas? ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      true ->
+        normalized
+        |> String.split(~r/[\r\n,]+/)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp locale_sensitive_controller_list_field?(field_conf) when is_map(field_conf) do
+    Selecto.Presentation.measurement?(field_conf) or
+      locale_numeric_controller_field_type?(Selecto.Temporal.date_like_type(field_conf)) or
+      locale_numeric_controller_field_type?(Map.get(field_conf, :type))
+  end
+
+  defp locale_sensitive_controller_list_field?(field_conf),
+    do: locale_numeric_controller_field_type?(field_conf)
+
+  defp locale_numeric_controller_field_type?(type) when type in [:integer, :float, :decimal],
+    do: true
+
+  defp locale_numeric_controller_field_type?(_type), do: false
 
   defp controller_filter_mode(selecto, filter, :text_search) do
     case Map.get(filter, "mode") || Map.get(filter, :mode) do
