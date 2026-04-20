@@ -28,6 +28,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
 
   defmacro __using__(_opts) do
     quote do
+      require Logger
       alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.QueryResults
       alias SelectoComponents.Views.Detail.Pagination, as: DetailPagination
@@ -51,6 +52,10 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
       """
       @impl true
       def handle_params(%{"saved_view" => name} = params, _uri, socket) do
+        Logger.debug(fn ->
+          "[selecto_components] handle_params saved_view=#{name} connected=#{connected?(socket)} pid=#{inspect(self())}"
+        end)
+
         socket =
           socket
           |> assign(:params, params)
@@ -90,12 +95,16 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
             socket = ParamsState.saved_params_to_state(saved_params, socket)
             committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
 
-            {:noreply, ParamsState.state_to_url(committed_params, socket, replace: true)}
+            {:noreply, ParamsState.view_from_params(committed_params, socket)}
           end
         end)
       end
 
       def handle_params(%{"view_mode" => _m} = params, _uri, socket) do
+        Logger.debug(fn ->
+          "[selecto_components] handle_params view_mode=#{Map.get(params, "view_mode")} connected=#{connected?(socket)} pid=#{inspect(self())}"
+        end)
+
         socket =
           socket
           |> assign(:params, params)
@@ -109,6 +118,10 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
 
       ### accept default config
       def handle_params(params, _uri, socket) do
+        Logger.debug(fn ->
+          "[selecto_components] handle_params default connected=#{connected?(socket)} params_keys=#{inspect(Map.keys(params))} pid=#{inspect(self())}"
+        end)
+
         {:noreply,
          socket
          |> assign(:params, params)

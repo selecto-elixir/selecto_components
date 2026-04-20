@@ -351,8 +351,13 @@ defmodule SelectoComponents.Form.ParamsState do
       String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
     end)
     |> Enum.reduce([], fn
-      {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
-      {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
+      {param_key, %{"conjunction" => conj} = f}, acc ->
+        uuid = get_map_value(f, :uuid, param_key)
+        acc ++ [{uuid, Map.get(f, "section"), conj}]
+
+      {param_key, f}, acc ->
+        uuid = get_map_value(f, :uuid, param_key)
+        acc ++ [{uuid, Map.get(f, "section"), f}]
     end)
   end
 
@@ -579,6 +584,10 @@ defmodule SelectoComponents.Form.ParamsState do
   5. Updates socket state with results or errors
   """
   def view_from_params(params, socket) do
+    Logger.debug(fn ->
+      "[selecto_components] view_from_params start view_mode=#{Map.get(params, "view_mode") || Map.get(params, :view_mode)} connected=#{Phoenix.LiveView.connected?(socket)} pid=#{inspect(self())}"
+    end)
+
     result_socket =
       try do
         socket =
@@ -823,6 +832,10 @@ defmodule SelectoComponents.Form.ParamsState do
                  aggregate_page_cache: aggregate_cache_assignment
                }}
             )
+
+            Logger.debug(fn ->
+              "[selecto_components] view_from_params success view_mode=#{get_map_value(params, :view_mode)} rows=#{length(normalized_rows)} sql?=#{is_binary(query_sql) and query_sql != ""} pid=#{inspect(self())}"
+            end)
 
             socket
 
@@ -1073,12 +1086,24 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp maybe_fetch_aggregate_total_rows(_selecto, %{total_rows: total_rows} = cache)
        when is_integer(total_rows) and total_rows >= 0 do
+    Logger.debug(fn ->
+      "[selecto_components] aggregate count cache hit total_rows=#{total_rows} pid=#{inspect(self())}"
+    end)
+
     {:ok, {cache, total_rows, %{sql: nil, params: [], execution_time: 0, cache_hit: true}}}
   end
 
   defp maybe_fetch_aggregate_total_rows(selecto, cache) do
+    Logger.debug(fn ->
+      "[selecto_components] aggregate count query start pid=#{inspect(self())}"
+    end)
+
     case execute_aggregate_total_rows(selecto) do
       {:ok, total_rows, count_metadata} ->
+        Logger.debug(fn ->
+          "[selecto_components] aggregate count query success total_rows=#{total_rows} pid=#{inspect(self())}"
+        end)
+
         {:ok, {Map.put(cache, :total_rows, total_rows), total_rows, count_metadata}}
 
       {:error, error} ->
@@ -1089,11 +1114,19 @@ defmodule SelectoComponents.Form.ParamsState do
   defp maybe_fetch_aggregate_page(selecto, cache, page, per_page) do
     case get_in(cache, [:pages, page]) do
       %{rows: rows, columns: columns, aliases: aliases} ->
+        Logger.debug(fn ->
+          "[selecto_components] aggregate page cache hit page=#{page} rows=#{length(rows)} pid=#{inspect(self())}"
+        end)
+
         {:ok,
          {cache, rows, columns, aliases,
           %{sql: nil, params: [], execution_time: 0, cache_hit: true, pagination_mode: :cache}}}
 
       _ ->
+        Logger.debug(fn ->
+          "[selecto_components] aggregate page query start page=#{page} per_page=#{per_page} pid=#{inspect(self())}"
+        end)
+
         row_offset = page * per_page
 
         paged_selecto =
@@ -1104,6 +1137,10 @@ defmodule SelectoComponents.Form.ParamsState do
         case execute_query_with_metadata(paged_selecto) do
           {:ok, {rows, columns, aliases}, metadata} ->
             normalized_rows = QueryResults.normalize_rows(rows)
+
+            Logger.debug(fn ->
+              "[selecto_components] aggregate page query success page=#{page} rows=#{length(normalized_rows)} pid=#{inspect(self())}"
+            end)
 
             pages =
               cache
