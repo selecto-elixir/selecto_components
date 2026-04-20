@@ -132,6 +132,71 @@ defmodule SelectoComponents.Helpers.Filters do
     end
   end
 
+  defp parse_time_value(value) do
+    case cast(:time, value) do
+      {:ok, v} ->
+        v
+
+      :error ->
+        raise ArgumentError, "invalid time #{inspect(value)}"
+    end
+  end
+
+  defp _make_time_filter(filter) do
+    comp_norm = normalize_comp(filter, "=")
+
+    case comp_norm do
+      "=" ->
+        parse_time_value(Map.get(filter, "value"))
+
+      "NULL" ->
+        nil
+
+      "IS_EMPTY" ->
+        nil
+
+      "IS NULL" ->
+        nil
+
+      "NOT_NULL" ->
+        :not_null
+
+      "IS_NOT_EMPTY" ->
+        :not_null
+
+      "IS NOT NULL" ->
+        :not_null
+
+      "BETWEEN" ->
+        {start_raw, end_raw} = parse_between_values(filter)
+        {:between, parse_time_value(start_raw), parse_time_value(end_raw)}
+
+      "IN" ->
+        values =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
+          |> Enum.map(&parse_time_value/1)
+
+        if values == [], do: raise(ArgumentError, "IN requires at least one value")
+        {:in, values}
+
+      "NOT IN" ->
+        values =
+          Map.get(filter, "value", "")
+          |> parse_csv_values()
+          |> Enum.map(&parse_time_value/1)
+
+        if values == [], do: raise(ArgumentError, "NOT IN requires at least one value")
+        {:not_in, values}
+
+      x when x in ~w( != <= >= < >) ->
+        {x, parse_time_value(Map.get(filter, "value"))}
+
+      _ ->
+        raise ArgumentError, "unsupported time comparison operator #{inspect(comp_norm)}"
+    end
+  end
+
   defp make_text_search_filter(filter) do
     filter_field = Map.get(filter, "filter")
     query = Map.get(filter, "value")
@@ -856,6 +921,12 @@ defmodule SelectoComponents.Helpers.Filters do
           {:error, reason} -> {:skip, {:invalid_numeric, reason}}
         end
 
+      column.type == :time ->
+        case safe_make_time_filter(f) do
+          {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
+          {:error, reason} -> {:skip, {:invalid_time, reason}}
+        end
+
       SchemaUtils.uuid_type?(column.type) ->
         case safe_make_uuid_filter(f) do
           {:ok, filter_val} -> {:ok, [{filter_key, filter_val}]}
@@ -938,6 +1009,12 @@ defmodule SelectoComponents.Helpers.Filters do
   # Safe wrapper for numeric filter creation
   defp safe_make_num_filter(type, filter) do
     {:ok, _make_num_filter(type, filter)}
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  defp safe_make_time_filter(filter) do
+    {:ok, _make_time_filter(filter)}
   rescue
     e -> {:error, Exception.message(e)}
   end
