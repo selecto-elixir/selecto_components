@@ -306,13 +306,33 @@ defmodule SelectoComponents.Presentation do
   defp normalize_override_unit(value), do: value
 
   defp temporal_to_display(value, column, :instant, timezone) do
-    Selecto.Temporal.to_display_temporal(column || %{}, value)
-    |> maybe_shift_datetime(timezone)
+    column
+    |> Selecto.Temporal.to_display_temporal(value)
+    |> shift_instant_temporal(column, timezone)
   end
 
   defp temporal_to_display(value, column, _temporal_kind, _timezone) do
     Selecto.Temporal.to_display_temporal(column || %{}, value)
   end
+
+  defp shift_instant_temporal(%NaiveDateTime{} = naive, column, timezone) do
+    storage_timezone = temporal_storage_timezone(column)
+
+    with storage_timezone when is_binary(storage_timezone) <- storage_timezone,
+         viewer_timezone when is_binary(viewer_timezone) <- timezone,
+         {:ok, datetime} <- DateTime.from_naive(naive, storage_timezone),
+         {:ok, shifted} <- DateTime.shift_zone(datetime, viewer_timezone) do
+      shifted
+    else
+      _ -> naive
+    end
+  end
+
+  defp shift_instant_temporal(%DateTime{} = datetime, _column, timezone) do
+    maybe_shift_datetime(datetime, timezone)
+  end
+
+  defp shift_instant_temporal(value, _column, _timezone), do: value
 
   defp maybe_shift_datetime(%DateTime{} = datetime, timezone) when is_binary(timezone) do
     case DateTime.shift_zone(datetime, timezone) do
@@ -324,6 +344,12 @@ defmodule SelectoComponents.Presentation do
   defp maybe_shift_datetime(value, _timezone), do: value
 
   defp timezone_label(%DateTime{} = datetime), do: datetime.time_zone || "UTC"
+
+  defp temporal_storage_timezone(column) do
+    column
+    |> presentation()
+    |> Map.get(:storage_timezone, "Etc/UTC")
+  end
 
   defp format_number(value, presentation, context) do
     digits =

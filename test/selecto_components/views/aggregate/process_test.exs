@@ -216,7 +216,44 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       )
 
     assert {:field, {:raw_sql, sql}, "Created At"} = selector
-    assert sql == "to_char(selecto_root.created_at AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+
+    assert sql ==
+             "to_char((selecto_root.created_at AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+  end
+
+  test "group by preserves composite datetime formats with viewer timezone" do
+    columns = %{
+      "published_at_usec" => %{
+        name: "Published At Usec",
+        type: :utc_datetime_usec,
+        colid: :published_at_usec,
+        presentation: %{
+          semantic_type: :temporal,
+          temporal_kind: :instant,
+          storage_timezone: "Etc/UTC",
+          display_timezone: :viewer
+        }
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "published_at_usec",
+            "format" => "YYYY-MM-DD HH24",
+            "index" => "0"
+          }
+        },
+        columns,
+        nil,
+        %{timezone: "Europe/Berlin"}
+      )
+
+    assert {:field, {:raw_sql, sql}, "Published At Usec"} = selector
+
+    assert sql ==
+             "to_char((selecto_root.published_at_usec AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD HH24')"
   end
 
   test "group by uses viewer timezone for epoch-backed instant year buckets" do

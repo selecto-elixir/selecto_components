@@ -55,6 +55,7 @@ defmodule SelectoComponents.Helpers do
   def datetime_grouping_format_options() do
     [
       {"YYYY-MM-DD", "Day"},
+      {"YYYY-MM-DD HH24", "Day + Hour"},
       {"YYYY-WW", "Week"},
       {"YYYY-MM", "Month"},
       {"YYYY-Q", "Quarter"},
@@ -74,6 +75,7 @@ defmodule SelectoComponents.Helpers do
   def date_formats() do
     %{
       "YYYY-MM-DD" => "YYYY-MM-DD",
+      "YYYY-MM-DD HH24" => "YYYY-MM-DD HH24",
       "YYYY-WW" => "YYYY-WW",
       "YYYY-MM" => "YYYY-MM",
       "YYYY-Q" => "YYYY-Q",

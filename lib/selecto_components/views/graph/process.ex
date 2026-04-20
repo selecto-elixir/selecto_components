@@ -229,14 +229,6 @@ defmodule SelectoComponents.Views.Graph.Process do
     field_with_alias = graph_field_ref(col.colid)
 
     case format do
-      format when format in ~w(YYYY-MM-DD YYYY-WW YYYY-MM YYYY-Q YYYY MM DD D HH24) ->
-        maybe_timezone_aware_datetime_selector(
-          col,
-          field_with_alias,
-          format,
-          presentation_context
-        )
-
       "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
         case_sql =
           BucketParser.generate_bucket_case_sql(
@@ -266,6 +258,14 @@ defmodule SelectoComponents.Views.Graph.Process do
           )
 
         {:raw_sql, case_sql}
+
+      format when is_binary(format) and format not in ["", "default"] ->
+        maybe_timezone_aware_datetime_selector(
+          col,
+          field_with_alias,
+          format,
+          presentation_context
+        )
 
       _ ->
         col.colid
@@ -311,11 +311,12 @@ defmodule SelectoComponents.Views.Graph.Process do
 
   defp timezone_grouping_expression(col, field_ref, presentation_context) do
     timezone = runtime_timezone(presentation_context)
+    storage_timezone = storage_timezone(col)
 
     case Selecto.Temporal.epoch_storage(col) do
       :unix_seconds -> "to_timestamp(#{field_ref}) AT TIME ZONE '#{timezone}'"
       :unix_milliseconds -> "to_timestamp((#{field_ref}) / 1000.0) AT TIME ZONE '#{timezone}'"
-      _ -> "#{field_ref} AT TIME ZONE '#{timezone}'"
+      _ -> "(#{field_ref} AT TIME ZONE '#{storage_timezone}') AT TIME ZONE '#{timezone}'"
     end
   end
 
@@ -327,4 +328,10 @@ defmodule SelectoComponents.Views.Graph.Process do
   end
 
   defp runtime_timezone(_presentation_context), do: nil
+
+  defp storage_timezone(col) do
+    col
+    |> Selecto.Presentation.presentation()
+    |> Map.get(:storage_timezone, "Etc/UTC")
+  end
 end

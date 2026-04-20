@@ -212,6 +212,21 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert v2 == ""
     end
 
+    test "handles YYYY-MM-DD HH24 grouped datetime format as an hourly range" do
+      field_conf = %{type: :utc_datetime}
+
+      {comp, v1, v2} =
+        DrillDownFilters.determine_filter_comp_and_values(
+          "2017-04-01 16",
+          field_conf,
+          %{format: "YYYY-MM-DD HH24"}
+        )
+
+      assert comp == "DATE_BETWEEN"
+      assert v1 == "2017-04-01T16:00:00"
+      assert v2 == "2017-04-01T17:00:00"
+    end
+
     test "handles D day-of-week format as weekday filter" do
       field_conf = %{type: :utc_datetime}
 

@@ -311,7 +311,53 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       [{_col, field_selector}] = view_set.x_axis_groups
 
       assert {:field, {:raw_sql, sql}, "Month"} = field_selector
-      assert sql == "to_char(selecto_root.created_at AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+
+      assert sql ==
+               "to_char((selecto_root.created_at AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+    end
+
+    test "preserves composite datetime formats with viewer timezone in graph grouping", %{
+      columns: columns
+    } do
+      datetime_columns =
+        Map.put(columns, "published_at_usec", %{
+          colid: :published_at_usec,
+          type: :utc_datetime_usec,
+          presentation: %{
+            semantic_type: :temporal,
+            temporal_kind: :instant,
+            storage_timezone: "Etc/UTC",
+            display_timezone: :viewer
+          }
+        })
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "published_at_usec",
+            "index" => "0",
+            "alias" => "Hour",
+            "format" => "YYYY-MM-DD HH24"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        },
+        "_presentation_context" => %{"timezone" => "Europe/Berlin"}
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:raw_sql, sql}, "Hour"} = field_selector
+
+      assert sql ==
+               "to_char((selecto_root.published_at_usec AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD HH24')"
     end
 
     test "supports year buckets in graph grouping", %{columns: columns} do
