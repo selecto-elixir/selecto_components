@@ -244,6 +244,8 @@ defmodule SelectoComponents.Components.ListPicker do
         export default {
           mounted() {
             this.draggedItemId = null;
+            this.draggedItemEl = null;
+            this.activeDropItemId = null;
 
             const reorderButtonId = this.el.dataset.reorderButtonId;
             const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
@@ -251,9 +253,22 @@ defmodule SelectoComponents.Components.ListPicker do
             const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
 
             const clearDropIndicators = () => {
+              this.activeDropItemId = null;
               itemElements().forEach((item) => {
                 item.classList.remove('ring-2', 'ring-primary/40');
               });
+            };
+
+            const markDropTarget = (item) => {
+              const targetItemId = item.dataset.pickerItemId;
+
+              if (!targetItemId || this.activeDropItemId === targetItemId) {
+                return;
+              }
+
+              clearDropIndicators();
+              this.activeDropItemId = targetItemId;
+              item.classList.add('ring-2', 'ring-primary/40');
             };
 
             const bindItem = (item) => {
@@ -265,6 +280,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
               item.addEventListener('dragstart', (event) => {
                 this.draggedItemId = item.dataset.pickerItemId;
+                this.draggedItemEl = item;
                 item.classList.add('opacity-60');
 
                 if (event.dataTransfer) {
@@ -274,7 +290,9 @@ defmodule SelectoComponents.Components.ListPicker do
               });
 
               item.addEventListener('dragend', () => {
-                item.classList.remove('opacity-60');
+                this.draggedItemEl?.classList.remove('opacity-60');
+                this.draggedItemId = null;
+                this.draggedItemEl = null;
                 clearDropIndicators();
               });
 
@@ -284,12 +302,7 @@ defmodule SelectoComponents.Components.ListPicker do
                 }
 
                 event.preventDefault();
-                clearDropIndicators();
-                item.classList.add('ring-2', 'ring-primary/40');
-              });
-
-              item.addEventListener('dragleave', () => {
-                item.classList.remove('ring-2', 'ring-primary/40');
+                markDropTarget(item);
               });
 
               item.addEventListener('drop', (event) => {

@@ -54,6 +54,14 @@ defmodule SelectoComponents.Components.ListPickerTest do
     assert html =~ "Pick items from the available list to add them here."
   end
 
+  test "uses the full selected item as the draggable element" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-picker-item-id="selected-1")
+    assert html =~ ~s(draggable="true")
+    assert html =~ ~s(title="Drag to reorder")
+  end
+
   test "renders a dedicated badge for cte-backed columns" do
     html =
       render_component(
