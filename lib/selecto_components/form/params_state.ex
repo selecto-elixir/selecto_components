@@ -21,6 +21,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Presentation
+  alias SelectoComponents.Session.Store, as: SessionStore
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
@@ -1637,23 +1638,11 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def assign_view_config(socket, view_config) do
-    Phoenix.Component.assign(socket,
-      view_config: view_config,
-      form_state_revision: next_form_state_revision(socket),
-      view_config_dirty?: view_config != Map.get(socket.assigns, :applied_view_config)
-    )
+    SessionStore.assign_view_config(socket, view_config)
   end
 
   def mark_form_state_applied(socket) do
-    current_view_config = Map.get(socket.assigns, :view_config, %{})
-
-    Phoenix.Component.assign(
-      socket,
-      :applied_form_state_revision,
-      normalize_form_state_revision(socket.assigns[:form_state_revision])
-    )
-    |> Phoenix.Component.assign(:applied_view_config, current_view_config)
-    |> Phoenix.Component.assign(:view_config_dirty?, false)
+    SessionStore.mark_form_state_applied(socket)
   end
 
   defp stale_form_submit?(params, socket) do
@@ -1664,13 +1653,6 @@ defmodule SelectoComponents.Form.ParamsState do
       submitted_revision ->
         normalize_form_state_revision(submitted_revision) != socket.assigns[:form_state_revision]
     end
-  end
-
-  defp next_form_state_revision(socket) do
-    socket.assigns
-    |> Map.get(:form_state_revision, 0)
-    |> normalize_form_state_revision()
-    |> Kernel.+(1)
   end
 
   defp normalize_form_state_revision(value) when is_integer(value), do: value

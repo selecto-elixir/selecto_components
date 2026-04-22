@@ -94,8 +94,9 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
             saved_params = socket.assigns.saved_view_module.decode_view(view)
             socket = ParamsState.saved_params_to_state(saved_params, socket)
             committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
+            updated_socket = ParamsState.view_from_params(committed_params, socket)
 
-            {:noreply, ParamsState.view_from_params(committed_params, socket)}
+            {:noreply, ParamsState.state_to_url(committed_params, updated_socket, replace: true)}
           end
         end)
       end

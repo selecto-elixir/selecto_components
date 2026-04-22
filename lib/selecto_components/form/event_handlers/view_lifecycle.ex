@@ -24,6 +24,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
     quote do
       alias SelectoComponents.ErrorHandling.ErrorBuilder
       alias SelectoComponents.Form.ParamsState
+      alias SelectoComponents.Session.Store, as: SessionStore
       import SelectoComponents.Form.ErrorHandling
 
       @doc """
@@ -37,7 +38,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       `{:noreply, socket}` with updated active_tab assign
       """
       def handle_event("set_active_tab", params, socket) do
-        {:noreply, assign(socket, active_tab: Map.get(params, "tab"))}
+        {:noreply, SessionStore.assign_active_tab(socket, Map.get(params, "tab"))}
       end
 
       def handle_event("toggle_show_view_configurator", _params, socket) do
