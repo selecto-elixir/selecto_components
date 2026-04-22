@@ -10,9 +10,10 @@ defmodule SelectoComponents.Form.ParamsState do
   - Managing URL state updates
   """
 
-  alias SelectoComponents.Performance.MetricsCollector
   alias SelectoComponents.DBSupport
+  alias SelectoComponents.Execution.Executor
   alias SelectoComponents.Execution.Plan
+  alias SelectoComponents.Execution.Result
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Views.Detail.QueryPagination
@@ -588,219 +589,37 @@ defmodule SelectoComponents.Form.ParamsState do
           )
 
         plan = Plan.build(params, socket)
-        presentation_context = plan.presentation_context
-        params = plan.params
-        selecto = plan.selecto
-        columns_list = plan.columns_list
-        view_meta = plan.view_meta
+        result = Executor.run(plan, socket)
+        socket = Phoenix.Component.assign(socket, Result.to_assigns(result))
 
-        {query_result, view_meta, page_query_cache} =
-          execute_query_with_detail_pagination(selecto, params, view_meta, socket)
+        if result.executed do
+          send(
+            self(),
+            {:query_executed,
+             %{
+               selecto: result.selecto,
+               query_results: result.query_results,
+               last_query_info: result.last_query_info,
+               view_meta: result.view_meta,
+               applied_view: result.applied_view,
+               detail_page_cache: result.detail_page_cache,
+               aggregate_page_cache: result.aggregate_page_cache
+             }}
+          )
 
-        case query_result do
-          {:ok, {rows, columns, aliases}, metadata} ->
-            query_sql = Map.get(metadata, :sql)
-            query_params = Map.get(metadata, :params, [])
-            execution_time = Map.get(metadata, :execution_time, 0)
-
-            if is_binary(query_sql) and query_sql != "" do
-              MetricsCollector.record_query(
-                query_sql,
-                execution_time,
-                %{
-                  rows_returned: length(rows),
-                  total_rows:
-                    Map.get(
-                      view_meta,
-                      :total_rows,
-                      Map.get(view_meta, :aggregate_total_rows, length(rows))
-                    ),
-                  columns_count: length(columns),
-                  view_mode: socket.assigns.view_config.view_mode,
-                  has_filters: length(list_field(selecto.set, :filtered)) > 0,
-                  has_grouping: length(list_field(selecto.set, :group_by)) > 0,
-                  params: query_params
-                }
-              )
+          row_count =
+            case result.query_results do
+              {rows, _columns, _aliases} when is_list(rows) -> length(rows)
+              _ -> 0
             end
 
-            {rows_for_display, view_meta} = maybe_cap_aggregate_rows(rows, view_meta, params)
+          Logger.debug(fn ->
+            "[selecto_components] view_from_params success view_mode=#{result.applied_view} rows=#{row_count} sql?=#{is_binary(result.last_query_info[:sql]) and result.last_query_info[:sql] != ""} pid=#{inspect(self())}"
+          end)
 
-            normalized_rows =
-              normalize_rows_for_view(
-                rows_for_display,
-                columns,
-                socket.assigns.view_config.view_mode
-              )
-
-            view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
-
-            detail_cache_assignment =
-              if DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil
-
-            aggregate_cache_assignment =
-              if AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil
-
-            cache_debug_info =
-              build_query_cache_debug_info(
-                detail_cache_assignment,
-                params,
-                normalized_rows,
-                columns,
-                aliases
-              )
-
-            previous_last_query_info = socket.assigns[:last_query_info] || %{}
-            executed_sql? = is_binary(query_sql) and query_sql != ""
-
-            effective_sql =
-              if executed_sql? do
-                query_sql
-              else
-                Map.get(previous_last_query_info, :sql)
-              end
-
-            effective_params =
-              if executed_sql? do
-                query_params
-              else
-                Map.get(previous_last_query_info, :params, query_params)
-              end
-
-            effective_timing =
-              if executed_sql? do
-                execution_time
-              else
-                Map.get(previous_last_query_info, :timing)
-              end
-
-            last_query_info = %{
-              sql: effective_sql,
-              params: effective_params,
-              timing: effective_timing,
-              page_cache_memory_bytes: cache_debug_info.bytes,
-              page_cache_pages: cache_debug_info.pages,
-              page_cache_rows: cache_debug_info.rows
-            }
-
-            socket =
-              Phoenix.Component.assign(socket,
-                selecto: selecto,
-                columns: columns_list,
-                field_filters: Selecto.filters(selecto),
-                presentation_context: presentation_context,
-                query_results: {normalized_rows, columns, aliases},
-                used_params: drop_runtime_only_params(params),
-                applied_view: get_map_value(params, :view_mode),
-                view_meta: view_meta,
-                detail_page_cache: detail_cache_assignment,
-                aggregate_page_cache: aggregate_cache_assignment,
-                executed: true,
-                execution_error: nil,
-                last_query_info: last_query_info
-              )
-
-            send(
-              self(),
-              {:query_executed,
-               %{
-                 selecto: selecto,
-                 query_results: {normalized_rows, columns, aliases},
-                 last_query_info: last_query_info,
-                 view_meta: view_meta,
-                 applied_view: get_map_value(params, :view_mode),
-                 detail_page_cache: detail_cache_assignment,
-                 aggregate_page_cache: aggregate_cache_assignment
-               }}
-            )
-
-            Logger.debug(fn ->
-              "[selecto_components] view_from_params success view_mode=#{get_map_value(params, :view_mode)} rows=#{length(normalized_rows)} sql?=#{is_binary(query_sql) and query_sql != ""} pid=#{inspect(self())}"
-            end)
-
-            socket
-
-          {:error, %{__struct__: module} = error} when module == Selecto.Error ->
-            sanitized_error =
-              SelectoComponents.Form.sanitize_error_for_environment(
-                error,
-                execution_error_opts(error, params, operation: "view-apply")
-              )
-
-            {error_sql, error_params} =
-              try do
-                case Selecto.to_sql(selecto) do
-                  {sql, params} -> {sql, params}
-                  _ -> {nil, []}
-                end
-              rescue
-                _ -> {nil, []}
-              end
-
-            Phoenix.Component.assign(socket,
-              selecto: selecto,
-              columns: columns_list,
-              field_filters: Selecto.filters(selecto),
-              presentation_context: presentation_context,
-              query_results: nil,
-              used_params: drop_runtime_only_params(params),
-              applied_view: get_map_value(params, :view_mode),
-              view_meta: view_meta,
-              detail_page_cache:
-                if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
-              aggregate_page_cache:
-                if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
-              executed: false,
-              execution_error: sanitized_error,
-              last_query_info: %{
-                sql: error_sql,
-                params: error_params,
-                timing: nil
-              }
-            )
-
-          {:error, error} ->
-            sanitized_error =
-              SelectoComponents.Form.build_selecto_error(
-                :query_error,
-                inspect(error),
-                %{original_error: error}
-              )
-              |> SelectoComponents.Form.sanitize_error_for_environment(
-                execution_error_opts(error, params, operation: "view-apply")
-              )
-
-            {error_sql, error_params} =
-              try do
-                case Selecto.to_sql(selecto) do
-                  {sql, params} -> {sql, params}
-                  _ -> {nil, []}
-                end
-              rescue
-                _ -> {nil, []}
-              end
-
-            Phoenix.Component.assign(socket,
-              selecto: selecto,
-              columns: columns_list,
-              field_filters: Selecto.filters(selecto),
-              presentation_context: presentation_context,
-              query_results: nil,
-              used_params: drop_runtime_only_params(params),
-              applied_view: get_map_value(params, :view_mode),
-              view_meta: view_meta,
-              detail_page_cache:
-                if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
-              aggregate_page_cache:
-                if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
-              executed: false,
-              execution_error: sanitized_error,
-              last_query_info: %{
-                sql: error_sql,
-                params: error_params,
-                timing: nil
-              }
-            )
+          socket
+        else
+          socket
         end
       rescue
         error ->
@@ -1385,6 +1204,25 @@ defmodule SelectoComponents.Form.ParamsState do
   def sync_view_config_ctes(view_config, _selecto), do: view_config
 
   def apply_ctes_for_params(selecto, params), do: maybe_apply_ctes(selecto, params)
+
+  def execute_query_for_plan(selecto, params, view_meta, socket),
+    do: execute_query_with_detail_pagination(selecto, params, view_meta, socket)
+
+  def cap_aggregate_rows_for_result(rows, view_meta, params),
+    do: maybe_cap_aggregate_rows(rows, view_meta, params)
+
+  def normalize_rows_for_result(rows, columns, view_mode),
+    do: normalize_rows_for_view(rows, columns, view_mode)
+
+  def build_query_cache_debug_info_for_result(detail_cache, params, rows, columns, aliases),
+    do: build_query_cache_debug_info(detail_cache, params, rows, columns, aliases)
+
+  def drop_runtime_only_params_public(params), do: drop_runtime_only_params(params)
+
+  def execution_error_opts_public(error, params, extra_opts),
+    do: execution_error_opts(error, params, extra_opts)
+
+  def get_map_value_public(map, key, default \\ nil), do: get_map_value(map, key, default)
 
   def assign_view_config(socket, view_config) do
     SessionStore.assign_view_config(socket, view_config)
@@ -2480,15 +2318,6 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
   defp normalize_map_scalar(_value), do: nil
-
-  defp list_field(map, key) when is_map(map) and is_atom(key) do
-    case Map.get(map, key, []) do
-      list when is_list(list) -> list
-      _ -> []
-    end
-  end
-
-  defp list_field(_map, _key), do: []
 
   @doc """
   Check if view parameters have changed significantly enough to require a view reset.

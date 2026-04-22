@@ -46,7 +46,7 @@ defmodule SelectoComponents.Session.Store do
 
   @spec mark_form_state_applied(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def mark_form_state_applied(socket) do
-    current_view_config = Map.get(socket.assigns, :view_config, %{})
+    current_view_config = Map.get(socket.assigns, :view_config) || %{}
     applied_revision = normalize_form_state_revision(socket.assigns[:form_state_revision])
 
     session =
