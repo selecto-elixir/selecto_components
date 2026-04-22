@@ -10,20 +10,17 @@ defmodule SelectoComponents.Form.ParamsState do
   - Managing URL state updates
   """
 
-  import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
   alias SelectoComponents.Performance.MetricsCollector
   alias SelectoComponents.DBSupport
+  alias SelectoComponents.Execution.Plan
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Views.Detail.QueryPagination
-  alias SelectoComponents.SubselectBuilder
-  alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.SafeAtom
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Presentation
   alias SelectoComponents.Session.Codec
   alias SelectoComponents.Session.Store, as: SessionStore
-  alias SelectoComponents.Views.Runtime, as: ViewRuntime
   require Logger
 
   @map_param_keys ~w(
@@ -590,121 +587,12 @@ defmodule SelectoComponents.Form.ParamsState do
             execution_error: nil
           )
 
-        presentation_context =
-          socket.assigns
-          |> Map.get(:presentation_context, %{})
-          |> Presentation.resolve_context()
-
-        params = canonicalize_form_params(params, socket.assigns[:selecto], presentation_context)
-        params = put_runtime_presentation_context(params, presentation_context)
-
-        old_selecto = socket.assigns.selecto
-
-        selecto =
-          Selecto.configure(
-            old_selecto.domain,
-            old_selecto.postgrex_opts,
-            adapter: old_selecto.adapter,
-            validate: false
-          )
-          |> maybe_apply_ctes(params)
-
-        raw_columns = Selecto.columns(selecto)
-
-        columns_list = SelectoComponents.Form.ColumnCatalog.picker_columns(selecto)
-
-        columns_map =
-          raw_columns
-          |> Enum.into(%{}, fn {key, col} ->
-            col_with_metadata =
-              col
-              |> Map.put(:field, col.name)
-              |> Map.put(:colid, key)
-
-            {key, col_with_metadata}
-          end)
-          |> then(fn cols ->
-            Enum.reduce(cols, cols, fn {_colid, col}, acc ->
-              Map.put(acc, col.name, col)
-            end)
-          end)
-
-        filters_by_section =
-          Map.get(params, "filters", %{})
-          |> Map.values()
-          |> Enum.filter(fn f ->
-            is_map(f) &&
-              Map.has_key?(f, "section") &&
-              (Map.has_key?(f, "filter") || Map.get(f, "is_section") in ["Y", true, "true"])
-          end)
-          |> Enum.reduce(%{}, fn f, acc ->
-            Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
-          end)
-
-        filtered = filter_recurse(selecto, filters_by_section, "filters")
-
-        selected_view = SafeAtom.to_view_mode(get_map_value(params, :view_mode))
-
-        params =
-          if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do
-            Map.put(params, "detail_page", to_string(socket.assigns.current_detail_page))
-          else
-            params
-          end
-
-        view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
-        {view_set, view_meta} =
-          case view_tuple do
-            {_id, _module, _name, _opt} = tuple ->
-              ViewRuntime.view(
-                tuple,
-                params,
-                columns_map,
-                filtered,
-                selecto
-              )
-
-            nil ->
-              raise "View mode '#{selected_view}' not found in configured views"
-          end
-
-        selecto =
-          selecto
-          |> Map.put(:set, Map.merge(Map.get(selecto, :set, %{}), view_set))
-
-        view_mode = Map.get(params, "view_mode", "detail")
-        selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
-
-        selecto =
-          Selecto.AutoRetarget.maybe_apply(selecto,
-            view_mode: view_mode,
-            selected: selected_columns
-          )
-
-        selecto =
-          if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and
-               map_size(selecto.set.denorm_groups) > 0 do
-            denorm_groups = selecto.set.denorm_groups
-
-            try do
-              Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-                SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
-              end)
-            rescue
-              _e ->
-                selecto
-            end
-          else
-            selecto
-          end
-
-        selecto =
-          if socket.assigns[:sort_by] do
-            Sorting.apply_sort_to_query(selecto, socket.assigns.sort_by)
-          else
-            selecto
-          end
+        plan = Plan.build(params, socket)
+        presentation_context = plan.presentation_context
+        params = plan.params
+        selecto = plan.selecto
+        columns_list = plan.columns_list
+        view_meta = plan.view_meta
 
         {query_result, view_meta, page_query_cache} =
           execute_query_with_detail_pagination(selecto, params, view_meta, socket)
@@ -1495,6 +1383,8 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def sync_view_config_ctes(view_config, _selecto), do: view_config
+
+  def apply_ctes_for_params(selecto, params), do: maybe_apply_ctes(selecto, params)
 
   def assign_view_config(socket, view_config) do
     SessionStore.assign_view_config(socket, view_config)
@@ -2961,12 +2851,6 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp sort_index_for_compaction(_value), do: 0
-
-  defp put_runtime_presentation_context(params, presentation_context) when is_map(params) do
-    Map.put(params, "_presentation_context", presentation_context || %{})
-  end
-
-  defp put_runtime_presentation_context(params, _presentation_context), do: params
 
   defp drop_runtime_only_params(params) when is_map(params) do
     Map.delete(params, "_presentation_context")
