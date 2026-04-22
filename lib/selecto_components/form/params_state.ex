@@ -13,7 +13,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.DBSupport
   alias SelectoComponents.Execution.Executor
   alias SelectoComponents.Execution.Plan
-  alias SelectoComponents.Execution.Result
+  alias SelectoComponents.Execution.ResultState
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Views.Detail.QueryPagination
@@ -590,28 +590,11 @@ defmodule SelectoComponents.Form.ParamsState do
 
         plan = Plan.build(params, socket)
         result = Executor.run(plan, socket)
-        socket = Phoenix.Component.assign(socket, Result.to_assigns(result))
+        socket = ResultState.assign_result(socket, result)
 
         if result.executed do
-          send(
-            self(),
-            {:query_executed,
-             %{
-               selecto: result.selecto,
-               query_results: result.query_results,
-               last_query_info: result.last_query_info,
-               view_meta: result.view_meta,
-               applied_view: result.applied_view,
-               detail_page_cache: result.detail_page_cache,
-               aggregate_page_cache: result.aggregate_page_cache
-             }}
-          )
-
-          row_count =
-            case result.query_results do
-              {rows, _columns, _aliases} when is_list(rows) -> length(rows)
-              _ -> 0
-            end
+          ResultState.maybe_notify_query_executed(result)
+          row_count = ResultState.success_row_count(result)
 
           Logger.debug(fn ->
             "[selecto_components] view_from_params success view_mode=#{result.applied_view} rows=#{row_count} sql?=#{is_binary(result.last_query_info[:sql]) and result.last_query_info[:sql] != ""} pid=#{inspect(self())}"
@@ -639,45 +622,27 @@ defmodule SelectoComponents.Form.ParamsState do
               view_mode: view_mode_value(params)
             )
 
-          Phoenix.Component.assign(socket,
-            query_results: nil,
-            used_params: drop_runtime_only_params(params),
-            applied_view: view_mode_value(params, socket.assigns[:applied_view]),
-            executed: false,
-            execution_error: sanitized_error,
-            view_meta: %{},
-            detail_page_cache: nil,
-            aggregate_page_cache: nil,
-            last_query_info: %{}
-          )
+          ResultState.build_processing_failure(socket, params, sanitized_error)
       catch
         :exit, reason ->
-          Phoenix.Component.assign(socket,
-            query_results: nil,
-            used_params: drop_runtime_only_params(params),
-            applied_view: view_mode_value(params, socket.assigns[:applied_view]),
-            executed: false,
-            execution_error:
-              SelectoComponents.Form.build_selecto_error(
-                :system_error,
-                "System error occurred while processing view",
-                %{
-                  exit_reason: inspect(reason),
-                  view_mode: view_mode_value(params, socket.assigns[:applied_view])
-                }
-              )
-              |> SelectoComponents.Form.sanitize_error_for_environment(
-                stage: if(reason == :timeout, do: :timeout, else: :lifecycle),
-                category: if(reason == :timeout, do: :timeout, else: :runtime),
-                code: if(reason == :timeout, do: :query_timed_out, else: :system_exit),
-                operation: "view-apply",
+          execution_error =
+            SelectoComponents.Form.build_selecto_error(
+              :system_error,
+              "System error occurred while processing view",
+              %{
+                exit_reason: inspect(reason),
                 view_mode: view_mode_value(params, socket.assigns[:applied_view])
-              ),
-            view_meta: %{},
-            detail_page_cache: nil,
-            aggregate_page_cache: nil,
-            last_query_info: %{}
-          )
+              }
+            )
+            |> SelectoComponents.Form.sanitize_error_for_environment(
+              stage: if(reason == :timeout, do: :timeout, else: :lifecycle),
+              category: if(reason == :timeout, do: :timeout, else: :runtime),
+              code: if(reason == :timeout, do: :query_timed_out, else: :system_exit),
+              operation: "view-apply",
+              view_mode: view_mode_value(params, socket.assigns[:applied_view])
+            )
+
+          ResultState.build_exit_failure(socket, params, execution_error)
       end
 
     mark_form_state_applied(result_socket)
