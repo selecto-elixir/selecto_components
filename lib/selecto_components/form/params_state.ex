@@ -16,9 +16,9 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.Execution.ResultState
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
-  alias SelectoComponents.SafeAtom
   alias SelectoComponents.Presentation
   alias SelectoComponents.Session.Codec
+  alias SelectoComponents.Session.URL
   alias SelectoComponents.Session.Store, as: SessionStore
   require Logger
 
@@ -47,85 +47,12 @@ defmodule SelectoComponents.Form.ParamsState do
   @doc """
   Convert view_config structure to URL parameters format.
   """
-  def view_config_to_params(view_config) do
-    view_mode = get_map_value(view_config, :view_mode, "aggregate")
-    ctes = get_map_value(view_config, :ctes, [])
-    filters = get_map_value(view_config, :filters, [])
-    views = get_map_value(view_config, :views, %{})
-
-    params = %{
-      "view_mode" => view_mode,
-      "ctes" => ctes_to_params(ctes),
-      "filters" => filters_to_params(filters)
-    }
-
-    view_params =
-      views
-      |> Enum.reduce(%{}, fn {view_key, view_data}, acc ->
-        view = SafeAtom.to_view_mode(view_key)
-        Map.merge(acc, view_data_to_params(view, view_data))
-      end)
-
-    Map.merge(params, view_params)
-  end
-
-  defp view_data_to_params(_view, nil), do: %{}
-
-  defp view_data_to_params(view, view_data) when is_map(view_data) do
-    Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
-      cond do
-        view == :map and list_name in [:map_layers, "map_layers"] ->
-          merge_scalar_view_param(acc, view, list_name, items)
-
-        view == :map ->
-          merge_scalar_view_param(acc, view, list_name, items)
-
-        is_list(items) ->
-          Map.put(acc, to_string(list_name), view_items_to_params(items))
-
-        true ->
-          merge_scalar_view_param(acc, view, list_name, items)
-      end
-    end)
-  end
-
-  defp view_data_to_params(_view, _view_data), do: %{}
+  def view_config_to_params(view_config), do: URL.view_config_to_params(view_config)
 
   @doc """
   Convert full view_config structure to saved-view persistence format.
   """
   def view_config_to_saved_params(view_config), do: Codec.view_config_to_saved_params(view_config)
-
-  defp view_items_to_params(items) do
-    items
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn
-      {{id, field, config}, index}, item_acc ->
-        Map.put(
-          item_acc,
-          compact_param_key(index),
-          Map.merge(config, %{
-            "uuid" => id,
-            "field" => field,
-            "index" => to_string(index)
-          })
-        )
-
-      {[id, field, config], index}, item_acc ->
-        Map.put(
-          item_acc,
-          compact_param_key(index),
-          Map.merge(config, %{
-            "uuid" => id,
-            "field" => field,
-            "index" => to_string(index)
-          })
-        )
-
-      {_unknown_item, _index}, item_acc ->
-        item_acc
-    end)
-  end
 
   defp ctes_to_params(ctes) when is_list(ctes) do
     ctes
@@ -159,89 +86,6 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp ctes_to_params(_ctes), do: %{}
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:per_page, "per_page"] do
-    Map.put(acc, "aggregate_per_page", AggregateOptions.normalize_per_page_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid, "grid"] do
-    Map.put(acc, "aggregate_grid", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid_colorize, "grid_colorize"] do
-    Map.put(acc, "aggregate_grid_colorize", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid_color_scale, "grid_color_scale"] do
-    Map.put(
-      acc,
-      "aggregate_grid_color_scale",
-      AggregateOptions.normalize_grid_color_scale_mode(value)
-    )
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:max_rows, "max_rows"] do
-    Map.put(acc, "max_rows", DetailOptions.normalize_max_rows_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:count_mode, "count_mode"] do
-    Map.put(acc, "count_mode", DetailOptions.normalize_count_mode_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:row_click_action, "row_click_action"] do
-    maybe_put_param(acc, "row_click_action", normalize_optional_scalar(value))
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value)
-       when key in [:center, "center"] do
-    maybe_put_center_params(acc, value)
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value)
-       when key in [:map_layers, "map_layers"] do
-    maybe_put_param(acc, "map_layers", normalize_map_layers_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value) do
-    case map_param_key(key) do
-      nil ->
-        acc
-
-      param_key ->
-        maybe_put_param(acc, param_key, normalize_map_param_value(param_key, value))
-    end
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, key, value)
-       when key in [:per_page, "per_page"] do
-    Map.put(acc, "per_page", normalize_per_page_param(value, "30"))
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, key, value)
-       when key in [:prevent_denormalization, "prevent_denormalization"] do
-    Map.put(acc, "prevent_denormalization", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, _key, _value), do: acc
-
-  defp normalize_per_page_param(nil, default), do: default
-
-  defp normalize_per_page_param(value, default) when is_binary(value) do
-    trimmed = String.trim(value)
-    if byte_size(trimmed) > 0, do: trimmed, else: default
-  end
-
-  defp normalize_per_page_param(value, _default) when is_integer(value), do: to_string(value)
-  defp normalize_per_page_param(value, _default) when is_atom(value), do: Atom.to_string(value)
-
-  defp normalize_per_page_param(_value, default), do: default
 
   defp normalize_optional_scalar(nil), do: nil
 
@@ -1844,14 +1688,6 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp maybe_put_param(params, key, value), do: maybe_put_param(params, key, value, true)
 
-  defp map_param_key(key) when is_atom(key), do: map_param_key(Atom.to_string(key))
-
-  defp map_param_key(key) when is_binary(key) do
-    if key in @map_param_keys, do: key, else: nil
-  end
-
-  defp map_param_key(_), do: nil
-
   defp normalize_map_param_value(key, value) when key in @map_boolean_param_keys do
     normalize_map_boolean(value)
   end
@@ -1969,41 +1805,8 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket, opts \\ []) do
-    params =
-      params
-      |> compact_url_params()
-      |> merge_passthrough_url_params(socket)
-
-    params_encoded = Plug.Conn.Query.encode(params)
-    my_path = socket.assigns.my_path
-    full_path = "#{my_path}?#{params_encoded}"
-
-    Phoenix.LiveView.push_patch(socket, Keyword.merge([to: full_path], opts))
+    URL.state_to_url(params, socket, opts)
   end
-
-  defp merge_passthrough_url_params(params, socket) do
-    existing_params = Map.get(socket.assigns, :params, %{})
-
-    passthrough_keys =
-      ["selecto_theme", "selecto_debug", "debug", "debug_token"] ++
-        normalize_passthrough_keys(Map.get(socket.assigns, :url_passthrough_params, []))
-
-    passthrough_params =
-      passthrough_keys
-      |> Enum.uniq()
-      |> Enum.reduce(%{}, fn key, acc ->
-        case get_map_value(existing_params, key) do
-          nil -> acc
-          "" -> acc
-          value -> Map.put(acc, to_string(key), value)
-        end
-      end)
-
-    Map.merge(passthrough_params, params)
-  end
-
-  defp normalize_passthrough_keys(keys) when is_list(keys), do: Enum.map(keys, &to_string/1)
-  defp normalize_passthrough_keys(_keys), do: []
 
   defp get_map_value(map, key, default \\ nil)
 
@@ -2014,45 +1817,7 @@ defmodule SelectoComponents.Form.ParamsState do
   defp get_map_value(_map, _key, default), do: default
 
   @doc false
-  def compact_url_params(params) when is_map(params) do
-    Enum.reduce(url_compactable_keys(), params, fn key, acc ->
-      case Map.get(acc, key) do
-        section when is_map(section) -> Map.put(acc, key, compact_param_section(section))
-        _ -> acc
-      end
-    end)
-  end
-
-  def compact_url_params(params), do: params
-
-  defp compact_param_section(section) when is_map(section) do
-    section
-    |> Enum.sort_by(fn {_k, v} -> sort_index_for_compaction(v) end)
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn {{original_key, value}, index}, acc ->
-      compacted_value =
-        case value do
-          map when is_map(map) -> Map.put_new(map, "uuid", original_key)
-          other -> other
-        end
-
-      Map.put(acc, compact_param_key(index), compacted_value)
-    end)
-  end
-
-  defp url_compactable_keys do
-    [
-      "ctes",
-      "filters",
-      "selected",
-      "order_by",
-      "group_by",
-      "aggregate",
-      "x_axis",
-      "y_axis",
-      "series"
-    ]
-  end
+  def compact_url_params(params), do: URL.compact_url_params(params)
 
   defp maybe_apply_ctes(selecto, params) when is_map(params) do
     explicit_names =
