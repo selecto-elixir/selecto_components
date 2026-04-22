@@ -14,6 +14,7 @@ It is the package you use when you want users to:
 
 ## What It Includes
 
+- `SelectoComponents.Explorer` as the preferred top-level exploration surface
 - `SelectoComponents.Form` for query-building and view configuration
 - `SelectoComponents.Results` for result rendering
 - built-in views:
@@ -59,6 +60,13 @@ That wires:
 
 ## Minimal Usage
 
+`SelectoComponents.Explorer` is now the preferred render surface.
+
+Current migration note:
+
+- use `SelectoComponents.Form` in the parent LiveView for the existing event-handler and `get_initial_state/2` compatibility path
+- render `SelectoComponents.Explorer` instead of rendering `Form` and `Results` separately
+
 ```elixir
 defmodule MyAppWeb.ProductLive do
   use MyAppWeb, :live_view
@@ -81,16 +89,40 @@ defmodule MyAppWeb.ProductLive do
 
   def render(assigns) do
     ~H"""
-    <.live_component module={SelectoComponents.Form} id="product-form" {assigns} />
-    <.live_component module={SelectoComponents.Results} id="product-results" {assigns} />
+    <.live_component module={SelectoComponents.Explorer} id="product-explorer" {assigns} />
     """
   end
 end
 ```
 
+## Config-Driven Explorer
+
+You can also hand `Explorer` a smaller config struct while keeping the current parent LiveView compatibility boot path:
+
+```elixir
+config = %SelectoComponents.Explorer.Config{
+  id: "products",
+  selecto: ProductDomain.new(Repo),
+  views: [
+    SelectoComponents.Views.spec(:detail, SelectoComponents.Views.Detail, "Detail", %{}),
+    SelectoComponents.Views.spec(:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", %{}),
+    SelectoComponents.Views.spec(:graph, SelectoComponents.Views.Graph, "Graph", %{})
+  ],
+  title: "Products Explorer",
+  presentation: %{timezone: "America/New_York"}
+}
+```
+
+The current runtime still expects the parent LiveView to own state/event setup. `Explorer.Config` is the first host-facing config seam, not a full replacement for that compatibility path yet.
+
 ## Common Add-Ons
 
-You can keep the basic `Form` + `Results` pairing and progressively add host-app integrations.
+You can start from `Explorer` and progressively add host-app integrations.
+
+Compatibility note:
+
+- `Form` + `Results` still work
+- new docs/examples should prefer `Explorer`
 
 ### Saved Views
 

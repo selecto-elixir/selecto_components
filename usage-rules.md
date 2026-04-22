@@ -1,7 +1,8 @@
 # SelectoComponents Usage Rules
 
 ## LiveView Integration
-- Prefer `use SelectoComponents.Form` and initialize state via `get_initial_state/2`.
+- Prefer rendering `SelectoComponents.Explorer` as the top-level surface.
+- For the current compatibility runtime, still use `SelectoComponents.Form` in the parent LiveView and initialize state via `get_initial_state/2`.
 - Register views with `SelectoComponents.Views.spec/4` for clarity and consistency.
 - Keep IDs stable for LiveComponents and view tabs.
 
