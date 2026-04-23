@@ -20,6 +20,7 @@ defmodule SelectoComponents.Views.Map.Process do
     :geometry_field,
     :latitude_field,
     :longitude_field,
+    :track_path_field,
     :popup_field,
     :color_field,
     :tile_url,
@@ -84,6 +85,10 @@ defmodule SelectoComponents.Views.Map.Process do
       longitude_field:
         config
         |> get_map_value(:longitude_field)
+        |> normalize_field(),
+      track_path_field:
+        config
+        |> get_map_value(:track_path_field)
         |> normalize_field(),
       popup_field:
         config
@@ -218,6 +223,7 @@ defmodule SelectoComponents.Views.Map.Process do
             build_lat_lon_layer(
               latitude_field,
               longitude_field,
+              config[:track_path_field],
               popup_field,
               color_field,
               columns,
@@ -242,6 +248,7 @@ defmodule SelectoComponents.Views.Map.Process do
               columns,
               selecto
             )
+            |> maybe_apply_root_track_config(config, columns)
 
           selected =
             layers
@@ -252,6 +259,7 @@ defmodule SelectoComponents.Views.Map.Process do
               [
                 {:field, {:st_asgeojson, layer.geometry_field}, "__map_geometry#{alias_suffix}"}
               ] ++
+                optional_select_field(layer.track_path_field, "__map_track_path#{alias_suffix}") ++
                 optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
                 optional_select_field(layer.color_field, "__map_color#{alias_suffix}") ++
                 optional_select_field(layer.track_by, "__map_track_by#{alias_suffix}") ++
@@ -359,6 +367,7 @@ defmodule SelectoComponents.Views.Map.Process do
       geometry_field: get_map_value(domain, :default_map_geometry_field),
       latitude_field: get_map_value(domain, :default_map_latitude_field),
       longitude_field: get_map_value(domain, :default_map_longitude_field),
+      track_path_field: get_map_value(domain, :default_map_track_path_field),
       popup_field: get_map_value(domain, :default_map_popup_field),
       color_field: get_map_value(domain, :default_map_color_field),
       tile_url: get_map_value(domain, :default_map_tile_url),
@@ -650,6 +659,10 @@ defmodule SelectoComponents.Views.Map.Process do
           layer
           |> get_map_value(:color_field)
           |> normalize_field(),
+        track_path_field:
+          layer
+          |> get_map_value(:track_path_field)
+          |> normalize_field(),
         scale_type:
           layer
           |> get_map_value(:scale_type)
@@ -706,7 +719,11 @@ defmodule SelectoComponents.Views.Map.Process do
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
       |> Map.new()
     end)
-    |> Enum.filter(fn layer -> Map.get(layer, :geometry_field) not in [nil, ""] end)
+    |> Enum.filter(fn layer ->
+      Map.get(layer, :geometry_field) not in [nil, ""] or
+        (Map.get(layer, :latitude_field) not in [nil, ""] and
+           Map.get(layer, :longitude_field) not in [nil, ""])
+    end)
   end
 
   defp normalize_layers(_), do: []
@@ -774,6 +791,11 @@ defmodule SelectoComponents.Views.Map.Process do
         |> normalize_geometry_kind(),
       popup_field: resolve_optional_field(popup_field, columns),
       color_field: resolve_optional_field(color_field, columns),
+      track_path_field:
+        layer_opts
+        |> get_map_value(:track_path_field)
+        |> normalize_field()
+        |> resolve_optional_field(columns),
       scale_type:
         layer_opts
         |> get_map_value(:scale_type)
@@ -827,9 +849,39 @@ defmodule SelectoComponents.Views.Map.Process do
     }
   end
 
+  defp maybe_apply_root_track_config([layer | rest], config, columns) do
+    track_path_field =
+      config
+      |> Map.get(:track_path_field)
+      |> resolve_optional_field(columns)
+
+    track_by =
+      config
+      |> Map.get(:track_by)
+      |> resolve_optional_field(columns)
+
+    track_order_field =
+      config
+      |> Map.get(:track_order_field)
+      |> resolve_optional_field(columns)
+
+    [
+      %{
+        layer
+        | track_path_field: track_path_field || Map.get(layer, :track_path_field),
+          track_by: track_by || Map.get(layer, :track_by),
+          track_order_field: track_order_field || Map.get(layer, :track_order_field)
+      }
+      | rest
+    ]
+  end
+
+  defp maybe_apply_root_track_config(layers, _config, _columns), do: layers
+
   defp build_lat_lon_layer(
          latitude_field,
          longitude_field,
+         track_path_field,
          popup_field,
          color_field,
          columns,
@@ -841,6 +893,7 @@ defmodule SelectoComponents.Views.Map.Process do
       geometry_field: nil,
       latitude_field: latitude_field,
       longitude_field: longitude_field,
+      track_path_field: resolve_optional_field(track_path_field, columns),
       geometry_kind: "point",
       popup_field: resolve_optional_field(popup_field, columns),
       color_field: resolve_optional_field(color_field, columns),
@@ -863,6 +916,7 @@ defmodule SelectoComponents.Views.Map.Process do
 
       optional_select_field(layer.latitude_field, "__map_lat#{alias_suffix}") ++
         optional_select_field(layer.longitude_field, "__map_lng#{alias_suffix}") ++
+        optional_select_field(layer.track_path_field, "__map_track_path#{alias_suffix}") ++
         optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
         optional_select_field(layer.color_field, "__map_color#{alias_suffix}")
     end)

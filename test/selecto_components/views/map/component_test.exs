@@ -128,6 +128,44 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert "track_arrow" in kinds
   end
 
+  test "prepare_features/3 builds track features from json lat lon path field" do
+    rows = [
+      [
+        "[{\"latitude\":34.05,\"longitude\":-118.24},{\"latitude\":34.08,\"longitude\":-118.20}]",
+        "Driver 1",
+        "#2563eb"
+      ]
+    ]
+
+    aliases = ["__map_track_path", "__map_popup", "__map_color"]
+
+    map_layers = [%{track_path_field: "recent_locations"}]
+
+    features = Component.prepare_features(rows, aliases, map_layers)
+    line = Enum.find(features, fn f -> get_in(f, ["geometry", "type"]) == "LineString" end)
+    kinds = Enum.map(features, &get_in(&1, ["properties", "feature_kind"]))
+
+    assert line
+    assert line["geometry"]["coordinates"] == [[-118.24, 34.05], [-118.20, 34.08]]
+    assert "track_start" in kinds
+    assert "track_end" in kinds
+    assert "track_arrow" in kinds
+  end
+
+  test "prepare_features/3 builds track features from geojson linestring path field" do
+    rows = [[~s({"type":"LineString","coordinates":[[-87.6,41.8],[-87.4,41.9]]}), "Driver 2"]]
+
+    aliases = ["__map_track_path", "__map_popup"]
+
+    map_layers = [%{track_path_field: "recent_locations"}]
+
+    features = Component.prepare_features(rows, aliases, map_layers)
+    line = Enum.find(features, fn f -> get_in(f, ["geometry", "type"]) == "LineString" end)
+
+    assert line
+    assert line["geometry"]["coordinates"] == [[-87.6, 41.8], [-87.4, 41.9]]
+  end
+
   test "render includes map hook when results are present" do
     html =
       render_component(Component,
