@@ -19,6 +19,19 @@ defmodule SelectoComponents.Views.Map.ComponentTest do
     assert feature["properties"]["color"] == "#ef4444"
   end
 
+  test "prepare_features/2 builds point features from direct lat/lon aliases" do
+    rows = [[41.8, -87.6, "Chicago", "#ef4444"]]
+
+    aliases = ["__map_lat", "__map_lng", "__map_popup", "__map_color"]
+
+    [feature] = Component.prepare_features(rows, aliases)
+
+    assert feature["geometry"]["type"] == "Point"
+    assert feature["geometry"]["coordinates"] == [-87.6, 41.8]
+    assert feature["properties"]["popup"] == "Chicago"
+    assert feature["properties"]["color"] == "#ef4444"
+  end
+
   test "prepare_features/2 maps numeric dwell minutes to marker colors" do
     rows = [
       [~s({"type":"Point","coordinates":[-118.2437,34.0522]}), "LAX-001", 18],

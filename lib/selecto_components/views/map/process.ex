@@ -16,7 +16,10 @@ defmodule SelectoComponents.Views.Map.Process do
   @max_zoom 20
 
   @config_keys [
+    :source_mode,
     :geometry_field,
+    :latitude_field,
+    :longitude_field,
     :popup_field,
     :color_field,
     :tile_url,
@@ -37,6 +40,7 @@ defmodule SelectoComponents.Views.Map.Process do
   ]
 
   @default_config %{
+    source_mode: :geometry,
     tile_url: @default_tile_url,
     attribution: @default_attribution,
     background_mode: @default_background_mode,
@@ -65,9 +69,21 @@ defmodule SelectoComponents.Views.Map.Process do
     center = config |> get_map_value(:center) |> normalize_center_value(mode)
 
     %{
+      source_mode:
+        config
+        |> get_map_value(:source_mode)
+        |> normalize_source_mode(),
       geometry_field:
         config
         |> get_map_value(:geometry_field)
+        |> normalize_field(),
+      latitude_field:
+        config
+        |> get_map_value(:latitude_field)
+        |> normalize_field(),
+      longitude_field:
+        config
+        |> get_map_value(:longitude_field)
         |> normalize_field(),
       popup_field:
         config
@@ -166,10 +182,19 @@ defmodule SelectoComponents.Views.Map.Process do
       ])
 
     merged_config
-    |> Map.put(
-      :geometry_field,
-      first_non_nil([Map.get(merged_config, :geometry_field), first_spatial_field(selecto)])
-    )
+    |> then(fn config ->
+      case resolve_source_mode(config, selecto) do
+        :lat_lon ->
+          config
+
+        :geometry ->
+          Map.put(
+            config,
+            :geometry_field,
+            first_non_nil([Map.get(config, :geometry_field), first_spatial_field(selecto)])
+          )
+      end
+    end)
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Map.new()
   end
@@ -178,37 +203,65 @@ defmodule SelectoComponents.Views.Map.Process do
     initial = initial_state(selecto, opt)
     incoming = param_to_state(params, opt)
     config = merge_non_nil_configs([initial, incoming])
+    source_mode = resolve_source_mode(config, selecto)
 
-    geometry_field = resolve_geometry_field(config[:geometry_field], columns, selecto)
     popup_field = resolve_optional_field(config[:popup_field], columns)
     color_field = resolve_optional_field(config[:color_field], columns)
 
-    layers =
-      resolve_layers(
-        config[:map_layers],
-        geometry_field,
-        popup_field,
-        color_field,
-        columns,
-        selecto
-      )
+    {layers, selected} =
+      case source_mode do
+        :lat_lon ->
+          latitude_field = resolve_optional_field(config[:latitude_field], columns)
+          longitude_field = resolve_optional_field(config[:longitude_field], columns)
+
+          layers = [
+            build_lat_lon_layer(
+              latitude_field,
+              longitude_field,
+              popup_field,
+              color_field,
+              columns,
+              config
+            )
+          ]
+
+          selected =
+            build_lat_lon_selected_fields(layers)
+
+          {layers, selected}
+
+        :geometry ->
+          geometry_field = resolve_geometry_field(config[:geometry_field], columns, selecto)
+
+          layers =
+            resolve_layers(
+              config[:map_layers],
+              geometry_field,
+              popup_field,
+              color_field,
+              columns,
+              selecto
+            )
+
+          selected =
+            layers
+            |> Enum.with_index(1)
+            |> Enum.flat_map(fn {layer, index} ->
+              alias_suffix = if index == 1, do: "", else: "_#{index}"
+
+              [
+                {:field, {:st_asgeojson, layer.geometry_field}, "__map_geometry#{alias_suffix}"}
+              ] ++
+                optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
+                optional_select_field(layer.color_field, "__map_color#{alias_suffix}") ++
+                optional_select_field(layer.track_by, "__map_track_by#{alias_suffix}") ++
+                optional_select_field(layer.track_order_field, "__map_track_order#{alias_suffix}")
+            end)
+
+          {layers, selected}
+      end
 
     primary_layer = hd(layers)
-
-    selected =
-      layers
-      |> Enum.with_index(1)
-      |> Enum.flat_map(fn {layer, index} ->
-        alias_suffix = if index == 1, do: "", else: "_#{index}"
-
-        [
-          {:field, {:st_asgeojson, layer.geometry_field}, "__map_geometry#{alias_suffix}"}
-        ] ++
-          optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
-          optional_select_field(layer.color_field, "__map_color#{alias_suffix}") ++
-          optional_select_field(layer.track_by, "__map_track_by#{alias_suffix}") ++
-          optional_select_field(layer.track_order_field, "__map_track_order#{alias_suffix}")
-      end)
 
     center =
       normalize_center(
@@ -227,7 +280,10 @@ defmodule SelectoComponents.Views.Map.Process do
         order_by: Map.get(base_set, :order_by, []),
         aggregates: [],
         limit: Map.get(config, :max_points, @default_max_points),
+        map_source_mode: source_mode,
         map_geometry_field: primary_layer.geometry_field,
+        map_latitude_field: Map.get(primary_layer, :latitude_field),
+        map_longitude_field: Map.get(primary_layer, :longitude_field),
         map_popup_field: primary_layer.popup_field,
         map_color_field: primary_layer.color_field,
         map_layers: layers,
@@ -299,7 +355,10 @@ defmodule SelectoComponents.Views.Map.Process do
 
   defp domain_defaults_config(domain) do
     normalize_config(%{
+      source_mode: get_map_value(domain, :default_map_source_mode),
       geometry_field: get_map_value(domain, :default_map_geometry_field),
+      latitude_field: get_map_value(domain, :default_map_latitude_field),
+      longitude_field: get_map_value(domain, :default_map_longitude_field),
       popup_field: get_map_value(domain, :default_map_popup_field),
       color_field: get_map_value(domain, :default_map_color_field),
       tile_url: get_map_value(domain, :default_map_tile_url),
@@ -521,6 +580,44 @@ defmodule SelectoComponents.Views.Map.Process do
     |> blank_to_nil()
   end
 
+  defp normalize_source_mode(nil), do: nil
+
+  defp normalize_source_mode(value) when is_atom(value) do
+    value
+    |> Atom.to_string()
+    |> normalize_source_mode()
+  end
+
+  defp normalize_source_mode(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "lat_lon" -> :lat_lon
+      "latlon" -> :lat_lon
+      "geometry" -> :geometry
+      _ -> nil
+    end
+  end
+
+  defp normalize_source_mode(_), do: nil
+
+  defp resolve_source_mode(config, selecto) do
+    case Map.get(config, :source_mode) do
+      :lat_lon ->
+        if Map.get(config, :latitude_field) && Map.get(config, :longitude_field),
+          do: :lat_lon,
+          else: :geometry
+
+      :geometry ->
+        :geometry
+
+      _ ->
+        cond do
+          Map.get(config, :latitude_field) && Map.get(config, :longitude_field) -> :lat_lon
+          first_spatial_field(selecto) -> :geometry
+          true -> :lat_lon
+        end
+    end
+  end
+
   defp normalize_layers(nil), do: []
 
   defp normalize_layers(layers) when is_map(layers) do
@@ -728,6 +825,47 @@ defmodule SelectoComponents.Views.Map.Process do
         |> parse_float(stroke_opacity_default(layer_opts))
         |> normalize_stroke_opacity()
     }
+  end
+
+  defp build_lat_lon_layer(
+         latitude_field,
+         longitude_field,
+         popup_field,
+         color_field,
+         columns,
+         config
+       ) do
+    %{
+      label: Map.get(config, :label),
+      source_mode: :lat_lon,
+      geometry_field: nil,
+      latitude_field: latitude_field,
+      longitude_field: longitude_field,
+      geometry_kind: "point",
+      popup_field: resolve_optional_field(popup_field, columns),
+      color_field: resolve_optional_field(color_field, columns),
+      track_by: nil,
+      track_order_field: nil,
+      point_radius: 6,
+      line_weight: 2,
+      line_dash_array: nil,
+      fill_opacity: 0.85,
+      stroke_opacity: 0.9,
+      visible: true
+    }
+  end
+
+  defp build_lat_lon_selected_fields(layers) do
+    layers
+    |> Enum.with_index(1)
+    |> Enum.flat_map(fn {layer, index} ->
+      alias_suffix = if index == 1, do: "", else: "_#{index}"
+
+      optional_select_field(layer.latitude_field, "__map_lat#{alias_suffix}") ++
+        optional_select_field(layer.longitude_field, "__map_lng#{alias_suffix}") ++
+        optional_select_field(layer.popup_field, "__map_popup#{alias_suffix}") ++
+        optional_select_field(layer.color_field, "__map_color#{alias_suffix}")
+    end)
   end
 
   defp point_radius_default(layer_opts) do

@@ -820,7 +820,7 @@ defmodule SelectoComponents.Views.Map.Component do
     |> Enum.map(&row_to_list/1)
     |> Enum.flat_map(fn row ->
       Enum.map(layers, fn layer ->
-        geometry = row |> Enum.at(layer.geometry_ix) |> parse_geometry()
+        geometry = geometry_from_row(row, layer)
         raw_color = row |> optional_value(layer.color_ix)
         track_key = row |> optional_value(layer.track_by_ix)
         track_order = row |> optional_value(layer.track_order_ix)
@@ -861,13 +861,19 @@ defmodule SelectoComponents.Views.Map.Component do
       aliases
       |> Enum.with_index()
       |> Enum.filter(fn {alias_name, _ix} ->
-        String.starts_with?(to_string(alias_name), "__map_geometry")
+        String.starts_with?(to_string(alias_name), "__map_geometry") or
+          String.starts_with?(to_string(alias_name), "__map_lat")
       end)
       |> Enum.map(fn {alias_name, geometry_ix} ->
-        suffix = String.replace_prefix(to_string(alias_name), "__map_geometry", "")
+        suffix =
+          to_string(alias_name)
+          |> String.replace_prefix("__map_geometry", "")
+          |> String.replace_prefix("__map_lat", "")
 
         %{
           geometry_ix: geometry_ix,
+          latitude_ix: index_for_alias(aliases, "__map_lat#{suffix}", nil),
+          longitude_ix: index_for_alias(aliases, "__map_lng#{suffix}", nil),
           popup_ix: index_for_alias(aliases, "__map_popup#{suffix}", nil),
           color_ix: index_for_alias(aliases, "__map_color#{suffix}", nil),
           track_by_ix: index_for_alias(aliases, "__map_track_by#{suffix}", nil),
@@ -884,6 +890,8 @@ defmodule SelectoComponents.Views.Map.Component do
       [
         %{
           geometry_ix: 0,
+          latitude_ix: index_for_alias(aliases, "__map_lat", 0),
+          longitude_ix: index_for_alias(aliases, "__map_lng", 1),
           popup_ix: index_for_alias(aliases, "__map_popup", nil),
           color_ix: index_for_alias(aliases, "__map_color", nil),
           track_by_ix: index_for_alias(aliases, "__map_track_by", nil),
@@ -1429,6 +1437,40 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp parse_geometry(_), do: nil
+
+  defp geometry_from_row(row, layer) do
+    case row |> Enum.at(layer.geometry_ix) |> parse_geometry() do
+      nil ->
+        build_point_geometry(
+          optional_value(row, layer.latitude_ix),
+          optional_value(row, layer.longitude_ix)
+        )
+
+      geometry ->
+        geometry
+    end
+  end
+
+  defp build_point_geometry(lat, lng) do
+    with lat when is_number(lat) <- parse_coordinate(lat),
+         lng when is_number(lng) <- parse_coordinate(lng) do
+      %{"type" => "Point", "coordinates" => [lng, lat]}
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_coordinate(value) when is_integer(value), do: value * 1.0
+  defp parse_coordinate(value) when is_float(value), do: value
+
+  defp parse_coordinate(value) when is_binary(value) do
+    case Float.parse(String.trim(value)) do
+      {parsed, ""} -> parsed
+      _ -> nil
+    end
+  end
+
+  defp parse_coordinate(_), do: nil
 
   defp strip_srid_prefix("SRID=" <> rest) do
     case String.split(rest, ";", parts: 2) do
