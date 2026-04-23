@@ -2,6 +2,7 @@ defmodule SelectoComponents.Debug.ProductionConfigTest do
   use ExUnit.Case, async: true
 
   alias SelectoComponents.Debug.ProductionConfig
+  alias SelectoComponents.Session
 
   test "debug is disabled by default without request flag" do
     refute ProductionConfig.debug_enabled?(%{}, %{})
@@ -27,5 +28,13 @@ defmodule SelectoComponents.Debug.ProductionConfigTest do
   test "falsey request values do not enable debug" do
     refute ProductionConfig.debug_enabled?(%{"selecto_debug" => "false"}, %{})
     refute ProductionConfig.debug_enabled?(%{"debug" => "0"}, %{})
+  end
+
+  test "session structs are normalized for debug checks" do
+    refute ProductionConfig.debug_enabled?(%{}, %Session{
+             view_mode: "detail",
+             views: %{},
+             filters: []
+           })
   end
 end
