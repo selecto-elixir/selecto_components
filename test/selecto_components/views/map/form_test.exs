@@ -19,6 +19,18 @@ defmodule SelectoComponents.Views.Map.FormTest do
     assert html =~ "accent-color: var(--sc-accent);"
   end
 
+  test "renders lat lon controls and hides map layers in lat_lon mode" do
+    html = render_component(Form, lat_lon_assigns())
+
+    assert html =~ "Source Mode"
+    assert html =~ "Latitude / Longitude (numeric)"
+    assert html =~ "Lat / Lon Fields"
+    assert html =~ "Latitude Field"
+    assert html =~ "Longitude Field"
+    refute html =~ "Map Layers"
+    refute html =~ "Geometry Field"
+  end
+
   defp base_assigns do
     domain = %{
       source: %{
@@ -55,6 +67,51 @@ defmodule SelectoComponents.Views.Map.FormTest do
                 visible: true
               }
             ],
+            default_zoom: 4,
+            fit_bounds: true,
+            background_mode: "tiles",
+            coordinate_mode: "latlng"
+          }
+        }
+      }
+    }
+  end
+
+  defp lat_lon_assigns do
+    domain = %{
+      source: %{
+        source_table: "type_coverage_records",
+        primary_key: :id,
+        fields: [:id, :co_name, :latitude, :longitude],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          co_name: %{type: :string, name: "Company", colid: :co_name},
+          latitude: %{type: :decimal, name: "Latitude", colid: :latitude},
+          longitude: %{type: :decimal, name: "Longitude", colid: :longitude}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      pivot: %{},
+      default_map_source_mode: :lat_lon,
+      default_map_latitude_field: "latitude",
+      default_map_longitude_field: "longitude",
+      default_map_popup_field: "co_name"
+    }
+
+    %{
+      id: "map-form-lat-lon-test",
+      theme: Theme.default_theme(:light),
+      selecto: Selecto.configure(domain, nil, validate: false),
+      view_config: %{
+        views: %{
+          map: %{
+            source_mode: :lat_lon,
+            latitude_field: "latitude",
+            longitude_field: "longitude",
+            popup_field: "co_name",
             default_zoom: 4,
             fit_bounds: true,
             background_mode: "tiles",

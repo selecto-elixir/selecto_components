@@ -17,6 +17,34 @@ defmodule SelectoComponents.Views.Map.Form do
         popup_columns: popup_columns(assigns.selecto)
       )
 
+    resolved_source_mode =
+      case Map.get(assigns.map_config, :source_mode) do
+        :lat_lon ->
+          :lat_lon
+
+        :geometry ->
+          :geometry
+
+        _ ->
+          cond do
+            Map.get(assigns.map_config, :latitude_field) &&
+                Map.get(assigns.map_config, :longitude_field) ->
+              :lat_lon
+
+            assigns[:spatial_columns] != [] ->
+              :geometry
+
+            true ->
+              :lat_lon
+          end
+      end
+
+    assigns =
+      assign(assigns,
+        numeric_columns: numeric_columns(assigns.selecto),
+        source_mode: resolved_source_mode
+      )
+
     assigns =
       assigns
       |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
@@ -25,291 +53,372 @@ defmodule SelectoComponents.Views.Map.Form do
     ~H"""
     <div class="space-y-6">
       <div class={Theme.slot(@theme, :panel) <> " p-4"} style="background: var(--sc-surface-bg);">
-        <div class="mb-3">
-          <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">Map Layers</h4>
-          <p class="text-xs" style="color: var(--sc-text-secondary);">
-            Configure up to 3 geometry layers (points, lines, areas) rendered together.
-          </p>
-        </div>
+        <label class={field_label_class()} style={field_label_style()}>Source Mode</label>
+        <select name="source_mode" class={field_select_class(@theme)}>
+          <option value="geometry" selected={@source_mode == :geometry}>
+            Geometry (PostGIS)
+          </option>
+          <option value="lat_lon" selected={@source_mode == :lat_lon}>
+            Latitude / Longitude (numeric)
+          </option>
+        </select>
+      </div>
 
-        <div class="space-y-3">
-          <div
-            :for={{layer, index} <- Enum.with_index(@map_layers)}
-            class={Theme.slot(@theme, :panel) <> " rounded-md p-3"}
-            style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 68%, var(--sc-surface-bg));"
-          >
-            <div class="mb-2 flex items-center justify-between">
-              <div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--sc-text-secondary);">
-                Layer {index + 1}
-              </div>
-              <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-xs"}>
-                <input type="hidden" name={"map_layers[#{index}][visible]"} value="false" />
-                <input
-                  type="checkbox"
-                  name={"map_layers[#{index}][visible]"}
-                  value="true"
-                  checked={Map.get(layer, :visible, true)}
-                  class="h-4 w-4 rounded border"
-                  style={checkbox_style()}
-                /> Visible
-              </label>
-            </div>
+      <%= if @source_mode == :geometry do %>
+        <div class={Theme.slot(@theme, :panel) <> " p-4"} style="background: var(--sc-surface-bg);">
+          <div class="mb-3">
+            <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">Map Layers</h4>
+            <p class="text-xs" style="color: var(--sc-text-secondary);">
+              Configure up to 3 geometry layers (points, lines, areas) rendered together.
+            </p>
+          </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Label</label>
-                <input
-                  type="text"
-                  name={"map_layers[#{index}][label]"}
-                  value={Map.get(layer, :label, "")}
-                  class={field_input_class(@theme)}
-                />
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Geometry Field</label>
-                <select
-                  name={"map_layers[#{index}][geometry_field]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option
-                    :for={{field, label} <- @spatial_columns}
-                    value={field}
-                    selected={Map.get(layer, :geometry_field) == field}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Geometry Kind</label>
-                <select
-                  name={"map_layers[#{index}][geometry_kind]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="auto" selected={Map.get(layer, :geometry_kind, "auto") == "auto"}>
-                    Auto
-                  </option>
-                  <option value="point" selected={Map.get(layer, :geometry_kind) == "point"}>
-                    Point
-                  </option>
-                  <option value="line" selected={Map.get(layer, :geometry_kind) == "line"}>
-                    Line
-                  </option>
-                  <option value="area" selected={Map.get(layer, :geometry_kind) == "area"}>
-                    Area
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Popup Field</label>
-                <select
-                  name={"map_layers[#{index}][popup_field]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="" selected={Map.get(layer, :popup_field) in [nil, ""]}>None</option>
-                  <option
-                    :for={{field, label} <- @popup_columns}
-                    value={field}
-                    selected={Map.get(layer, :popup_field) == field}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Color Field</label>
-                <select
-                  name={"map_layers[#{index}][color_field]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="" selected={Map.get(layer, :color_field) in [nil, ""]}>None</option>
-                  <option
-                    :for={{field, label} <- @popup_columns}
-                    value={field}
-                    selected={Map.get(layer, :color_field) == field}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Scale Type</label>
-                <select
-                  name={"map_layers[#{index}][scale_type]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="auto" selected={Map.get(layer, :scale_type, "auto") == "auto"}>
-                    Auto
-                  </option>
-                  <option value="categorical" selected={Map.get(layer, :scale_type) == "categorical"}>
-                    Categorical
-                  </option>
-                  <option
-                    value="numeric_steps"
-                    selected={Map.get(layer, :scale_type) == "numeric_steps"}
-                  >
-                    Numeric Steps
-                  </option>
-                  <option value="linear" selected={Map.get(layer, :scale_type) == "linear"}>
-                    Linear
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Palette (optional)</label>
-                <input
-                  type="text"
-                  placeholder="#16a34a,#f59e0b,#dc2626"
-                  name={"map_layers[#{index}][scale_palette]"}
-                  value={Map.get(layer, :scale_palette, "")}
-                  class={field_input_class(@theme)}
-                />
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>
-                  Steps (for numeric)
-                </label>
-                <input
-                  type="text"
-                  placeholder="20,45,90"
-                  name={"map_layers[#{index}][scale_steps]"}
-                  value={Map.get(layer, :scale_steps, "")}
-                  class={field_input_class(@theme)}
-                />
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Category Colors</label>
-                <input
-                  type="text"
-                  placeholder="queued:#22c55e,loading:#f59e0b"
-                  name={"map_layers[#{index}][scale_categories]"}
-                  value={Map.get(layer, :scale_categories, "")}
-                  class={field_input_class(@theme)}
-                />
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>
-                  Track By (breadcrumbs)
-                </label>
-                <select
-                  name={"map_layers[#{index}][track_by]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="" selected={Map.get(layer, :track_by) in [nil, ""]}>None</option>
-                  <option
-                    :for={{field, label} <- @popup_columns}
-                    value={field}
-                    selected={Map.get(layer, :track_by) == field}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Track Order Field</label>
-                <select
-                  name={"map_layers[#{index}][track_order_field]"}
-                  class={field_select_class(@theme)}
-                >
-                  <option value="" selected={Map.get(layer, :track_order_field) in [nil, ""]}>
-                    None
-                  </option>
-                  <option
-                    :for={{field, label} <- @popup_columns}
-                    value={field}
-                    selected={Map.get(layer, :track_order_field) == field}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </div>
-
-              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point"] do %>
-                <div>
-                  <label class={field_label_class()} style={field_label_style()}>Point Radius</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    name={"map_layers[#{index}][point_radius]"}
-                    value={Map.get(layer, :point_radius, 6)}
-                    class={field_input_class(@theme)}
-                  />
+          <div class="space-y-3">
+            <div
+              :for={{layer, index} <- Enum.with_index(@map_layers)}
+              class={Theme.slot(@theme, :panel) <> " rounded-md p-3"}
+              style="background: color-mix(in srgb, var(--sc-surface-bg-alt) 68%, var(--sc-surface-bg));"
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--sc-text-secondary);">
+                  Layer {index + 1}
                 </div>
-              <% end %>
-
-              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line", "area"] do %>
-                <div>
-                  <label class={field_label_class()} style={field_label_style()}>Line Weight</label>
+                <label class={Theme.slot(@theme, :checkbox_label) <> " inline-flex items-center gap-2 text-xs"}>
+                  <input type="hidden" name={"map_layers[#{index}][visible]"} value="false" />
                   <input
-                    type="number"
-                    min="1"
-                    max="12"
-                    name={"map_layers[#{index}][line_weight]"}
-                    value={Map.get(layer, :line_weight, 2)}
-                    class={field_input_class(@theme)}
-                  />
-                </div>
-              <% end %>
+                    type="checkbox"
+                    name={"map_layers[#{index}][visible]"}
+                    value="true"
+                    checked={Map.get(layer, :visible, true)}
+                    class="h-4 w-4 rounded border"
+                    style={checkbox_style()}
+                  /> Visible
+                </label>
+              </div>
 
-              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line"] do %>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label class={field_label_class()} style={field_label_style()}>Line Dash</label>
+                  <label class={field_label_class()} style={field_label_style()}>Label</label>
                   <input
                     type="text"
-                    placeholder="e.g. 6,4"
-                    name={"map_layers[#{index}][line_dash_array]"}
-                    value={Map.get(layer, :line_dash_array, "")}
+                    name={"map_layers[#{index}][label]"}
+                    value={Map.get(layer, :label, "")}
                     class={field_input_class(@theme)}
                   />
                 </div>
-              <% end %>
 
-              <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point", "area"] do %>
                 <div>
-                  <label class={field_label_class()} style={field_label_style()}>Fill Opacity</label>
+                  <label class={field_label_class()} style={field_label_style()}>Geometry Field</label>
+                  <select
+                    name={"map_layers[#{index}][geometry_field]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option
+                      :for={{field, label} <- @spatial_columns}
+                      value={field}
+                      selected={Map.get(layer, :geometry_field) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Geometry Kind</label>
+                  <select
+                    name={"map_layers[#{index}][geometry_kind]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="auto" selected={Map.get(layer, :geometry_kind, "auto") == "auto"}>
+                      Auto
+                    </option>
+                    <option value="point" selected={Map.get(layer, :geometry_kind) == "point"}>
+                      Point
+                    </option>
+                    <option value="line" selected={Map.get(layer, :geometry_kind) == "line"}>
+                      Line
+                    </option>
+                    <option value="area" selected={Map.get(layer, :geometry_kind) == "area"}>
+                      Area
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Popup Field</label>
+                  <select
+                    name={"map_layers[#{index}][popup_field]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="" selected={Map.get(layer, :popup_field) in [nil, ""]}>None</option>
+                    <option
+                      :for={{field, label} <- @popup_columns}
+                      value={field}
+                      selected={Map.get(layer, :popup_field) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Color Field</label>
+                  <select
+                    name={"map_layers[#{index}][color_field]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="" selected={Map.get(layer, :color_field) in [nil, ""]}>None</option>
+                    <option
+                      :for={{field, label} <- @popup_columns}
+                      value={field}
+                      selected={Map.get(layer, :color_field) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Scale Type</label>
+                  <select
+                    name={"map_layers[#{index}][scale_type]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="auto" selected={Map.get(layer, :scale_type, "auto") == "auto"}>
+                      Auto
+                    </option>
+                    <option value="categorical" selected={Map.get(layer, :scale_type) == "categorical"}>
+                      Categorical
+                    </option>
+                    <option
+                      value="numeric_steps"
+                      selected={Map.get(layer, :scale_type) == "numeric_steps"}
+                    >
+                      Numeric Steps
+                    </option>
+                    <option value="linear" selected={Map.get(layer, :scale_type) == "linear"}>
+                      Linear
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Palette (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="#16a34a,#f59e0b,#dc2626"
+                    name={"map_layers[#{index}][scale_palette]"}
+                    value={Map.get(layer, :scale_palette, "")}
+                    class={field_input_class(@theme)}
+                  />
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>
+                    Steps (for numeric)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="20,45,90"
+                    name={"map_layers[#{index}][scale_steps]"}
+                    value={Map.get(layer, :scale_steps, "")}
+                    class={field_input_class(@theme)}
+                  />
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Category Colors</label>
+                  <input
+                    type="text"
+                    placeholder="queued:#22c55e,loading:#f59e0b"
+                    name={"map_layers[#{index}][scale_categories]"}
+                    value={Map.get(layer, :scale_categories, "")}
+                    class={field_input_class(@theme)}
+                  />
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>
+                    Track By (breadcrumbs)
+                  </label>
+                  <select
+                    name={"map_layers[#{index}][track_by]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="" selected={Map.get(layer, :track_by) in [nil, ""]}>None</option>
+                    <option
+                      :for={{field, label} <- @popup_columns}
+                      value={field}
+                      selected={Map.get(layer, :track_by) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Track Order Field</label>
+                  <select
+                    name={"map_layers[#{index}][track_order_field]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="" selected={Map.get(layer, :track_order_field) in [nil, ""]}>
+                      None
+                    </option>
+                    <option
+                      :for={{field, label} <- @popup_columns}
+                      value={field}
+                      selected={Map.get(layer, :track_order_field) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point"] do %>
+                  <div>
+                    <label class={field_label_class()} style={field_label_style()}>Point Radius</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      name={"map_layers[#{index}][point_radius]"}
+                      value={Map.get(layer, :point_radius, 6)}
+                      class={field_input_class(@theme)}
+                    />
+                  </div>
+                <% end %>
+
+                <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line", "area"] do %>
+                  <div>
+                    <label class={field_label_class()} style={field_label_style()}>Line Weight</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      name={"map_layers[#{index}][line_weight]"}
+                      value={Map.get(layer, :line_weight, 2)}
+                      class={field_input_class(@theme)}
+                    />
+                  </div>
+                <% end %>
+
+                <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "line"] do %>
+                  <div>
+                    <label class={field_label_class()} style={field_label_style()}>Line Dash</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 6,4"
+                      name={"map_layers[#{index}][line_dash_array]"}
+                      value={Map.get(layer, :line_dash_array, "")}
+                      class={field_input_class(@theme)}
+                    />
+                  </div>
+                <% end %>
+
+                <%= if Map.get(layer, :geometry_kind, "auto") in ["auto", "point", "area"] do %>
+                  <div>
+                    <label class={field_label_class()} style={field_label_style()}>Fill Opacity</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      name={"map_layers[#{index}][fill_opacity]"}
+                      value={Map.get(layer, :fill_opacity, 0.25)}
+                      class={field_input_class(@theme)}
+                    />
+                  </div>
+                <% end %>
+
+                <div>
+                  <label class={field_label_class()} style={field_label_style()}>Stroke Opacity</label>
                   <input
                     type="number"
                     step="0.05"
                     min="0"
                     max="1"
-                    name={"map_layers[#{index}][fill_opacity]"}
-                    value={Map.get(layer, :fill_opacity, 0.25)}
+                    name={"map_layers[#{index}][stroke_opacity]"}
+                    value={Map.get(layer, :stroke_opacity, 0.9)}
                     class={field_input_class(@theme)}
                   />
                 </div>
-              <% end %>
-
-              <div>
-                <label class={field_label_class()} style={field_label_style()}>Stroke Opacity</label>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  name={"map_layers[#{index}][stroke_opacity]"}
-                  value={Map.get(layer, :stroke_opacity, 0.9)}
-                  class={field_input_class(@theme)}
-                />
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <input type="hidden" name="geometry_field" value={Map.get(hd(@map_layers), :geometry_field)} />
-      <input type="hidden" name="popup_field" value={Map.get(hd(@map_layers), :popup_field, "")} />
-      <input type="hidden" name="color_field" value={Map.get(hd(@map_layers), :color_field, "")} />
+        <input type="hidden" name="geometry_field" value={Map.get(hd(@map_layers), :geometry_field)} />
+        <input type="hidden" name="popup_field" value={Map.get(hd(@map_layers), :popup_field, "")} />
+        <input type="hidden" name="color_field" value={Map.get(hd(@map_layers), :color_field, "")} />
+      <% end %>
+
+      <%= if @source_mode == :lat_lon do %>
+        <div class={Theme.slot(@theme, :panel) <> " p-4"} style="background: var(--sc-surface-bg);">
+          <div class="mb-3">
+            <h4 class="text-sm font-semibold" style="color: var(--sc-text-primary);">
+              Lat / Lon Fields
+            </h4>
+            <p class="text-xs" style="color: var(--sc-text-secondary);">
+              Pick the numeric columns that hold point coordinates.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class={field_label_class()} style={field_label_style()}>Latitude Field</label>
+              <select name="latitude_field" class={field_select_class(@theme)}>
+                <option value="" selected={Map.get(@map_config, :latitude_field) in [nil, ""]}>
+                  — select —
+                </option>
+                <option
+                  :for={{field, label} <- @numeric_columns}
+                  value={field}
+                  selected={Map.get(@map_config, :latitude_field) == field}
+                >{label}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class={field_label_class()} style={field_label_style()}>Longitude Field</label>
+              <select name="longitude_field" class={field_select_class(@theme)}>
+                <option value="" selected={Map.get(@map_config, :longitude_field) in [nil, ""]}>
+                  — select —
+                </option>
+                <option
+                  :for={{field, label} <- @numeric_columns}
+                  value={field}
+                  selected={Map.get(@map_config, :longitude_field) == field}
+                >{label}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class={field_label_class()} style={field_label_style()}>Popup Field</label>
+              <select name="popup_field" class={field_select_class(@theme)}>
+                <option value="" selected={Map.get(@map_config, :popup_field) in [nil, ""]}>None</option>
+                <option
+                  :for={{field, label} <- @popup_columns}
+                  value={field}
+                  selected={Map.get(@map_config, :popup_field) == field}
+                >{label}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class={field_label_class()} style={field_label_style()}>Color Field</label>
+              <select name="color_field" class={field_select_class(@theme)}>
+                <option value="" selected={Map.get(@map_config, :color_field) in [nil, ""]}>None</option>
+                <option
+                  :for={{field, label} <- @popup_columns}
+                  value={field}
+                  selected={Map.get(@map_config, :color_field) == field}
+                >{label}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      <% end %>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -672,6 +781,13 @@ defmodule SelectoComponents.Views.Map.Form do
   defp style_defaults_for_kind(_),
     do: %{point_radius: 6, line_weight: 2, fill_opacity: 0.25, stroke_opacity: 0.9}
 
+  defp numeric_columns(selecto) do
+    selecto
+    |> Selecto.columns()
+    |> Enum.filter(fn {_field, col} -> numeric_type?(Map.get(col, :type)) end)
+    |> Enum.map(fn {field, col} -> {to_string(field), col.name} end)
+  end
+
   defp spatial_columns(selecto) do
     selecto
     |> Selecto.columns()
@@ -701,4 +817,18 @@ defmodule SelectoComponents.Views.Map.Form do
   end
 
   defp spatial_type?(_), do: false
+
+  defp numeric_type?(type) when is_atom(type) do
+    Selecto.TypeSystem.type_category(type) == :numeric or
+      type in [:integer, :float, :decimal, :numeric]
+  end
+
+  defp numeric_type?(type) when is_binary(type) do
+    parsed = Selecto.TypeSystem.parse_sql_type(type)
+
+    Selecto.TypeSystem.type_category(parsed) == :numeric or
+      parsed in [:integer, :float, :decimal, :numeric]
+  end
+
+  defp numeric_type?(_), do: false
 end
