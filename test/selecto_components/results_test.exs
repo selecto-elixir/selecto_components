@@ -4,6 +4,7 @@ defmodule SelectoComponents.ResultsTest do
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias SelectoComponents.Results
+  alias SelectoComponents.Session
 
   test "renders stage-aware execution error banner" do
     html =
@@ -35,5 +36,20 @@ defmodule SelectoComponents.ResultsTest do
     assert html =~ "The current view configuration is not valid."
     assert html =~ "Aggregate grid requires exactly 2 group-by fields and 1 aggregate metric."
     assert html =~ "Review the current view configuration and try again."
+  end
+
+  test "renders without crashing when session assign is a Session struct" do
+    html =
+      render_component(Results, %{
+        id: "results-session-test",
+        views: [],
+        applied_view: nil,
+        executed: false,
+        execution_error: nil,
+        component_errors: [],
+        session: %Session{view_mode: "detail", views: %{}, filters: []}
+      })
+
+    assert html =~ "selecto-results-results-session-test"
   end
 end

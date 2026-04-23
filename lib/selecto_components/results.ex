@@ -135,11 +135,17 @@ defmodule SelectoComponents.Results do
     # Since this is a LiveComponent, we might not have direct access to socket
     # The parent LiveView should pass these through assigns if needed
     params = assigns[:params] || assigns[:used_params] || %{}
-    session = assigns[:session] || %{}
+    session = normalize_debug_session(assigns[:session])
 
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)
   end
+
+  defp normalize_debug_session(%SelectoComponents.Session{} = session),
+    do: Map.from_struct(session)
+
+  defp normalize_debug_session(session) when is_map(session), do: session
+  defp normalize_debug_session(_session), do: %{}
 
   defp normalize_execution_error(assigns) do
     case Map.get(assigns, :execution_error) do
