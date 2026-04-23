@@ -238,6 +238,23 @@ defmodule SelectoComponents.Views.Map.Form do
                 </div>
 
                 <div>
+                  <label class={field_label_class()} style={field_label_style()}>Track Path Field</label>
+                  <select
+                    name={"map_layers[#{index}][track_path_field]"}
+                    class={field_select_class(@theme)}
+                  >
+                    <option value="" selected={Map.get(layer, :track_path_field) in [nil, ""]}>None</option>
+                    <option
+                      :for={{field, label} <- @popup_columns}
+                      value={field}
+                      selected={Map.get(layer, :track_path_field) == field}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
                   <label class={field_label_class()} style={field_label_style()}>
                     Track By (breadcrumbs)
                   </label>
@@ -413,6 +430,18 @@ defmodule SelectoComponents.Views.Map.Form do
                   :for={{field, label} <- @popup_columns}
                   value={field}
                   selected={Map.get(@map_config, :color_field) == field}
+                >{label}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class={field_label_class()} style={field_label_style()}>Track Path Field</label>
+              <select name="track_path_field" class={field_select_class(@theme)}>
+                <option value="" selected={Map.get(@map_config, :track_path_field) in [nil, ""]}>None</option>
+                <option
+                  :for={{field, label} <- @popup_columns}
+                  value={field}
+                  selected={Map.get(@map_config, :track_path_field) == field}
                 >{label}</option>
               </select>
             </div>
@@ -676,6 +705,7 @@ defmodule SelectoComponents.Views.Map.Form do
         geometry_kind: geometry_kind,
         popup_field: Map.get(layer, :popup_field),
         color_field: Map.get(layer, :color_field),
+        track_path_field: Map.get(layer, :track_path_field),
         scale_type: Map.get(layer, :scale_type, "auto"),
         scale_palette: Map.get(layer, :scale_palette),
         scale_steps: Map.get(layer, :scale_steps),
@@ -702,6 +732,7 @@ defmodule SelectoComponents.Views.Map.Form do
       geometry_kind: "auto",
       popup_field: map_value(map_config, :popup_field),
       color_field: map_value(map_config, :color_field),
+      track_path_field: map_value(map_config, :track_path_field),
       scale_type: "auto",
       scale_palette: nil,
       scale_steps: nil,
@@ -733,6 +764,7 @@ defmodule SelectoComponents.Views.Map.Form do
             geometry_kind: "auto",
             popup_field: nil,
             color_field: nil,
+            track_path_field: nil,
             scale_type: "auto",
             scale_palette: nil,
             scale_steps: nil,
