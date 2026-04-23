@@ -1470,6 +1470,12 @@ defmodule SelectoComponents.Views.Map.Component do
     end
   end
 
+  defp parse_coordinate(%{__struct__: Decimal} = value) do
+    value |> Decimal.to_float()
+  rescue
+    _ -> nil
+  end
+
   defp parse_coordinate(_), do: nil
 
   defp strip_srid_prefix("SRID=" <> rest) do
