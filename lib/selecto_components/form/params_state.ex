@@ -10,9 +10,9 @@ defmodule SelectoComponents.Form.ParamsState do
   - Managing URL state updates
   """
 
+  alias SelectoComponents.Execution.CTEs
   alias SelectoComponents.Execution.Executor
   alias SelectoComponents.Execution.Plan
-  alias SelectoComponents.Execution.QueryHelpers
   alias SelectoComponents.Execution.ResultState
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
@@ -506,73 +506,6 @@ defmodule SelectoComponents.Form.ParamsState do
     SelectoComponents.Form.build_selecto_error(type, message, details)
   end
 
-  defp execution_error_opts(error, params, extra_opts) do
-    view_mode = view_mode_value(params)
-
-    Keyword.merge(
-      [
-        stage: execution_error_stage(error),
-        category: execution_error_category(error),
-        code: execution_error_code(error),
-        view_mode: view_mode
-      ],
-      extra_opts
-    )
-  end
-
-  defp execution_error_stage(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :input
-      :configuration_error -> :configuration
-      :field_resolution_error -> :configuration
-      :timeout_error -> :timeout
-      :connection_error -> :db_execute
-      :transformation_error -> :result_process
-      :query_error -> if(Map.get(error, :query), do: :db_execute, else: :query_build)
-      _ -> :unknown
-    end
-  end
-
-  defp execution_error_stage(:timeout), do: :timeout
-  defp execution_error_stage({:error, :timeout}), do: :timeout
-  defp execution_error_stage(_), do: :db_execute
-
-  defp execution_error_category(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :validation
-      :configuration_error -> :configuration
-      :field_resolution_error -> :configuration
-      :timeout_error -> :timeout
-      :connection_error -> :connection
-      :transformation_error -> :processing
-      :permission_error -> :authorization
-      :query_error -> :query
-      _ -> :runtime
-    end
-  end
-
-  defp execution_error_category(:timeout), do: :timeout
-  defp execution_error_category({:error, :timeout}), do: :timeout
-  defp execution_error_category(_), do: :query
-
-  defp execution_error_code(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :validation_error
-      :configuration_error -> :invalid_view_config
-      :field_resolution_error -> :unknown_field
-      :timeout_error -> :query_timed_out
-      :connection_error -> :connection_error
-      :transformation_error -> :result_processing_failed
-      :permission_error -> :permission_error
-      :query_error -> if(Map.get(error, :query), do: :db_query_failed, else: :query_build_failed)
-      type -> type
-    end
-  end
-
-  defp execution_error_code(:timeout), do: :query_timed_out
-  defp execution_error_code({:error, :timeout}), do: :query_timed_out
-  defp execution_error_code(_), do: :db_query_failed
-
   defp format_stacktrace(stacktrace) when is_list(stacktrace) do
     stacktrace
     |> Exception.format_stacktrace()
@@ -622,36 +555,9 @@ defmodule SelectoComponents.Form.ParamsState do
     |> then(&assign_view_config(socket, &1))
   end
 
-  def sync_view_config_ctes(view_config, %Selecto{} = selecto) when is_map(view_config) do
-    derived_names = derived_cte_names_from_view_config(view_config, selecto)
-    existing_ctes = get_map_value(view_config, :ctes, [])
-    synced_ctes = build_cte_entries(derived_names, existing_ctes)
+  def sync_view_config_ctes(view_config, selecto), do: CTEs.sync_view_config(view_config, selecto)
 
-    Map.put(view_config, :ctes, synced_ctes)
-  end
-
-  def sync_view_config_ctes(view_config, _selecto), do: view_config
-
-  def apply_ctes_for_params(selecto, params), do: maybe_apply_ctes(selecto, params)
-
-  def execute_query_for_plan(selecto, params, view_meta, socket),
-    do: QueryHelpers.execute_query_with_pagination(selecto, params, view_meta, socket)
-
-  def cap_aggregate_rows_for_result(rows, view_meta, params),
-    do: QueryHelpers.maybe_cap_aggregate_rows(rows, view_meta, params)
-
-  def normalize_rows_for_result(rows, columns, view_mode),
-    do: QueryHelpers.normalize_rows_for_view(rows, columns, view_mode)
-
-  def build_query_cache_debug_info_for_result(detail_cache, params, rows, columns, aliases),
-    do: QueryHelpers.build_query_cache_debug_info(detail_cache, params, rows, columns, aliases)
-
-  def drop_runtime_only_params_public(params), do: drop_runtime_only_params(params)
-
-  def execution_error_opts_public(error, params, extra_opts),
-    do: execution_error_opts(error, params, extra_opts)
-
-  def get_map_value_public(map, key, default \\ nil), do: get_map_value(map, key, default)
+  def apply_ctes_for_params(selecto, params), do: CTEs.apply_for_params(selecto, params)
 
   def assign_view_config(socket, view_config) do
     SessionStore.assign_view_config(socket, view_config)
@@ -1819,223 +1725,11 @@ defmodule SelectoComponents.Form.ParamsState do
   @doc false
   def compact_url_params(params), do: URL.compact_url_params(params)
 
-  defp maybe_apply_ctes(selecto, params) when is_map(params) do
-    explicit_names =
-      params
-      |> ctes_from_params([])
-      |> Enum.map(&cte_entry_name/1)
-      |> Enum.reject(&is_nil/1)
-
-    derived_names = derived_cte_names_from_params(params, selecto)
-
-    Enum.reduce(explicit_names ++ derived_names, selecto, fn
-      name, acc when is_binary(name) and name != "" ->
-        if name in SelectoComponents.Form.ColumnCatalog.available_cte_names(acc) and
-             not cte_already_applied?(acc, name) do
-          Selecto.with_cte(acc, name)
-        else
-          acc
-        end
-
-      _name, acc ->
-        acc
-    end)
-  end
-
-  defp maybe_apply_ctes(selecto, _params), do: selecto
-
-  defp ctes_from_params(params, default) when is_map(params) do
-    case Map.get(params, "ctes") do
-      section when is_map(section) ->
-        section
-        |> Enum.sort_by(fn {_uuid, value} -> sort_index_for_compaction(value) end)
-        |> Enum.map(fn {uuid, value} ->
-          cte_uuid = get_map_value(value, :uuid, uuid)
-          name = get_map_value(value, :name)
-
-          {cte_uuid, name, Map.drop(stringify_map_keys(value), ["uuid", "name", "index"])}
-        end)
-        |> Enum.reject(fn {_uuid, name, _config} -> is_nil(name) or to_string(name) == "" end)
-
-      _ ->
-        default
-    end
-  end
-
-  defp ctes_from_params(_params, default), do: default
-
-  defp derived_cte_names_from_params(params, %Selecto{} = selecto) when is_map(params) do
-    field_ids =
-      params
-      |> field_ids_from_params()
-      |> Kernel.++(filter_ids_from_params(params))
-
-    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
-  end
-
-  defp derived_cte_names_from_params(_params, _selecto), do: []
-
-  defp derived_cte_names_from_view_config(view_config, %Selecto{} = selecto)
-       when is_map(view_config) do
-    field_ids =
-      view_config
-      |> field_ids_from_view_config()
-      |> Kernel.++(filter_ids_from_view_config(view_config))
-
-    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
-  end
-
-  defp derived_cte_names_from_view_config(_view_config, _selecto), do: []
-
-  defp field_ids_from_params(params) when is_map(params) do
-    ["selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
-    |> Enum.flat_map(fn section ->
-      params
-      |> Map.get(section, %{})
-      |> list_field_ids_from_param_section()
-    end)
-  end
-
-  defp field_ids_from_params(_params), do: []
-
-  defp list_field_ids_from_param_section(section) when is_map(section) do
-    section
-    |> Map.values()
-    |> Enum.map(&get_map_value(&1, :field))
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp list_field_ids_from_param_section(_section), do: []
-
-  defp filter_ids_from_params(params) when is_map(params) do
-    params
-    |> Map.get("filters", %{})
-    |> Map.values()
-    |> Enum.map(&get_map_value(&1, :filter))
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp filter_ids_from_params(_params), do: []
-
-  defp field_ids_from_view_config(view_config) when is_map(view_config) do
-    view_config
-    |> get_map_value(:views, %{})
-    |> Map.values()
-    |> Enum.flat_map(&field_ids_from_view_state/1)
-  end
-
-  defp field_ids_from_view_config(_view_config), do: []
-
-  defp field_ids_from_view_state(view_state) when is_map(view_state) do
-    [:selected, :order_by, :group_by, :aggregate, :x_axis, :y_axis, :series]
-    |> Enum.flat_map(fn key ->
-      view_state
-      |> get_map_value(key, [])
-      |> list_field_ids_from_items()
-    end)
-  end
-
-  defp field_ids_from_view_state(_view_state), do: []
-
-  defp list_field_ids_from_items(items) when is_list(items) do
-    Enum.map(items, fn
-      {_uuid, field, _config} -> field
-      [_, field, _config] -> field
-      _other -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp list_field_ids_from_items(_items), do: []
-
-  defp filter_ids_from_view_config(view_config) when is_map(view_config) do
-    view_config
-    |> get_map_value(:filters, [])
-    |> Enum.map(fn
-      {_uuid, _section, filter_value} -> get_map_value(filter_value, :filter)
-      [_, _, filter_value] -> get_map_value(filter_value, :filter)
-      _other -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp filter_ids_from_view_config(_view_config), do: []
-
-  defp build_cte_entries(names, existing_ctes) when is_list(names) do
-    existing_by_name =
-      Map.new(existing_ctes, fn entry ->
-        case normalize_cte_entry(entry) do
-          {uuid, name, config} -> {name, {uuid, name, config}}
-          nil -> {nil, nil}
-        end
-      end)
-
-    names
-    |> Enum.uniq()
-    |> Enum.map(fn name ->
-      Map.get(existing_by_name, name, {"auto-cte-#{name}", name, %{}})
-    end)
-  end
-
-  defp build_cte_entries(_names, _existing_ctes), do: []
-
-  defp normalize_cte_entry({uuid, name, config}),
-    do: {to_string(uuid), to_string(name), config || %{}}
-
-  defp normalize_cte_entry([uuid, name, config]),
-    do: {to_string(uuid), to_string(name), config || %{}}
-
-  defp normalize_cte_entry(_entry), do: nil
-
-  defp cte_entry_name({_, name, _}) when is_binary(name), do: name
-  defp cte_entry_name([_, name, _]) when is_binary(name), do: name
-  defp cte_entry_name(_entry), do: nil
-
-  defp cte_already_applied?(%Selecto{} = selecto, name) do
-    selecto
-    |> get_in([Access.key(:set, %{}), Access.key(:ctes, [])])
-    |> Enum.any?(fn spec ->
-      spec_name =
-        Map.get(spec, :name) ||
-          Map.get(spec, :as) ||
-          Map.get(spec, "name") ||
-          Map.get(spec, "as")
-
-      to_string(spec_name || "") == name
-    end)
-  end
-
-  defp cte_already_applied?(_selecto, _name), do: false
-
   defp stringify_map_keys(map) when is_map(map) do
     Map.new(map, fn {key, value} -> {to_string(key), value} end)
   end
 
   defp stringify_map_keys(_value), do: %{}
-
-  defp sort_index_for_compaction(value) when is_map(value) do
-    case Map.get(value, "index") do
-      idx when is_binary(idx) ->
-        case Integer.parse(idx) do
-          {num, ""} -> num
-          _ -> 0
-        end
-
-      idx when is_integer(idx) ->
-        idx
-
-      _ ->
-        0
-    end
-  end
-
-  defp sort_index_for_compaction(_value), do: 0
-
-  defp drop_runtime_only_params(params) when is_map(params) do
-    Map.delete(params, "_presentation_context")
-  end
-
-  defp drop_runtime_only_params(params), do: params
 
   defp drop_unused_form_params(params) when is_map(params) do
     params

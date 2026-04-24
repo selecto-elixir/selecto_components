@@ -25,10 +25,11 @@ defmodule SelectoComponents.PropertyRoundtripTest do
       processed = ParamsState.view_filter_process(%{"filters" => params}, "filters")
 
       assert length(processed) == length(filters)
+      assert Enum.all?(Map.keys(params), &(&1 =~ ~r/^k[0-9a-z]+$/))
 
       Enum.zip(filters, processed)
       |> Enum.each(fn {{orig_uuid, orig_section, orig_map}, {uuid, section, processed_map}} ->
-        assert uuid =~ ~r/^k[0-9a-z]+$/
+        assert uuid == orig_uuid
         assert section == orig_section
         assert processed_map["uuid"] == orig_uuid
         assert processed_map["filter"] == orig_map["filter"]

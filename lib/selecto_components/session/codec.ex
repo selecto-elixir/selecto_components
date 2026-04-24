@@ -6,6 +6,7 @@ defmodule SelectoComponents.Session.Codec do
   the rest of the runtime still uses `view_config` as a compatibility shape.
   """
 
+  alias SelectoComponents.Execution.CTEs
   alias SelectoComponents.Form.ParamsState
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
@@ -53,7 +54,7 @@ defmodule SelectoComponents.Session.Codec do
         view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
       })
 
-    ParamsState.sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
+    CTEs.sync_view_config(provisional_config, socket.assigns[:selecto])
   end
 
   @spec form_params_to_view_config(map(), Phoenix.LiveView.Socket.t()) :: map()
@@ -86,7 +87,7 @@ defmodule SelectoComponents.Session.Codec do
         view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
       })
 
-    ParamsState.sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
+    CTEs.sync_view_config(provisional_config, socket.assigns[:selecto])
   end
 
   @spec view_config_to_saved_params(map()) :: map()
@@ -119,7 +120,7 @@ defmodule SelectoComponents.Session.Codec do
 
       existing_config
       |> Map.merge(restored_config)
-      |> ParamsState.sync_view_config_ctes(socket.assigns[:selecto])
+      |> CTEs.sync_view_config(socket.assigns[:selecto])
     else
       params_to_view_config(saved_params, socket)
     end

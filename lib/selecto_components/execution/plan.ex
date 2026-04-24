@@ -10,6 +10,7 @@ defmodule SelectoComponents.Execution.Plan do
 
   alias SelectoComponents.Form
   alias SelectoComponents.Form.ColumnCatalog
+  alias SelectoComponents.Execution.CTEs
   alias SelectoComponents.Form.ParamsState
   alias SelectoComponents.Presentation
   alias SelectoComponents.SafeAtom
@@ -47,7 +48,7 @@ defmodule SelectoComponents.Execution.Plan do
     selecto =
       socket.assigns.selecto
       |> rebuild_selecto()
-      |> ParamsState.apply_ctes_for_params(params)
+      |> CTEs.apply_for_params(params)
 
     raw_columns = Selecto.columns(selecto)
     columns_list = ColumnCatalog.picker_columns(selecto)

@@ -25,6 +25,7 @@ defmodule SelectoComponents.Execution.ExecutorTest do
     assert %Result{} = result
     assert is_boolean(result.executed)
     assert result.applied_view == "detail"
+    refute Map.has_key?(result.used_params, "_presentation_context")
     assert is_map(result.last_query_info)
     assert Map.has_key?(Result.to_assigns(result), :execution_error)
   end
