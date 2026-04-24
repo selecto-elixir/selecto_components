@@ -363,6 +363,43 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert {:field, "date_tier.id", "Date Tier"} = hd(view_set.selected)
   end
 
+  test "view builds field selectors for custom-column group by items" do
+    columns = %{
+      "assignee_display" => %{
+        name: "Assignee",
+        type: :custom_column,
+        colid: "assignee_display",
+        requires_join: :assignee
+      },
+      "id" => %{name: "ID", type: :id, colid: "id"}
+    }
+
+    {view_set, _meta} =
+      Process.view(
+        nil,
+        %{
+          "group_by" => %{
+            "g1" => %{"field" => "assignee_display", "index" => "0", "format" => "default"}
+          },
+          "aggregate" => %{
+            "a1" => %{"field" => "id", "index" => "0", "format" => "count"}
+          }
+        },
+        columns,
+        [],
+        nil
+      )
+
+    assert view_set.selected == [
+             {:field, "assignee_display", "Assignee"},
+             {:field, {:count, "id"}, "ID Count"}
+           ]
+
+    assert view_set.group_by == [
+             {:rollup, [{:field, "assignee_display", "Assignee"}]}
+           ]
+  end
+
   test "view collapses linked group by items into rollup grouping sets" do
     columns = %{
       "city" => %{name: "City", type: :string, colid: "city"},

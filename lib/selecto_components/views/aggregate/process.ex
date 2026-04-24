@@ -250,7 +250,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               case Map.get(col, :requires_select) do
                 x when is_list(x) -> {:row, col.requires_select, alias}
                 x when is_function(x) -> {:row, col.requires_select.(e), alias}
-                nil -> {col.colid, alias}
+                nil -> {:field, col.colid, alias}
               end
 
             x when x in [:string, :text, :citext] ->

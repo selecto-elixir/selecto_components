@@ -130,7 +130,7 @@ defmodule SelectoComponents.Views.Graph.Process do
               case Map.get(col, :requires_select) do
                 x when is_list(x) -> {:row, col.requires_select, alias_name}
                 x when is_function(x) -> {:row, col.requires_select.(field_config), alias_name}
-                nil -> {col.colid, alias_name}
+                nil -> {:field, col.colid, alias_name}
               end
 
             _ ->
