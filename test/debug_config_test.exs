@@ -158,11 +158,18 @@ defmodule SelectoComponents.Debug.ConfigReaderTest do
 
       formatted = ConfigReader.format_sql(sql, config)
 
-      assert formatted =~ "SELECT"
-      assert formatted =~ "FROM"
-      assert formatted =~ "WHERE"
-      # no double spaces
-      refute formatted =~ "  "
+      expected =
+        """
+        SELECT
+          *
+        FROM
+          users
+        WHERE
+          id = 1
+        """
+        |> String.trim()
+
+      assert formatted == expected
     end
 
     test "preserves SQL when formatting disabled" do
@@ -186,6 +193,7 @@ defmodule SelectoComponents.Debug.ConfigReaderTest do
       assert formatted =~ "WHERE"
       assert formatted =~ "GROUP BY"
       assert formatted =~ "ORDER BY"
+      assert formatted =~ "\n  role\nORDER BY"
     end
   end
 
@@ -273,7 +281,17 @@ defmodule SelectoComponents.Debug.ConfigReaderTest do
       debug_info = ConfigReader.build_debug_info(data, config)
 
       assert debug_info.query =~ "SELECT"
-      refute debug_info.query =~ "  "
+
+      expected =
+        """
+        SELECT
+          *
+        FROM
+          users
+        """
+        |> String.trim()
+
+      assert debug_info.query == expected
     end
 
     test "includes page cache memory metrics when enabled" do
