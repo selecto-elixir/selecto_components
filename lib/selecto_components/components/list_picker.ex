@@ -16,6 +16,13 @@ defmodule SelectoComponents.Components.ListPicker do
   attr(:available, :list, required: true)
   attr(:selected_items, :list, required: true)
   attr(:fieldname, :string, required: true)
+  attr(:compact, :boolean, default: false)
+  attr(:available_label, :string, default: "Available")
+  attr(:selected_label, :string, default: "Selected")
+  attr(:available_height_class, :string, default: nil)
+  attr(:selected_height_class, :string, default: nil)
+  attr(:available_max_height, :string, default: nil)
+  attr(:selected_max_height, :string, default: nil)
 
   slot(:item_form)
   slot(:item_summary)
@@ -30,6 +37,13 @@ defmodule SelectoComponents.Components.ListPicker do
     assigns =
       assigns
       |> Map.put_new(:theme, Theme.default_theme(:light))
+      |> Map.put_new(:compact, false)
+      |> Map.put_new(:available_label, "Available")
+      |> Map.put_new(:selected_label, "Selected")
+      |> Map.put_new(:available_height_class, nil)
+      |> Map.put_new(:selected_height_class, nil)
+      |> Map.put_new(:available_max_height, nil)
+      |> Map.put_new(:selected_max_height, nil)
       |> assign(view_id: view_id)
       |> assign(available: sorted_available)
       |> assign(type_filters: available_type_filters(sorted_available))
@@ -40,11 +54,12 @@ defmodule SelectoComponents.Components.ListPicker do
       id={"#{@component_dom_id}-filter"}
       phx-hook=".ListPickerFilter"
       data-list-picker-root
-      class="grid min-w-0 grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] items-start gap-3"
+      class={picker_root_class(@compact)}
+      style={picker_root_style(@compact)}
     >
       <section class="min-w-0 space-y-2">
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">Available</div>
+          <div class="text-sm font-semibold">{@available_label}</div>
 
           <div class="mt-2 flex items-center gap-1">
             <input
@@ -109,25 +124,31 @@ defmodule SelectoComponents.Components.ListPicker do
         </div>
 
         <div
-          class={Theme.slot(@theme, :panel) <> " flex h-96 min-w-0 flex-col gap-1 overflow-auto p-2"}
-          style="background: var(--sc-surface-bg-alt);"
+          data-scroll-handoff
+          class={[
+            Theme.slot(@theme, :panel),
+            "flex min-w-0 flex-col gap-1 overflow-y-auto p-2",
+            picker_pane_height_class(@compact, @available_height_class)
+          ]}
+          style={picker_pane_style("background: var(--sc-surface-bg-alt);", @compact, @available_max_height)}
         >
-          <div
+          <button
             :for={{id, name, field_type} <- @available}
+            type="button"
             data-picker-action="add"
             data-view-id={@view_id}
             data-list-id={@fieldname}
             data-item-id={id}
             data-type-key={normalize_icon_key(field_type)}
             data-available-item
-            class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
+            class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-left text-sm transition"
             style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
           >
             <div class="flex items-start gap-2">
               <.type_badge type={field_type} />
               <span class="block break-words">{name}</span>
             </div>
-          </div>
+          </button>
         </div>
       </section>
 
@@ -139,10 +160,17 @@ defmodule SelectoComponents.Components.ListPicker do
         style="background: var(--sc-surface-bg);"
       >
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">Selected</div>
+          <div class="text-sm font-semibold">{@selected_label}</div>
         </div>
 
-        <div class="min-h-0 flex-1 space-y-2 overflow-auto xl:h-96">
+        <div
+          data-scroll-handoff
+          class={[
+            "min-h-0 space-y-2 overflow-y-auto pr-1",
+            picker_pane_height_class(@compact, @selected_height_class)
+          ]}
+          style={picker_pane_style("", @compact, @selected_max_height)}
+        >
           <button
             id={"#{@component_dom_id}-reorder-button"}
             type="button"
@@ -170,7 +198,6 @@ defmodule SelectoComponents.Components.ListPicker do
             <div
               id={"#{@component_dom_id}-item-#{id}"}
               phx-hook=".ListPickerEditor"
-              draggable="true"
               data-picker-item-id={id}
               class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
               style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
@@ -179,9 +206,12 @@ defmodule SelectoComponents.Components.ListPicker do
               <div class="flex items-center gap-3">
                 <button
                   type="button"
+                  data-drag-handle
+                  draggable="true"
                   class="cursor-grab active:cursor-grabbing"
                   style="color: var(--sc-text-muted);"
                   title="Drag to reorder"
+                  aria-label="Drag to reorder"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
@@ -279,6 +309,13 @@ defmodule SelectoComponents.Components.ListPicker do
               item.dataset.sortableBound = 'true';
 
               item.addEventListener('dragstart', (event) => {
+                const handle = event.target.closest('[data-drag-handle]');
+
+                if (!handle || !item.contains(handle)) {
+                  event.preventDefault();
+                  return;
+                }
+
                 this.draggedItemId = item.dataset.pickerItemId;
                 this.draggedItemEl = item;
                 item.classList.add('opacity-60');
@@ -385,6 +422,7 @@ defmodule SelectoComponents.Components.ListPicker do
             this.bindActionHandlers();
             this.bindFilter();
             this.bindTypeFilters();
+            this.bindScrollHandoff();
             this.applyFilter();
           },
 
@@ -398,6 +436,7 @@ defmodule SelectoComponents.Components.ListPicker do
             this.bindActionHandlers();
             this.bindFilter();
             this.bindTypeFilters();
+            this.bindScrollHandoff();
             this.applyFilter();
 
             if (this.filterWasFocused && this.filterInput) {
@@ -436,6 +475,13 @@ defmodule SelectoComponents.Components.ListPicker do
 
             if (this.handleActionClick) {
               this.el.removeEventListener('click', this.handleActionClick);
+            }
+
+            if (this.scrollHandoffHandlers) {
+              this.scrollHandoffHandlers.forEach((handler, pane) => {
+                pane.removeEventListener('wheel', handler);
+              });
+              this.scrollHandoffHandlers.clear();
             }
 
             this.writePersistedFilter(this.filterValue || '');
@@ -589,6 +635,67 @@ defmodule SelectoComponents.Components.ListPicker do
             });
           },
 
+          bindScrollHandoff() {
+            const panes = Array.from(this.el.querySelectorAll('[data-scroll-handoff]'));
+            this.scrollHandoffHandlers = this.scrollHandoffHandlers || new Map();
+
+            this.scrollHandoffHandlers.forEach((handler, pane) => {
+              if (!panes.includes(pane)) {
+                pane.removeEventListener('wheel', handler);
+                this.scrollHandoffHandlers.delete(pane);
+              }
+            });
+
+            panes.forEach((pane) => {
+              if (this.scrollHandoffHandlers.has(pane)) {
+                return;
+              }
+
+              const handler = (event) => {
+                if (pane.scrollHeight <= pane.clientHeight || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+                  return;
+                }
+
+                const scrollingUp = event.deltaY < 0;
+                const scrollingDown = event.deltaY > 0;
+                const atTop = pane.scrollTop <= 0;
+                const atBottom = Math.ceil(pane.scrollTop + pane.clientHeight) >= pane.scrollHeight;
+
+                if (!((scrollingUp && atTop) || (scrollingDown && atBottom))) {
+                  return;
+                }
+
+                const parent = this.scrollableParent(pane.parentElement);
+
+                if (!parent) {
+                  return;
+                }
+
+                event.preventDefault();
+                parent.scrollBy({ top: event.deltaY, behavior: 'auto' });
+              };
+
+              pane.addEventListener('wheel', handler, { passive: false });
+              this.scrollHandoffHandlers.set(pane, handler);
+            });
+          },
+
+          scrollableParent(node) {
+            let current = node;
+
+            while (current && current !== document.body && current !== document.documentElement) {
+              const style = window.getComputedStyle(current);
+
+              if (/(auto|scroll)/.test(style.overflowY) && current.scrollHeight > current.clientHeight) {
+                return current;
+              }
+
+              current = current.parentElement;
+            }
+
+            return document.scrollingElement || document.documentElement;
+          },
+
           applyFilter() {
             const filterValue = (this.filterValue || '').trim().toUpperCase();
             const items = this.el.querySelectorAll('[data-available-item]');
@@ -719,6 +826,38 @@ defmodule SelectoComponents.Components.ListPicker do
 
     {:noreply, socket}
   end
+
+  defp picker_root_class(true) do
+    "grid min-w-0 items-start gap-3"
+  end
+
+  defp picker_root_class(_compact) do
+    "grid min-w-0 items-start gap-3"
+  end
+
+  defp picker_root_style(true), do: "grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);"
+
+  defp picker_root_style(_compact),
+    do: "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
+
+  defp picker_pane_height_class(_compact, override)
+       when is_binary(override) and byte_size(override) > 0,
+       do: override
+
+  defp picker_pane_height_class(true, _override), do: "max-h-72"
+  defp picker_pane_height_class(_compact, _override), do: "max-h-[32rem]"
+
+  defp picker_pane_style(base_style, compact, override) do
+    max_height = picker_pane_max_height(compact, override)
+    "#{base_style} max-height: #{max_height};"
+  end
+
+  defp picker_pane_max_height(_compact, override)
+       when is_binary(override) and byte_size(override) > 0,
+       do: override
+
+  defp picker_pane_max_height(true, _override), do: "18rem"
+  defp picker_pane_max_height(_compact, _override), do: "24rem"
 
   defp selected_item_type(available, item) do
     item_str = to_string(item || "")

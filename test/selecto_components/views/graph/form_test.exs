@@ -4,45 +4,48 @@ defmodule SelectoComponents.Views.Graph.FormTest do
   alias SelectoComponents.Components.ListPicker
   alias SelectoComponents.Views.Graph.Form
 
-  defp static_text(rendered), do: Enum.join(rendered.static)
-  defp dynamic_chunks(rendered), do: rendered.dynamic.(false)
+  defp dynamic_chunks(%Phoenix.LiveView.Rendered{dynamic: dynamic}) when is_function(dynamic, 1),
+    do: dynamic.(false)
+
+  defp dynamic_chunks(_rendered), do: []
+
+  defp static_text(%Phoenix.LiveView.Rendered{} = rendered) do
+    Enum.join(rendered.static) <> dynamic_text(rendered)
+  end
+
+  defp static_text(chunk) when is_binary(chunk), do: chunk
+  defp static_text(chunk) when is_list(chunk), do: Enum.map_join(chunk, &static_text/1)
+  defp static_text(_chunk), do: ""
 
   defp dynamic_text(rendered) do
     rendered
     |> dynamic_chunks()
     |> Enum.map(fn
       %Phoenix.LiveView.Component{} -> ""
+      %Phoenix.LiveView.Rendered{} = chunk -> rendered_text(chunk)
       chunk when is_binary(chunk) -> chunk
-      chunk when is_list(chunk) -> IO.iodata_to_binary(chunk)
+      chunk when is_list(chunk) -> Enum.map_join(chunk, &rendered_text/1)
       _ -> ""
     end)
     |> Enum.join()
   end
 
-  defp rendered_text(rendered), do: static_text(rendered) <> dynamic_text(rendered)
+  defp rendered_text(%Phoenix.LiveView.Rendered{} = rendered), do: static_text(rendered)
+  defp rendered_text(chunk) when is_binary(chunk), do: chunk
+  defp rendered_text(chunk) when is_list(chunk), do: Enum.map_join(chunk, &rendered_text/1)
+  defp rendered_text(_chunk), do: ""
 
   defp marker_count(rendered, marker) do
     rendered
-    |> dynamic_chunks()
-    |> Enum.count(fn
-      %Phoenix.LiveView.Component{} ->
-        false
-
-      chunk when is_binary(chunk) ->
-        String.contains?(chunk, marker)
-
-      chunk when is_list(chunk) ->
-        chunk
-        |> IO.iodata_to_binary()
-        |> String.contains?(marker)
-
-      _ ->
-        false
-    end)
+    |> rendered_text()
+    |> :binary.matches(marker)
+    |> length()
   end
 
   defp list_picker(rendered, id) do
-    Enum.find(dynamic_chunks(rendered), fn
+    rendered
+    |> component_chunks()
+    |> Enum.find(fn
       %Phoenix.LiveView.Component{component: ListPicker, assigns: assigns} ->
         Map.get(assigns, :fieldname) == id
 
@@ -50,6 +53,19 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         false
     end)
   end
+
+  defp component_chunks(%Phoenix.LiveView.Rendered{} = rendered) do
+    rendered
+    |> dynamic_chunks()
+    |> Enum.flat_map(&component_chunks/1)
+  end
+
+  defp component_chunks(%Phoenix.LiveView.Component{} = component), do: [component]
+
+  defp component_chunks(chunks) when is_list(chunks),
+    do: Enum.flat_map(chunks, &component_chunks/1)
+
+  defp component_chunks(_chunk), do: []
 
   describe "render/1" do
     test "renders complete graph configuration form" do
@@ -105,10 +121,10 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       text = rendered_text(rendered)
 
       assert text =~ "Chart Type"
-      assert text =~ "X-Axis (Categories)"
-      assert text =~ "Y-Axis (Values)"
-      assert text =~ "Series Grouping (Optional)"
-      assert text =~ "Chart Options"
+      assert text =~ "X-Axis"
+      assert text =~ "Y-Axis"
+      assert text =~ "Series"
+      assert text =~ "Display Options"
       assert text =~ "Chart Title"
       assert text =~ "Legend Position"
       assert static_text(rendered) =~ "color: var(--sc-text-primary);"
@@ -153,10 +169,10 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       text = rendered_text(rendered)
 
       assert text =~ "Chart Type"
-      assert text =~ "X-Axis (Categories)"
-      assert text =~ "Y-Axis (Values)"
-      assert text =~ "Series Grouping (Optional)"
-      assert text =~ "Chart Options"
+      assert text =~ "X-Axis"
+      assert text =~ "Y-Axis"
+      assert text =~ "Series"
+      assert text =~ "Display Options"
 
       for id <- ["x_axis", "y_axis", "series"] do
         assert list_picker(rendered, id).assigns.selected_items == []
