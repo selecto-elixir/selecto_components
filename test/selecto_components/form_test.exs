@@ -58,6 +58,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(data-selecto-shortcuts-show-hints="true")
     assert html =~ ~s(data-selecto-active-view="detail")
     assert html =~ ~s(data-selecto-available-views="detail,aggregate")
+    assert html =~ ~s(data-selecto-shortcut-help)
+    assert html =~ ~s(class="fixed inset-0 z-50 hidden items-center justify-center p-4")
     assert html =~ "Keyboard Shortcuts"
     assert html =~ "Switch to Detail view"
     assert html =~ "Cmd/Ctrl + Enter"

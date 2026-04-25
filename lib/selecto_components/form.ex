@@ -607,7 +607,7 @@ defmodule SelectoComponents.Form do
 
             if (tabButton) {
               tabButton.click();
-              tabButton.focus({ preventScroll: true });
+              this.focusElement(tabButton);
               return;
             }
 
@@ -654,7 +654,7 @@ defmodule SelectoComponents.Form do
             });
 
             if (viewButton) {
-              viewButton.focus({ preventScroll: true });
+              this.focusElement(viewButton);
             }
 
             this.switchMainTab("view");
@@ -691,7 +691,7 @@ defmodule SelectoComponents.Form do
             }
 
             this.pendingShortcutFocus = null;
-            target.focus({ preventScroll: true });
+            this.focusElement(target);
 
             if (typeof target.select === "function") {
               target.select();
@@ -755,7 +755,9 @@ defmodule SelectoComponents.Form do
             this.shortcutHelpPreviousFocus = document.activeElement;
             modal.hidden = false;
             modal.removeAttribute("hidden");
-            modal.querySelector("[data-selecto-shortcut-help-dialog]")?.focus({ preventScroll: true });
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            this.focusElement(modal.querySelector("[data-selecto-shortcut-help-dialog]"));
           },
 
           closeShortcutHelp() {
@@ -766,13 +768,16 @@ defmodule SelectoComponents.Form do
             }
 
             modal.hidden = true;
+            modal.setAttribute("hidden", "");
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
 
             if (
               this.shortcutHelpPreviousFocus &&
               typeof this.shortcutHelpPreviousFocus.focus === "function" &&
               document.contains(this.shortcutHelpPreviousFocus)
             ) {
-              this.shortcutHelpPreviousFocus.focus({ preventScroll: true });
+              this.focusElement(this.shortcutHelpPreviousFocus);
             }
 
             this.shortcutHelpPreviousFocus = null;
@@ -785,7 +790,19 @@ defmodule SelectoComponents.Form do
           shortcutHelpOpen() {
             const modal = this.shortcutHelpModal();
 
-            return Boolean(modal && !modal.hidden);
+            return Boolean(modal && !modal.hidden && !modal.classList.contains("hidden"));
+          },
+
+          focusElement(element) {
+            if (!element || typeof element.focus !== "function") {
+              return;
+            }
+
+            try {
+              element.focus({ preventScroll: true });
+            } catch (_error) {
+              element.focus();
+            }
           },
 
           shortcutIgnoredTarget(target) {

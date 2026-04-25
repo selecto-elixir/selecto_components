@@ -322,6 +322,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               this.onFilterKeydown = (e) => {
                 if (e.key === 'Escape') {
                   e.preventDefault();
+                  e.stopPropagation();
                   this.filterValue = '';
                   this.filterInput.value = '';
                   this.writePersistedFilter(this.filterValue);
@@ -332,18 +333,21 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.moveFilterHighlight(1, { focus: true });
                 return;
               }
 
               if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.moveFilterHighlight(-1, { focus: true });
                 return;
               }
 
                 if (e.key === 'Enter' && !e.isComposing) {
                   e.preventDefault();
+                  e.stopPropagation();
                   this.addHighlightedFilter();
                 }
               };
@@ -372,7 +376,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   this.filterInput.value = '';
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
-                  this.filterInput.focus();
+                  this.focusElement(this.filterInput);
                 };
 
                   this.clearButton.addEventListener('click', this.onClearClick);
@@ -468,6 +472,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
+                  e.stopPropagation();
                   this.highlightedFilterId = item.dataset.itemId;
                   this.moveFilterHighlight(1, { focus: true });
                   return;
@@ -475,6 +480,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
                 if (e.key === 'ArrowUp') {
                   e.preventDefault();
+                  e.stopPropagation();
                   this.highlightedFilterId = item.dataset.itemId;
                   this.moveFilterHighlight(-1, { focus: true });
                   return;
@@ -482,6 +488,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
                 if (e.key === 'Enter' && !e.isComposing) {
                   e.preventDefault();
+                  e.stopPropagation();
                   this.highlightedFilterId = item.dataset.itemId;
                   this.addHighlightedFilter();
                   return;
@@ -489,7 +496,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
                 if (e.key === 'Escape') {
                   e.preventDefault();
-                  this.filterInput?.focus();
+                  e.stopPropagation();
+                  this.focusElement(this.filterInput);
                 }
               };
 
@@ -545,7 +553,19 @@ defmodule SelectoComponents.Components.TreeBuilder do
               }
 
               if (options.focus === true) {
-                item.focus({ preventScroll: true });
+                this.focusElement(item);
+              }
+            },
+
+            focusElement(element) {
+              if (!element || typeof element.focus !== 'function') {
+                return;
+              }
+
+              try {
+                element.focus({ preventScroll: true });
+              } catch (_error) {
+                element.focus();
               }
             },
 
@@ -596,7 +616,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
               if (this.readFocusAfterAdd()) {
                 this.writeFocusAfterAdd(false);
-                this.filterInput?.focus();
+                this.focusElement(this.filterInput);
                 this.setHighlightedFilterIndex(0, { scroll: false });
               }
             },
@@ -614,7 +634,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               this.applyFilter();
 
             if (this.filterWasFocused && this.filterInput) {
-              this.filterInput.focus();
+              this.focusElement(this.filterInput);
 
               if (this.filterInput.setSelectionRange) {
                 const length = this.filterInput.value.length;
