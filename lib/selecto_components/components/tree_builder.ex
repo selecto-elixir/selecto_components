@@ -114,6 +114,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element="__AND__"
@@ -126,6 +128,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element="__OR__"
@@ -140,6 +144,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element={id}
@@ -324,17 +330,17 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   return;
                 }
 
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  this.moveFilterHighlight(1);
-                  return;
-                }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.moveFilterHighlight(1, { focus: true });
+                return;
+              }
 
-                if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  this.moveFilterHighlight(-1);
-                  return;
-                }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.moveFilterHighlight(-1, { focus: true });
+                return;
+              }
 
                 if (e.key === 'Enter' && !e.isComposing) {
                   e.preventDefault();
@@ -448,13 +454,55 @@ defmodule SelectoComponents.Components.TreeBuilder do
               }
             },
 
+            bindFilterItemKeyboard() {
+              if (this.onFilterItemKeydown) {
+                return;
+              }
+
+              this.onFilterItemKeydown = (e) => {
+                const item = e.target.closest('.filterable-item');
+
+                if (!item || !this.el.contains(item)) {
+                  return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.moveFilterHighlight(1, { focus: true });
+                  return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.moveFilterHighlight(-1, { focus: true });
+                  return;
+                }
+
+                if (e.key === 'Enter' && !e.isComposing) {
+                  e.preventDefault();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.addHighlightedFilter();
+                  return;
+                }
+
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  this.filterInput?.focus();
+                }
+              };
+
+              this.el.addEventListener('keydown', this.onFilterItemKeydown);
+            },
+
             visibleFilterItems() {
               return Array.from(this.el.querySelectorAll('.filterable-item')).filter((item) => {
                 return item.style.display !== 'none';
               });
             },
 
-            moveFilterHighlight(direction) {
+            moveFilterHighlight(direction, options = {}) {
               const items = this.visibleFilterItems();
 
               if (items.length === 0) {
@@ -467,7 +515,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 ? (direction > 0 ? 0 : items.length - 1)
                 : (currentIndex + direction + items.length) % items.length;
 
-              this.setHighlightedFilterIndex(nextIndex);
+              this.setHighlightedFilterIndex(nextIndex, options);
             },
 
             setHighlightedFilterIndex(index, options = {}) {
@@ -475,6 +523,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
               Array.from(this.el.querySelectorAll('.filterable-item')).forEach((item) => {
                 item.removeAttribute('data-keyboard-highlighted');
+                item.setAttribute('aria-selected', 'false');
                 item.style.outline = '';
                 item.style.outlineOffset = '';
               });
@@ -487,11 +536,16 @@ defmodule SelectoComponents.Components.TreeBuilder do
               const item = items[index % items.length];
               this.highlightedFilterId = item.dataset.itemId;
               item.setAttribute('data-keyboard-highlighted', 'true');
+              item.setAttribute('aria-selected', 'true');
               item.style.outline = '2px solid var(--sc-accent)';
               item.style.outlineOffset = '2px';
 
               if (options.scroll !== false) {
                 item.scrollIntoView({ block: 'nearest' });
+              }
+
+              if (options.focus === true) {
+                item.focus({ preventScroll: true });
               }
             },
 
@@ -536,6 +590,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               this.filterWasFocused = false;
               this.bindFilter();
               this.bindTypeFilters();
+              this.bindFilterItemKeyboard();
               this.initializeDragDrop();
               this.applyFilter();
 
@@ -555,6 +610,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
             updated() {
               this.bindFilter();
               this.bindTypeFilters();
+              this.bindFilterItemKeyboard();
               this.applyFilter();
 
             if (this.filterWasFocused && this.filterInput) {
@@ -581,6 +637,10 @@ defmodule SelectoComponents.Components.TreeBuilder do
             if (this.filterInput && this.onFilterKeydown) {
               this.filterInput.removeEventListener('keydown', this.onFilterKeydown);
             }
+
+              if (this.onFilterItemKeydown) {
+                this.el.removeEventListener('keydown', this.onFilterItemKeydown);
+              }
 
               if (this.clearButton && this.onClearClick) {
                 this.clearButton.removeEventListener('click', this.onClearClick);

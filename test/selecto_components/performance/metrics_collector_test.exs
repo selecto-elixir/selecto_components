@@ -7,20 +7,25 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
   @errors_table :selecto_components_perf_errors
 
   setup do
-    case Process.whereis(MetricsCollector) do
-      nil -> :ok
-      pid -> GenServer.stop(pid)
-    end
-
-    assert {:ok, _pid} =
-             MetricsCollector.start_link(
-               max_queries: 3,
-               max_errors: 2,
-               retention_period: 1
-             )
+    ensure_metrics_collector_started()
+    configure_metrics_collector(max_queries: 3, max_errors: 2, retention_period: 1)
 
     MetricsCollector.clear_metrics()
     _ = MetricsCollector.get_metrics("1h")
+
+    on_exit(fn ->
+      ensure_metrics_collector_started()
+
+      configure_metrics_collector(
+        max_queries: 10_000,
+        max_errors: 1_000,
+        retention_period: 86_400
+      )
+
+      MetricsCollector.clear_metrics()
+      _ = MetricsCollector.get_metrics("1h")
+    end)
+
     :ok
   end
 
@@ -169,5 +174,21 @@ defmodule SelectoComponents.Performance.MetricsCollectorTest do
     assert Enum.all?(timeline, &Map.has_key?(&1, :timestamp))
     assert Enum.all?(timeline, &Map.has_key?(&1, :count))
     assert Enum.all?(timeline, &Map.has_key?(&1, :avg_time))
+  end
+
+  defp ensure_metrics_collector_started do
+    case Process.whereis(MetricsCollector) do
+      nil -> assert {:ok, _pid} = MetricsCollector.start_link()
+      _pid -> :ok
+    end
+  end
+
+  defp configure_metrics_collector(opts) do
+    :sys.replace_state(MetricsCollector, fn state ->
+      state
+      |> Map.put(:max_queries, Keyword.fetch!(opts, :max_queries))
+      |> Map.put(:max_errors, Keyword.fetch!(opts, :max_errors))
+      |> Map.put(:retention_period, Keyword.fetch!(opts, :retention_period))
+    end)
   end
 end
