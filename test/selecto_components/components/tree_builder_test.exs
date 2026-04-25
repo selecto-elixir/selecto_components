@@ -33,6 +33,7 @@ defmodule SelectoComponents.Components.TreeBuilderTest do
     html = render_component(TreeBuilder, base_assigns())
 
     assert html =~ ~s(phx-dblclick="treedrop")
+    assert html =~ ~s(data-filter-picker-input)
     assert html =~ ~s(phx-value-element="__AND__")
     assert html =~ ~s(phx-value-element="__OR__")
     assert html =~ ~s(phx-value-element="title")

@@ -62,6 +62,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Switch to Detail view"
     assert html =~ "Cmd/Ctrl + Enter"
     assert html =~ "Focus filters"
+    assert html =~ "Add highlighted filter"
+    assert html =~ "Arrow Down"
     assert html =~ "Next configuration tab"
     assert html =~ "Download XLSX"
   end

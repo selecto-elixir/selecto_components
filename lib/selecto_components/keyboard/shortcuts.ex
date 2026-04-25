@@ -28,6 +28,34 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       keys: ["/"]
     },
     %{
+      id: "filter_picker_next",
+      group: "Filters",
+      label: "Highlight next available filter",
+      keys: ["arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "filter_picker_previous",
+      group: "Filters",
+      label: "Highlight previous available filter",
+      keys: ["arrowup"],
+      help_only: true
+    },
+    %{
+      id: "filter_picker_add",
+      group: "Filters",
+      label: "Add highlighted filter",
+      keys: ["enter"],
+      help_only: true
+    },
+    %{
+      id: "filter_picker_clear",
+      group: "Filters",
+      label: "Clear filter search",
+      keys: ["escape"],
+      help_only: true
+    },
+    %{
       id: "detail_view",
       group: "Views",
       label: "Switch to Detail view",
@@ -156,6 +184,7 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
     if enabled?(config) and config.preset != :none do
       config
       |> active_actions(opts)
+      |> Enum.reject(&Map.get(&1, :help_only, false))
       |> Map.new(fn action -> {action.id, action_keys(action, config.overrides)} end)
       |> Enum.reject(fn {_id, keys} -> keys == [] end)
       |> Map.new()
@@ -304,6 +333,8 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp format_key_part("mod"), do: "Cmd/Ctrl"
   defp format_key_part("enter"), do: "Enter"
   defp format_key_part("escape"), do: "Escape"
+  defp format_key_part("arrowdown"), do: "Arrow Down"
+  defp format_key_part("arrowup"), do: "Arrow Up"
   defp format_key_part("shift"), do: "Shift"
   defp format_key_part("alt"), do: "Alt"
   defp format_key_part("?"), do: "?"
@@ -316,8 +347,9 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp view_id(_view), do: nil
 
   defp group_order(%{group: "General"}), do: {0, "General"}
-  defp group_order(%{group: "Views"}), do: {1, "Views"}
-  defp group_order(%{group: "Navigation"}), do: {2, "Navigation"}
-  defp group_order(%{group: "Export"}), do: {3, "Export"}
+  defp group_order(%{group: "Filters"}), do: {1, "Filters"}
+  defp group_order(%{group: "Views"}), do: {2, "Views"}
+  defp group_order(%{group: "Navigation"}), do: {3, "Navigation"}
+  defp group_order(%{group: "Export"}), do: {4, "Export"}
   defp group_order(%{group: group}), do: {9, group}
 end

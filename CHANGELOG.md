@@ -32,6 +32,9 @@ V 0.4.6
   `Cmd/Ctrl + Enter` apply handling.
 - Expanded the default shortcut set with filter focus, previous/next tab
   navigation, and direct CSV/TSV/JSON/XLSX export shortcuts.
+- Added keyboard-driven filter insertion from the filter search: arrow keys
+  highlight visible filter columns, Enter adds the highlighted filter, and
+  Escape clears the search.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.

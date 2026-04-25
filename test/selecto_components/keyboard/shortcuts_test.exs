@@ -41,6 +41,7 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert keymap["next_tab"] == ["]"]
     assert keymap["previous_tab"] == ["["]
     assert keymap["export_csv"] == ["x c"]
+    refute Map.has_key?(keymap, "filter_picker_add")
     refute Map.has_key?(keymap, "graph_view")
     refute Map.has_key?(keymap, "saved_views_tab")
   end
@@ -60,6 +61,10 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     groups = Shortcuts.shortcut_groups(true, views: @views, use_saved_views: true)
 
     assert Enum.any?(groups, &(&1.group == "General"))
+
+    filters = Enum.find(groups, &(&1.group == "Filters"))
+    assert Enum.any?(filters.shortcuts, &(&1.id == "filter_picker_add"))
+    assert Enum.any?(filters.shortcuts, &(&1.key_label == "Arrow Down"))
 
     views = Enum.find(groups, &(&1.group == "Views"))
     assert Enum.any?(views.shortcuts, &(&1.id == "graph_view"))

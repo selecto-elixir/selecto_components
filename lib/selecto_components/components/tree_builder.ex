@@ -38,6 +38,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input
                 type="text"
                 id={"filter-input-#{@id}"}
+                data-filter-picker-input
                 placeholder="Filter Available Items"
                 class={Theme.slot(@theme, :input) <> " min-w-0 flex-1"}
               />
@@ -210,6 +211,16 @@ defmodule SelectoComponents.Components.TreeBuilder do
             window.__selectoTreeBuilderTypeFilterValues[this.typePersistKey()] = values || [];
           },
 
+          readFocusAfterAdd() {
+            const store = window.__selectoTreeBuilderFocusAfterAdd || {};
+            return store[this.persistKey()] === true;
+          },
+
+          writeFocusAfterAdd(value) {
+            window.__selectoTreeBuilderFocusAfterAdd = window.__selectoTreeBuilderFocusAfterAdd || {};
+            window.__selectoTreeBuilderFocusAfterAdd[this.persistKey()] = value === true;
+          },
+
           initializeDragDrop() {
             if (this.initialized) {
               return;
@@ -302,14 +313,34 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   this.applyFilter();
                 };
 
-                this.onFilterKeydown = (e) => {
-                  if (e.key === 'Escape') {
-                    this.filterValue = '';
-                    this.filterInput.value = '';
-                    this.writePersistedFilter(this.filterValue);
-                    this.applyFilter();
-                  }
-                };
+              this.onFilterKeydown = (e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  this.filterValue = '';
+                  this.filterInput.value = '';
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                  this.setHighlightedFilterIndex(-1);
+                  return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  this.moveFilterHighlight(1);
+                  return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  this.moveFilterHighlight(-1);
+                  return;
+                }
+
+                if (e.key === 'Enter' && !e.isComposing) {
+                  e.preventDefault();
+                  this.addHighlightedFilter();
+                }
+              };
 
                 this.filterInput.addEventListener('input', this.onFilterInput);
                 this.filterInput.addEventListener('keydown', this.onFilterKeydown);
@@ -411,16 +442,108 @@ defmodule SelectoComponents.Components.TreeBuilder do
               if (this.clearButton) {
                 this.clearButton.style.display = '';
               }
+
+              if (this.highlightedFilterId) {
+                this.restoreHighlightedFilter();
+              }
+            },
+
+            visibleFilterItems() {
+              return Array.from(this.el.querySelectorAll('.filterable-item')).filter((item) => {
+                return item.style.display !== 'none';
+              });
+            },
+
+            moveFilterHighlight(direction) {
+              const items = this.visibleFilterItems();
+
+              if (items.length === 0) {
+                this.setHighlightedFilterIndex(-1);
+                return;
+              }
+
+              const currentIndex = items.findIndex((item) => item.dataset.itemId === this.highlightedFilterId);
+              const nextIndex = currentIndex === -1
+                ? (direction > 0 ? 0 : items.length - 1)
+                : (currentIndex + direction + items.length) % items.length;
+
+              this.setHighlightedFilterIndex(nextIndex);
+            },
+
+            setHighlightedFilterIndex(index, options = {}) {
+              const items = this.visibleFilterItems();
+
+              Array.from(this.el.querySelectorAll('.filterable-item')).forEach((item) => {
+                item.removeAttribute('data-keyboard-highlighted');
+                item.style.outline = '';
+                item.style.outlineOffset = '';
+              });
+
+              if (index < 0 || items.length === 0) {
+                this.highlightedFilterId = null;
+                return;
+              }
+
+              const item = items[index % items.length];
+              this.highlightedFilterId = item.dataset.itemId;
+              item.setAttribute('data-keyboard-highlighted', 'true');
+              item.style.outline = '2px solid var(--sc-accent)';
+              item.style.outlineOffset = '2px';
+
+              if (options.scroll !== false) {
+                item.scrollIntoView({ block: 'nearest' });
+              }
+            },
+
+            restoreHighlightedFilter() {
+              const items = this.visibleFilterItems();
+              const index = items.findIndex((item) => item.dataset.itemId === this.highlightedFilterId);
+
+              if (index === -1) {
+                this.setHighlightedFilterIndex(items.length > 0 ? 0 : -1, { scroll: false });
+              } else {
+                this.setHighlightedFilterIndex(index, { scroll: false });
+              }
+            },
+
+            addHighlightedFilter() {
+              const items = this.visibleFilterItems();
+
+              if (items.length === 0) {
+                return;
+              }
+
+              const highlightedItem =
+                items.find((item) => item.dataset.itemId === this.highlightedFilterId) || items[0];
+              const element = highlightedItem.dataset.itemId;
+
+              if (!element) {
+                return;
+              }
+
+              this.highlightedFilterId = element;
+              this.writeFocusAfterAdd(true);
+              this.pushEvent('treedrop', {
+                target: 'filters',
+                element
+              });
             },
 
             mounted() {
               this.filterValue = this.readPersistedFilter();
               this.selectedTypeFilters = this.readPersistedTypeFilters();
+              this.highlightedFilterId = null;
               this.filterWasFocused = false;
               this.bindFilter();
               this.bindTypeFilters();
               this.initializeDragDrop();
               this.applyFilter();
+
+              if (this.readFocusAfterAdd()) {
+                this.writeFocusAfterAdd(false);
+                this.filterInput?.focus();
+                this.setHighlightedFilterIndex(0, { scroll: false });
+              }
             },
 
           beforeUpdate() {

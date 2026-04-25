@@ -104,6 +104,8 @@ defmodule SelectoComponents.Keyboard.ShortcutHelp do
   defp format_key_part("mod"), do: "Cmd/Ctrl"
   defp format_key_part("enter"), do: "Enter"
   defp format_key_part("escape"), do: "Escape"
+  defp format_key_part("arrowdown"), do: "Arrow Down"
+  defp format_key_part("arrowup"), do: "Arrow Up"
   defp format_key_part("shift"), do: "Shift"
   defp format_key_part("alt"), do: "Alt"
   defp format_key_part("?"), do: "?"

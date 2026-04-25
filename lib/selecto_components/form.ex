@@ -702,6 +702,7 @@ defmodule SelectoComponents.Form do
             const selectors = [
               "[name^='promoted_filters'][name$='[value]']",
               "[name^='promoted_filters'][name$='[value_start]']",
+              "#main-tabpanel-filter [data-filter-picker-input]",
               "#main-tabpanel-filter [data-filter-input]",
               "#main-tabpanel-filter textarea[name*='[pending_values]']",
               "#main-tabpanel-filter input[name*='[value]']:not([type='hidden'])",
