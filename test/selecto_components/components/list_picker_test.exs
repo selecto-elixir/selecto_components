@@ -39,7 +39,7 @@ defmodule SelectoComponents.Components.ListPickerTest do
         })
       )
 
-    assert html =~ "grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"
+    assert html =~ "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"

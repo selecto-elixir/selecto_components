@@ -51,6 +51,29 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Filters"
   end
 
+  test "renders default keyboard shortcut wiring" do
+    html = render_component(Form, base_assigns(%{show_view_configurator: true}))
+
+    assert html =~ ~s(data-selecto-shortcuts-enabled="true")
+    assert html =~ ~s(data-selecto-shortcuts-show-hints="true")
+    assert html =~ ~s(data-selecto-active-view="detail")
+    assert html =~ ~s(data-selecto-available-views="detail,aggregate")
+    assert html =~ "Keyboard Shortcuts"
+    assert html =~ "Switch to Detail view"
+    assert html =~ "Cmd/Ctrl + Enter"
+  end
+
+  test "allows host apps to disable keyboard shortcuts" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{show_view_configurator: true, keyboard_shortcuts: false})
+      )
+
+    assert html =~ ~s(data-selecto-shortcuts-enabled="false")
+    refute html =~ "Keyboard Shortcuts"
+  end
+
   test "renders the submit button in its dirty state when the view config has pending edits" do
     html =
       render_component(

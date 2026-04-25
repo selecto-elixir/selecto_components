@@ -17,6 +17,8 @@ defmodule SelectoComponents.Form do
   alias SelectoComponents.Form.TabPanel
   alias SelectoComponents.Form.Tabs
   alias SelectoComponents.Form.ViewPanel
+  alias SelectoComponents.Keyboard.ShortcutHelp
+  alias SelectoComponents.Keyboard.Shortcuts
 
   @doc """
   Form for configuing Selecto View
@@ -30,6 +32,9 @@ defmodule SelectoComponents.Form do
   @impl true
   def render(assigns) do
     form_selecto = ColumnCatalog.picker_selecto(assigns.selecto)
+    use_saved_views = Map.get(assigns, :saved_view_module, false)
+    keyboard_shortcuts = Shortcuts.normalize(Map.get(assigns, :keyboard_shortcuts, true))
+    shortcut_context = [views: assigns.views, use_saved_views: use_saved_views]
 
     controller_filters =
       controller_filters(assigns.selecto, Map.get(assigns.view_config, :filters, []))
@@ -58,7 +63,7 @@ defmodule SelectoComponents.Form do
             Map.get(assigns, :form_state_revision, 0)
           ),
         theme: Theme.resolve_theme(assigns),
-        use_saved_views: Map.get(assigns, :saved_view_module, false),
+        use_saved_views: use_saved_views,
         use_exported_views: Map.get(assigns, :exported_view_module, false),
         use_export_delivery: Map.get(assigns, :export_delivery_module, false),
         use_scheduled_exports: Map.get(assigns, :scheduled_export_module, false),
@@ -71,6 +76,11 @@ defmodule SelectoComponents.Form do
         detail_modal_visible: detail_modal_visible?(assigns),
         detail_modal_component: Map.get(assigns, :detail_modal_component),
         presentation_context: Map.get(assigns, :presentation_context, %{}),
+        keyboard_shortcuts: keyboard_shortcuts,
+        keyboard_shortcut_groups: Shortcuts.shortcut_groups(keyboard_shortcuts, shortcut_context),
+        keyboard_shortcut_map_json:
+          keyboard_shortcuts |> Shortcuts.keymap(shortcut_context) |> Jason.encode!(),
+        keyboard_shortcut_views: Shortcuts.available_view_ids(assigns.views),
         form: to_form(%{}, as: "view_config")
       )
 
@@ -80,6 +90,14 @@ defmodule SelectoComponents.Form do
       phx-hook=".ExportDownloads"
       data-selecto-form
       data-selecto-theme={@theme.id}
+      data-selecto-shortcuts-enabled={to_string(Shortcuts.enabled?(@keyboard_shortcuts))}
+      data-selecto-shortcuts-show-hints={to_string(Shortcuts.show_hints?(@keyboard_shortcuts))}
+      data-selecto-shortcut-map={@keyboard_shortcut_map_json}
+      data-selecto-shortcut-sequence-timeout={Shortcuts.sequence_timeout_ms(@keyboard_shortcuts)}
+      data-selecto-active-tab={@active_tab || "view"}
+      data-selecto-active-view={@view_config.view_mode || "detail"}
+      data-selecto-available-views={Enum.join(@keyboard_shortcut_views, ",")}
+      data-selecto-use-saved-views={to_string(@use_saved_views)}
       style={Theme.style_attr(@theme)}
       class={[Theme.slot(@theme, :root), Theme.slot(@theme, :panel), "border-2 p-1"]}
     >
@@ -255,12 +273,20 @@ defmodule SelectoComponents.Form do
         modal_detail_data={Map.get(assigns, :modal_detail_data, %{})}
       />
 
+      <ShortcutHelp.modal
+        :if={Shortcuts.enabled?(@keyboard_shortcuts) and Shortcuts.show_hints?(@keyboard_shortcuts)}
+        id={@id}
+        theme={@theme}
+        groups={@keyboard_shortcut_groups}
+      />
+
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ExportDownloads">
         export default {
           mounted() {
             this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
+            this.bindKeyboardShortcuts();
 
             this.handleEvent("selecto_export_download", (payload) => {
               const filename = payload.filename || "selecto_export.txt";
@@ -301,9 +327,18 @@ defmodule SelectoComponents.Form do
             this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
+            this.bindKeyboardShortcuts();
           },
 
           destroyed() {
+            if (this.keyboardShortcutCleanup) {
+              this.keyboardShortcutCleanup();
+            }
+
+            if (this.shortcutHelpCleanup) {
+              this.shortcutHelpCleanup();
+            }
+
             if (this.emailExportCleanup) {
               this.emailExportCleanup();
             }
@@ -315,6 +350,349 @@ defmodule SelectoComponents.Form do
             if (this.scheduledExportCleanup) {
               this.scheduledExportCleanup();
             }
+          },
+
+          bindKeyboardShortcuts() {
+            if (this.keyboardShortcutCleanup) {
+              this.keyboardShortcutCleanup();
+              this.keyboardShortcutCleanup = null;
+            }
+
+            this.bindShortcutHelpButtons();
+
+            if (this.el.dataset.selectoShortcutsEnabled !== "true") {
+              return;
+            }
+
+            this.shortcutMap = this.readShortcutMap();
+            this.shortcutSequence = [];
+            this.shortcutSequenceTimeout = Number.parseInt(
+              this.el.dataset.selectoShortcutSequenceTimeout || "900",
+              10
+            );
+
+            if (!Number.isFinite(this.shortcutSequenceTimeout) || this.shortcutSequenceTimeout < 250) {
+              this.shortcutSequenceTimeout = 900;
+            }
+
+            const keydownHandler = (event) => this.handleShortcutKeydown(event);
+
+            document.addEventListener("keydown", keydownHandler);
+
+            this.keyboardShortcutCleanup = () => {
+              document.removeEventListener("keydown", keydownHandler);
+              this.clearShortcutSequence();
+            };
+          },
+
+          bindShortcutHelpButtons() {
+            if (this.shortcutHelpCleanup) {
+              this.shortcutHelpCleanup();
+              this.shortcutHelpCleanup = null;
+            }
+
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            const buttons = Array.from(modal.querySelectorAll("[data-selecto-shortcut-help-close]"));
+            const handlers = buttons.map((button) => {
+              const handler = (event) => {
+                event.preventDefault();
+                this.closeShortcutHelp();
+              };
+
+              button.addEventListener("click", handler);
+              return { button, handler };
+            });
+
+            this.shortcutHelpCleanup = () => {
+              handlers.forEach(({ button, handler }) => button.removeEventListener("click", handler));
+            };
+          },
+
+          readShortcutMap() {
+            try {
+              return JSON.parse(this.el.dataset.selectoShortcutMap || "{}");
+            } catch (_error) {
+              return {};
+            }
+          },
+
+          handleShortcutKeydown(event) {
+            if (!this.isActiveShortcutInstance()) {
+              return;
+            }
+
+            const key = this.normalizedShortcutKey(event);
+
+            if (!key) {
+              return;
+            }
+
+            if (this.shortcutHelpOpen()) {
+              if (key === "escape" || key === "?") {
+                event.preventDefault();
+                this.closeShortcutHelp();
+              }
+
+              return;
+            }
+
+            if (this.shortcutIgnoredTarget(event.target)) {
+              return;
+            }
+
+            const sequence = [...(this.shortcutSequence || []), key];
+            const action = this.shortcutActionFor(sequence);
+
+            if (action) {
+              event.preventDefault();
+              this.clearShortcutSequence();
+              this.runShortcutAction(action);
+              return;
+            }
+
+            if (this.hasShortcutPrefix(sequence)) {
+              event.preventDefault();
+              this.setShortcutSequence(sequence);
+              return;
+            }
+
+            this.clearShortcutSequence();
+          },
+
+          normalizedShortcutKey(event) {
+            if (event.isComposing) {
+              return null;
+            }
+
+            let key = event.key;
+
+            if (!key || key === "Unidentified" || key === "Dead") {
+              return null;
+            }
+
+            if (key === " ") {
+              key = "space";
+            } else {
+              key = key.toLowerCase();
+            }
+
+            const parts = [];
+
+            if (event.metaKey || event.ctrlKey) {
+              parts.push("mod");
+            }
+
+            if (event.altKey) {
+              parts.push("alt");
+            }
+
+            if (event.shiftKey && key !== "?") {
+              parts.push("shift");
+            }
+
+            parts.push(key);
+
+            return parts.join("+");
+          },
+
+          shortcutActionFor(sequence) {
+            const normalized = sequence.join(" ");
+
+            return Object.entries(this.shortcutMap || {}).find(([_action, bindings]) => {
+              return Array.isArray(bindings) && bindings.includes(normalized);
+            })?.[0];
+          },
+
+          hasShortcutPrefix(sequence) {
+            const normalized = sequence.join(" ");
+
+            return Object.values(this.shortcutMap || {}).some((bindings) => {
+              return Array.isArray(bindings) && bindings.some((binding) => binding.startsWith(`${normalized} `));
+            });
+          },
+
+          setShortcutSequence(sequence) {
+            this.clearShortcutSequence();
+            this.shortcutSequence = sequence;
+            this.shortcutSequenceTimer = window.setTimeout(() => {
+              this.shortcutSequence = [];
+              this.shortcutSequenceTimer = null;
+            }, this.shortcutSequenceTimeout || 900);
+          },
+
+          clearShortcutSequence() {
+            if (this.shortcutSequenceTimer) {
+              window.clearTimeout(this.shortcutSequenceTimer);
+              this.shortcutSequenceTimer = null;
+            }
+
+            this.shortcutSequence = [];
+          },
+
+          runShortcutAction(action) {
+            switch (action) {
+              case "help":
+                this.openShortcutHelp();
+                break;
+              case "apply":
+                this.submitCurrentForm();
+                break;
+              case "export_tab":
+                this.switchMainTab("export");
+                break;
+              case "saved_views_tab":
+                if (this.el.dataset.selectoUseSavedViews === "true") {
+                  this.switchMainTab("save");
+                }
+                break;
+              case "detail_view":
+                this.switchViewMode("detail");
+                break;
+              case "aggregate_view":
+                this.switchViewMode("aggregate");
+                break;
+              case "graph_view":
+                this.switchViewMode("graph");
+                break;
+              default:
+                break;
+            }
+          },
+
+          switchMainTab(tab) {
+            const tabButton = this.el.querySelector(`#main-tab-${tab}`);
+
+            if (tabButton) {
+              tabButton.click();
+              tabButton.focus({ preventScroll: true });
+              return;
+            }
+
+            this.pushEvent("set_active_tab", { tab });
+          },
+
+          switchViewMode(view) {
+            const availableViews = (this.el.dataset.selectoAvailableViews || "")
+              .split(",")
+              .filter((item) => item !== "");
+
+            if (!availableViews.includes(view)) {
+              return;
+            }
+
+            const input = this.el.querySelector("[data-view-mode-input]");
+
+            if (input && input.value !== view) {
+              input.value = view;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+
+            const viewButton = Array.from(this.el.querySelectorAll("[data-view-tab]")).find((button) => {
+              return button.dataset.viewId === view;
+            });
+
+            if (viewButton) {
+              viewButton.focus({ preventScroll: true });
+            }
+
+            this.switchMainTab("view");
+          },
+
+          submitCurrentForm() {
+            const form = this.el.querySelector("form");
+
+            if (!form) {
+              return;
+            }
+
+            if (typeof form.requestSubmit === "function") {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+          },
+
+          openShortcutHelp() {
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            this.shortcutHelpPreviousFocus = document.activeElement;
+            modal.hidden = false;
+            modal.removeAttribute("hidden");
+            modal.querySelector("[data-selecto-shortcut-help-dialog]")?.focus({ preventScroll: true });
+          },
+
+          closeShortcutHelp() {
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            modal.hidden = true;
+
+            if (
+              this.shortcutHelpPreviousFocus &&
+              typeof this.shortcutHelpPreviousFocus.focus === "function" &&
+              document.contains(this.shortcutHelpPreviousFocus)
+            ) {
+              this.shortcutHelpPreviousFocus.focus({ preventScroll: true });
+            }
+
+            this.shortcutHelpPreviousFocus = null;
+          },
+
+          shortcutHelpModal() {
+            return this.el.querySelector("[data-selecto-shortcut-help]");
+          },
+
+          shortcutHelpOpen() {
+            const modal = this.shortcutHelpModal();
+
+            return Boolean(modal && !modal.hidden);
+          },
+
+          shortcutIgnoredTarget(target) {
+            if (!(target instanceof Element)) {
+              return false;
+            }
+
+            if (target.closest("[data-selecto-shortcuts-ignore='true']")) {
+              return true;
+            }
+
+            if (target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']")) {
+              return true;
+            }
+
+            const role = target.getAttribute("role");
+
+            return role === "textbox" || role === "searchbox";
+          },
+
+          isActiveShortcutInstance() {
+            const activeElement = document.activeElement;
+            const activeForm =
+              activeElement instanceof Element ? activeElement.closest("[data-selecto-form]") : null;
+
+            if (activeForm && activeForm !== this.el) {
+              return false;
+            }
+
+            if (!activeForm && document.querySelectorAll("[data-selecto-form]").length > 1) {
+              return false;
+            }
+
+            return true;
           },
 
           bindEmailExportButton() {

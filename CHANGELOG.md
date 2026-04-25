@@ -27,6 +27,9 @@ V 0.4.6
   stable when selected fields or aliases collide.
 - Fixed aggregate drill-down filter promotion so promoted filters and related
   aggregate interactions preserve the expected filter state.
+- Added a scoped keyboard shortcut foundation for the Selecto form, including
+  shortcut config, a help modal, view switching, export-tab navigation, and
+  `Cmd/Ctrl + Enter` apply handling.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.
