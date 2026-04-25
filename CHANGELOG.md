@@ -37,6 +37,8 @@ V 0.4.6
   Escape clears the search.
 - Fixed keyboard shortcut help so it stays hidden until requested and tightened
   filter-picker key handling so Arrow/Enter/Escape remain scoped to the picker.
+- Updated filter search Enter handling so it adds a filter directly when the
+  visible match is unambiguous, without guessing from a longer result list.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.

@@ -348,7 +348,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 if (e.key === 'Enter' && !e.isComposing) {
                   e.preventDefault();
                   e.stopPropagation();
-                  this.addHighlightedFilter();
+                  this.addHighlightedOrSingleFilter();
                 }
               };
 
@@ -580,6 +580,20 @@ defmodule SelectoComponents.Components.TreeBuilder do
               }
             },
 
+            addHighlightedOrSingleFilter() {
+              const items = this.visibleFilterItems();
+              const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedFilterId);
+
+              if (highlightedItem) {
+                this.addFilterItem(highlightedItem);
+                return;
+              }
+
+              if (items.length === 1) {
+                this.addFilterItem(items[0]);
+              }
+            },
+
             addHighlightedFilter() {
               const items = this.visibleFilterItems();
 
@@ -589,7 +603,12 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
               const highlightedItem =
                 items.find((item) => item.dataset.itemId === this.highlightedFilterId) || items[0];
-              const element = highlightedItem.dataset.itemId;
+
+              this.addFilterItem(highlightedItem);
+            },
+
+            addFilterItem(item) {
+              const element = item?.dataset?.itemId;
 
               if (!element) {
                 return;
