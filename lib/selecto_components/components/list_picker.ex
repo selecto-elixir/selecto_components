@@ -54,6 +54,7 @@ defmodule SelectoComponents.Components.ListPicker do
       id={"#{@component_dom_id}-filter"}
       phx-hook=".ListPickerFilter"
       data-list-picker-root
+      data-list-picker-fieldname={@fieldname}
       class={picker_root_class(@compact)}
       style={picker_root_style(@compact)}
     >

@@ -38,6 +38,8 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert keymap["detail_view"] == ["g d"]
     assert keymap["aggregate_view"] == ["g a"]
     assert keymap["focus_filters"] == ["/"]
+    assert keymap["focus_selected_picker"] == ["f s"]
+    assert keymap["focus_order_by_picker"] == ["f o"]
     assert keymap["focus_group_by_picker"] == ["f g"]
     assert keymap["focus_aggregate_picker"] == ["f a"]
     assert keymap["next_tab"] == ["]"]
@@ -45,6 +47,9 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert keymap["export_csv"] == ["x c"]
     refute Map.has_key?(keymap, "filter_picker_add")
     refute Map.has_key?(keymap, "graph_view")
+    refute Map.has_key?(keymap, "focus_x_axis_picker")
+    refute Map.has_key?(keymap, "focus_y_axis_picker")
+    refute Map.has_key?(keymap, "focus_series_picker")
     refute Map.has_key?(keymap, "saved_views_tab")
   end
 
@@ -70,8 +75,13 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
 
     field_pickers = Enum.find(groups, &(&1.group == "Field Pickers"))
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "field_picker_add"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_selected_picker"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_order_by_picker"))
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_group_by_picker"))
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_aggregate_picker"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_x_axis_picker"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_y_axis_picker"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_series_picker"))
 
     selected_fields = Enum.find(groups, &(&1.group == "Selected Fields"))
     assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_remove"))

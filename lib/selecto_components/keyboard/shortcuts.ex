@@ -140,16 +140,53 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       help_only: true
     },
     %{
+      id: "focus_selected_picker",
+      group: "Field Pickers",
+      label: "Focus Detail fields",
+      keys: ["f s"],
+      view: "detail"
+    },
+    %{
+      id: "focus_order_by_picker",
+      group: "Field Pickers",
+      label: "Focus Order By fields",
+      keys: ["f o"],
+      view: "detail"
+    },
+    %{
       id: "focus_group_by_picker",
       group: "Field Pickers",
       label: "Focus Group By fields",
-      keys: ["f g"]
+      keys: ["f g"],
+      view: "aggregate"
     },
     %{
       id: "focus_aggregate_picker",
       group: "Field Pickers",
       label: "Focus Aggregate fields",
-      keys: ["f a"]
+      keys: ["f a"],
+      view: "aggregate"
+    },
+    %{
+      id: "focus_x_axis_picker",
+      group: "Field Pickers",
+      label: "Focus Graph X Axis fields",
+      keys: ["f x"],
+      view: "graph"
+    },
+    %{
+      id: "focus_y_axis_picker",
+      group: "Field Pickers",
+      label: "Focus Graph Y Axis fields",
+      keys: ["f y"],
+      view: "graph"
+    },
+    %{
+      id: "focus_series_picker",
+      group: "Field Pickers",
+      label: "Focus Graph Series fields",
+      keys: ["f r"],
+      view: "graph"
     },
     %{
       id: "detail_view",
@@ -448,8 +485,10 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
 
   defp group_order(%{group: "General"}), do: {0, "General"}
   defp group_order(%{group: "Filters"}), do: {1, "Filters"}
-  defp group_order(%{group: "Views"}), do: {2, "Views"}
-  defp group_order(%{group: "Navigation"}), do: {3, "Navigation"}
-  defp group_order(%{group: "Export"}), do: {4, "Export"}
+  defp group_order(%{group: "Field Pickers"}), do: {2, "Field Pickers"}
+  defp group_order(%{group: "Selected Fields"}), do: {3, "Selected Fields"}
+  defp group_order(%{group: "Views"}), do: {4, "Views"}
+  defp group_order(%{group: "Navigation"}), do: {5, "Navigation"}
+  defp group_order(%{group: "Export"}), do: {6, "Export"}
   defp group_order(%{group: group}), do: {9, group}
 end

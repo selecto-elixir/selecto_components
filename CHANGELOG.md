@@ -47,6 +47,9 @@ V 0.4.6
   Enter toggles the selected field editor.
 - Added `F then G` and `F then A` shortcuts to open the controller and jump
   directly to the Aggregate view's Group By and Aggregate field pickers.
+- Added `F then S`, `F then O`, `F then X`, `F then Y`, and `F then R`
+  shortcuts for Detail selected fields, Detail ordering, and Graph axis/series
+  field pickers.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.

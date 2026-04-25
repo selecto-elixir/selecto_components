@@ -546,11 +546,26 @@ defmodule SelectoComponents.Form do
               case "focus_filters":
                 this.focusFilters();
                 break;
+              case "focus_selected_picker":
+                this.focusFieldPicker("detail", "selected");
+                break;
+              case "focus_order_by_picker":
+                this.focusFieldPicker("detail", "order_by");
+                break;
               case "focus_group_by_picker":
-                this.focusAggregateFieldPicker("group_by");
+                this.focusFieldPicker("aggregate", "group_by");
                 break;
               case "focus_aggregate_picker":
-                this.focusAggregateFieldPicker("aggregate");
+                this.focusFieldPicker("aggregate", "aggregate");
+                break;
+              case "focus_x_axis_picker":
+                this.focusFieldPicker("graph", "x_axis");
+                break;
+              case "focus_y_axis_picker":
+                this.focusFieldPicker("graph", "y_axis");
+                break;
+              case "focus_series_picker":
+                this.focusFieldPicker("graph", "series");
                 break;
               case "export_tab":
                 this.switchMainTab("export");
@@ -686,10 +701,10 @@ defmodule SelectoComponents.Form do
             window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
           },
 
-          focusAggregateFieldPicker(fieldname) {
+          focusFieldPicker(view, fieldname) {
             this.pendingShortcutFocus = `field_picker:${fieldname}`;
             this.ensureControllerExpanded();
-            this.switchViewMode("aggregate");
+            this.switchViewMode(view);
             this.switchMainTab("view");
 
             window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
@@ -733,7 +748,21 @@ defmodule SelectoComponents.Form do
           },
 
           fieldPickerSearchInput(fieldname) {
-            const target = this.el.querySelector(`#list-picker-${fieldname}-filter [data-filter-input]`);
+            const root = Array.from(this.el.querySelectorAll("[data-list-picker-fieldname]")).find((element) => {
+              return element.dataset.listPickerFieldname === fieldname;
+            });
+
+            if (root) {
+              const details = root.closest("details");
+
+              if (details && !details.open) {
+                details.open = true;
+              }
+            }
+
+            const target = root
+              ? root.querySelector("[data-filter-input]")
+              : this.el.querySelector(`#list-picker-${fieldname}-filter [data-filter-input]`);
 
             if (this.focusableShortcutTarget(target)) {
               return target;

@@ -43,6 +43,7 @@ defmodule SelectoComponents.Components.ListPickerTest do
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
+    assert html =~ ~s(data-list-picker-fieldname="selected")
     assert html =~ ">Selected<"
     assert html =~ ~s(data-type-icon="Text")
     assert html =~ ~s(data-type-icon="Date")
