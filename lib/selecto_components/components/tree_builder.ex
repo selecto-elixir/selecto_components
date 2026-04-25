@@ -219,12 +219,27 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
           readFocusAfterAdd() {
             const store = window.__selectoTreeBuilderFocusAfterAdd || {};
-            return store[this.persistKey()] === true;
+            return store[this.persistKey()] || false;
           },
 
           writeFocusAfterAdd(value) {
             window.__selectoTreeBuilderFocusAfterAdd = window.__selectoTreeBuilderFocusAfterAdd || {};
-            window.__selectoTreeBuilderFocusAfterAdd[this.persistKey()] = value === true;
+            window.__selectoTreeBuilderFocusAfterAdd[this.persistKey()] = value || false;
+          },
+
+          readPendingFilterRowFocus() {
+            const store = window.__selectoTreeBuilderPendingFilterRowFocus || {};
+            return store[this.persistKey()] || null;
+          },
+
+          writePendingFilterRowFocus(value) {
+            window.__selectoTreeBuilderPendingFilterRowFocus = window.__selectoTreeBuilderPendingFilterRowFocus || {};
+
+            if (value) {
+              window.__selectoTreeBuilderPendingFilterRowFocus[this.persistKey()] = value;
+            } else {
+              delete window.__selectoTreeBuilderPendingFilterRowFocus[this.persistKey()];
+            }
           },
 
           initializeDragDrop() {
@@ -501,7 +516,91 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 }
               };
 
-              this.el.addEventListener('keydown', this.onFilterItemKeydown);
+            this.el.addEventListener('keydown', this.onFilterItemKeydown);
+          },
+
+            bindAppliedFilterRowKeyboard() {
+              if (this.onFilterRowKeydown) {
+                return;
+              }
+
+              this.onFilterRowFocusin = (event) => {
+                const row = this.keyboardFilterRow(event.target);
+
+                if (!row) {
+                  return;
+                }
+
+                this.highlightFilterRow(row);
+              };
+
+              this.onFilterRowKeydown = (event) => {
+                const row = this.keyboardFilterRow(event.target);
+
+                if (!row) {
+                  return;
+                }
+
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+                  this.moveFilterRowHighlight(1, { focus: true });
+                  return;
+                }
+
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+                  this.moveFilterRowHighlight(-1, { focus: true });
+                  return;
+                }
+
+                if (event.key === 'Enter' && !event.isComposing) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.focusFilterRowEditor(row);
+                  return;
+                }
+
+                if ((event.key === 'Delete' || event.key === 'Backspace') && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.removeFilterRow(row);
+                  return;
+                }
+
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.clearFilterRowHighlights();
+                  this.focusElement(this.filterInput);
+                }
+              };
+
+              this.el.addEventListener('focusin', this.onFilterRowFocusin);
+              this.el.addEventListener('keydown', this.onFilterRowKeydown);
+            },
+
+            keyboardFilterRow(target) {
+              if (!(target instanceof Element) || this.isFilterRowTextEntryTarget(target)) {
+                return null;
+              }
+
+              const row = target.closest('[data-filter-row]');
+
+              if (!row || !this.el.contains(row)) {
+                return null;
+              }
+
+              return row;
+            },
+
+            isFilterRowTextEntryTarget(target) {
+              return Boolean(
+                target.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='searchbox']")
+              );
             },
 
             visibleFilterItems() {
@@ -580,6 +679,183 @@ defmodule SelectoComponents.Components.TreeBuilder do
               }
             },
 
+            filterRows() {
+              return Array.from(this.el.querySelectorAll('[data-filter-row]')).filter((row) => {
+                return row.offsetParent !== null || row.getClientRects().length > 0;
+              });
+            },
+
+            moveFilterRowHighlight(direction, options = {}) {
+              const rows = this.filterRows();
+
+              if (rows.length === 0) {
+                this.setHighlightedFilterRowIndex(-1);
+                return;
+              }
+
+              const currentIndex = rows.findIndex((row) => row.dataset.filterRowUuid === this.highlightedFilterRowUuid);
+              const nextIndex = currentIndex === -1
+                ? (direction > 0 ? 0 : rows.length - 1)
+                : (currentIndex + direction + rows.length) % rows.length;
+
+              this.setHighlightedFilterRowIndex(nextIndex, options);
+            },
+
+            setHighlightedFilterRowIndex(index, options = {}) {
+              const rows = this.filterRows();
+
+              this.clearFilterRowHighlights();
+
+              if (index < 0 || rows.length === 0) {
+                this.highlightedFilterRowUuid = null;
+                return;
+              }
+
+              this.setHighlightedFilterIndex(-1);
+              const row = rows[index % rows.length];
+              this.highlightFilterRow(row);
+
+              if (options.scroll !== false) {
+                row.scrollIntoView({ block: 'nearest' });
+              }
+
+              if (options.focus === true) {
+                this.focusElement(row);
+              }
+            },
+
+            highlightFilterRow(row) {
+              if (!row) {
+                return;
+              }
+
+              this.clearFilterRowHighlights();
+              this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+              row.setAttribute('data-keyboard-highlighted', 'true');
+              row.style.outline = '2px solid var(--sc-accent)';
+              row.style.outlineOffset = '2px';
+            },
+
+            clearFilterRowHighlights() {
+              this.filterRows().forEach((row) => {
+                row.removeAttribute('data-keyboard-highlighted');
+                row.style.outline = '';
+                row.style.outlineOffset = '';
+              });
+
+              this.highlightedFilterRowUuid = null;
+            },
+
+            focusFilterRowEditor(row) {
+              const target = this.filterRowEditorTarget(row);
+
+              if (!target) {
+                return;
+              }
+
+              this.focusElement(target);
+
+              if (typeof target.select === 'function') {
+                target.select();
+              }
+            },
+
+            filterRowEditorTarget(row) {
+              if (!row) {
+                return null;
+              }
+
+              const selectors = [
+                "textarea[name*='[pending_values]']:not([disabled])",
+                "input[name*='[value_start]']:not([type='hidden']):not([disabled])",
+                "input[name*='[value]']:not([type='hidden']):not([disabled])",
+                "textarea[name*='[value]']:not([disabled])",
+                "select[name*='[value]']:not([disabled])",
+                "select[name*='[comp]']:not([disabled])",
+                "input:not([type='hidden']):not([disabled])",
+                "textarea:not([disabled])",
+                "select:not([disabled])"
+              ];
+
+              return selectors
+                .flatMap((selector) => Array.from(row.querySelectorAll(selector)))
+                .find((element) => this.focusableElement(element));
+            },
+
+            focusableElement(element) {
+              if (!(element instanceof HTMLElement)) {
+                return false;
+              }
+
+              if (element.disabled || element.closest('[hidden]') || element.closest('.hidden')) {
+                return false;
+              }
+
+              return element.offsetParent !== null || element.getClientRects().length > 0;
+            },
+
+            removeFilterRow(row) {
+              const rows = this.filterRows();
+              const currentIndex = rows.indexOf(row);
+              const nextRow = rows[currentIndex + 1] || rows[currentIndex - 1];
+              const removeButton = row.querySelector('[data-filter-row-remove]');
+
+              if (!removeButton) {
+                return;
+              }
+
+              this.writePendingFilterRowFocus(nextRow ? nextRow.dataset.filterRowUuid : 'search');
+              removeButton.click();
+            },
+
+            restorePendingFilterRowFocus() {
+              const pendingFocus = this.readPendingFilterRowFocus();
+
+              if (!pendingFocus) {
+                return false;
+              }
+
+              this.writePendingFilterRowFocus(null);
+
+              if (pendingFocus === 'search') {
+                this.focusElement(this.filterInput);
+                return true;
+              }
+
+              const row = this.el.querySelector(`[data-filter-row-uuid="${pendingFocus}"]`);
+
+              if (row) {
+                this.highlightFilterRow(row);
+                this.focusElement(row);
+                return true;
+              }
+
+              this.focusElement(this.filterInput);
+              return true;
+            },
+
+            focusAddedFilter(element) {
+              const rows = this.filterRows();
+
+              if (rows.length === 0) {
+                this.focusElement(this.filterInput);
+                return;
+              }
+
+              const matchingRows = element && !['__AND__', '__OR__'].includes(element)
+                ? rows.filter((row) => row.dataset.filterRowField === element)
+                : [];
+              const row = matchingRows[matchingRows.length - 1] || rows[rows.length - 1];
+
+              this.highlightFilterRow(row);
+
+              if (row.dataset.filterRowKind === 'filter') {
+                this.focusFilterRowEditor(row);
+              } else {
+                this.focusElement(row);
+              }
+            },
+
             addHighlightedOrSingleFilter() {
               const items = this.visibleFilterItems();
               const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedFilterId);
@@ -615,7 +891,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               }
 
               this.highlightedFilterId = element;
-              this.writeFocusAfterAdd(true);
+              this.writeFocusAfterAdd(element);
               this.pushEvent('treedrop', {
                 target: 'filters',
                 element
@@ -626,17 +902,21 @@ defmodule SelectoComponents.Components.TreeBuilder do
               this.filterValue = this.readPersistedFilter();
               this.selectedTypeFilters = this.readPersistedTypeFilters();
               this.highlightedFilterId = null;
+              this.highlightedFilterRowUuid = null;
               this.filterWasFocused = false;
               this.bindFilter();
               this.bindTypeFilters();
               this.bindFilterItemKeyboard();
+              this.bindAppliedFilterRowKeyboard();
               this.initializeDragDrop();
               this.applyFilter();
 
               if (this.readFocusAfterAdd()) {
+                const element = this.readFocusAfterAdd();
                 this.writeFocusAfterAdd(false);
-                this.focusElement(this.filterInput);
-                this.setHighlightedFilterIndex(0, { scroll: false });
+                this.focusAddedFilter(element);
+              } else {
+                this.restorePendingFilterRowFocus();
               }
             },
 
@@ -650,7 +930,12 @@ defmodule SelectoComponents.Components.TreeBuilder do
               this.bindFilter();
               this.bindTypeFilters();
               this.bindFilterItemKeyboard();
+              this.bindAppliedFilterRowKeyboard();
               this.applyFilter();
+
+            if (this.restorePendingFilterRowFocus()) {
+              return;
+            }
 
             if (this.filterWasFocused && this.filterInput) {
               this.focusElement(this.filterInput);
@@ -679,6 +964,14 @@ defmodule SelectoComponents.Components.TreeBuilder do
 
               if (this.onFilterItemKeydown) {
                 this.el.removeEventListener('keydown', this.onFilterItemKeydown);
+              }
+
+              if (this.onFilterRowKeydown) {
+                this.el.removeEventListener('keydown', this.onFilterRowKeydown);
+              }
+
+              if (this.onFilterRowFocusin) {
+                this.el.removeEventListener('focusin', this.onFilterRowFocusin);
               }
 
               if (this.clearButton && this.onClearClick) {
@@ -716,6 +1009,18 @@ defmodule SelectoComponents.Components.TreeBuilder do
       nil -> filter_id || "Unknown Filter"
     end
   end
+
+  defp filter_row_field(config) when is_map(config), do: Map.get(config, "filter", "")
+  defp filter_row_field(_config), do: ""
+
+  defp filter_row_label(available, config) when is_map(config) do
+    "Filter #{get_filter_name(available, Map.get(config, "filter"))}"
+  end
+
+  defp filter_row_label(_available, conjunction) when is_binary(conjunction),
+    do: "#{conjunction} filter group"
+
+  defp filter_row_label(_available, _config), do: "Filter row"
 
   attr(:type, :any, required: true)
 
@@ -958,6 +1263,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
           class="relative border p-2 pl-6 pr-10"
           style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
           id={uuid}
+          data-filter-row
+          data-filter-row-uuid={uuid}
+          data-filter-row-kind={if is_map(config), do: "filter", else: "section"}
+          data-filter-row-field={filter_row_field(config)}
+          tabindex="0"
+          role="group"
+          aria-label={filter_row_label(@available, config)}
         >
           <%= case {uuid, s_section, config} do %>
             <% {uuid, _section, conjunction} when is_binary(conjunction) -> %>
@@ -976,7 +1288,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 component_id: @component_id
               })}
               <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} />
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} data-filter-row-remove />
               </div>
             <% {uuid, section, fv} -> %>
               <div
@@ -991,7 +1303,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 </div>
               </div>
               <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} />
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} data-filter-row-remove />
               </div>
           <% end %>
           <!-- new section -->

@@ -70,6 +70,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Focus Aggregate fields"
     refute html =~ "Focus Graph X Axis fields"
     assert html =~ "Add highlighted filter"
+    assert html =~ "Edit applied filter value"
+    assert html =~ "Remove applied filter"
     assert html =~ "Add highlighted or only matching field"
     assert html =~ "Remove selected field"
     assert html =~ "Move selected field down"

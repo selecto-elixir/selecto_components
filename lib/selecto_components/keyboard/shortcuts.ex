@@ -56,6 +56,41 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       help_only: true
     },
     %{
+      id: "filter_row_next",
+      group: "Applied Filters",
+      label: "Focus next applied filter",
+      keys: ["arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "filter_row_previous",
+      group: "Applied Filters",
+      label: "Focus previous applied filter",
+      keys: ["arrowup"],
+      help_only: true
+    },
+    %{
+      id: "filter_row_edit",
+      group: "Applied Filters",
+      label: "Edit applied filter value",
+      keys: ["enter"],
+      help_only: true
+    },
+    %{
+      id: "filter_row_remove",
+      group: "Applied Filters",
+      label: "Remove applied filter",
+      keys: ["delete", "backspace"],
+      help_only: true
+    },
+    %{
+      id: "filter_row_to_search",
+      group: "Applied Filters",
+      label: "Return to filter search",
+      keys: ["escape"],
+      help_only: true
+    },
+    %{
       id: "field_picker_next",
       group: "Field Pickers",
       label: "Highlight next available field",
@@ -485,10 +520,11 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
 
   defp group_order(%{group: "General"}), do: {0, "General"}
   defp group_order(%{group: "Filters"}), do: {1, "Filters"}
-  defp group_order(%{group: "Field Pickers"}), do: {2, "Field Pickers"}
-  defp group_order(%{group: "Selected Fields"}), do: {3, "Selected Fields"}
-  defp group_order(%{group: "Views"}), do: {4, "Views"}
-  defp group_order(%{group: "Navigation"}), do: {5, "Navigation"}
-  defp group_order(%{group: "Export"}), do: {6, "Export"}
+  defp group_order(%{group: "Applied Filters"}), do: {2, "Applied Filters"}
+  defp group_order(%{group: "Field Pickers"}), do: {3, "Field Pickers"}
+  defp group_order(%{group: "Selected Fields"}), do: {4, "Selected Fields"}
+  defp group_order(%{group: "Views"}), do: {5, "Views"}
+  defp group_order(%{group: "Navigation"}), do: {6, "Navigation"}
+  defp group_order(%{group: "Export"}), do: {7, "Export"}
   defp group_order(%{group: group}), do: {9, group}
 end

@@ -41,4 +41,24 @@ defmodule SelectoComponents.Components.TreeBuilderTest do
     assert html =~ ~s(phx-value-element="title")
     assert html =~ ~s(phx-value-element="state")
   end
+
+  test "renders applied filters as keyboard-focusable rows" do
+    html =
+      render_component(
+        TreeBuilder,
+        base_assigns(%{
+          filters: [
+            {"filter-1", "filters", %{"filter" => "title", "comp" => "=", "value" => "abc"}}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-filter-row)
+    assert html =~ ~s(data-filter-row-uuid="filter-1")
+    assert html =~ ~s(data-filter-row-kind="filter")
+    assert html =~ ~s(data-filter-row-field="title")
+    assert html =~ ~s(tabindex="0")
+    assert html =~ ~s(aria-label="Filter Title")
+    assert html =~ ~s(data-filter-row-remove)
+  end
 end
