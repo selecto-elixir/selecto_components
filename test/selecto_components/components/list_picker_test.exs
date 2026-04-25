@@ -62,6 +62,15 @@ defmodule SelectoComponents.Components.ListPickerTest do
     assert html =~ ~s(title="Drag to reorder")
   end
 
+  test "renders available items as keyboard-focusable add actions" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-filter-input)
+    assert html =~ ~s(type="button" data-picker-action="add")
+    assert html =~ ~s(data-available-item)
+    assert html =~ ~s(data-item-id="alpha")
+  end
+
   test "renders a dedicated badge for cte-backed columns" do
     html =
       render_component(

@@ -56,6 +56,34 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       help_only: true
     },
     %{
+      id: "field_picker_next",
+      group: "Field Pickers",
+      label: "Highlight next available field",
+      keys: ["arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "field_picker_previous",
+      group: "Field Pickers",
+      label: "Highlight previous available field",
+      keys: ["arrowup"],
+      help_only: true
+    },
+    %{
+      id: "field_picker_add",
+      group: "Field Pickers",
+      label: "Add highlighted or only matching field",
+      keys: ["enter"],
+      help_only: true
+    },
+    %{
+      id: "field_picker_clear",
+      group: "Field Pickers",
+      label: "Clear field search",
+      keys: ["escape"],
+      help_only: true
+    },
+    %{
       id: "detail_view",
       group: "Views",
       label: "Switch to Detail view",

@@ -417,10 +417,13 @@ defmodule SelectoComponents.Components.ListPicker do
           mounted() {
             this.filterValue = this.readPersistedFilter();
             this.selectedTypeFilters = this.readPersistedTypeFilters();
+            this.highlightedAvailableItemId = null;
             this.filterWasFocused = false;
+            this.focusSearchAfterAdd = false;
 
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableItemKeyboard();
             this.bindTypeFilters();
             this.bindScrollHandoff();
             this.applyFilter();
@@ -435,12 +438,14 @@ defmodule SelectoComponents.Components.ListPicker do
           updated() {
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableItemKeyboard();
             this.bindTypeFilters();
             this.bindScrollHandoff();
             this.applyFilter();
 
-            if (this.filterWasFocused && this.filterInput) {
-              this.filterInput.focus();
+            if ((this.filterWasFocused || this.focusSearchAfterAdd) && this.filterInput) {
+              this.focusElement(this.filterInput);
+              this.focusSearchAfterAdd = false;
 
               if (this.filterInput.setSelectionRange) {
                 const length = this.filterInput.value.length;
@@ -477,6 +482,10 @@ defmodule SelectoComponents.Components.ListPicker do
               this.el.removeEventListener('click', this.handleActionClick);
             }
 
+            if (this.handleAvailableItemKeydown) {
+              this.el.removeEventListener('keydown', this.handleAvailableItemKeydown);
+            }
+
             if (this.scrollHandoffHandlers) {
               this.scrollHandoffHandlers.forEach((handler, pane) => {
                 pane.removeEventListener('wheel', handler);
@@ -509,19 +518,27 @@ defmodule SelectoComponents.Components.ListPicker do
 
               event.preventDefault();
 
-              const form = this.el.closest('form');
-              this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
-              this.writePersistedFilter(this.filterValue);
-
-              this.pushEventTo(this.el, action, {
-                view: trigger.dataset.viewId,
-                'list-id': trigger.dataset.listId,
-                item: trigger.dataset.itemId,
-                form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-              });
+              this.dispatchPickerAction(trigger);
             };
 
             this.el.addEventListener('click', this.handleActionClick);
+          },
+
+          dispatchPickerAction(trigger, options = {}) {
+            const form = this.el.closest('form');
+            this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+            this.writePersistedFilter(this.filterValue);
+
+            if (options.focusSearchAfterAdd === true && trigger.dataset.pickerAction === 'add') {
+              this.focusSearchAfterAdd = true;
+            }
+
+            this.pushEventTo(this.el, trigger.dataset.pickerAction, {
+              view: trigger.dataset.viewId,
+              'list-id': trigger.dataset.listId,
+              item: trigger.dataset.itemId,
+              form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+            });
           },
 
           bindFilter() {
@@ -543,14 +560,39 @@ defmodule SelectoComponents.Components.ListPicker do
                   this.filterValue = this.filterInput.value;
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
+                  this.setHighlightedAvailableItemIndex(-1);
                 };
 
                 this.handleFilterKeydown = (event) => {
                   if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
                     this.filterValue = '';
                     this.filterInput.value = '';
                     this.writePersistedFilter(this.filterValue);
                     this.applyFilter();
+                    this.setHighlightedAvailableItemIndex(-1);
+                    return;
+                  }
+
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.moveAvailableItemHighlight(1, { focus: true });
+                    return;
+                  }
+
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.moveAvailableItemHighlight(-1, { focus: true });
+                    return;
+                  }
+
+                  if (event.key === 'Enter' && !event.isComposing) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.addHighlightedOrSingleAvailableItem();
                   }
                 };
 
@@ -576,7 +618,8 @@ defmodule SelectoComponents.Components.ListPicker do
                   this.filterInput.value = '';
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
-                  this.filterInput.focus();
+                  this.setHighlightedAvailableItemIndex(-1);
+                  this.focusElement(this.filterInput);
                 };
 
                 this.clearButton.addEventListener('click', this.handleClearClick);
@@ -626,6 +669,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
               this.writePersistedTypeFilters(this.selectedTypeFilters);
               this.applyFilter();
+              this.setHighlightedAvailableItemIndex(-1);
             };
 
             this.typeFilterCheckboxes.forEach((checkbox) => {
@@ -716,6 +760,153 @@ defmodule SelectoComponents.Components.ListPicker do
 
             if (this.clearButton) {
               this.clearButton.classList.toggle('hidden', filterValue === '' && typeFilters.length === 0);
+            }
+
+            if (this.highlightedAvailableItemId) {
+              this.restoreHighlightedAvailableItem();
+            }
+          },
+
+          bindAvailableItemKeyboard() {
+            if (this.handleAvailableItemKeydown) {
+              return;
+            }
+
+            this.handleAvailableItemKeydown = (event) => {
+              const item = event.target.closest('[data-available-item]');
+
+              if (!item || !this.el.contains(item)) {
+                return;
+              }
+
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.moveAvailableItemHighlight(1, { focus: true });
+                return;
+              }
+
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.moveAvailableItemHighlight(-1, { focus: true });
+                return;
+              }
+
+              if (event.key === 'Enter' && !event.isComposing) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.addAvailableItem(item);
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.focusElement(this.filterInput);
+              }
+            };
+
+            this.el.addEventListener('keydown', this.handleAvailableItemKeydown);
+          },
+
+          visibleAvailableItems() {
+            return Array.from(this.el.querySelectorAll('[data-available-item]')).filter((item) => {
+              return item.style.display !== 'none';
+            });
+          },
+
+          moveAvailableItemHighlight(direction, options = {}) {
+            const items = this.visibleAvailableItems();
+
+            if (items.length === 0) {
+              this.setHighlightedAvailableItemIndex(-1);
+              return;
+            }
+
+            const currentIndex = items.findIndex((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+            const nextIndex = currentIndex === -1
+              ? (direction > 0 ? 0 : items.length - 1)
+              : (currentIndex + direction + items.length) % items.length;
+
+            this.setHighlightedAvailableItemIndex(nextIndex, options);
+          },
+
+          setHighlightedAvailableItemIndex(index, options = {}) {
+            const items = this.visibleAvailableItems();
+
+            Array.from(this.el.querySelectorAll('[data-available-item]')).forEach((item) => {
+              item.removeAttribute('data-keyboard-highlighted');
+              item.style.outline = '';
+              item.style.outlineOffset = '';
+            });
+
+            if (index < 0 || items.length === 0) {
+              this.highlightedAvailableItemId = null;
+              return;
+            }
+
+            const item = items[index % items.length];
+            this.highlightedAvailableItemId = item.dataset.itemId;
+            item.setAttribute('data-keyboard-highlighted', 'true');
+            item.style.outline = '2px solid var(--sc-accent)';
+            item.style.outlineOffset = '2px';
+
+            if (options.scroll !== false) {
+              item.scrollIntoView({ block: 'nearest' });
+            }
+
+            if (options.focus === true) {
+              this.focusElement(item);
+            }
+          },
+
+          restoreHighlightedAvailableItem() {
+            const items = this.visibleAvailableItems();
+            const index = items.findIndex((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (index === -1) {
+              this.setHighlightedAvailableItemIndex(items.length > 0 ? 0 : -1, { scroll: false });
+            } else {
+              this.setHighlightedAvailableItemIndex(index, { scroll: false });
+            }
+          },
+
+          addHighlightedOrSingleAvailableItem() {
+            const items = this.visibleAvailableItems();
+            const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (highlightedItem) {
+              this.addAvailableItem(highlightedItem);
+              return;
+            }
+
+            if (items.length === 1) {
+              this.addAvailableItem(items[0]);
+            }
+          },
+
+          addAvailableItem(item) {
+            if (!item) {
+              return;
+            }
+
+            this.highlightedAvailableItemId = item.dataset.itemId;
+            this.dispatchPickerAction(item, { focusSearchAfterAdd: true });
+          },
+
+          focusElement(element) {
+            if (!element || typeof element.focus !== 'function') {
+              return;
+            }
+
+            try {
+              element.focus({ preventScroll: true });
+            } catch (_error) {
+              element.focus();
             }
           }
         };

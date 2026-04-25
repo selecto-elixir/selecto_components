@@ -39,6 +39,9 @@ V 0.4.6
   filter-picker key handling so Arrow/Enter/Escape remain scoped to the picker.
 - Updated filter search Enter handling so it adds a filter directly when the
   visible match is unambiguous, without guessing from a longer result list.
+- Added keyboard picker behavior to ListPicker available-field searches:
+  ArrowUp/ArrowDown move through visible fields, Enter adds the highlighted or
+  only matching field, and Escape returns to or clears the search.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.
