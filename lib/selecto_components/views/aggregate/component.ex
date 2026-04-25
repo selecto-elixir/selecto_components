@@ -385,6 +385,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   defp rollup_row(assigns) do
     continued? = Map.get(assigns, :continued?, false)
     grand_total? = Map.get(assigns, :grand_total?, false)
+    row_index = Map.get(assigns, :row_index, 0)
 
     display_level =
       if assigns.level == 0 and not grand_total? and assigns.num_group_by > 0 do
@@ -455,6 +456,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
         row_style: row_style,
         font_weight: font_weight,
         indent_px: indent_px,
+        row_index: row_index,
         filter_attrs: filter_attrs,
         continued?: continued?,
         display_level: display_level,
@@ -464,10 +466,17 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       )
 
     ~H"""
-    <tr style={@row_style}>
+    <tr style={@row_style} data-selecto-result-row data-result-row-index={@row_index}>
       <%!-- Render visible group-by blocks --%>
       <%= for block <- @group_blocks do %>
-        <td class={"px-3 py-2 text-sm #{@font_weight}"} style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+        <td
+          class={"px-3 py-2 text-sm #{@font_weight}"}
+          style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);"
+          data-selecto-result-cell
+          data-result-row-index={@row_index}
+          data-result-column-index={block.start_idx}
+          tabindex="-1"
+        >
           <div style={"padding-left: #{group_block_padding(block, @active_group_range, @indent_px)}px"}>
             <%= if @grand_total? and @display_level == 0 and block.start_idx == 0 do %>
               <%!-- Grand total row --%>
@@ -482,6 +491,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                   <div
                     phx-click="agg_add_filters"
                     {@filter_attrs}
+                    data-selecto-result-action
                     class="cursor-pointer hover:underline"
                   >
                     {group_block_value(block, @presentation_context)}
@@ -494,8 +504,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       <% end %>
 
       <%!-- Render aggregate columns --%>
-      <%= for {value, {_alias, {:agg, _agg, coldef}}} <- Enum.zip(@agg_cols, @aggregate) do %>
-        <td class={"px-3 py-2 text-sm #{@font_weight}"} style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);">
+      <%= for {{value, {_alias, {:agg, _agg, coldef}}}, agg_idx} <- Enum.with_index(Enum.zip(@agg_cols, @aggregate)) do %>
+        <td
+          class={"px-3 py-2 text-sm #{@font_weight}"}
+          style="color: var(--sc-text-primary); border-bottom: 1px solid var(--sc-surface-border);"
+          data-selecto-result-cell
+          data-result-row-index={@row_index}
+          data-result-column-index={@num_group_by + agg_idx}
+          tabindex="-1"
+        >
           <%= if @continued? do %>
             <span style="color: var(--sc-accent);">-</span>
           <% else %>
@@ -1062,6 +1079,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={0}
             phx-target={@myself}
+            data-selecto-results-page="first"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="First page"
             aria-label="First page"
@@ -1088,6 +1106,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_page - 1}
             phx-target={@myself}
+            data-selecto-results-page="previous"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Previous page"
             aria-label="Previous page"
@@ -1111,6 +1130,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_page + 1}
             phx-target={@myself}
+            data-selecto-results-page="next"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Next page"
             aria-label="Next page"
@@ -1134,6 +1154,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             phx-click="set_aggregate_page"
             phx-value-page={@aggregate_max_page}
             phx-target={@myself}
+            data-selecto-results-page="last"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="Last page"
             aria-label="Last page"
@@ -1246,16 +1267,31 @@ defmodule SelectoComponents.Views.Aggregate.Component do
               </tr>
             </thead>
             <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
-              <tr :for={row_value <- @grid_data.row_headers}>
-                <td class="sticky left-0 z-10 px-3 py-2 text-sm font-semibold" style="background: var(--sc-surface-bg); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);">
+              <tr
+                :for={{row_value, row_idx} <- Enum.with_index(@grid_data.row_headers)}
+                data-selecto-result-row
+                data-result-row-index={row_idx}
+              >
+                <td
+                  class="sticky left-0 z-10 px-3 py-2 text-sm font-semibold"
+                  style="background: var(--sc-surface-bg); color: var(--sc-text-primary); box-shadow: 1px 0 0 0 var(--sc-surface-border);"
+                  data-selecto-result-cell
+                  data-result-row-index={row_idx}
+                  data-result-column-index="0"
+                  tabindex="-1"
+                >
                   <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef, @presentation_context))}>
                     {format_group_value(row_value, @grid_data.row_coldef, @presentation_context)}
                   </span>
                 </td>
           <td
-            :for={col_value <- @grid_data.col_headers}
+            :for={{col_value, col_idx} <- Enum.with_index(@grid_data.col_headers)}
             class="px-3 py-2 text-sm"
             style={Map.get(@grid_data.cell_styles, {row_value, col_value}, "background: var(--sc-surface-bg); color: var(--sc-text-primary);")}
+            data-selecto-result-cell
+            data-result-row-index={row_idx}
+            data-result-column-index={col_idx + 1}
+            tabindex="-1"
           >
                   <div
                     phx-click="agg_add_filters"
@@ -1264,6 +1300,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                       @group_by,
                       @num_group_by
                     )}
+                    data-selecto-result-action
                     class="cursor-pointer whitespace-nowrap hover:underline"
                   >
                     <span class={null_grid_text_class(format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context))}>
@@ -1300,9 +1337,10 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             </thead>
             <tbody style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border);">
               <.rollup_row
-                :for={{level, row, continued?, grand_total?} <- @paged_rollup_rows}
+                :for={{{level, row, continued?, grand_total?}, row_index} <- Enum.with_index(@paged_rollup_rows)}
                 level={level}
                 row={row}
+                row_index={row_index}
                 continued?={continued?}
                 grand_total?={grand_total?}
                 num_group_by={@num_group_by}

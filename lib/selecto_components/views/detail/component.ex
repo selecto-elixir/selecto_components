@@ -211,6 +211,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={0}
             phx-target={@myself}
+            data-selecto-results-page="first"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="First page"
             aria-label="First page"
@@ -237,6 +238,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page - 1}
             phx-target={@myself}
+            data-selecto-results-page="previous"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Previous page"
             aria-label="Previous page"
@@ -260,6 +262,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@current_page + 1}
             phx-target={@myself}
+            data-selecto-results-page="next"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 gap-1 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"}
             title="Next page"
             aria-label="Next page"
@@ -283,6 +286,7 @@ defmodule SelectoComponents.Views.Detail.Component do
             phx-click="set_page"
             phx-value-page={@max_page}
             phx-target={@myself}
+            data-selecto-results-page="last"
             class={Theme.slot(@theme, :button_secondary) <> " h-8 w-8 disabled:cursor-not-allowed disabled:opacity-40"}
             title="Last page"
             aria-label="Last page"
@@ -420,6 +424,8 @@ defmodule SelectoComponents.Views.Detail.Component do
               <tr
                 class={if(row_clickable, do: "cursor-pointer", else: "cursor-default")}
                 style={detail_row_style(display_idx, row_clickable)}
+                data-selecto-result-row
+                data-result-row-index={display_idx}
                 data-row-action-type={row_action_type}
                 data-row-link={resolved_row_link && resolved_row_link.url}
                 data-row-link-target={resolved_row_link && resolved_row_link.target}
@@ -427,7 +433,14 @@ defmodule SelectoComponents.Views.Detail.Component do
                 phx-value-row-index={if row_action_type == "modal", do: display_idx}
                 phx-target={if row_action_type == "modal", do: @myself}
               >
-                <td class="w-12 max-w-12 min-w-12 px-2 py-1 text-center" style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">
+                <td
+                  class="w-12 max-w-12 min-w-12 px-2 py-1 text-center"
+                  style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
+                  data-selecto-result-cell
+                  data-result-row-index={display_idx}
+                  data-result-column-index="0"
+                  tabindex="-1"
+                >
                   {absolute_idx + 1}
                 </td>
                 <%!-- Display regular columns --%>
@@ -435,6 +448,10 @@ defmodule SelectoComponents.Views.Detail.Component do
                   :for={{col_conf, column_idx} <- Enum.with_index(@columns)}
                   class="px-1 py-1 align-top"
                   style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
+                  data-selecto-result-cell
+                  data-result-row-index={display_idx}
+                  data-result-column-index={column_idx + 1}
+                  tabindex="-1"
                 >
                   <% column_uuid = config_get(col_conf, "uuid") %>
                   <% column_field = config_get(col_conf, "field") %>
@@ -471,10 +488,18 @@ defmodule SelectoComponents.Views.Detail.Component do
 
                 <%!-- Add subselect columns inline --%>
                 <%= if Map.get(@view_meta, :subselect_configs, []) != [] do %>
-                  <%= for config <- Map.get(@view_meta, :subselect_configs, []) do %>
+                  <%= for {config, subselect_idx} <- Enum.with_index(Map.get(@view_meta, :subselect_configs, [])) do %>
                     <% data = Map.get(row_data_by_column, config.key, []) %>
                     <% unique_id = "row#{absolute_idx}_#{config.key}" %>
-                      <td class="px-1 py-1 align-top" id={"cell_#{unique_id}"} style="border-bottom: 1px solid var(--sc-surface-border);">
+                    <td
+                      class="px-1 py-1 align-top"
+                      id={"cell_#{unique_id}"}
+                      style="border-bottom: 1px solid var(--sc-surface-border);"
+                      data-selecto-result-cell
+                      data-result-row-index={display_idx}
+                      data-result-column-index={length(@columns) + subselect_idx + 1}
+                      tabindex="-1"
+                    >
                       <% # Parse the data here to ensure it's fresh %>
                       <% parsed_data =
                         SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>

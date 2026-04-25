@@ -115,6 +115,14 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
 
     assert html =~
              ~r/id="aggregate-table-wrapper-[^"]+" class="[^"]*sc-panel[^"]*responsive-table-wrapper[^"]*"/
+
+    assert html =~ ~s(data-selecto-results-page="previous")
+    assert html =~ ~s(data-selecto-results-page="next")
+    assert html =~ ~s(data-selecto-result-row)
+    assert html =~ ~s(data-selecto-result-cell)
+    assert html =~ ~s(data-selecto-result-action)
+    assert html =~ ~s(data-result-row-index="0")
+    assert html =~ ~s(data-result-column-index="1")
   end
 
   test "renders friendly headers from selected field aliases instead of query aliases" do

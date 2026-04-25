@@ -62,6 +62,13 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "aria-label=\"Previous page\""
     assert html =~ "aria-label=\"Next page\""
     assert html =~ "aria-label=\"Last page\""
+    assert html =~ ~s(data-selecto-results-page="previous")
+    assert html =~ ~s(data-selecto-results-page="next")
+    assert html =~ ~s(data-selecto-result-row)
+    assert html =~ ~s(data-selecto-result-cell)
+    assert html =~ ~s(data-result-row-index="0")
+    assert html =~ ~s(data-result-column-index="1")
+    assert html =~ ~s(tabindex="-1")
   end
 
   test "disables forward pagination buttons on the last page" do

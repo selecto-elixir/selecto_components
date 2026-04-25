@@ -48,6 +48,9 @@ V 0.4.6
 - Added keyboard controls for selected ListPicker fields: ArrowUp/ArrowDown
   move focus, Alt+ArrowUp/Alt+ArrowDown reorder, Delete/Backspace remove, and
   Enter toggles the selected field editor.
+- Added results-table keyboard navigation: `R` focuses results, arrow keys move
+  through result cells, Enter opens row/drill-down actions, PageUp/PageDown
+  paginate, and Escape returns to the View Controller.
 - Added `F then G` and `F then A` shortcuts to open the controller and jump
   directly to the Aggregate view's Group By and Aggregate field pickers.
 - Added `F then S`, `F then O`, `F then X`, `F then Y`, and `F then R`

@@ -28,6 +28,12 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       keys: ["/"]
     },
     %{
+      id: "focus_results",
+      group: "General",
+      label: "Focus results",
+      keys: ["r"]
+    },
+    %{
       id: "filter_picker_next",
       group: "Filters",
       label: "Highlight next available filter",
@@ -172,6 +178,62 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       group: "Selected Fields",
       label: "Move selected field down",
       keys: ["alt+arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "results_next_row",
+      group: "Results",
+      label: "Move to next result row",
+      keys: ["arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "results_previous_row",
+      group: "Results",
+      label: "Move to previous result row",
+      keys: ["arrowup"],
+      help_only: true
+    },
+    %{
+      id: "results_next_cell",
+      group: "Results",
+      label: "Move to next result cell",
+      keys: ["arrowright"],
+      help_only: true
+    },
+    %{
+      id: "results_previous_cell",
+      group: "Results",
+      label: "Move to previous result cell",
+      keys: ["arrowleft"],
+      help_only: true
+    },
+    %{
+      id: "results_activate",
+      group: "Results",
+      label: "Open or drill into focused result",
+      keys: ["enter"],
+      help_only: true
+    },
+    %{
+      id: "results_next_page",
+      group: "Results",
+      label: "Go to next result page",
+      keys: ["pagedown"],
+      help_only: true
+    },
+    %{
+      id: "results_previous_page",
+      group: "Results",
+      label: "Go to previous result page",
+      keys: ["pageup"],
+      help_only: true
+    },
+    %{
+      id: "results_to_controller",
+      group: "Results",
+      label: "Return to the View Controller",
+      keys: ["escape"],
       help_only: true
     },
     %{
@@ -505,6 +567,8 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp format_key_part("arrowup"), do: "Arrow Up"
   defp format_key_part("arrowleft"), do: "Arrow Left"
   defp format_key_part("arrowright"), do: "Arrow Right"
+  defp format_key_part("pagedown"), do: "Page Down"
+  defp format_key_part("pageup"), do: "Page Up"
   defp format_key_part("delete"), do: "Delete"
   defp format_key_part("backspace"), do: "Backspace"
   defp format_key_part("shift"), do: "Shift"
@@ -523,8 +587,9 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp group_order(%{group: "Applied Filters"}), do: {2, "Applied Filters"}
   defp group_order(%{group: "Field Pickers"}), do: {3, "Field Pickers"}
   defp group_order(%{group: "Selected Fields"}), do: {4, "Selected Fields"}
-  defp group_order(%{group: "Views"}), do: {5, "Views"}
-  defp group_order(%{group: "Navigation"}), do: {6, "Navigation"}
-  defp group_order(%{group: "Export"}), do: {7, "Export"}
+  defp group_order(%{group: "Results"}), do: {5, "Results"}
+  defp group_order(%{group: "Views"}), do: {6, "Views"}
+  defp group_order(%{group: "Navigation"}), do: {7, "Navigation"}
+  defp group_order(%{group: "Export"}), do: {8, "Export"}
   defp group_order(%{group: group}), do: {9, group}
 end

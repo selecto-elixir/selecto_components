@@ -38,6 +38,7 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert keymap["detail_view"] == ["g d"]
     assert keymap["aggregate_view"] == ["g a"]
     assert keymap["focus_filters"] == ["/"]
+    assert keymap["focus_results"] == ["r"]
     assert keymap["focus_selected_picker"] == ["f s"]
     assert keymap["focus_order_by_picker"] == ["f o"]
     assert keymap["focus_group_by_picker"] == ["f g"]
@@ -91,6 +92,11 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_remove"))
     assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_move_up"))
     assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_move_down"))
+
+    results = Enum.find(groups, &(&1.group == "Results"))
+    assert Enum.any?(results.shortcuts, &(&1.id == "results_next_row"))
+    assert Enum.any?(results.shortcuts, &(&1.id == "results_activate"))
+    assert Enum.any?(results.shortcuts, &(&1.key_label == "Page Down"))
 
     views = Enum.find(groups, &(&1.group == "Views"))
     assert Enum.any?(views.shortcuts, &(&1.id == "graph_view"))

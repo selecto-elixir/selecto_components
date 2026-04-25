@@ -546,6 +546,9 @@ defmodule SelectoComponents.Form do
               case "focus_filters":
                 this.focusFilters();
                 break;
+              case "focus_results":
+                this.focusResults();
+                break;
               case "focus_selected_picker":
                 this.focusFieldPicker("detail", "selected");
                 break;
@@ -699,6 +702,17 @@ defmodule SelectoComponents.Form do
             this.switchMainTab("filter");
 
             window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
+          },
+
+          focusResults() {
+            const results = document.querySelector("[data-selecto-results-region]");
+
+            if (!results) {
+              return;
+            }
+
+            this.focusElement(results);
+            results.dispatchEvent(new CustomEvent("selecto:focus-results", { bubbles: true }));
           },
 
           focusFieldPicker(view, fieldname) {

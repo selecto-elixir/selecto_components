@@ -51,5 +51,8 @@ defmodule SelectoComponents.ResultsTest do
       })
 
     assert html =~ "selecto-results-results-session-test"
+    assert html =~ ~s(data-selecto-results-region)
+    assert html =~ "ResultsKeyboard"
+    assert html =~ ~s(aria-label="Selecto results")
   end
 end
