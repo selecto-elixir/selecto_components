@@ -64,6 +64,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Switch to Detail view"
     assert html =~ "Cmd/Ctrl + Enter"
     assert html =~ "Focus filters"
+    assert html =~ "Focus Group By fields"
+    assert html =~ "Focus Aggregate fields"
     assert html =~ "Add highlighted filter"
     assert html =~ "Add highlighted or only matching field"
     assert html =~ "Arrow Down"

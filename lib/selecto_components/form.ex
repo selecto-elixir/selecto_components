@@ -546,6 +546,12 @@ defmodule SelectoComponents.Form do
               case "focus_filters":
                 this.focusFilters();
                 break;
+              case "focus_group_by_picker":
+                this.focusAggregateFieldPicker("group_by");
+                break;
+              case "focus_aggregate_picker":
+                this.focusAggregateFieldPicker("aggregate");
+                break;
               case "export_tab":
                 this.switchMainTab("export");
                 break;
@@ -674,17 +680,45 @@ defmodule SelectoComponents.Form do
 
           focusFilters() {
             this.pendingShortcutFocus = "filters";
+            this.ensureControllerExpanded();
             this.switchMainTab("filter");
 
             window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
           },
 
-          flushPendingShortcutFocus() {
-            if (this.pendingShortcutFocus !== "filters") {
+          focusAggregateFieldPicker(fieldname) {
+            this.pendingShortcutFocus = `field_picker:${fieldname}`;
+            this.ensureControllerExpanded();
+            this.switchViewMode("aggregate");
+            this.switchMainTab("view");
+
+            window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
+          },
+
+          ensureControllerExpanded() {
+            const body = this.el.querySelector("[data-selecto-controller-body]");
+
+            if (!body || !body.classList.contains("hidden")) {
               return;
             }
 
-            const target = this.firstFocusableFilterInput();
+            const toggle = this.el.querySelector("[data-selecto-controller-summary] button[aria-controls]");
+
+            if (toggle) {
+              toggle.click();
+            }
+          },
+
+          flushPendingShortcutFocus() {
+            if (!this.pendingShortcutFocus) {
+              return;
+            }
+
+            const target = this.pendingShortcutFocus === "filters"
+              ? this.firstFocusableFilterInput()
+              : this.pendingShortcutFocus.startsWith("field_picker:")
+                ? this.fieldPickerSearchInput(this.pendingShortcutFocus.replace("field_picker:", ""))
+                : null;
 
             if (!target) {
               return;
@@ -696,6 +730,16 @@ defmodule SelectoComponents.Form do
             if (typeof target.select === "function") {
               target.select();
             }
+          },
+
+          fieldPickerSearchInput(fieldname) {
+            const target = this.el.querySelector(`#list-picker-${fieldname}-filter [data-filter-input]`);
+
+            if (this.focusableShortcutTarget(target)) {
+              return target;
+            }
+
+            return null;
           },
 
           firstFocusableFilterInput() {

@@ -38,6 +38,8 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert keymap["detail_view"] == ["g d"]
     assert keymap["aggregate_view"] == ["g a"]
     assert keymap["focus_filters"] == ["/"]
+    assert keymap["focus_group_by_picker"] == ["f g"]
+    assert keymap["focus_aggregate_picker"] == ["f a"]
     assert keymap["next_tab"] == ["]"]
     assert keymap["previous_tab"] == ["["]
     assert keymap["export_csv"] == ["x c"]
@@ -68,6 +70,8 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
 
     field_pickers = Enum.find(groups, &(&1.group == "Field Pickers"))
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "field_picker_add"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_group_by_picker"))
+    assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_aggregate_picker"))
 
     views = Enum.find(groups, &(&1.group == "Views"))
     assert Enum.any?(views.shortcuts, &(&1.id == "graph_view"))

@@ -42,6 +42,8 @@ V 0.4.6
 - Added keyboard picker behavior to ListPicker available-field searches:
   ArrowUp/ArrowDown move through visible fields, Enter adds the highlighted or
   only matching field, and Escape returns to or clears the search.
+- Added `F then G` and `F then A` shortcuts to open the controller and jump
+  directly to the Aggregate view's Group By and Aggregate field pickers.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.

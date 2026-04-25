@@ -84,6 +84,18 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       help_only: true
     },
     %{
+      id: "focus_group_by_picker",
+      group: "Field Pickers",
+      label: "Focus Group By fields",
+      keys: ["f g"]
+    },
+    %{
+      id: "focus_aggregate_picker",
+      group: "Field Pickers",
+      label: "Focus Aggregate fields",
+      keys: ["f a"]
+    },
+    %{
       id: "detail_view",
       group: "Views",
       label: "Switch to Detail view",
