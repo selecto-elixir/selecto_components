@@ -68,6 +68,8 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Focus Aggregate fields"
     assert html =~ "Add highlighted filter"
     assert html =~ "Add highlighted or only matching field"
+    assert html =~ "Remove selected field"
+    assert html =~ "Move selected field down"
     assert html =~ "Arrow Down"
     assert html =~ "Next configuration tab"
     assert html =~ "Download XLSX"

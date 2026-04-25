@@ -84,6 +84,62 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       help_only: true
     },
     %{
+      id: "selected_field_next",
+      group: "Selected Fields",
+      label: "Focus next selected field",
+      keys: ["arrowdown"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_previous",
+      group: "Selected Fields",
+      label: "Focus previous selected field",
+      keys: ["arrowup"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_from_search",
+      group: "Selected Fields",
+      label: "Move from field search to selected fields",
+      keys: ["arrowright"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_to_search",
+      group: "Selected Fields",
+      label: "Return to field search",
+      keys: ["arrowleft", "escape"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_edit",
+      group: "Selected Fields",
+      label: "Edit selected field options",
+      keys: ["enter"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_remove",
+      group: "Selected Fields",
+      label: "Remove selected field",
+      keys: ["delete", "backspace"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_move_up",
+      group: "Selected Fields",
+      label: "Move selected field up",
+      keys: ["alt+arrowup"],
+      help_only: true
+    },
+    %{
+      id: "selected_field_move_down",
+      group: "Selected Fields",
+      label: "Move selected field down",
+      keys: ["alt+arrowdown"],
+      help_only: true
+    },
+    %{
       id: "focus_group_by_picker",
       group: "Field Pickers",
       label: "Focus Group By fields",
@@ -375,6 +431,10 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp format_key_part("escape"), do: "Escape"
   defp format_key_part("arrowdown"), do: "Arrow Down"
   defp format_key_part("arrowup"), do: "Arrow Up"
+  defp format_key_part("arrowleft"), do: "Arrow Left"
+  defp format_key_part("arrowright"), do: "Arrow Right"
+  defp format_key_part("delete"), do: "Delete"
+  defp format_key_part("backspace"), do: "Backspace"
   defp format_key_part("shift"), do: "Shift"
   defp format_key_part("alt"), do: "Alt"
   defp format_key_part("?"), do: "?"

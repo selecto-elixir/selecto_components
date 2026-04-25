@@ -199,6 +199,9 @@ defmodule SelectoComponents.Components.ListPicker do
               id={"#{@component_dom_id}-item-#{id}"}
               phx-hook=".ListPickerEditor"
               data-picker-item-id={id}
+              data-selected-item
+              tabindex="0"
+              aria-label={"Selected item #{item}"}
               class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
               style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
             >
@@ -418,12 +421,15 @@ defmodule SelectoComponents.Components.ListPicker do
             this.filterValue = this.readPersistedFilter();
             this.selectedTypeFilters = this.readPersistedTypeFilters();
             this.highlightedAvailableItemId = null;
+            this.highlightedSelectedItemId = null;
             this.filterWasFocused = false;
             this.focusSearchAfterAdd = false;
+            this.focusSelectedItemAfterPatch = null;
 
             this.bindActionHandlers();
             this.bindFilter();
             this.bindAvailableItemKeyboard();
+            this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
             this.bindScrollHandoff();
             this.applyFilter();
@@ -439,6 +445,7 @@ defmodule SelectoComponents.Components.ListPicker do
             this.bindActionHandlers();
             this.bindFilter();
             this.bindAvailableItemKeyboard();
+            this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
             this.bindScrollHandoff();
             this.applyFilter();
@@ -452,6 +459,8 @@ defmodule SelectoComponents.Components.ListPicker do
                 this.filterInput.setSelectionRange(length, length);
               }
             }
+
+            this.restoreSelectedFocusAfterPatch();
           },
 
           destroyed() {
@@ -484,6 +493,14 @@ defmodule SelectoComponents.Components.ListPicker do
 
             if (this.handleAvailableItemKeydown) {
               this.el.removeEventListener('keydown', this.handleAvailableItemKeydown);
+            }
+
+            if (this.handleSelectedItemKeydown) {
+              this.el.removeEventListener('keydown', this.handleSelectedItemKeydown);
+            }
+
+            if (this.handleSelectedItemFocusin) {
+              this.el.removeEventListener('focusin', this.handleSelectedItemFocusin);
             }
 
             if (this.scrollHandoffHandlers) {
@@ -586,6 +603,19 @@ defmodule SelectoComponents.Components.ListPicker do
                     event.preventDefault();
                     event.stopPropagation();
                     this.moveAvailableItemHighlight(-1, { focus: true });
+                    return;
+                  }
+
+                  if (
+                    event.key === 'ArrowRight' &&
+                    !event.altKey &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
+                    this.cursorAtEnd(this.filterInput) &&
+                    this.focusSelectedItemFromAvailable()
+                  ) {
+                    event.preventDefault();
+                    event.stopPropagation();
                     return;
                   }
 
@@ -803,6 +833,18 @@ defmodule SelectoComponents.Components.ListPicker do
                 return;
               }
 
+              if (
+                event.key === 'ArrowRight' &&
+                !event.altKey &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                this.focusSelectedItemFromAvailable()
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+              }
+
               if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
@@ -813,10 +855,135 @@ defmodule SelectoComponents.Components.ListPicker do
             this.el.addEventListener('keydown', this.handleAvailableItemKeydown);
           },
 
+          bindSelectedItemKeyboard() {
+            if (this.handleSelectedItemKeydown) {
+              return;
+            }
+
+            this.handleSelectedItemFocusin = (event) => {
+              const item = this.selectedKeyboardItem(event.target);
+
+              if (!item) {
+                return;
+              }
+
+              this.highlightSelectedItem(item);
+            };
+
+            this.handleSelectedItemKeydown = (event) => {
+              const item = this.selectedKeyboardItem(event.target);
+
+              if (!item) {
+                return;
+              }
+
+              if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.altKey) {
+                  this.reorderSelectedItem(item, 1);
+                } else {
+                  this.highlightedSelectedItemId = item.dataset.pickerItemId;
+                  this.moveSelectedItemHighlight(1, { focus: true });
+                }
+
+                return;
+              }
+
+              if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.altKey) {
+                  this.reorderSelectedItem(item, -1);
+                } else {
+                  this.highlightedSelectedItemId = item.dataset.pickerItemId;
+                  this.moveSelectedItemHighlight(-1, { focus: true });
+                }
+
+                return;
+              }
+
+              if (
+                event.key === 'ArrowLeft' &&
+                !event.altKey &&
+                !event.ctrlKey &&
+                !event.metaKey
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.focusAvailableSide();
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.clearSelectedItemHighlights();
+                this.focusElement(this.filterInput);
+                return;
+              }
+
+              if ((event.key === 'Delete' || event.key === 'Backspace') && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.removeSelectedItem(item);
+                return;
+              }
+
+              if (event.key === 'Enter' && !event.isComposing && !this.isNestedCommandTarget(event.target, item)) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.toggleSelectedItemEditor(item);
+              }
+            };
+
+            this.el.addEventListener('focusin', this.handleSelectedItemFocusin);
+            this.el.addEventListener('keydown', this.handleSelectedItemKeydown);
+          },
+
+          selectedKeyboardItem(target) {
+            if (!(target instanceof Element) || this.isTextEntryTarget(target)) {
+              return null;
+            }
+
+            const item = target.closest('[data-selected-item]');
+
+            if (!item || !this.el.contains(item)) {
+              return null;
+            }
+
+            return item;
+          },
+
+          isTextEntryTarget(target) {
+            return Boolean(
+              target.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='searchbox']")
+            );
+          },
+
+          isNestedCommandTarget(target, item) {
+            return target !== item && Boolean(target.closest("button, a, [role='button'], [data-picker-action], [data-editor-toggle]"));
+          },
+
+          cursorAtEnd(input) {
+            if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') {
+              return true;
+            }
+
+            const length = input.value.length;
+            return input.selectionStart === length && input.selectionEnd === length;
+          },
+
           visibleAvailableItems() {
             return Array.from(this.el.querySelectorAll('[data-available-item]')).filter((item) => {
               return item.style.display !== 'none';
             });
+          },
+
+          selectedItems() {
+            return Array.from(this.el.querySelectorAll('[data-selected-item][data-picker-item-id]'));
           },
 
           moveAvailableItemHighlight(direction, options = {}) {
@@ -838,16 +1005,14 @@ defmodule SelectoComponents.Components.ListPicker do
           setHighlightedAvailableItemIndex(index, options = {}) {
             const items = this.visibleAvailableItems();
 
-            Array.from(this.el.querySelectorAll('[data-available-item]')).forEach((item) => {
-              item.removeAttribute('data-keyboard-highlighted');
-              item.style.outline = '';
-              item.style.outlineOffset = '';
-            });
+            this.clearAvailableItemHighlights();
 
             if (index < 0 || items.length === 0) {
               this.highlightedAvailableItemId = null;
               return;
             }
+
+            this.clearSelectedItemHighlights();
 
             const item = items[index % items.length];
             this.highlightedAvailableItemId = item.dataset.itemId;
@@ -872,6 +1037,202 @@ defmodule SelectoComponents.Components.ListPicker do
               this.setHighlightedAvailableItemIndex(items.length > 0 ? 0 : -1, { scroll: false });
             } else {
               this.setHighlightedAvailableItemIndex(index, { scroll: false });
+            }
+          },
+
+          clearAvailableItemHighlights() {
+            Array.from(this.el.querySelectorAll('[data-available-item]')).forEach((item) => {
+              item.removeAttribute('data-keyboard-highlighted');
+              item.style.outline = '';
+              item.style.outlineOffset = '';
+            });
+
+            this.highlightedAvailableItemId = null;
+          },
+
+          moveSelectedItemHighlight(direction, options = {}) {
+            const items = this.selectedItems();
+
+            if (items.length === 0) {
+              this.setHighlightedSelectedItemIndex(-1);
+              return;
+            }
+
+            const currentIndex = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+            const nextIndex = currentIndex === -1
+              ? (direction > 0 ? 0 : items.length - 1)
+              : (currentIndex + direction + items.length) % items.length;
+
+            this.setHighlightedSelectedItemIndex(nextIndex, options);
+          },
+
+          setHighlightedSelectedItemIndex(index, options = {}) {
+            const items = this.selectedItems();
+
+            this.clearSelectedItemHighlights();
+
+            if (index < 0 || items.length === 0) {
+              this.highlightedSelectedItemId = null;
+              return;
+            }
+
+            this.clearAvailableItemHighlights();
+
+            const item = items[index % items.length];
+            this.highlightSelectedItem(item);
+
+            if (options.scroll !== false) {
+              item.scrollIntoView({ block: 'nearest' });
+            }
+
+            if (options.focus === true) {
+              this.focusElement(item);
+            }
+          },
+
+          highlightSelectedItem(item) {
+            if (!item) {
+              return;
+            }
+
+            this.clearSelectedItemHighlights();
+            this.highlightedSelectedItemId = item.dataset.pickerItemId;
+            item.setAttribute('data-keyboard-highlighted', 'true');
+            item.style.outline = '2px solid var(--sc-accent)';
+            item.style.outlineOffset = '2px';
+          },
+
+          clearSelectedItemHighlights() {
+            this.selectedItems().forEach((item) => {
+              item.removeAttribute('data-keyboard-highlighted');
+              item.style.outline = '';
+              item.style.outlineOffset = '';
+            });
+
+            this.highlightedSelectedItemId = null;
+          },
+
+          restoreHighlightedSelectedItem() {
+            const items = this.selectedItems();
+            const index = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+
+            if (index === -1) {
+              this.setHighlightedSelectedItemIndex(items.length > 0 ? 0 : -1, { scroll: false });
+            } else {
+              this.setHighlightedSelectedItemIndex(index, { scroll: false });
+            }
+          },
+
+          focusSelectedItemFromAvailable() {
+            const items = this.selectedItems();
+
+            if (items.length === 0) {
+              return false;
+            }
+
+            const index = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+            this.setHighlightedSelectedItemIndex(index === -1 ? 0 : index, { focus: true });
+            return true;
+          },
+
+          focusAvailableSide() {
+            const items = this.visibleAvailableItems();
+            const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (highlightedItem) {
+              this.setHighlightedAvailableItemIndex(items.indexOf(highlightedItem), { focus: true });
+              return;
+            }
+
+            this.clearSelectedItemHighlights();
+            this.focusElement(this.filterInput);
+          },
+
+          restoreSelectedFocusAfterPatch() {
+            if (!this.focusSelectedItemAfterPatch) {
+              if (this.highlightedSelectedItemId) {
+                this.restoreHighlightedSelectedItem();
+              }
+
+              return;
+            }
+
+            const itemId = this.focusSelectedItemAfterPatch;
+            this.focusSelectedItemAfterPatch = null;
+
+            if (itemId === 'filter') {
+              this.clearSelectedItemHighlights();
+              this.focusElement(this.filterInput);
+              return;
+            }
+
+            const items = this.selectedItems();
+            const index = items.findIndex((item) => item.dataset.pickerItemId === itemId);
+
+            if (index === -1) {
+              if (items.length > 0) {
+                this.setHighlightedSelectedItemIndex(0, { focus: true });
+              } else {
+                this.focusElement(this.filterInput);
+              }
+
+              return;
+            }
+
+            this.setHighlightedSelectedItemIndex(index, { focus: true });
+          },
+
+          reorderSelectedItem(item, direction) {
+            const items = this.selectedItems();
+            const currentIndex = items.indexOf(item);
+            const target = items[currentIndex + direction];
+
+            if (currentIndex === -1 || !target) {
+              return;
+            }
+
+            this.highlightedSelectedItemId = item.dataset.pickerItemId;
+            this.focusSelectedItemAfterPatch = item.dataset.pickerItemId;
+            this.dispatchSelectedReorder(item, target);
+          },
+
+          dispatchSelectedReorder(item, target) {
+            const reorderButton = this.el.querySelector('[data-picker-action="reorder"]');
+
+            if (!reorderButton || !item || !target) {
+              return;
+            }
+
+            const form = this.el.closest('form');
+
+            this.pushEventTo(this.el, 'reorder', {
+              view: reorderButton.dataset.viewId,
+              'list-id': reorderButton.dataset.listId,
+              item: item.dataset.pickerItemId,
+              'target-item': target.dataset.pickerItemId,
+              form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+            });
+          },
+
+          removeSelectedItem(item) {
+            const trigger = item.querySelector('[data-picker-action="remove"]');
+
+            if (!trigger) {
+              return;
+            }
+
+            const items = this.selectedItems();
+            const currentIndex = items.indexOf(item);
+            const nextItem = items[currentIndex + 1] || items[currentIndex - 1];
+            this.focusSelectedItemAfterPatch = nextItem ? nextItem.dataset.pickerItemId : 'filter';
+            this.dispatchPickerAction(trigger);
+          },
+
+          toggleSelectedItemEditor(item) {
+            const toggle = item.querySelector('[data-editor-toggle]');
+
+            if (toggle) {
+              toggle.click();
             }
           },
 

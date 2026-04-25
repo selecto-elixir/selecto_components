@@ -73,6 +73,11 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_group_by_picker"))
     assert Enum.any?(field_pickers.shortcuts, &(&1.id == "focus_aggregate_picker"))
 
+    selected_fields = Enum.find(groups, &(&1.group == "Selected Fields"))
+    assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_remove"))
+    assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_move_up"))
+    assert Enum.any?(selected_fields.shortcuts, &(&1.id == "selected_field_move_down"))
+
     views = Enum.find(groups, &(&1.group == "Views"))
     assert Enum.any?(views.shortcuts, &(&1.id == "graph_view"))
 

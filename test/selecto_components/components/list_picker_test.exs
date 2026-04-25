@@ -62,6 +62,14 @@ defmodule SelectoComponents.Components.ListPickerTest do
     assert html =~ ~s(title="Drag to reorder")
   end
 
+  test "renders selected items as keyboard-focusable controls" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-selected-item)
+    assert html =~ ~s(tabindex="0")
+    assert html =~ ~s(aria-label="Selected item Chosen Item")
+  end
+
   test "renders available items as keyboard-focusable add actions" do
     html = render_component(ListPicker, base_assigns(%{}))
 
