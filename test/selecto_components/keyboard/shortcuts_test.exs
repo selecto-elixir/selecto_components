@@ -37,17 +37,22 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
 
     assert keymap["detail_view"] == ["g d"]
     assert keymap["aggregate_view"] == ["g a"]
+    assert keymap["focus_filters"] == ["/"]
+    assert keymap["next_tab"] == ["]"]
+    assert keymap["previous_tab"] == ["["]
+    assert keymap["export_csv"] == ["x c"]
     refute Map.has_key?(keymap, "graph_view")
     refute Map.has_key?(keymap, "saved_views_tab")
   end
 
   test "shortcut overrides can replace or disable bindings" do
     keymap =
-      %{overrides: %{apply: ["Mod + Enter"], export_tab: false}}
+      %{overrides: %{apply: ["Mod + Enter"], export_csv: ["X Y"], export_tab: false}}
       |> Shortcuts.normalize()
       |> Shortcuts.keymap(views: @views)
 
     assert keymap["apply"] == ["mod+enter"]
+    assert keymap["export_csv"] == ["x y"]
     refute Map.has_key?(keymap, "export_tab")
   end
 
@@ -61,5 +66,8 @@ defmodule SelectoComponents.Keyboard.ShortcutsTest do
 
     navigation = Enum.find(groups, &(&1.group == "Navigation"))
     assert Enum.any?(navigation.shortcuts, &(&1.id == "saved_views_tab"))
+
+    export = Enum.find(groups, &(&1.group == "Export"))
+    assert Enum.any?(export.shortcuts, &(&1.id == "export_xlsx"))
   end
 end

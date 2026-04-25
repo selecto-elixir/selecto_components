@@ -328,6 +328,7 @@ defmodule SelectoComponents.Form do
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
             this.bindKeyboardShortcuts();
+            this.flushPendingShortcutFocus();
           },
 
           destroyed() {
@@ -542,13 +543,34 @@ defmodule SelectoComponents.Form do
               case "apply":
                 this.submitCurrentForm();
                 break;
+              case "focus_filters":
+                this.focusFilters();
+                break;
               case "export_tab":
                 this.switchMainTab("export");
+                break;
+              case "next_tab":
+                this.switchRelativeMainTab(1);
+                break;
+              case "previous_tab":
+                this.switchRelativeMainTab(-1);
                 break;
               case "saved_views_tab":
                 if (this.el.dataset.selectoUseSavedViews === "true") {
                   this.switchMainTab("save");
                 }
+                break;
+              case "export_csv":
+                this.exportCurrentResults("csv");
+                break;
+              case "export_tsv":
+                this.exportCurrentResults("tsv");
+                break;
+              case "export_json":
+                this.exportCurrentResults("json");
+                break;
+              case "export_xlsx":
+                this.exportCurrentResults("xlsx");
                 break;
               case "detail_view":
                 this.switchViewMode("detail");
@@ -564,6 +586,22 @@ defmodule SelectoComponents.Form do
             }
           },
 
+          mainTabButtons() {
+            return Array.from(this.el.querySelectorAll("[role='tab'][id^='main-tab-']"));
+          },
+
+          currentMainTab() {
+            const selected = this.mainTabButtons().find((button) => {
+              return button.getAttribute("aria-selected") === "true";
+            });
+
+            if (selected?.id?.startsWith("main-tab-")) {
+              return selected.id.replace("main-tab-", "");
+            }
+
+            return this.el.dataset.selectoActiveTab || "view";
+          },
+
           switchMainTab(tab) {
             const tabButton = this.el.querySelector(`#main-tab-${tab}`);
 
@@ -574,6 +612,24 @@ defmodule SelectoComponents.Form do
             }
 
             this.pushEvent("set_active_tab", { tab });
+          },
+
+          switchRelativeMainTab(direction) {
+            const tabs = this.mainTabButtons();
+
+            if (tabs.length === 0) {
+              return;
+            }
+
+            const currentTab = this.currentMainTab();
+            const currentIndex = Math.max(
+              tabs.findIndex((button) => button.id === `main-tab-${currentTab}`),
+              0
+            );
+            const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+            const nextTab = tabs[nextIndex].id.replace("main-tab-", "");
+
+            this.switchMainTab(nextTab);
           },
 
           switchViewMode(view) {
@@ -602,6 +658,76 @@ defmodule SelectoComponents.Form do
             }
 
             this.switchMainTab("view");
+          },
+
+          exportCurrentResults(format) {
+            const button = this.el.querySelector(
+              `[data-export-download-button='true'][data-format='${format}']`
+            );
+
+            if (!button) {
+              return;
+            }
+
+            button.click();
+          },
+
+          focusFilters() {
+            this.pendingShortcutFocus = "filters";
+            this.switchMainTab("filter");
+
+            window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
+          },
+
+          flushPendingShortcutFocus() {
+            if (this.pendingShortcutFocus !== "filters") {
+              return;
+            }
+
+            const target = this.firstFocusableFilterInput();
+
+            if (!target) {
+              return;
+            }
+
+            this.pendingShortcutFocus = null;
+            target.focus({ preventScroll: true });
+
+            if (typeof target.select === "function") {
+              target.select();
+            }
+          },
+
+          firstFocusableFilterInput() {
+            const selectors = [
+              "[name^='promoted_filters'][name$='[value]']",
+              "[name^='promoted_filters'][name$='[value_start]']",
+              "#main-tabpanel-filter [data-filter-input]",
+              "#main-tabpanel-filter textarea[name*='[pending_values]']",
+              "#main-tabpanel-filter input[name*='[value]']:not([type='hidden'])",
+              "#main-tabpanel-filter textarea[name*='[value]']",
+              "#main-tabpanel-filter select[name*='[value]']"
+            ];
+
+            return selectors
+              .flatMap((selector) => Array.from(this.el.querySelectorAll(selector)))
+              .find((element) => this.focusableShortcutTarget(element));
+          },
+
+          focusableShortcutTarget(element) {
+            if (!(element instanceof HTMLElement)) {
+              return false;
+            }
+
+            if (element.disabled || element.closest("[hidden]")) {
+              return false;
+            }
+
+            if (element.closest(".hidden") && !element.closest("[data-selecto-controller-summary]")) {
+              return false;
+            }
+
+            return element.offsetParent !== null || element.getClientRects().length > 0;
           },
 
           submitCurrentForm() {

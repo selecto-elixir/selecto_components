@@ -61,6 +61,9 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Keyboard Shortcuts"
     assert html =~ "Switch to Detail view"
     assert html =~ "Cmd/Ctrl + Enter"
+    assert html =~ "Focus filters"
+    assert html =~ "Next configuration tab"
+    assert html =~ "Download XLSX"
   end
 
   test "allows host apps to disable keyboard shortcuts" do

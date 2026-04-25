@@ -22,6 +22,12 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       keys: ["mod+enter"]
     },
     %{
+      id: "focus_filters",
+      group: "General",
+      label: "Focus filters",
+      keys: ["/"]
+    },
+    %{
       id: "detail_view",
       group: "Views",
       label: "Switch to Detail view",
@@ -49,11 +55,47 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
       keys: ["e"]
     },
     %{
+      id: "next_tab",
+      group: "Navigation",
+      label: "Next configuration tab",
+      keys: ["]"]
+    },
+    %{
+      id: "previous_tab",
+      group: "Navigation",
+      label: "Previous configuration tab",
+      keys: ["["]
+    },
+    %{
       id: "saved_views_tab",
       group: "Navigation",
       label: "Open Save View tab",
       keys: ["s"],
       feature: :saved_views
+    },
+    %{
+      id: "export_csv",
+      group: "Export",
+      label: "Download CSV",
+      keys: ["x c"]
+    },
+    %{
+      id: "export_tsv",
+      group: "Export",
+      label: "Download TSV",
+      keys: ["x t"]
+    },
+    %{
+      id: "export_json",
+      group: "Export",
+      label: "Download JSON",
+      keys: ["x j"]
+    },
+    %{
+      id: "export_xlsx",
+      group: "Export",
+      label: "Download XLSX",
+      keys: ["x e"]
     }
   ]
 
@@ -276,5 +318,6 @@ defmodule SelectoComponents.Keyboard.Shortcuts do
   defp group_order(%{group: "General"}), do: {0, "General"}
   defp group_order(%{group: "Views"}), do: {1, "Views"}
   defp group_order(%{group: "Navigation"}), do: {2, "Navigation"}
+  defp group_order(%{group: "Export"}), do: {3, "Export"}
   defp group_order(%{group: group}), do: {9, group}
 end
