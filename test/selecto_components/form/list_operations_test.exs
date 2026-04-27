@@ -2,6 +2,7 @@ defmodule SelectoComponents.Form.ListOperationsTest do
   use ExUnit.Case, async: true
 
   alias Selecto.Expr, as: X
+  alias SelectoComponents.Form.ListPickerOperations
 
   defmodule TestLive do
     use Phoenix.LiveView
@@ -205,6 +206,89 @@ defmodule SelectoComponents.Form.ListOperationsTest do
     })
   end
 
+  defp graph_form_state_query do
+    Plug.Conn.Query.encode(%{
+      "view_mode" => "graph",
+      "selected" => %{
+        "k0" => %{
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "detail-col-1",
+          "alias" => "ID"
+        }
+      },
+      "order_by" => %{
+        "k0" => %{
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "detail-order-1",
+          "dir" => "desc"
+        }
+      },
+      "per_page" => "60",
+      "max_rows" => "10000",
+      "count_mode" => "exact",
+      "row_click_action" => "work_item_api_preview",
+      "prevent_denormalization" => "false",
+      "group_by" => %{
+        "k0" => %{
+          "field" => "status",
+          "index" => "0",
+          "uuid" => "agg-group-1",
+          "format" => "default"
+        }
+      },
+      "aggregate" => %{
+        "k0" => %{
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "agg-metric-1",
+          "format" => "count"
+        }
+      },
+      "aggregate_per_page" => "300",
+      "aggregate_grid" => "true",
+      "aggregate_grid_colorize" => "true",
+      "aggregate_grid_color_scale" => "log",
+      "chart_type" => "line",
+      "x_axis" => %{
+        "k0" => %{
+          "field" => "status",
+          "index" => "0",
+          "uuid" => "graph-x-1",
+          "format" => "default"
+        },
+        "k1" => %{
+          "field" => "priority",
+          "index" => "1",
+          "uuid" => "graph-x-2",
+          "format" => "default"
+        }
+      },
+      "y_axis" => %{
+        "k0" => %{
+          "field" => "id",
+          "index" => "0",
+          "uuid" => "graph-y-1",
+          "function" => "count",
+          "axis" => "left"
+        }
+      },
+      "series" => %{
+        "k0" => %{
+          "field" => "priority",
+          "index" => "0",
+          "uuid" => "graph-series-1",
+          "format" => "default"
+        }
+      },
+      "options" => %{
+        "title" => "Priority trend",
+        "legend_position" => "bottom"
+      }
+    })
+  end
+
   test "list picker add hydrates current form state before mutating aggregate config" do
     {:noreply, updated} =
       TestLive.handle_info(
@@ -342,5 +426,93 @@ defmodule SelectoComponents.Form.ListOperationsTest do
              {"detail-col-1", "id",
               %{"alias" => "ID", "field" => "id", "index" => "0", "uuid" => "detail-col-1"}}
            ] = updated.assigns.view_config.views.detail.selected
+  end
+
+  test "graph list picker add hydrates current form state before mutating graph config" do
+    {:noreply, updated} =
+      TestLive.handle_info(
+        {:list_picker_add, graph_form_state_query(), "graph", "series", "status"},
+        base_socket()
+      )
+
+    assert_preserved_cross_tab_state(updated)
+    assert updated.assigns.view_config.view_mode == "graph"
+    assert updated.assigns.view_config.views.graph.chart_type == "line"
+
+    assert updated.assigns.view_config.views.graph.options == %{
+             "legend_position" => "bottom",
+             "title" => "Priority trend"
+           }
+
+    assert [
+             {"graph-series-1", "priority", _existing_config},
+             {new_uuid, "status", %{}}
+           ] = updated.assigns.view_config.views.graph.series
+
+    assert is_binary(new_uuid)
+    assert new_uuid != ""
+  end
+
+  test "graph list picker remove hydrates current form state before mutating graph config" do
+    {:noreply, updated} =
+      TestLive.handle_info(
+        {:list_picker_remove, graph_form_state_query(), "graph", "y_axis", "graph-y-1"},
+        base_socket()
+      )
+
+    assert_preserved_cross_tab_state(updated)
+    assert updated.assigns.view_config.view_mode == "graph"
+    assert updated.assigns.view_config.views.graph.y_axis == []
+
+    assert [{"graph-x-1", "status", _}, {"graph-x-2", "priority", _}] =
+             updated.assigns.view_config.views.graph.x_axis
+
+    assert [{"graph-series-1", "priority", _}] = updated.assigns.view_config.views.graph.series
+  end
+
+  test "graph list picker reorder hydrates current form state before mutating graph config" do
+    {:noreply, updated} =
+      TestLive.handle_info(
+        {:list_picker_reorder, graph_form_state_query(), "graph", "x_axis", "graph-x-2",
+         "graph-x-1"},
+        base_socket()
+      )
+
+    assert_preserved_cross_tab_state(updated)
+    assert updated.assigns.view_config.view_mode == "graph"
+
+    assert [
+             {"graph-x-2", "priority", _priority_config},
+             {"graph-x-1", "status", _status_config}
+           ] = updated.assigns.view_config.views.graph.x_axis
+  end
+
+  test "list picker move keeps boundary items in place" do
+    view_config = %{
+      views: %{
+        detail: %{
+          selected: [
+            {"first", "id", %{}},
+            {"second", "status", %{}}
+          ]
+        }
+      }
+    }
+
+    assert ListPickerOperations.move_item_in_list(
+             view_config,
+             "detail",
+             "selected",
+             "first",
+             "up"
+           ) == view_config
+
+    assert ListPickerOperations.move_item_in_list(
+             view_config,
+             "detail",
+             "selected",
+             "second",
+             "down"
+           ) == view_config
   end
 end

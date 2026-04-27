@@ -94,4 +94,23 @@ defmodule SelectoComponents.Components.ListPickerTest do
 
     assert html =~ ~s(data-type-icon="CTE")
   end
+
+  test "renders selected items with tuple field identifiers" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"created_at", "Created At", :utc_datetime}
+          ],
+          selected_items: [
+            {"selected-1", {:to_char, {"created_at", "YYYY-MM"}}, %{}}
+          ],
+          item_summary: []
+        })
+      )
+
+    assert html =~ ~s|aria-label="Selected item to_char(created_at, YYYY-MM)"|
+    assert html =~ ~s(data-type-icon="Date")
+  end
 end

@@ -15,6 +15,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
   attr(:available, :list, required: true)
   attr(:selected_items, :list, required: true)
+  attr(:view, :any, required: true)
   attr(:fieldname, :string, required: true)
   attr(:compact, :boolean, default: false)
   attr(:available_label, :string, default: "Available")
@@ -202,7 +203,7 @@ defmodule SelectoComponents.Components.ListPicker do
               data-picker-item-id={id}
               data-selected-item
               tabindex="0"
-              aria-label={"Selected item #{item}"}
+              aria-label={"Selected item #{selected_item_label(item)}"}
               class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
               style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
             >
@@ -229,7 +230,7 @@ defmodule SelectoComponents.Components.ListPicker do
                       <%= if @item_summary != [] do %>
                         {render_slot(@item_summary, {id, item, conf, index})}
                       <% else %>
-                        <span class="truncate">{item}</span>
+                        <span class="truncate">{selected_item_label(item)}</span>
                       <% end %>
                     </div>
                   </div>
@@ -280,9 +281,21 @@ defmodule SelectoComponents.Components.ListPicker do
             this.draggedItemId = null;
             this.draggedItemEl = null;
             this.activeDropItemId = null;
+            this.boundItems = new WeakSet();
 
-            const reorderButtonId = this.el.dataset.reorderButtonId;
-            const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
+            this.resolveComponentCid = () => {
+              const root = this.el.closest('[data-list-picker-root]');
+              const cid =
+                root?.getAttribute('data-phx-component') ||
+                this.el.closest('[data-phx-component]')?.getAttribute('data-phx-component');
+
+              return cid ? parseInt(cid, 10) : null;
+            };
+
+            const reorderButton = () => {
+              const reorderButtonId = this.el.dataset.reorderButtonId;
+              return reorderButtonId ? document.getElementById(reorderButtonId) : null;
+            };
 
             const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
 
@@ -305,12 +318,66 @@ defmodule SelectoComponents.Components.ListPicker do
               item.classList.add('ring-2', 'ring-primary/40');
             };
 
-            const bindItem = (item) => {
-              if (item.dataset.sortableBound === 'true') {
+            const selectionContainer = (itemId) => {
+              const item = this.el.querySelector(`[data-picker-item-id="${itemId}"]`);
+              return item?.closest(`[id^="${this.el.id}-selection-"]`) || item;
+            };
+
+            const moveSelection = (draggedItemId, targetItemId) => {
+              const draggedNode = selectionContainer(draggedItemId);
+              const targetNode = selectionContainer(targetItemId);
+
+              if (!draggedNode || !targetNode || draggedNode === targetNode) {
                 return;
               }
 
-              item.dataset.sortableBound = 'true';
+              const selections = Array.from(this.el.querySelectorAll(`[id^="${this.el.id}-selection-"]`));
+              const draggedIndex = selections.indexOf(draggedNode);
+              const targetIndex = selections.indexOf(targetNode);
+
+              if (draggedIndex === -1 || targetIndex === -1) {
+                return;
+              }
+
+              if (draggedIndex < targetIndex) {
+                targetNode.after(draggedNode);
+              } else {
+                targetNode.before(draggedNode);
+              }
+            };
+
+            const pushReorder = (targetItemId) => {
+              const button = reorderButton();
+
+              clearDropIndicators();
+
+              if (!button || !this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId) {
+                return;
+              }
+
+              moveSelection(this.draggedItemId, targetItemId);
+
+              button.dataset.itemId = this.draggedItemId;
+              button.dataset.targetItemId = targetItemId;
+
+              const form = this.el.closest('form');
+              const componentCid = this.resolveComponentCid();
+
+              this.pushEventTo(componentCid || this.el, 'reorder', {
+                view: button.dataset.viewId,
+                'list-id': button.dataset.listId,
+                item: this.draggedItemId,
+                'target-item': targetItemId,
+                form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+              });
+            };
+
+            const bindItem = (item) => {
+              if (this.boundItems.has(item)) {
+                return;
+              }
+
+              this.boundItems.add(item);
 
               item.addEventListener('dragstart', (event) => {
                 const handle = event.target.closest('[data-drag-handle]');
@@ -348,28 +415,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
               item.addEventListener('drop', (event) => {
                 event.preventDefault();
-
-                const targetItemId = item.dataset.pickerItemId;
-
-                clearDropIndicators();
-
-                if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
-                  return;
-                }
-
-                reorderButton.dataset.itemId = this.draggedItemId;
-                reorderButton.dataset.targetItemId = targetItemId;
-
-                const root = this.el.closest('[data-list-picker-root]');
-                const form = root?.closest('form');
-
-                this.pushEventTo(this.el, 'reorder', {
-                  view: reorderButton.dataset.viewId,
-                  'list-id': reorderButton.dataset.listId,
-                  item: this.draggedItemId,
-                  'target-item': targetItemId,
-                  form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-                });
+                pushReorder(item.dataset.pickerItemId);
               });
             };
 
@@ -1413,13 +1459,13 @@ defmodule SelectoComponents.Components.ListPicker do
   defp picker_pane_max_height(_compact, _override), do: "24rem"
 
   defp selected_item_type(available, item) do
-    item_str = to_string(item || "")
+    item_str = field_id_string(item)
 
     Enum.find_value(available || [], :unknown, fn
       {id, name, field_type} ->
         cond do
-          to_string(id) == item_str -> field_type
-          to_string(name) == item_str -> field_type
+          field_id_string(id) == item_str -> field_type
+          selected_item_label(name) == item_str -> field_type
           true -> nil
         end
 
@@ -1427,6 +1473,20 @@ defmodule SelectoComponents.Components.ListPicker do
         nil
     end)
   end
+
+  defp selected_item_label(nil), do: ""
+  defp selected_item_label(value) when is_binary(value), do: value
+  defp selected_item_label(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp selected_item_label({func, {field, format}}),
+    do: "#{func}(#{selected_item_label(field)}, #{selected_item_label(format)})"
+
+  defp selected_item_label({func, field}), do: "#{func}(#{selected_item_label(field)})"
+  defp selected_item_label(value), do: inspect(value)
+
+  defp field_id_string({_func, {field, _format}}), do: field_id_string(field)
+  defp field_id_string({_func, field}), do: field_id_string(field)
+  defp field_id_string(value), do: selected_item_label(value)
 
   defp available_type_filters(available) do
     available
