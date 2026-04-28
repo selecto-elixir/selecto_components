@@ -2,6 +2,15 @@
 CHANGES
 =======
 
+V 0.4.7
+--------
+
+- Fixed ListPicker update handling across field-picker contexts so selected and
+  available item state stays synchronized when keyboard and picker operations
+  move, add, remove, or reorder fields.
+- Updated packaged `selecto` compatibility to require `>= 0.4.5`.
+- Bump package version to `0.4.7`.
+
 V 0.4.6
 --------
 
