@@ -158,6 +158,13 @@ Recommended execution model: use Oban (or another worker system) to run due sche
 
 Map views and other extension-provided view systems are merged from domain extensions rather than hard-coded into the package.
 
+## Query Contracts
+
+`SelectoComponents.QueryContract.build/1` returns the constrained
+`Selecto.Domain.query_contract/1` projection for Components-facing tooling. It
+accepts an authored domain, a normalized domain, or a configured Selecto struct
+without changing the existing Explorer/Form runtime path.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.
