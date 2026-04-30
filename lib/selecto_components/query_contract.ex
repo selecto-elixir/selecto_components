@@ -11,7 +11,8 @@ defmodule SelectoComponents.QueryContract do
 
   @query_contract_version 1
 
-  @type result :: {:ok, map(), Selecto.Diagnostics.t()} | {:error, Selecto.Diagnostics.t()}
+  @type diagnostics :: Selecto.Domain.Diagnostics.t()
+  @type result :: {:ok, map(), diagnostics()} | {:error, diagnostics()}
 
   @doc """
   Builds a constrained query contract from a domain-shaped input.
@@ -58,7 +59,7 @@ defmodule SelectoComponents.QueryContract do
   Encodes the JSON-ready query contract document.
   """
   @spec encode_json(term(), keyword()) ::
-          {:ok, String.t(), Selecto.Diagnostics.t()} | {:error, Selecto.Diagnostics.t()}
+          {:ok, String.t(), diagnostics()} | {:error, diagnostics()}
   def encode_json(input, opts \\ []) do
     with {:ok, document, diagnostics} <- json_document(input) do
       {:ok, Jason.encode!(document, opts), diagnostics}
@@ -85,24 +86,26 @@ defmodule SelectoComponents.QueryContract do
 
   defp query_contract_input(input), do: input
 
-  defp json_safe(value) when is_map(value) do
+  @doc false
+  @spec json_safe(term()) :: term()
+  def json_safe(value) when is_map(value) do
     Map.new(value, fn {key, value} -> {json_key(key), json_safe(value)} end)
   end
 
-  defp json_safe(value) when is_list(value), do: Enum.map(value, &json_safe/1)
+  def json_safe(value) when is_list(value), do: Enum.map(value, &json_safe/1)
 
-  defp json_safe(value) when is_tuple(value) do
+  def json_safe(value) when is_tuple(value) do
     value
     |> Tuple.to_list()
     |> json_safe()
   end
 
-  defp json_safe(value) when is_atom(value) and value in [nil, true, false], do: value
-  defp json_safe(value) when is_atom(value), do: Atom.to_string(value)
-  defp json_safe(value) when is_binary(value), do: value
-  defp json_safe(value) when is_number(value), do: value
+  def json_safe(value) when is_atom(value) and value in [nil, true, false], do: value
+  def json_safe(value) when is_atom(value), do: Atom.to_string(value)
+  def json_safe(value) when is_binary(value), do: value
+  def json_safe(value) when is_number(value), do: value
 
-  defp json_safe(value), do: inspect(value)
+  def json_safe(value), do: inspect(value)
 
   defp json_key(value) when is_atom(value), do: Atom.to_string(value)
   defp json_key(value) when is_binary(value), do: value

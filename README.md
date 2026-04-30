@@ -169,6 +169,15 @@ Use `SelectoComponents.QueryContract.json_document/1` or `encode_json/2` when a
 consumer needs a `query_contract.json`-ready artifact with string keys and
 JSON-compatible values.
 
+Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
+endpoint:
+
+```elixir
+forward "/selecto/orders/query-contract.json",
+        SelectoComponents.QueryContract.Plug,
+        domain: MyApp.SelectoDomains.Orders.domain()
+```
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.
