@@ -87,6 +87,57 @@ defmodule SelectoComponents.QueryContractTest do
     end
   end
 
+  describe "json_document/1" do
+    test "returns a JSON-ready query contract document" do
+      assert {:ok, document, diagnostics} = QueryContract.json_document(domain())
+
+      assert diagnostics.errors == []
+      assert document["query_contract_version"] == 1
+      assert document["schema_version"] == 1
+      assert document["projection"] == "query_contract"
+      assert document["source"] == %{"source_table" => "orders", "primary_key" => "id"}
+
+      assert %{"id" => "status_filter", "field" => "status", "type" => "string"} =
+               Enum.find(document["filters"], &(&1["id"] == "status_filter"))
+
+      assert %{"id" => "customer", "target_schema" => "customers"} =
+               Enum.find(document["joins"], &(&1["id"] == "customer"))
+
+      assert %{"field" => "customer_id", "choice_source" => "customer_choices"} =
+               Enum.find(
+                 document["field_choice_bindings"],
+                 &(&1["field"] == "customer_id")
+               )
+
+      assert_json_safe(document)
+    end
+
+    test "encodes a query contract JSON document" do
+      assert {:ok, json, diagnostics} = QueryContract.encode_json(domain(), pretty: true)
+
+      assert diagnostics.errors == []
+
+      decoded = Jason.decode!(json)
+
+      assert decoded["query_contract_version"] == 1
+      assert decoded["projection"] == "query_contract"
+
+      assert decoded["capability_ids"] == [
+               "customer.choose",
+               "order.filter",
+               "order.member",
+               "order.rank",
+               "order.view"
+             ]
+    end
+
+    test "returns core diagnostics for invalid JSON document input" do
+      assert {:error, diagnostics} = QueryContract.json_document(:not_a_domain)
+
+      assert [%{code: :invalid_domain}] = diagnostics.errors
+    end
+  end
+
   defp domain do
     %{
       name: "Orders",
@@ -188,5 +239,20 @@ defmodule SelectoComponents.QueryContractTest do
         "order.view" => %{operations: [:select]}
       }
     }
+  end
+
+  defp assert_json_safe(value) when is_map(value) do
+    Enum.each(value, fn {key, value} ->
+      assert is_binary(key)
+      assert_json_safe(value)
+    end)
+  end
+
+  defp assert_json_safe(value) when is_list(value), do: Enum.each(value, &assert_json_safe/1)
+
+  defp assert_json_safe(value) when is_atom(value), do: assert(value in [nil, true, false])
+
+  defp assert_json_safe(value) do
+    assert is_binary(value) or is_number(value)
   end
 end

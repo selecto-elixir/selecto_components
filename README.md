@@ -165,6 +165,10 @@ Map views and other extension-provided view systems are merged from domain exten
 accepts an authored domain, a normalized domain, or a configured Selecto struct
 without changing the existing Explorer/Form runtime path.
 
+Use `SelectoComponents.QueryContract.json_document/1` or `encode_json/2` when a
+consumer needs a `query_contract.json`-ready artifact with string keys and
+JSON-compatible values.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.
