@@ -89,12 +89,34 @@ defmodule SelectoComponents.QueryContractTest do
 
   describe "json_document/1" do
     test "returns a JSON-ready query contract document" do
-      assert {:ok, document, diagnostics} = QueryContract.json_document(domain())
+      assert {:ok, document, diagnostics} =
+               QueryContract.json_document(domain(),
+                 generated_at: "2026-04-30T19:50:00Z",
+                 domain_id: "orders",
+                 domain_path: "/orders",
+                 context: %{
+                   exports: [:csv, :json],
+                   saved_views_enabled: true,
+                   exported_views_enabled: true
+                 }
+               )
 
       assert diagnostics.errors == []
       assert document["query_contract_version"] == 1
+      assert document["generated_at"] == "2026-04-30T19:50:00Z"
       assert document["schema_version"] == 1
       assert document["projection"] == "query_contract"
+      assert document["domain"] == %{"id" => "orders", "name" => "Orders", "path" => "/orders"}
+      assert document["context"]["view_modes"] == ["detail", "aggregate", "graph"]
+      assert document["context"]["default_view_mode"] == "detail"
+      assert document["context"]["exports"] == ["csv", "json"]
+      assert document["context"]["saved_views_enabled"] == true
+      assert document["context"]["exported_views_enabled"] == true
+      assert document["params_schema"]["view_mode"]["type"] == "enum"
+      assert document["params_schema"]["view_mode"]["values"] == ["detail", "aggregate", "graph"]
+      assert document["examples"] == []
+      assert %{"codes" => error_codes} = document["errors"]
+      assert Enum.any?(error_codes, &(&1["code"] == "invalid_field"))
       assert document["source"] == %{"source_table" => "orders", "primary_key" => "id"}
 
       assert %{"id" => "status_filter", "field" => "status", "type" => "string"} =
@@ -114,13 +136,20 @@ defmodule SelectoComponents.QueryContractTest do
     end
 
     test "encodes a query contract JSON document" do
-      assert {:ok, json, diagnostics} = QueryContract.encode_json(domain(), pretty: true)
+      assert {:ok, json, diagnostics} =
+               QueryContract.encode_json(domain(),
+                 pretty: true,
+                 generated_at: "2026-04-30T19:50:00Z",
+                 domain_id: "orders"
+               )
 
       assert diagnostics.errors == []
 
       decoded = Jason.decode!(json)
 
       assert decoded["query_contract_version"] == 1
+      assert decoded["generated_at"] == "2026-04-30T19:50:00Z"
+      assert decoded["domain"]["id"] == "orders"
       assert decoded["projection"] == "query_contract"
 
       assert decoded["capability_ids"] == [

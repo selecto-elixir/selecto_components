@@ -10,6 +10,41 @@ defmodule SelectoComponents.QueryContract do
   alias Selecto.Domain
 
   @query_contract_version 1
+  @default_context %{
+    view_modes: [:detail, :aggregate, :graph],
+    default_view_mode: :detail,
+    exports: [],
+    saved_views_enabled: false,
+    exported_views_enabled: false,
+    ai_actions_enabled: false
+  }
+  @default_params_schema %{
+    view_mode: %{type: :enum, values: [:detail, :aggregate, :graph], default: :detail},
+    detail: %{
+      selected: %{type: :array, items: :field_id},
+      filters: %{type: :array, items: :filter},
+      order_by: %{type: :array, items: :order_by}
+    },
+    aggregate: %{
+      selected: %{type: :array, items: :field_id},
+      group_by: %{type: :array, items: :field_id},
+      filters: %{type: :array, items: :filter}
+    },
+    graph: %{
+      x_axis: %{type: :array, items: :field_id},
+      y_axis: %{type: :array, items: :metric},
+      series: %{type: :array, items: :field_id},
+      filters: %{type: :array, items: :filter}
+    }
+  }
+  @default_errors %{
+    codes: [
+      %{code: :invalid_view_mode, message: "Requested view mode is not exposed by this contract"},
+      %{code: :invalid_field, message: "Requested field id is not exposed by this contract"},
+      %{code: :invalid_filter, message: "Requested filter id or comparator is not valid"},
+      %{code: :invalid_params, message: "Requested query state does not match params_schema"}
+    ]
+  }
 
   @type diagnostics :: Selecto.Domain.Diagnostics.t()
   @type result :: {:ok, map(), diagnostics()} | {:error, diagnostics()}
@@ -43,12 +78,13 @@ defmodule SelectoComponents.QueryContract do
   serve it directly from a future `query_contract.json` endpoint without leaking
   Elixir atoms or structs into the public artifact.
   """
-  @spec json_document(term()) :: result()
-  def json_document(input) do
+  @spec json_document(term(), keyword()) :: result()
+  def json_document(input, opts \\ []) do
     with {:ok, contract, diagnostics} <- build(input) do
       document =
         contract
         |> Map.put(:query_contract_version, @query_contract_version)
+        |> put_contract_envelope(opts)
         |> json_safe()
 
       {:ok, document, diagnostics}
@@ -61,10 +97,75 @@ defmodule SelectoComponents.QueryContract do
   @spec encode_json(term(), keyword()) ::
           {:ok, String.t(), diagnostics()} | {:error, diagnostics()}
   def encode_json(input, opts \\ []) do
-    with {:ok, document, diagnostics} <- json_document(input) do
-      {:ok, Jason.encode!(document, opts), diagnostics}
+    with {:ok, document, diagnostics} <- json_document(input, opts) do
+      {:ok, Jason.encode!(document, json_encode_opts(opts)), diagnostics}
     end
   end
+
+  defp put_contract_envelope(contract, opts) do
+    contract
+    |> Map.put(:generated_at, generated_at(opts))
+    |> Map.put(:domain, domain_document(contract, opts))
+    |> Map.put(:context, context_document(opts))
+    |> Map.put(:params_schema, params_schema_document(opts))
+    |> Map.put(:examples, Keyword.get(opts, :examples, []))
+    |> Map.put(:errors, Keyword.get(opts, :errors, @default_errors))
+  end
+
+  defp generated_at(opts) do
+    case Keyword.get(opts, :generated_at) do
+      nil ->
+        DateTime.utc_now()
+        |> DateTime.truncate(:second)
+        |> DateTime.to_iso8601()
+
+      %DateTime{} = datetime ->
+        DateTime.to_iso8601(datetime)
+
+      generated_at ->
+        generated_at
+    end
+  end
+
+  defp domain_document(contract, opts) do
+    %{
+      id: Keyword.get(opts, :domain_id),
+      name: Keyword.get(opts, :domain_name) || Map.get(contract, :name),
+      description: Keyword.get(opts, :domain_description),
+      path: Keyword.get(opts, :domain_path) || Keyword.get(opts, :path)
+    }
+  end
+
+  defp context_document(opts) do
+    context = Map.merge(@default_context, option_map(Keyword.get(opts, :context, %{})))
+
+    Enum.reduce(
+      [
+        :view_modes,
+        :default_view_mode,
+        :exports,
+        :saved_views_enabled,
+        :exported_views_enabled,
+        :ai_actions_enabled
+      ],
+      context,
+      fn key, acc ->
+        if Keyword.has_key?(opts, key),
+          do: Map.put(acc, key, Keyword.fetch!(opts, key)),
+          else: acc
+      end
+    )
+  end
+
+  defp params_schema_document(opts) do
+    Map.merge(@default_params_schema, option_map(Keyword.get(opts, :params_schema, %{})))
+  end
+
+  defp option_map(value) when is_map(value), do: value
+  defp option_map(value) when is_list(value), do: Map.new(value)
+  defp option_map(_value), do: %{}
+
+  defp json_encode_opts(opts), do: Keyword.take(opts, [:pretty, :escape])
 
   defp query_contract_input(
          %{

@@ -82,7 +82,7 @@ defmodule SelectoComponents.QueryContract.Plug do
   defp normalize_resolver_result(input), do: {:ok, input}
 
   defp send_contract(conn, input, opts) do
-    case QueryContract.encode_json(input, encode_opts(opts)) do
+    case QueryContract.encode_json(input, opts) do
       {:ok, json, _diagnostics} ->
         send_json(conn, 200, json)
 
@@ -120,10 +120,6 @@ defmodule SelectoComponents.QueryContract.Plug do
         schema_version_inferred: diagnostics.schema_version_inferred
       }
     })
-  end
-
-  defp encode_opts(opts) do
-    if Keyword.get(opts, :pretty, false), do: [pretty: true], else: []
   end
 
   defp domain_id(conn) do

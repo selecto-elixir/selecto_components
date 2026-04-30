@@ -18,7 +18,15 @@ defmodule SelectoComponents.QueryContract.PlugTest do
       conn =
         :get
         |> conn("/query-contract.json")
-        |> QueryContractPlug.call(QueryContractPlug.init(domain: domain()))
+        |> QueryContractPlug.call(
+          QueryContractPlug.init(
+            domain: domain(),
+            generated_at: "2026-04-30T19:50:00Z",
+            domain_id: "orders",
+            domain_path: "/orders",
+            context: %{exports: [:csv], saved_views_enabled: true}
+          )
+        )
 
       assert conn.status == 200
       assert conn.halted
@@ -27,8 +35,13 @@ defmodule SelectoComponents.QueryContract.PlugTest do
       body = Jason.decode!(conn.resp_body)
 
       assert body["query_contract_version"] == 1
+      assert body["generated_at"] == "2026-04-30T19:50:00Z"
       assert body["projection"] == "query_contract"
       assert body["name"] == "Orders"
+      assert body["domain"] == %{"id" => "orders", "name" => "Orders", "path" => "/orders"}
+      assert body["context"]["exports"] == ["csv"]
+      assert body["context"]["saved_views_enabled"] == true
+      assert body["params_schema"]["view_mode"]["default"] == "detail"
       assert body["source"] == %{"source_table" => "orders", "primary_key" => "id"}
     end
 
@@ -49,6 +62,7 @@ defmodule SelectoComponents.QueryContract.PlugTest do
       body = Jason.decode!(conn.resp_body)
 
       assert body["name"] == "Orders"
+      assert body["domain"]["name"] == "Orders"
     end
 
     test "returns 404 when the resolver cannot find a domain" do
