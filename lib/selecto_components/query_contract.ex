@@ -89,7 +89,12 @@ defmodule SelectoComponents.QueryContract do
   @doc false
   @spec json_safe(term()) :: term()
   def json_safe(value) when is_map(value) do
-    Map.new(value, fn {key, value} -> {json_key(key), json_safe(value)} end)
+    Enum.reduce(value, %{}, fn {key, value}, acc ->
+      case json_safe(value) do
+        nil -> acc
+        safe_value -> Map.put(acc, json_key(key), safe_value)
+      end
+    end)
   end
 
   def json_safe(value) when is_list(value), do: Enum.map(value, &json_safe/1)

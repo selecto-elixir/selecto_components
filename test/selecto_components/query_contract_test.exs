@@ -110,6 +110,7 @@ defmodule SelectoComponents.QueryContractTest do
                )
 
       assert_json_safe(document)
+      refute_nil_map_values(document)
     end
 
     test "encodes a query contract JSON document" do
@@ -255,4 +256,16 @@ defmodule SelectoComponents.QueryContractTest do
   defp assert_json_safe(value) do
     assert is_binary(value) or is_number(value)
   end
+
+  defp refute_nil_map_values(value) when is_map(value) do
+    Enum.each(value, fn {key, value} ->
+      refute is_nil(value), "expected #{inspect(key)} to be omitted instead of nil"
+      refute_nil_map_values(value)
+    end)
+  end
+
+  defp refute_nil_map_values(value) when is_list(value),
+    do: Enum.each(value, &refute_nil_map_values/1)
+
+  defp refute_nil_map_values(_value), do: :ok
 end
