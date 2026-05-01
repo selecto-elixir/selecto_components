@@ -1,0 +1,61 @@
+defmodule SelectoComponents.QueryContract.GuideTest do
+  use ExUnit.Case, async: true
+
+  alias SelectoComponents.QueryContract.Guide
+
+  describe "markdown/2" do
+    test "renders a readable Markdown query guide" do
+      assert {:ok, markdown, diagnostics} =
+               Guide.markdown(domain(),
+                 generated_at: "2026-04-30T20:10:00Z",
+                 domain_id: "orders",
+                 domain_path: "/orders",
+                 context: %{exports: [:csv], saved_views_enabled: true}
+               )
+
+      assert diagnostics.errors == []
+      assert markdown =~ "# Orders Query Guide"
+      assert markdown =~ "- Domain id: `orders`"
+      assert markdown =~ "- Path: `/orders`"
+      assert markdown =~ "## Context"
+      assert markdown =~ "- Exports: `csv`"
+      assert markdown =~ "## Fields"
+      assert markdown =~ "| `status` | Status | string | select, filter, sort, group |"
+      assert markdown =~ "## Filters"
+      assert markdown =~ "| `status_filter` | `status` | string |"
+      assert markdown =~ "## Intent Vocabulary"
+      assert markdown =~ "`contains`"
+      assert markdown =~ "## Example Intent"
+      assert markdown =~ "## Safety Notes"
+    end
+
+    test "returns core diagnostics for invalid input" do
+      assert {:error, diagnostics} = Guide.markdown(:not_a_domain)
+
+      assert [%{code: :invalid_domain}] = diagnostics.errors
+    end
+  end
+
+  defp domain do
+    %{
+      name: "Orders",
+      source: %{
+        source_table: "orders",
+        primary_key: :id,
+        fields: [:id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID"},
+          status: %{type: :string, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      filters: %{
+        status_filter: %{field: :status, type: :string, name: "Status"}
+      },
+      default_selected: [:id, :status]
+    }
+  end
+end
