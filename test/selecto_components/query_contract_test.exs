@@ -187,6 +187,96 @@ defmodule SelectoComponents.QueryContractTest do
     end
   end
 
+  describe "validate_intent/2" do
+    test "accepts a valid detail query intent" do
+      document = query_contract_document()
+
+      validation =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "select" => ["id", "status", "customers.name"],
+          "filters" => [
+            %{"field" => "status", "comparator" => "contains", "value" => "open"}
+          ],
+          "order_by" => [
+            %{"field" => "customer_id", "direction" => "desc"}
+          ]
+        })
+
+      assert validation[:valid?]
+      assert validation.errors == []
+      assert validation.warnings == []
+    end
+
+    test "reports stable diagnostics for invalid fields, comparators, and sort direction" do
+      validation =
+        QueryContract.validate_intent(query_contract_document(), %{
+          "view_mode" => "detail",
+          "select" => ["missing_field"],
+          "filters" => [
+            %{"field" => "status", "comparator" => "regex", "value" => "open"}
+          ],
+          "order_by" => [
+            %{"field" => "customer_id", "direction" => "sideways"}
+          ]
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(validation.errors, &match?(%{code: :invalid_field, path: "select.0"}, &1))
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_comparator, path: "filters.0.comparator"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_sort_direction, path: "order_by.0.direction"}, &1)
+             )
+    end
+
+    test "rejects fields that are not exposed for the requested query use" do
+      document =
+        query_contract_document()
+        |> put_field_capability("status", "filterable", false)
+        |> put_field_capability("customer_id", "sortable", false)
+
+      validation =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "filters" => [
+            %{"field" => "status", "comparator" => "contains", "value" => "open"}
+          ],
+          "order_by" => [
+            %{"field" => "customer_id", "direction" => "asc"}
+          ]
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :field_not_filterable, path: "filters.0.field"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :field_not_sortable, path: "order_by.0.field"}, &1)
+             )
+    end
+
+    test "only supports detail view-mode intents in the first slice" do
+      document = query_contract_document()
+
+      unsupported = QueryContract.validate_intent(document, %{"view_mode" => "aggregate"})
+      invalid = QueryContract.validate_intent(document, %{"view_mode" => "timeline"})
+
+      assert [%{code: :unsupported_view_mode, path: "view_mode"}] = unsupported.errors
+      assert [%{code: :invalid_view_mode, path: "view_mode"}] = invalid.errors
+    end
+  end
+
   defp domain do
     %{
       name: "Orders",
@@ -316,4 +406,26 @@ defmodule SelectoComponents.QueryContractTest do
     do: Enum.each(value, &refute_nil_map_values/1)
 
   defp refute_nil_map_values(_value), do: :ok
+
+  defp query_contract_document do
+    assert {:ok, document, diagnostics} =
+             QueryContract.json_document(domain(),
+               generated_at: "2026-04-30T19:50:00Z",
+               domain_id: "orders",
+               domain_path: "/orders"
+             )
+
+    assert diagnostics.errors == []
+
+    document
+  end
+
+  defp put_field_capability(document, field_id, capability, value) do
+    update_in(document["fields"], fn fields ->
+      Enum.map(fields, fn
+        %{"id" => ^field_id} = field -> Map.put(field, capability, value)
+        field -> field
+      end)
+    end)
+  end
 end

@@ -173,6 +173,10 @@ Markdown guide. The JSON and Markdown Plugs also emit HTTP `Link` headers for
 the same pair of artifacts, plus byte-accurate `ETag` headers with
 `If-None-Match` support for conditional GETs.
 
+Use `SelectoComponents.QueryContract.validate_intent/2` to check a generated
+detail query intent against a query contract before handing it to runtime query
+code.
+
 Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
 endpoint:
 

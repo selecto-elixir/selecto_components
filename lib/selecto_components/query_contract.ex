@@ -8,6 +8,7 @@ defmodule SelectoComponents.QueryContract do
   """
 
   alias Selecto.Domain
+  alias SelectoComponents.QueryContract.IntentValidator
   alias SelectoComponents.QueryContract.Links
 
   @query_contract_version 1
@@ -103,6 +104,36 @@ defmodule SelectoComponents.QueryContract do
     end
   end
 
+  @doc """
+  Validates a generated query intent against a query contract.
+
+  The validator is deliberately non-executing. It accepts either an existing
+  query contract artifact or a domain-shaped input that can be projected into a
+  query contract, then checks that the intent only references exposed detail
+  fields, filter comparators, and sort fields.
+  """
+  @spec validate_intent(term(), map(), keyword()) :: IntentValidator.result()
+  def validate_intent(input, intent, opts \\ []) do
+    case query_contract_document(input, opts) do
+      {:ok, document} ->
+        IntentValidator.validate(document, intent, opts)
+
+      {:error, diagnostics} ->
+        %{
+          valid?: false,
+          errors: [
+            %{
+              code: :invalid_query_contract,
+              path: "",
+              message: "query contract input is invalid",
+              diagnostics: diagnostics.errors
+            }
+          ],
+          warnings: diagnostics.warnings
+        }
+    end
+  end
+
   defp put_contract_envelope(contract, opts) do
     contract
     |> Map.put(:generated_at, generated_at(opts))
@@ -175,6 +206,43 @@ defmodule SelectoComponents.QueryContract do
   defp option_map(_value), do: %{}
 
   defp json_encode_opts(opts), do: Keyword.take(opts, [:pretty, :escape])
+
+  defp query_contract_document(input, opts) when is_map(input) do
+    if query_contract_document?(input) do
+      {:ok, input}
+    else
+      json_document(input, opts)
+      |> case do
+        {:ok, document, _diagnostics} -> {:ok, document}
+        {:error, diagnostics} -> {:error, diagnostics}
+      end
+    end
+  end
+
+  defp query_contract_document(input, opts) do
+    case json_document(input, opts) do
+      {:ok, document, _diagnostics} -> {:ok, document}
+      {:error, diagnostics} -> {:error, diagnostics}
+    end
+  end
+
+  defp query_contract_document?(input) do
+    projection = document_get(input, :projection)
+    version = document_get(input, :query_contract_version)
+
+    (projection in [:query_contract, "query_contract"] or not is_nil(version)) and
+      is_list(document_get(input, :fields, []))
+  end
+
+  defp document_get(map, key, default \\ nil) when is_map(map) and is_atom(key) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      Map.has_key?(map, string_key) -> Map.get(map, string_key)
+      true -> default
+    end
+  end
 
   defp query_contract_input(
          %{
