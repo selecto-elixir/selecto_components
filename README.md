@@ -175,7 +175,9 @@ the same pair of artifacts, plus byte-accurate `ETag` headers with
 
 Use `SelectoComponents.QueryContract.validate_intent/2` to check a generated
 detail query intent against a query contract before handing it to runtime query
-code.
+code. Host apps can also mount
+`SelectoComponents.QueryContract.IntentValidator.Plug` to expose the same
+validation over an HTTP POST endpoint.
 
 Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
 endpoint:
