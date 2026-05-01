@@ -34,9 +34,39 @@ defmodule SelectoComponents.QueryContract.Guide.PlugTest do
       assert [link_header] = Plug.Conn.get_resp_header(conn, "link")
       assert link_header =~ ~s(</query-guide.md>; rel="self"; type="text/markdown")
       assert link_header =~ ~s(</query-contract.json>; rel="describedby"; type="application/json")
+      assert [etag] = Plug.Conn.get_resp_header(conn, "etag")
+      assert etag =~ ~r/^"[0-9a-f]{64}"$/
       assert conn.resp_body =~ "# Orders Query Guide"
       assert conn.resp_body =~ "- Domain id: `orders`"
       assert conn.resp_body =~ "## Safety Notes"
+    end
+
+    test "returns 304 when if-none-match matches the query guide ETag" do
+      opts =
+        QueryGuidePlug.init(
+          domain: domain(),
+          generated_at: "2026-04-30T20:10:00Z",
+          domain_id: "orders",
+          domain_path: "/orders"
+        )
+
+      first_conn =
+        :get
+        |> conn("/query-guide.md")
+        |> QueryGuidePlug.call(opts)
+
+      assert [etag] = Plug.Conn.get_resp_header(first_conn, "etag")
+
+      cached_conn =
+        :get
+        |> conn("/query-guide.md")
+        |> Plug.Conn.put_req_header("if-none-match", etag)
+        |> QueryGuidePlug.call(opts)
+
+      assert cached_conn.status == 304
+      assert cached_conn.resp_body == ""
+      assert [^etag] = Plug.Conn.get_resp_header(cached_conn, "etag")
+      assert [_link_header] = Plug.Conn.get_resp_header(cached_conn, "link")
     end
 
     test "uses a two-arity resolver with the path domain id" do

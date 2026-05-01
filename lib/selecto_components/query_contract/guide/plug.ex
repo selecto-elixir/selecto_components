@@ -10,6 +10,7 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
 
   alias SelectoComponents.QueryContract
   alias SelectoComponents.QueryContract.Guide
+  alias SelectoComponents.QueryContract.HttpCache
   alias SelectoComponents.QueryContract.Links
 
   @behaviour Plug
@@ -86,11 +87,7 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
 
     case Guide.markdown(input, opts) do
       {:ok, markdown, _diagnostics} ->
-        conn
-        |> put_resp_content_type("text/markdown")
-        |> put_link_header(opts)
-        |> send_resp(200, markdown)
-        |> halt()
+        send_markdown(conn, 200, markdown, opts)
 
       {:error, diagnostics} ->
         conn
@@ -104,6 +101,28 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
     case Links.header(opts, :query_guide) do
       nil -> conn
       header -> put_resp_header(conn, "link", header)
+    end
+  end
+
+  defp send_markdown(conn, status, markdown, opts) do
+    etag = HttpCache.etag(markdown)
+
+    conn
+    |> put_resp_content_type("text/markdown")
+    |> put_link_header(opts)
+    |> HttpCache.put_etag(etag)
+    |> maybe_send_cached(status, markdown, etag)
+  end
+
+  defp maybe_send_cached(conn, status, markdown, etag) do
+    if status == 200 and HttpCache.not_modified?(conn, etag) do
+      conn
+      |> send_resp(304, "")
+      |> halt()
+    else
+      conn
+      |> send_resp(status, markdown)
+      |> halt()
     end
   end
 

@@ -170,7 +170,8 @@ consumer needs a `query_contract.json`-ready artifact with string keys and
 JSON-compatible values. Pass `query_contract_url` and `query_guide_url` to add
 discovery links for tools that need to move between the JSON contract and its
 Markdown guide. The JSON and Markdown Plugs also emit HTTP `Link` headers for
-the same pair of artifacts.
+the same pair of artifacts, plus byte-accurate `ETag` headers with
+`If-None-Match` support for conditional GETs.
 
 Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
 endpoint:

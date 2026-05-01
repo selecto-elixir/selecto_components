@@ -10,6 +10,7 @@ defmodule SelectoComponents.QueryContract.Plug do
   import Plug.Conn
 
   alias SelectoComponents.QueryContract
+  alias SelectoComponents.QueryContract.HttpCache
   alias SelectoComponents.QueryContract.Links
 
   @behaviour Plug
@@ -107,17 +108,31 @@ defmodule SelectoComponents.QueryContract.Plug do
   end
 
   defp send_json(conn, status, json, opts) do
+    etag = HttpCache.etag(json)
+
     conn
     |> put_resp_content_type("application/json")
     |> put_link_header(opts)
-    |> send_resp(status, json)
-    |> halt()
+    |> HttpCache.put_etag(etag)
+    |> maybe_send_cached(status, json, etag)
   end
 
   defp put_link_header(conn, opts) do
     case Links.header(opts, :query_contract) do
       nil -> conn
       header -> put_resp_header(conn, "link", header)
+    end
+  end
+
+  defp maybe_send_cached(conn, status, json, etag) do
+    if status == 200 and HttpCache.not_modified?(conn, etag) do
+      conn
+      |> send_resp(304, "")
+      |> halt()
+    else
+      conn
+      |> send_resp(status, json)
+      |> halt()
     end
   end
 
