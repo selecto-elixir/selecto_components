@@ -39,6 +39,12 @@ defmodule SelectoComponents.QueryContract.PlugTest do
       assert body["projection"] == "query_contract"
       assert body["name"] == "Orders"
       assert body["domain"] == %{"id" => "orders", "name" => "Orders", "path" => "/orders"}
+
+      assert body["links"] == %{
+               "query_contract" => "/query-contract.json",
+               "query_guide" => "/query-guide.md"
+             }
+
       assert body["context"]["exports"] == ["csv"]
       assert body["context"]["saved_views_enabled"] == true
       assert body["params_schema"]["view_mode"]["default"] == "detail"
@@ -63,6 +69,11 @@ defmodule SelectoComponents.QueryContract.PlugTest do
 
       assert body["name"] == "Orders"
       assert body["domain"]["name"] == "Orders"
+
+      assert body["links"] == %{
+               "query_contract" => "/selecto/schema/orders/query-contract.json",
+               "query_guide" => "/selecto/schema/orders/query-guide.md"
+             }
     end
 
     test "returns 404 when the resolver cannot find a domain" do

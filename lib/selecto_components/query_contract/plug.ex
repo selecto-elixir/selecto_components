@@ -82,7 +82,7 @@ defmodule SelectoComponents.QueryContract.Plug do
   defp normalize_resolver_result(input), do: {:ok, input}
 
   defp send_contract(conn, input, opts) do
-    case QueryContract.encode_json(input, opts) do
+    case QueryContract.encode_json(input, request_link_opts(conn, opts)) do
       {:ok, json, _diagnostics} ->
         send_json(conn, 200, json)
 
@@ -109,6 +109,20 @@ defmodule SelectoComponents.QueryContract.Plug do
     |> send_resp(status, json)
     |> halt()
   end
+
+  defp request_link_opts(conn, opts) do
+    opts
+    |> Keyword.put_new(:query_contract_url, conn.request_path)
+    |> Keyword.put_new(:query_guide_url, query_guide_path(conn.request_path))
+  end
+
+  defp query_guide_path(path) when is_binary(path) do
+    if String.ends_with?(path, "/query-contract.json") do
+      String.replace_suffix(path, "/query-contract.json", "/query-guide.md")
+    end
+  end
+
+  defp query_guide_path(_path), do: nil
 
   defp diagnostics_document(diagnostics) do
     QueryContract.json_safe(%{

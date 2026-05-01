@@ -94,6 +94,8 @@ defmodule SelectoComponents.QueryContractTest do
                  generated_at: "2026-04-30T19:50:00Z",
                  domain_id: "orders",
                  domain_path: "/orders",
+                 query_contract_url: "/selecto/orders/query-contract.json",
+                 query_guide_url: "/selecto/orders/query-guide.md",
                  context: %{
                    exports: [:csv, :json],
                    saved_views_enabled: true,
@@ -107,6 +109,12 @@ defmodule SelectoComponents.QueryContractTest do
       assert document["schema_version"] == 1
       assert document["projection"] == "query_contract"
       assert document["domain"] == %{"id" => "orders", "name" => "Orders", "path" => "/orders"}
+
+      assert document["links"] == %{
+               "query_contract" => "/selecto/orders/query-contract.json",
+               "query_guide" => "/selecto/orders/query-guide.md"
+             }
+
       assert document["context"]["view_modes"] == ["detail", "aggregate", "graph"]
       assert document["context"]["default_view_mode"] == "detail"
       assert document["context"]["exports"] == ["csv", "json"]

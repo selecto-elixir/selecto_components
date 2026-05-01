@@ -106,6 +106,7 @@ defmodule SelectoComponents.QueryContract do
     contract
     |> Map.put(:generated_at, generated_at(opts))
     |> Map.put(:domain, domain_document(contract, opts))
+    |> maybe_put_links(opts)
     |> Map.put(:context, context_document(opts))
     |> Map.put(:params_schema, params_schema_document(opts))
     |> Map.put(:examples, Keyword.get(opts, :examples, []))
@@ -134,6 +135,49 @@ defmodule SelectoComponents.QueryContract do
       description: Keyword.get(opts, :domain_description),
       path: Keyword.get(opts, :domain_path) || Keyword.get(opts, :path)
     }
+  end
+
+  defp maybe_put_links(contract, opts) do
+    case links_document(opts) do
+      links when links == %{} -> contract
+      links -> Map.put(contract, :links, links)
+    end
+  end
+
+  defp links_document(opts) do
+    defaults = %{
+      query_contract:
+        Keyword.get(opts, :query_contract_url) ||
+          Keyword.get(opts, :contract_url) ||
+          Keyword.get(opts, :self_url),
+      query_guide:
+        Keyword.get(opts, :query_guide_url) ||
+          Keyword.get(opts, :guide_url)
+    }
+
+    opts
+    |> Keyword.get(:links, %{})
+    |> link_option_map()
+    |> then(&Map.merge(defaults, &1))
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+    |> Map.new()
+  end
+
+  defp link_option_map(value) do
+    value
+    |> option_map()
+    |> Map.new(fn {key, value} -> {link_key(key), value} end)
+  end
+
+  defp link_key(key) do
+    case to_string(key) do
+      "contract" -> :query_contract
+      "self" -> :query_contract
+      "guide" -> :query_guide
+      "query_contract" -> :query_contract
+      "query_guide" -> :query_guide
+      other -> other
+    end
   end
 
   defp context_document(opts) do
