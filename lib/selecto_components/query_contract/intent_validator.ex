@@ -7,7 +7,7 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
   contract, but it does not build or run a Selecto query.
   """
 
-  @supported_view_mode "detail"
+  @supported_view_modes ~w(detail aggregate)
   @sort_directions ~w(asc desc)
 
   @type diagnostic :: %{
@@ -26,13 +26,16 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
   def validate(contract, intent, _opts) when is_map(contract) and is_map(intent) do
     indexes = indexes(contract)
+    view_mode = intent_view_mode(intent)
+    view_mode_errors = validate_view_mode(contract, view_mode)
 
     errors =
-      []
-      |> Kernel.++(validate_view_mode(contract, intent))
-      |> Kernel.++(validate_selected(intent, indexes))
-      |> Kernel.++(validate_filters(intent, indexes))
-      |> Kernel.++(validate_order_by(intent, indexes))
+      view_mode_errors ++
+        if view_mode_errors == [] do
+          validate_mode_intent(view_mode, intent, indexes)
+        else
+          []
+        end
 
     %{valid?: errors == [], errors: errors, warnings: []}
   end
@@ -68,12 +71,13 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     }
   end
 
-  defp validate_view_mode(contract, intent) do
-    view_mode =
-      intent
-      |> map_get(:view_mode, "detail")
-      |> string_id()
+  defp intent_view_mode(intent) do
+    intent
+    |> map_get(:view_mode, "detail")
+    |> string_id()
+  end
 
+  defp validate_view_mode(contract, view_mode) do
     allowed_view_modes = allowed_view_modes(contract)
 
     cond do
@@ -85,11 +89,14 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
           )
         ]
 
-      view_mode != @supported_view_mode ->
+      view_mode not in @supported_view_modes ->
         [
-          error(:unsupported_view_mode, "view_mode", "only detail-mode intents are supported yet",
+          error(
+            :unsupported_view_mode,
+            "view_mode",
+            "view mode intent validation is not supported yet",
             value: view_mode,
-            allowed: [@supported_view_mode]
+            allowed: @supported_view_modes
           )
         ]
 
@@ -115,10 +122,25 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
       |> Enum.map(&string_id/1)
 
     case Enum.uniq(context_modes ++ params_modes) do
-      [] -> [@supported_view_mode]
+      [] -> @supported_view_modes
       modes -> modes
     end
   end
+
+  defp validate_mode_intent("detail", intent, indexes) do
+    validate_selected(intent, indexes) ++
+      validate_filters(intent, indexes) ++
+      validate_order_by(intent, indexes)
+  end
+
+  defp validate_mode_intent("aggregate", intent, indexes) do
+    validate_group_by(intent, indexes) ++
+      validate_metrics(intent, indexes) ++
+      validate_filters(intent, indexes) ++
+      validate_order_by(intent, indexes)
+  end
+
+  defp validate_mode_intent(_view_mode, _intent, _indexes), do: []
 
   defp validate_selected(intent, indexes) do
     {selected, base_path} = intent_list(intent, [:select, :selected])
@@ -169,6 +191,53 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
       end)
 
     maybe_invalid_list(errors, intent, base_path, [:filters])
+  end
+
+  defp validate_group_by(intent, indexes) do
+    {group_by, base_path} = intent_list(intent, [:group_by])
+
+    Enum.flat_map(group_by, fn {item, path} ->
+      case item_field_id(item) do
+        nil ->
+          [error(:invalid_field_reference, path, "group_by item must include a field id")]
+
+        field_id ->
+          validate_field_capability(indexes, field_id, "groupable", :field_not_groupable, path)
+      end
+    end)
+    |> maybe_invalid_list(intent, base_path, [:group_by])
+  end
+
+  defp validate_metrics(intent, indexes) do
+    {metrics, base_path} = intent_list(intent, [:metrics, :aggregate, :aggregates, :selected])
+
+    errors =
+      Enum.flat_map(metrics, fn {metric, path} ->
+        field_id = item_field_id(metric)
+        aggregate_function = aggregate_function_id(metric)
+
+        cond do
+          is_nil(field_id) ->
+            [error(:invalid_field_reference, "#{path}.field", "metric must include a field id")]
+
+          true ->
+            validate_field_capability(
+              indexes,
+              field_id,
+              "aggregatable",
+              :field_not_aggregatable,
+              "#{path}.field"
+            ) ++
+              validate_aggregate_function(
+                indexes,
+                field_id,
+                aggregate_function,
+                "#{path}.function"
+              )
+        end
+      end)
+
+    maybe_invalid_list(errors, intent, base_path, [:metrics, :aggregate, :aggregates, :selected])
   end
 
   defp validate_order_by(intent, indexes) do
@@ -271,6 +340,37 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     end
   end
 
+  defp validate_aggregate_function(_indexes, _field_id, nil, path) do
+    [error(:missing_aggregate_function, path, "metric must include an aggregate function")]
+  end
+
+  defp validate_aggregate_function(indexes, field_id, aggregate_function, path) do
+    field = Map.get(indexes.fields, string_id(field_id), %{})
+
+    aggregate_functions =
+      field
+      |> map_get(:aggregate_functions, [])
+      |> list_or_empty()
+      |> Enum.map(&string_id/1)
+
+    aggregate_function = string_id(aggregate_function)
+
+    if aggregate_function in aggregate_functions do
+      []
+    else
+      [
+        error(
+          :invalid_aggregate_function,
+          path,
+          "aggregate function is not exposed for this field",
+          field: string_id(field_id),
+          value: aggregate_function,
+          allowed: aggregate_functions
+        )
+      ]
+    end
+  end
+
   defp intent_list(intent, keys) do
     key = Enum.find(keys, &map_has_key?(intent, &1))
 
@@ -346,6 +446,17 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
   end
 
   defp comparator_id(_filter), do: nil
+
+  defp aggregate_function_id(metric) when is_map(metric) do
+    map_get(metric, :function) ||
+      map_get(metric, :aggregate_function) ||
+      map_get(metric, :aggregate) ||
+      map_get(metric, :format)
+  end
+
+  defp aggregate_function_id([_field, function | _rest]), do: function
+  defp aggregate_function_id({_field, function}), do: function
+  defp aggregate_function_id(_metric), do: nil
 
   defp sort_direction(order) when is_map(order) do
     order

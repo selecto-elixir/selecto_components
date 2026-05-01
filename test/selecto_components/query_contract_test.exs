@@ -266,10 +266,60 @@ defmodule SelectoComponents.QueryContractTest do
              )
     end
 
-    test "only supports detail view-mode intents in the first slice" do
+    test "accepts a valid aggregate query intent" do
+      validation =
+        QueryContract.validate_intent(query_contract_document(), %{
+          "view_mode" => "aggregate",
+          "group_by" => ["status"],
+          "metrics" => [
+            %{"field" => "customer_id", "function" => "sum"}
+          ],
+          "filters" => [
+            %{"field" => "status", "comparator" => "contains", "value" => "open"}
+          ],
+          "order_by" => [
+            %{"field" => "customer_id", "direction" => "desc"}
+          ]
+        })
+
+      assert validation[:valid?]
+      assert validation.errors == []
+      assert validation.warnings == []
+    end
+
+    test "reports aggregate diagnostics for group fields, metric fields, and functions" do
+      validation =
+        QueryContract.validate_intent(query_contract_document(), %{
+          "view_mode" => "aggregate",
+          "group_by" => ["missing_group"],
+          "metrics" => [
+            %{"field" => "status", "function" => "sum"},
+            %{"field" => "customer_id", "function" => "median"}
+          ]
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_field, path: "group_by.0"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :field_not_aggregatable, path: "metrics.0.field"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_aggregate_function, path: "metrics.1.function"}, &1)
+             )
+    end
+
+    test "rejects unsupported and invalid view modes" do
       document = query_contract_document()
 
-      unsupported = QueryContract.validate_intent(document, %{"view_mode" => "aggregate"})
+      unsupported = QueryContract.validate_intent(document, %{"view_mode" => "graph"})
       invalid = QueryContract.validate_intent(document, %{"view_mode" => "timeline"})
 
       assert [%{code: :unsupported_view_mode, path: "view_mode"}] = unsupported.errors
