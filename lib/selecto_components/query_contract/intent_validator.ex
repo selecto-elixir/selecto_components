@@ -7,7 +7,7 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
   contract, but it does not build or run a Selecto query.
   """
 
-  @supported_view_modes ~w(detail aggregate)
+  @supported_view_modes ~w(detail aggregate graph)
   @sort_directions ~w(asc desc)
 
   @type diagnostic :: %{
@@ -140,6 +140,13 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
       validate_order_by(intent, indexes)
   end
 
+  defp validate_mode_intent("graph", intent, indexes) do
+    validate_groupable_fields(intent, indexes, [:x_axis], "x_axis") ++
+      validate_metrics(intent, indexes, [:y_axis, :metrics]) ++
+      validate_groupable_fields(intent, indexes, [:series], "series") ++
+      validate_filters(intent, indexes)
+  end
+
   defp validate_mode_intent(_view_mode, _intent, _indexes), do: []
 
   defp validate_selected(intent, indexes) do
@@ -208,8 +215,23 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     |> maybe_invalid_list(intent, base_path, [:group_by])
   end
 
-  defp validate_metrics(intent, indexes) do
-    {metrics, base_path} = intent_list(intent, [:metrics, :aggregate, :aggregates, :selected])
+  defp validate_groupable_fields(intent, indexes, keys, item_name) do
+    {items, base_path} = intent_list(intent, keys)
+
+    Enum.flat_map(items, fn {item, path} ->
+      case item_field_id(item) do
+        nil ->
+          [error(:invalid_field_reference, path, "#{item_name} item must include a field id")]
+
+        field_id ->
+          validate_field_capability(indexes, field_id, "groupable", :field_not_groupable, path)
+      end
+    end)
+    |> maybe_invalid_list(intent, base_path, keys)
+  end
+
+  defp validate_metrics(intent, indexes, keys \\ [:metrics, :aggregate, :aggregates, :selected]) do
+    {metrics, base_path} = intent_list(intent, keys)
 
     errors =
       Enum.flat_map(metrics, fn {metric, path} ->
@@ -237,7 +259,7 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
         end
       end)
 
-    maybe_invalid_list(errors, intent, base_path, [:metrics, :aggregate, :aggregates, :selected])
+    maybe_invalid_list(errors, intent, base_path, keys)
   end
 
   defp validate_order_by(intent, indexes) do

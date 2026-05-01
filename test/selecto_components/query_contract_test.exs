@@ -316,13 +316,59 @@ defmodule SelectoComponents.QueryContractTest do
              )
     end
 
-    test "rejects unsupported and invalid view modes" do
+    test "accepts a valid graph query intent" do
+      validation =
+        QueryContract.validate_intent(query_contract_document(), %{
+          "view_mode" => "graph",
+          "x_axis" => ["status"],
+          "y_axis" => [
+            %{"field" => "customer_id", "function" => "sum"}
+          ],
+          "series" => ["customers.name"],
+          "filters" => [
+            %{"field" => "status", "comparator" => "contains", "value" => "open"}
+          ]
+        })
+
+      assert validation[:valid?]
+      assert validation.errors == []
+      assert validation.warnings == []
+    end
+
+    test "reports graph diagnostics for axes, series, metric fields, and functions" do
+      validation =
+        QueryContract.validate_intent(query_contract_document(), %{
+          "view_mode" => "graph",
+          "x_axis" => ["missing_axis"],
+          "y_axis" => [
+            %{"field" => "status", "function" => "sum"},
+            %{"field" => "customer_id", "function" => "median"}
+          ],
+          "series" => ["missing_series"]
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(validation.errors, &match?(%{code: :invalid_field, path: "x_axis.0"}, &1))
+
+      assert Enum.find(validation.errors, &match?(%{code: :invalid_field, path: "series.0"}, &1))
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :field_not_aggregatable, path: "y_axis.0.field"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_aggregate_function, path: "y_axis.1.function"}, &1)
+             )
+    end
+
+    test "rejects invalid view modes" do
       document = query_contract_document()
 
-      unsupported = QueryContract.validate_intent(document, %{"view_mode" => "graph"})
       invalid = QueryContract.validate_intent(document, %{"view_mode" => "timeline"})
 
-      assert [%{code: :unsupported_view_mode, path: "view_mode"}] = unsupported.errors
       assert [%{code: :invalid_view_mode, path: "view_mode"}] = invalid.errors
     end
   end
