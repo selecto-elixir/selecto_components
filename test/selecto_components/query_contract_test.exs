@@ -122,6 +122,17 @@ defmodule SelectoComponents.QueryContractTest do
       assert %{"id" => "status_filter", "field" => "status", "type" => "string"} =
                Enum.find(document["filters"], &(&1["id"] == "status_filter"))
 
+      assert %{
+               "id" => "customer_id",
+               "filterable" => true,
+               "sortable" => true,
+               "groupable" => true,
+               "aggregatable" => true,
+               "aggregate_functions" => ["count", "count_distinct", "sum", "avg", "min", "max"]
+             } = customer_id_field = Enum.find(document["fields"], &(&1["id"] == "customer_id"))
+
+      assert "between" in customer_id_field["comparators"]
+
       assert %{"id" => "customer", "target_schema" => "customers"} =
                Enum.find(document["joins"], &(&1["id"] == "customer"))
 
