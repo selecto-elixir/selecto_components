@@ -31,6 +31,9 @@ defmodule SelectoComponents.QueryContract.Guide.PlugTest do
       assert conn.status == 200
       assert conn.halted
       assert ["text/markdown" <> _] = Plug.Conn.get_resp_header(conn, "content-type")
+      assert [link_header] = Plug.Conn.get_resp_header(conn, "link")
+      assert link_header =~ ~s(</query-guide.md>; rel="self"; type="text/markdown")
+      assert link_header =~ ~s(</query-contract.json>; rel="describedby"; type="application/json")
       assert conn.resp_body =~ "# Orders Query Guide"
       assert conn.resp_body =~ "- Domain id: `orders`"
       assert conn.resp_body =~ "## Safety Notes"
@@ -49,6 +52,14 @@ defmodule SelectoComponents.QueryContract.Guide.PlugTest do
         |> QueryGuidePlug.call(QueryGuidePlug.init(resolver: resolver))
 
       assert conn.status == 200
+      assert [link_header] = Plug.Conn.get_resp_header(conn, "link")
+
+      assert link_header =~
+               ~s(</selecto/schema/orders/query-guide.md>; rel="self"; type="text/markdown")
+
+      assert link_header =~
+               ~s(</selecto/schema/orders/query-contract.json>; rel="describedby"; type="application/json")
+
       assert conn.resp_body =~ "# Orders Query Guide"
     end
 

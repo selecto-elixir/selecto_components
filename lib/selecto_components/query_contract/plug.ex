@@ -10,6 +10,7 @@ defmodule SelectoComponents.QueryContract.Plug do
   import Plug.Conn
 
   alias SelectoComponents.QueryContract
+  alias SelectoComponents.QueryContract.Links
 
   @behaviour Plug
 
@@ -82,9 +83,11 @@ defmodule SelectoComponents.QueryContract.Plug do
   defp normalize_resolver_result(input), do: {:ok, input}
 
   defp send_contract(conn, input, opts) do
-    case QueryContract.encode_json(input, request_link_opts(conn, opts)) do
+    opts = Links.with_request_defaults(conn, opts, :query_contract)
+
+    case QueryContract.encode_json(input, opts) do
       {:ok, json, _diagnostics} ->
-        send_json(conn, 200, json)
+        send_json(conn, 200, json, opts)
 
       {:error, diagnostics} ->
         conn
@@ -103,26 +106,20 @@ defmodule SelectoComponents.QueryContract.Plug do
     |> halt()
   end
 
-  defp send_json(conn, status, json) do
+  defp send_json(conn, status, json, opts) do
     conn
     |> put_resp_content_type("application/json")
+    |> put_link_header(opts)
     |> send_resp(status, json)
     |> halt()
   end
 
-  defp request_link_opts(conn, opts) do
-    opts
-    |> Keyword.put_new(:query_contract_url, conn.request_path)
-    |> Keyword.put_new(:query_guide_url, query_guide_path(conn.request_path))
-  end
-
-  defp query_guide_path(path) when is_binary(path) do
-    if String.ends_with?(path, "/query-contract.json") do
-      String.replace_suffix(path, "/query-contract.json", "/query-guide.md")
+  defp put_link_header(conn, opts) do
+    case Links.header(opts, :query_contract) do
+      nil -> conn
+      header -> put_resp_header(conn, "link", header)
     end
   end
-
-  defp query_guide_path(_path), do: nil
 
   defp diagnostics_document(diagnostics) do
     QueryContract.json_safe(%{

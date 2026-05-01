@@ -31,6 +31,9 @@ defmodule SelectoComponents.QueryContract.PlugTest do
       assert conn.status == 200
       assert conn.halted
       assert ["application/json" <> _] = Plug.Conn.get_resp_header(conn, "content-type")
+      assert [link_header] = Plug.Conn.get_resp_header(conn, "link")
+      assert link_header =~ ~s(</query-contract.json>; rel="self"; type="application/json")
+      assert link_header =~ ~s(</query-guide.md>; rel="alternate"; type="text/markdown")
 
       body = Jason.decode!(conn.resp_body)
 
@@ -64,6 +67,13 @@ defmodule SelectoComponents.QueryContract.PlugTest do
         |> QueryContractPlug.call(QueryContractPlug.init(resolver: resolver))
 
       assert conn.status == 200
+      assert [link_header] = Plug.Conn.get_resp_header(conn, "link")
+
+      assert link_header =~
+               ~s(</selecto/schema/orders/query-contract.json>; rel="self"; type="application/json")
+
+      assert link_header =~
+               ~s(</selecto/schema/orders/query-guide.md>; rel="alternate"; type="text/markdown")
 
       body = Jason.decode!(conn.resp_body)
 

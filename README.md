@@ -169,7 +169,8 @@ Use `SelectoComponents.QueryContract.json_document/1` or `encode_json/2` when a
 consumer needs a `query_contract.json`-ready artifact with string keys and
 JSON-compatible values. Pass `query_contract_url` and `query_guide_url` to add
 discovery links for tools that need to move between the JSON contract and its
-Markdown guide.
+Markdown guide. The JSON and Markdown Plugs also emit HTTP `Link` headers for
+the same pair of artifacts.
 
 Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
 endpoint:

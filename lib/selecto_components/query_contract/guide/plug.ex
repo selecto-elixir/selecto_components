@@ -10,6 +10,7 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
 
   alias SelectoComponents.QueryContract
   alias SelectoComponents.QueryContract.Guide
+  alias SelectoComponents.QueryContract.Links
 
   @behaviour Plug
 
@@ -81,10 +82,13 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
   defp normalize_resolver_result(input), do: {:ok, input}
 
   defp send_guide(conn, input, opts) do
+    opts = Links.with_request_defaults(conn, opts, :query_guide)
+
     case Guide.markdown(input, opts) do
       {:ok, markdown, _diagnostics} ->
         conn
         |> put_resp_content_type("text/markdown")
+        |> put_link_header(opts)
         |> send_resp(200, markdown)
         |> halt()
 
@@ -93,6 +97,13 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
         |> put_resp_content_type("application/json")
         |> send_resp(422, Jason.encode!(diagnostics_document(diagnostics)))
         |> halt()
+    end
+  end
+
+  defp put_link_header(conn, opts) do
+    case Links.header(opts, :query_guide) do
+      nil -> conn
+      header -> put_resp_header(conn, "link", header)
     end
   end
 
