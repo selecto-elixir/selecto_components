@@ -33,6 +33,7 @@ defmodule SelectoComponents.QueryContract.Guide do
       field_section(shown_fields, length(fields), field_limit),
       filter_section(Map.get(document, "filters", [])),
       join_section(Map.get(document, "joins", [])),
+      choice_source_section(Map.get(document, "choice_sources", [])),
       vocabulary_section(fields),
       example_section(document),
       safety_section()
@@ -189,6 +190,35 @@ defmodule SelectoComponents.QueryContract.Guide do
       field_cell(Map.get(join, "target_schema")),
       table_cell(Map.get(join, "type")),
       table_cell(Enum.join(Map.get(join, "fields", []), ", "))
+    ]
+    |> table_row()
+  end
+
+  defp choice_source_section([]), do: ""
+
+  defp choice_source_section(choice_sources) do
+    table =
+      [
+        "| Choice Source | Domain | Value | Label | Options | Validate |",
+        "| --- | --- | --- | --- | --- | --- |"
+        | Enum.map(choice_sources, &choice_source_row/1)
+      ]
+      |> Enum.join("\n")
+
+    ["## Choice Sources", "", table]
+    |> Enum.join("\n")
+  end
+
+  defp choice_source_row(choice_source) do
+    links = Map.get(choice_source, "links", %{})
+
+    [
+      field_cell(Map.get(choice_source, "id")),
+      field_cell(Map.get(choice_source, "domain")),
+      field_cell(Map.get(choice_source, "value_field")),
+      field_cell(Map.get(choice_source, "label_field")),
+      table_cell(Map.get(links, "options")),
+      table_cell(Map.get(links, "validate"))
     ]
     |> table_row()
   end

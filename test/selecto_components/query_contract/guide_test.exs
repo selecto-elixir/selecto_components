@@ -10,6 +10,12 @@ defmodule SelectoComponents.QueryContract.GuideTest do
                  generated_at: "2026-04-30T20:10:00Z",
                  domain_id: "orders",
                  domain_path: "/orders",
+                 choice_source_links: %{
+                   customer_choices: %{
+                     options: "/selecto/orders/choice-sources/customer_choices/options",
+                     validate: "/selecto/orders/choice-sources/customer_choices/validate"
+                   }
+                 },
                  context: %{exports: [:csv], saved_views_enabled: true}
                )
 
@@ -23,6 +29,11 @@ defmodule SelectoComponents.QueryContract.GuideTest do
       assert markdown =~ "| `status` | Status | string | select, filter, sort, group |"
       assert markdown =~ "## Filters"
       assert markdown =~ "| `status_filter` | `status` | string |"
+      assert markdown =~ "## Choice Sources"
+
+      assert markdown =~
+               "| `customer_choices` | `customers` | `id` | `name` | /selecto/orders/choice-sources/customer_choices/options | /selecto/orders/choice-sources/customer_choices/validate |"
+
       assert markdown =~ "## Intent Vocabulary"
       assert markdown =~ "`contains`"
       assert markdown =~ "## Example Intent"
@@ -42,18 +53,38 @@ defmodule SelectoComponents.QueryContract.GuideTest do
       source: %{
         source_table: "orders",
         primary_key: :id,
-        fields: [:id, :status],
+        fields: [:id, :status, :customer_id],
         redact_fields: [],
         columns: %{
           id: %{type: :integer, name: "ID"},
-          status: %{type: :string, name: "Status"}
+          status: %{type: :string, name: "Status"},
+          customer_id: %{type: :integer, choice_source: :customer_choices}
         },
         associations: %{}
       },
-      schemas: %{},
+      schemas: %{
+        customers: %{
+          source_table: "customers",
+          primary_key: :id,
+          fields: [:id, :name],
+          redact_fields: [],
+          columns: %{
+            id: %{type: :integer},
+            name: %{type: :string}
+          },
+          associations: %{}
+        }
+      },
       joins: %{},
       filters: %{
         status_filter: %{field: :status, type: :string, name: "Status"}
+      },
+      choice_sources: %{
+        customer_choices: %{
+          domain: :customers,
+          value_field: :id,
+          label_field: :name
+        }
       },
       default_selected: [:id, :status]
     }
