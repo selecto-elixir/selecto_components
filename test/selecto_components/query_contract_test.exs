@@ -96,6 +96,12 @@ defmodule SelectoComponents.QueryContractTest do
                  domain_path: "/orders",
                  query_contract_url: "/selecto/orders/query-contract.json",
                  query_guide_url: "/selecto/orders/query-guide.md",
+                 choice_source_links: %{
+                   customer_choices: %{
+                     options: "/selecto/orders/choice-sources/customer_choices/options",
+                     validate: "/selecto/orders/choice-sources/customer_choices/validate"
+                   }
+                 },
                  context: %{
                    exports: [:csv, :json],
                    saved_views_enabled: true,
@@ -149,6 +155,14 @@ defmodule SelectoComponents.QueryContractTest do
                  document["field_choice_bindings"],
                  &(&1["field"] == "customer_id")
                )
+
+      assert %{
+               "id" => "customer_choices",
+               "links" => %{
+                 "options" => "/selecto/orders/choice-sources/customer_choices/options",
+                 "validate" => "/selecto/orders/choice-sources/customer_choices/validate"
+               }
+             } = Enum.find(document["choice_sources"], &(&1["id"] == "customer_choices"))
 
       assert_json_safe(document)
       refute_nil_map_values(document)

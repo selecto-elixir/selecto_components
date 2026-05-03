@@ -138,6 +138,7 @@ defmodule SelectoComponents.QueryContract do
     contract
     |> Map.put(:generated_at, generated_at(opts))
     |> Map.put(:domain, domain_document(contract, opts))
+    |> put_choice_source_links(opts)
     |> maybe_put_links(opts)
     |> Map.put(:context, context_document(opts))
     |> Map.put(:params_schema, params_schema_document(opts))
@@ -174,6 +175,59 @@ defmodule SelectoComponents.QueryContract do
       links when links == %{} -> contract
       links -> Map.put(contract, :links, links)
     end
+  end
+
+  defp put_choice_source_links(contract, opts) do
+    choice_source_links = option_map(Keyword.get(opts, :choice_source_links, %{}))
+
+    if choice_source_links == %{} do
+      contract
+    else
+      Map.update(contract, :choice_sources, [], fn choice_sources ->
+        Enum.map(choice_sources, &put_choice_source_link(&1, choice_source_links))
+      end)
+    end
+  end
+
+  defp put_choice_source_link(choice_source, choice_source_links) when is_map(choice_source) do
+    id = Map.get(choice_source, :id) || Map.get(choice_source, "id")
+
+    case choice_source_link_entry(choice_source_links, id) do
+      links when links == %{} ->
+        choice_source
+
+      links ->
+        Map.put(choice_source, :links, links)
+    end
+  end
+
+  defp put_choice_source_link(choice_source, _choice_source_links), do: choice_source
+
+  defp choice_source_link_entry(choice_source_links, id) do
+    choice_source_links
+    |> fetch_choice_source_link(id)
+    |> option_map()
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+    |> Map.new()
+  end
+
+  defp fetch_choice_source_link(_choice_source_links, nil), do: %{}
+
+  defp fetch_choice_source_link(choice_source_links, id) when is_map(choice_source_links) do
+    Map.get(choice_source_links, id) ||
+      Map.get(choice_source_links, to_string(id)) ||
+      string_key_lookup(choice_source_links, id) ||
+      %{}
+  end
+
+  defp string_key_lookup(choice_source_links, id) do
+    Enum.find_value(choice_source_links, fn
+      {key, value} when is_atom(key) or is_binary(key) ->
+        if to_string(key) == to_string(id), do: value
+
+      _entry ->
+        nil
+    end)
   end
 
   defp context_document(opts) do
