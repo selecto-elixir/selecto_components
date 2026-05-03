@@ -26,6 +26,7 @@ defmodule SelectoComponents.QueryContract.Guide do
     field_limit = Keyword.get(opts, :field_limit, @default_field_limit)
     fields = document |> Map.get("fields", []) |> prioritized_fields(document)
     shown_fields = Enum.take(fields, field_limit)
+    choice_sources = Map.get(document, "choice_sources", [])
 
     [
       title_section(document),
@@ -33,7 +34,8 @@ defmodule SelectoComponents.QueryContract.Guide do
       field_section(shown_fields, length(fields), field_limit),
       filter_section(Map.get(document, "filters", [])),
       join_section(Map.get(document, "joins", [])),
-      choice_source_section(Map.get(document, "choice_sources", [])),
+      choice_source_section(choice_sources),
+      choice_backed_field_section(fields, choice_sources),
       vocabulary_section(fields),
       example_section(document),
       safety_section()
@@ -221,6 +223,89 @@ defmodule SelectoComponents.QueryContract.Guide do
       table_cell(Map.get(links, "validate"))
     ]
     |> table_row()
+  end
+
+  defp choice_backed_field_section(fields, choice_sources) do
+    choice_source_index = choice_source_index(choice_sources)
+
+    rows =
+      fields
+      |> Enum.flat_map(&choice_backed_field_rows(&1, choice_source_index))
+
+    if rows == [] do
+      ""
+    else
+      table =
+        [
+          "| Field | Choice Source | Control | Options | Validate |",
+          "| --- | --- | --- | --- | --- |"
+          | rows
+        ]
+        |> Enum.join("\n")
+
+      ["## Choice-Backed Fields", "", table]
+      |> Enum.join("\n")
+    end
+  end
+
+  defp choice_backed_field_rows(field, choice_source_index) do
+    field
+    |> choice_source_ids()
+    |> Enum.map(fn choice_source_id ->
+      choice_source = Map.get(choice_source_index, to_string(choice_source_id), %{})
+      metadata = Map.get(field, "choice_source_metadata", %{})
+      links = choice_source_links(choice_source, metadata)
+
+      [
+        field_cell(Map.get(field, "id")),
+        field_cell(choice_source_id),
+        table_cell(choice_source_control(choice_source, metadata)),
+        table_cell(Map.get(links, "options")),
+        table_cell(Map.get(links, "validate"))
+      ]
+      |> table_row()
+    end)
+  end
+
+  defp choice_source_ids(field) do
+    field
+    |> Map.get("choice_source")
+    |> case do
+      nil -> []
+      [] -> []
+      values when is_list(values) -> values
+      value -> [value]
+    end
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp choice_source_index(choice_sources) do
+    choice_sources
+    |> Enum.filter(&is_map/1)
+    |> Map.new(fn choice_source -> {to_string(Map.get(choice_source, "id")), choice_source} end)
+  end
+
+  defp choice_source_control(choice_source, metadata) do
+    metadata_presentation = Map.get(metadata, "presentation", %{})
+    presentation = Map.get(choice_source, "presentation", %{})
+
+    Map.get(metadata_presentation, "control") ||
+      Map.get(presentation, "control") ||
+      Map.get(metadata_presentation, :control) ||
+      Map.get(presentation, :control)
+  end
+
+  defp choice_source_links(choice_source, metadata) do
+    links = Map.get(choice_source, "links", %{})
+
+    if links == %{} do
+      %{
+        "options" => get_in(metadata, ["options_request", "url"]),
+        "validate" => get_in(metadata, ["validate_request_template", "url"])
+      }
+    else
+      links
+    end
   end
 
   defp vocabulary_section(fields) do
