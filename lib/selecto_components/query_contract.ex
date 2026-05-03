@@ -8,6 +8,7 @@ defmodule SelectoComponents.QueryContract do
   """
 
   alias Selecto.Domain
+  alias SelectoComponents.Form.ChoiceSourceMetadata
   alias SelectoComponents.QueryContract.IntentValidator
   alias SelectoComponents.QueryContract.Links
 
@@ -87,6 +88,7 @@ defmodule SelectoComponents.QueryContract do
         contract
         |> Map.put(:query_contract_version, @query_contract_version)
         |> put_contract_envelope(opts)
+        |> maybe_put_form_metadata(opts)
         |> json_safe()
 
       {:ok, document, diagnostics}
@@ -144,6 +146,21 @@ defmodule SelectoComponents.QueryContract do
     |> Map.put(:params_schema, params_schema_document(opts))
     |> Map.put(:examples, Keyword.get(opts, :examples, []))
     |> Map.put(:errors, Keyword.get(opts, :errors, @default_errors))
+  end
+
+  defp maybe_put_form_metadata(contract, opts) do
+    if form_metadata_enabled?(opts) do
+      Map.update(contract, :fields, [], fn _fields ->
+        ChoiceSourceMetadata.fields(contract, opts)
+      end)
+    else
+      contract
+    end
+  end
+
+  defp form_metadata_enabled?(opts) do
+    Keyword.get(opts, :form_metadata, false) ||
+      Keyword.get(opts, :choice_source_field_metadata, false)
   end
 
   defp generated_at(opts) do

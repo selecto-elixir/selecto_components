@@ -194,6 +194,50 @@ defmodule SelectoComponents.QueryContractTest do
              ]
     end
 
+    test "can include form-ready choice-source field metadata" do
+      assert {:ok, document, diagnostics} =
+               QueryContract.json_document(domain(),
+                 generated_at: "2026-04-30T19:50:00Z",
+                 form_metadata: true,
+                 choice_source_links: %{
+                   customer_choices: %{
+                     options: "/selecto/orders/choice-sources/customer_choices/options",
+                     validate: "/selecto/orders/choice-sources/customer_choices/validate"
+                   }
+                 }
+               )
+
+      assert diagnostics.errors == []
+
+      assert %{
+               "id" => "customer_id",
+               "choice_source" => "customer_choices",
+               "choice_source_metadata" => metadata
+             } = Enum.find(document["fields"], &(&1["id"] == "customer_id"))
+
+      assert metadata["id"] == "customer_choices"
+      assert metadata["field"] == "customer_id"
+      assert metadata["status"] == "linked"
+      assert metadata["async_options"] == true
+      assert metadata["validates_membership"] == true
+
+      assert metadata["options_request"] == %{
+               "method" => "get",
+               "url" => "/selecto/orders/choice-sources/customer_choices/options",
+               "headers" => %{"accept" => "application/json"}
+             }
+
+      assert metadata["validate_request_template"] == %{
+               "method" => "post",
+               "url" => "/selecto/orders/choice-sources/customer_choices/validate",
+               "headers" => %{
+                 "accept" => "application/json",
+                 "content-type" => "application/json"
+               },
+               "body" => %{"field" => "customer_id", "value" => "$value"}
+             }
+    end
+
     test "returns core diagnostics for invalid JSON document input" do
       assert {:error, diagnostics} = QueryContract.json_document(:not_a_domain)
 
