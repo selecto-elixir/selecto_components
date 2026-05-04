@@ -16,10 +16,22 @@ defmodule SelectoComponents.Form.FilterRendering do
   use Phoenix.Component
   require Logger
 
+  alias SelectoComponents.Form.ColumnCatalog
   alias SelectoComponents.Presentation
   alias SelectoComponents.SchemaUtils
 
   @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
+  @choice_source_metadata_atom_keys %{
+    "control" => :control,
+    "field" => :field,
+    "id" => :id,
+    "label_field" => :label_field,
+    "method" => :method,
+    "options_request" => :options_request,
+    "presentation" => :presentation,
+    "url" => :url,
+    "validate_request_template" => :validate_request_template
+  }
 
   @doc """
   Render a filter form based on the filter definition and field type.
@@ -67,6 +79,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       if is_map(column_def),
         do: SchemaUtils.with_resolved_type(assigns.selecto, column_def),
         else: column_def
+
+    choice_source_field = choice_source_field_metadata(assigns, filter_id)
+    filter_def = put_choice_source_metadata(filter_def, choice_source_field)
+    column_def = put_choice_source_metadata(column_def, choice_source_field)
 
     # Determine the field type
     field_type =
@@ -527,6 +543,9 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
+    choice_source_metadata =
+      choice_source_metadata(column_def) || choice_source_metadata(assigns.filter_def)
+
     filter_id = value_for(assigns.filter_value, "filter")
     operator_options = standard_operator_options(assigns.field_type, assigns.selecto, filter_id)
     operator_values = Enum.map(operator_options, &elem(&1, 0))
@@ -576,6 +595,14 @@ defmodule SelectoComponents.Form.FilterRendering do
       assigns
       |> assign(
         is_multi_select_id: is_multi_select_id,
+        choice_source_metadata: choice_source_metadata,
+        choice_source_value:
+          filter_input_value(
+            assigns.filter_value,
+            "value",
+            column_def,
+            assigns[:presentation_context]
+          ) || "",
         supports_manual_in_values: supports_manual_in_values?(assigns.field_type),
         operator_options: operator_options,
         current_comp: current_comp,
@@ -642,6 +669,16 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="300"
               />
             </div>
+          <% choice_source_filter_shell?(@choice_source_metadata, @current_comp) -> %>
+            <.choice_source_filter_input
+              uuid={@uuid}
+              scope="filters"
+              value={@choice_source_value}
+              metadata={@choice_source_metadata}
+              input_class="sc-input"
+              container_class="col-span-2"
+              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
+            />
           <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
             <div
               id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @current_comp})}"}
@@ -840,6 +877,97 @@ defmodule SelectoComponents.Form.FilterRendering do
       <input type="hidden" name={"filters[#{@uuid}][section]"} value={@section} />
       <input type="hidden" name={"filters[#{@uuid}][index]"} value={@index} />
       <input type="hidden" name={"filters[#{@uuid}][filter]"} value={@filter_value["filter"]} />
+    </div>
+    """
+  end
+
+  @doc """
+  Renders the non-fetching choice-source input shell used by filter editors.
+
+  The shell preserves the normal `value` form field while exposing the
+  advertised choice-source request templates as data attributes for a later
+  hook-driven autocomplete pass.
+  """
+  attr(:uuid, :string, required: true)
+  attr(:scope, :string, default: "filters")
+  attr(:value, :any, default: "")
+  attr(:metadata, :map, required: true)
+  attr(:input_class, :string, default: "sc-input")
+  attr(:container_class, :string, default: nil)
+  attr(:disabled, :boolean, default: false)
+
+  def choice_source_filter_input(assigns) do
+    metadata = assigns.metadata || %{}
+
+    assigns =
+      assigns
+      |> assign(:choice_source_id, choice_source_metadata_value(metadata, "id"))
+      |> assign(:field_id, choice_source_metadata_value(metadata, "field"))
+      |> assign(:control, choice_source_control(metadata))
+      |> assign(:placeholder, choice_source_placeholder(metadata))
+      |> assign(:input_name, "#{assigns.scope}[#{assigns.uuid}][value]")
+      |> assign(:input_id, "#{assigns.scope}-choice-source-value-#{assigns.uuid}")
+      |> assign(:options_url, choice_source_request_value(metadata, "options_request", "url"))
+      |> assign(
+        :options_method,
+        choice_source_request_value(metadata, "options_request", "method")
+      )
+      |> assign(:options_request_json, choice_source_request_json(metadata, "options_request"))
+      |> assign(
+        :validate_url,
+        choice_source_request_value(metadata, "validate_request_template", "url")
+      )
+      |> assign(
+        :validate_method,
+        choice_source_request_value(metadata, "validate_request_template", "method")
+      )
+      |> assign(
+        :validate_request_json,
+        choice_source_request_json(metadata, "validate_request_template")
+      )
+      |> assign(:value, normalize_string(assigns.value))
+
+    ~H"""
+    <div
+      data-choice-source-filter
+      data-choice-source-id={@choice_source_id}
+      data-choice-source-field={@field_id}
+      data-choice-source-control={@control}
+      data-choice-source-options-url={@options_url}
+      data-choice-source-options-method={@options_method}
+      data-choice-source-options-request={@options_request_json}
+      data-choice-source-validate-url={@validate_url}
+      data-choice-source-validate-method={@validate_method}
+      data-choice-source-validate-request={@validate_request_json}
+      class={@container_class}
+    >
+      <div class="relative">
+        <input
+          id={@input_id}
+          type="search"
+          name={@input_name}
+          value={@value}
+          placeholder={@placeholder}
+          autocomplete="off"
+          class={[@input_class, "w-full pr-9"]}
+          phx-debounce="300"
+          disabled={@disabled}
+          data-choice-source-input
+        />
+        <button
+          type="button"
+          class="absolute right-2 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center"
+          style="color: var(--sc-accent);"
+          tabindex="-1"
+          title="Find choices"
+          aria-label="Find choices"
+          data-choice-source-trigger
+        >
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M8 4.25A3.75 3.75 0 1 0 8 11.75 3.75 3.75 0 0 0 8 4.25ZM2.75 8a5.25 5.25 0 1 1 9.38 3.24l4.32 4.31a.75.75 0 1 1-1.06 1.06l-4.31-4.32A5.25 5.25 0 0 1 2.75 8Z" />
+          </svg>
+        </button>
+      </div>
     </div>
     """
   end
@@ -1542,7 +1670,9 @@ defmodule SelectoComponents.Form.FilterRendering do
   - Columns marked as filterable (make_filter: true)
   - Columns without custom formatting (assumed to be filterable)
   """
-  def build_filter_list(selecto) do
+  def build_filter_list(selecto, opts \\ []) do
+    choice_source_metadata_by_field = filter_choice_source_metadata_by_field(selecto, opts)
+
     # Include explicit filters and only columns that are marked as filterable
     filterable_columns =
       Selecto.columns(selecto)
@@ -1566,7 +1696,8 @@ defmodule SelectoComponents.Form.FilterRendering do
            format: Map.get(c, :format),
            icon: Map.get(c, :icon),
            icon_family: Map.get(c, :icon_family)
-         }}
+         }
+         |> put_choice_source_metadata(id, choice_source_metadata_by_field)}
 
       %{id: id} = c ->
         {id, c.name,
@@ -1575,9 +1706,130 @@ defmodule SelectoComponents.Form.FilterRendering do
            format: Map.get(c, :format),
            icon: Map.get(c, :icon),
            icon_family: Map.get(c, :icon_family)
-         }}
+         }
+         |> put_choice_source_metadata(id, choice_source_metadata_by_field)}
     end)
   end
+
+  defp choice_source_field_metadata(assigns, field_id) do
+    assigns
+    |> choice_source_metadata_by_field()
+    |> Map.get(to_string(field_id))
+  end
+
+  defp choice_source_metadata_by_field(assigns) when is_map(assigns) do
+    case Map.get(assigns, :choice_source_metadata_by_field) do
+      metadata_by_field when is_map(metadata_by_field) ->
+        metadata_by_field
+
+      _ ->
+        assigns
+        |> Map.get(:selecto)
+        |> ColumnCatalog.choice_source_metadata_by_field(choice_source_metadata_opts(assigns))
+    end
+  end
+
+  defp choice_source_metadata_opts(assigns) when is_map(assigns) do
+    [
+      choice_source_links: Map.get(assigns, :choice_source_links),
+      base_url: Map.get(assigns, :choice_source_base_url),
+      headers: Map.get(assigns, :choice_source_headers)
+    ]
+    |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+  end
+
+  defp filter_choice_source_metadata_by_field(selecto, opts) do
+    case Keyword.get(opts, :choice_source_metadata_by_field) do
+      metadata_by_field when is_map(metadata_by_field) ->
+        metadata_by_field
+
+      _ ->
+        ColumnCatalog.choice_source_metadata_by_field(selecto, opts)
+    end
+  end
+
+  defp put_choice_source_metadata(nil, _choice_source_field), do: nil
+
+  defp put_choice_source_metadata(
+         %{} = field_def,
+         %{"choice_source_metadata" => metadata} = field
+       ) do
+    field_def
+    |> Map.put(:choice_source, Map.get(field, "choice_source"))
+    |> Map.put(:choice_source_metadata, metadata)
+  end
+
+  defp put_choice_source_metadata(field_def, _choice_source_field), do: field_def
+
+  defp put_choice_source_metadata(metadata, field_id, choice_source_metadata_by_field) do
+    case Map.get(choice_source_metadata_by_field, to_string(field_id)) do
+      %{"choice_source_metadata" => metadata_document} = field ->
+        metadata
+        |> Map.put(:choice_source, Map.get(field, "choice_source"))
+        |> Map.put(:choice_source_metadata, metadata_document)
+
+      _field ->
+        metadata
+    end
+  end
+
+  defp choice_source_filter_shell?(metadata, comp) when is_map(metadata),
+    do: comp in ["=", "!="]
+
+  defp choice_source_filter_shell?(_metadata, _comp), do: false
+
+  defp choice_source_metadata(%{} = field_conf) do
+    case Map.get(field_conf, :choice_source_metadata) ||
+           Map.get(field_conf, "choice_source_metadata") do
+      metadata when is_map(metadata) -> metadata
+      _ -> nil
+    end
+  end
+
+  defp choice_source_metadata(_field_conf), do: nil
+
+  defp choice_source_metadata_value(metadata, key) when is_map(metadata) do
+    atom_key = Map.get(@choice_source_metadata_atom_keys, key)
+
+    if atom_key,
+      do: Map.get(metadata, key, Map.get(metadata, atom_key)),
+      else: Map.get(metadata, key)
+  end
+
+  defp choice_source_metadata_value(_metadata, _key), do: nil
+
+  defp choice_source_control(metadata) when is_map(metadata) do
+    presentation = choice_source_metadata_value(metadata, "presentation")
+
+    case choice_source_metadata_value(presentation || %{}, "control") do
+      nil -> "lookup"
+      control -> to_string(control)
+    end
+  end
+
+  defp choice_source_placeholder(metadata) do
+    case choice_source_metadata_value(metadata, "label_field") do
+      nil -> "Search choices..."
+      label_field -> "Search #{Phoenix.Naming.humanize(label_field)}..."
+    end
+  end
+
+  defp choice_source_request_value(metadata, request_key, value_key) when is_map(metadata) do
+    metadata
+    |> choice_source_metadata_value(request_key)
+    |> choice_source_metadata_value(value_key)
+  end
+
+  defp choice_source_request_value(_metadata, _request_key, _value_key), do: nil
+
+  defp choice_source_request_json(metadata, request_key) when is_map(metadata) do
+    case choice_source_metadata_value(metadata, request_key) do
+      request when is_map(request) -> Jason.encode!(request)
+      _ -> nil
+    end
+  end
+
+  defp choice_source_request_json(_metadata, _request_key), do: nil
 
   defp find_join_mode_config(selecto, filter_id, column_def) do
     # Check if column_def already has join_mode

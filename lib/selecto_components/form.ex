@@ -32,18 +32,31 @@ defmodule SelectoComponents.Form do
   @impl true
   def render(assigns) do
     form_selecto = ColumnCatalog.picker_selecto(assigns.selecto)
+    choice_source_metadata_opts = choice_source_metadata_opts(assigns)
+
+    choice_source_metadata_by_field =
+      ColumnCatalog.choice_source_metadata_by_field(assigns.selecto, choice_source_metadata_opts)
+
     use_saved_views = Map.get(assigns, :saved_view_module, false)
     keyboard_shortcuts = Shortcuts.normalize(Map.get(assigns, :keyboard_shortcuts, true))
     shortcut_context = [views: assigns.views, use_saved_views: use_saved_views]
 
     controller_filters =
-      controller_filters(assigns.selecto, Map.get(assigns.view_config, :filters, []))
+      controller_filters(
+        assigns.selecto,
+        Map.get(assigns.view_config, :filters, []),
+        choice_source_metadata_by_field
+      )
 
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         form_selecto: form_selecto,
-        field_filters: FilterRendering.build_filter_list(assigns.selecto),
+        field_filters:
+          FilterRendering.build_filter_list(assigns.selecto,
+            choice_source_metadata_by_field: choice_source_metadata_by_field
+          ),
+        choice_source_metadata_by_field: choice_source_metadata_by_field,
         controller_title: Map.get(assigns, :controller_title, "View Controller"),
         show_view_configurator: Map.get(assigns, :show_view_configurator, true),
         current_view_label: current_view_label(assigns.views, assigns.view_config.view_mode),
@@ -1048,17 +1061,17 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  defp controller_filters(selecto, filters) do
+  defp controller_filters(selecto, filters, choice_source_metadata_by_field) do
     filters
     |> Enum.reduce([], fn
       {uuid, _section, %{} = filter}, acc ->
-        case controller_filter_data(selecto, uuid, filter) do
+        case controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
           nil -> acc
           filter_data -> [filter_data | acc]
         end
 
       [uuid, _section, %{} = filter], acc ->
-        case controller_filter_data(selecto, uuid, filter) do
+        case controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
           nil -> acc
           filter_data -> [filter_data | acc]
         end
@@ -1069,11 +1082,11 @@ defmodule SelectoComponents.Form do
     |> Enum.reverse()
   end
 
-  defp controller_filter_data(selecto, uuid, filter) do
+  defp controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
     label = filter_label(selecto, filter)
     comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
     summary = filter_summary(selecto, filter)
-    field_conf = controller_filter_field_conf(selecto, filter)
+    field_conf = controller_filter_field_conf(selecto, filter, choice_source_metadata_by_field)
     field_type = controller_filter_field_type(selecto, filter)
     render_kind = controller_filter_render_kind(selecto, filter, comp)
 
@@ -1432,13 +1445,19 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  defp controller_filter_field_conf(selecto, filter) do
+  defp controller_filter_field_conf(selecto, filter, choice_source_metadata_by_field \\ %{}) do
     filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
     filter_def = controller_filter_definition(selecto, filter)
     column_def = controller_filter_column_definition(selecto, filter, filter_def)
 
-    controller_join_mode_field_conf(selecto, filter_id, filter_def || column_def) ||
-      filter_def || column_def || controller_filter_field_type(selecto, filter)
+    field_conf =
+      controller_join_mode_field_conf(selecto, filter_id, filter_def || column_def) ||
+        filter_def || column_def || controller_filter_field_type(selecto, filter)
+
+    put_controller_choice_source_metadata(
+      field_conf,
+      Map.get(choice_source_metadata_by_field, to_string(filter_id))
+    )
   end
 
   defp controller_join_mode_field_conf(
@@ -1569,6 +1588,26 @@ defmodule SelectoComponents.Form do
         "DAY_OF_MONTH",
         "HOUR_OF_DAY"
       ]
+  end
+
+  defp put_controller_choice_source_metadata(
+         %{} = field_conf,
+         %{"choice_source_metadata" => metadata} = field
+       ) do
+    field_conf
+    |> Map.put(:choice_source, Map.get(field, "choice_source"))
+    |> Map.put(:choice_source_metadata, metadata)
+  end
+
+  defp put_controller_choice_source_metadata(field_conf, _choice_source_field), do: field_conf
+
+  defp choice_source_metadata_opts(assigns) do
+    [
+      choice_source_links: Map.get(assigns, :choice_source_links),
+      base_url: Map.get(assigns, :choice_source_base_url),
+      headers: Map.get(assigns, :choice_source_headers)
+    ]
+    |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
   end
 
   defp polymorphic_filter?(filter) do

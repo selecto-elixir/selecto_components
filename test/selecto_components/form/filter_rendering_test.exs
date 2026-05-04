@@ -302,6 +302,79 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "choice-source filter rendering" do
+    test "build_filter_list carries choice-source metadata into available filters" do
+      filters =
+        FilterRendering.build_filter_list(choice_source_selecto(),
+          choice_source_links: choice_source_links()
+        )
+
+      {_id, _name, metadata} =
+        Enum.find(filters, fn {id, _name, _metadata} -> to_string(id) == "customer_id" end)
+
+      assert metadata.choice_source == "customer_choices"
+      assert metadata.choice_source_metadata["id"] == "customer_choices"
+      assert metadata.choice_source_metadata["field"] == "customer_id"
+
+      assert metadata.choice_source_metadata["presentation"] == %{
+               "control" => "autocomplete",
+               "mode" => "async"
+             }
+
+      assert metadata.choice_source_metadata["options_request"]["url"] ==
+               "/api/customers/choices/options"
+
+      assert metadata.choice_source_metadata["validate_request_template"]["url"] ==
+               "/api/customers/choices/validate"
+    end
+
+    test "renders a lookup shell for equality filters with choice-source metadata" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :integer,
+          filter_value: %{
+            "filter" => "customer_id",
+            "comp" => "=",
+            "value" => "42"
+          },
+          selecto: choice_source_selecto(),
+          column_def: %{
+            type: :integer,
+            choice_source_metadata: %{
+              "id" => "customer_choices",
+              "field" => "customer_id",
+              "label_field" => "name",
+              "presentation" => %{"control" => "autocomplete", "mode" => "async"},
+              "options_request" => %{
+                "method" => "get",
+                "url" => "/api/customers/choices/options"
+              },
+              "validate_request_template" => %{
+                "method" => "post",
+                "url" => "/api/customers/choices/validate",
+                "body" => %{"field" => "customer_id", "value" => "$value"}
+              }
+            }
+          },
+          filter_def: %{type: :integer}
+        })
+
+      assert html =~ ~s(data-choice-source-filter)
+      assert html =~ ~s(data-choice-source-id="customer_choices")
+      assert html =~ ~s(data-choice-source-field="customer_id")
+      assert html =~ ~s(data-choice-source-control="autocomplete")
+      assert html =~ ~s(data-choice-source-options-url="/api/customers/choices/options")
+      assert html =~ ~s(data-choice-source-validate-url="/api/customers/choices/validate")
+      assert html =~ ~s(type="search")
+      assert html =~ ~s(name="filters[f1][value]")
+      assert html =~ ~s(value="42")
+      assert html =~ ~s(placeholder="Search Name...")
+    end
+  end
+
   describe "standard filter controller promotion" do
     test "renders a promote checkbox for non-equals standard filters" do
       html =
@@ -518,6 +591,50 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     }
 
     Selecto.configure(domain, nil)
+  end
+
+  defp choice_source_selecto do
+    domain = %{
+      name: "ChoiceSourceFilterRenderingTest",
+      source: %{
+        source_table: "orders",
+        primary_key: :id,
+        fields: [:id, :customer_id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: :id, name: "ID"},
+          customer_id: %{
+            type: :integer,
+            colid: :customer_id,
+            name: "Customer",
+            choice_source: :customer_choices
+          },
+          status: %{type: :string, colid: :status, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      choice_sources: %{
+        customer_choices: %{
+          domain: :customers,
+          value_field: :id,
+          label_field: :name,
+          presentation: %{control: :autocomplete, mode: :async}
+        }
+      }
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp choice_source_links do
+    %{
+      customer_choices: %{
+        options: "/api/customers/choices/options",
+        validate: "/api/customers/choices/validate"
+      }
+    }
   end
 
   defp render_presentation_selecto do

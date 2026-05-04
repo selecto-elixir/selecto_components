@@ -250,6 +250,42 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(value="2.345,5")
   end
 
+  test "renders choice-source lookup shells in filter and promoted controller editors" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          selecto: choice_source_selecto(),
+          choice_source_links: choice_source_links(),
+          show_view_configurator: true,
+          active_tab: "filter",
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "assignee_id",
+                 "comp" => "=",
+                 "value" => "7",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(data-choice-source-id="assignee_choices")
+    assert html =~ ~s(data-choice-source-options-url="/api/assignees/choices/options")
+    assert html =~ ~s(data-choice-source-validate-url="/api/assignees/choices/validate")
+    assert html =~ ~s(name="filters[f1][value]")
+    assert html =~ ~s(name="promoted_filters[f1][value]")
+    assert length(Regex.scan(~r/data-choice-source-filter/, html)) == 2
+  end
+
   test "renders promoted locale-aware IN filters as newline-delimited display values" do
     html =
       render_component(
@@ -424,5 +460,49 @@ defmodule SelectoComponents.FormTest do
       },
       overrides
     )
+  end
+
+  defp choice_source_selecto do
+    domain = %{
+      name: "ChoiceSourceFormTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :assignee_id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          assignee_id: %{
+            type: :integer,
+            name: "Assignee",
+            colid: :assignee_id,
+            choice_source: :assignee_choices
+          },
+          status: %{type: :string, name: "Status", colid: :status}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      choice_sources: %{
+        assignee_choices: %{
+          domain: :employees,
+          value_field: :id,
+          label_field: :full_name,
+          presentation: %{control: :autocomplete, mode: :async}
+        }
+      }
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp choice_source_links do
+    %{
+      assignee_choices: %{
+        options: "/api/assignees/choices/options",
+        validate: "/api/assignees/choices/validate"
+      }
+    }
   end
 end

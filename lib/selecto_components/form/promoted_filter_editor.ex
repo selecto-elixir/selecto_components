@@ -12,11 +12,39 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
     assigns = assign(assigns, :comp_label, filter_badge_label(assigns.filter))
 
     cond do
+      promoted_choice_source_filter?(assigns.filter) -> choice_source_filter_editor(assigns)
       promoted_multiselect_filter?(assigns.filter) -> multiselect_filter_editor(assigns)
       assigns.filter.render_kind == :datetime -> datetime_filter_editor(assigns)
       assigns.filter.render_kind == :text_search -> text_search_filter_editor(assigns)
       true -> standard_filter_editor(assigns)
     end
+  end
+
+  attr(:filter, :map, required: true)
+  attr(:theme, :map, required: true)
+
+  defp choice_source_filter_editor(assigns) do
+    assigns =
+      assign(assigns, :choice_source_metadata, choice_source_metadata(assigns.filter.field_conf))
+
+    ~H"""
+    <div class="space-y-2">
+      <span
+        class="inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[0.7rem] font-medium uppercase tracking-[0.12em]"
+        style="background: color-mix(in srgb, var(--sc-primary) 14%, transparent); color: var(--sc-primary);"
+      >
+        {@comp_label}
+      </span>
+
+      <FilterRendering.choice_source_filter_input
+        uuid={@filter.uuid}
+        scope="promoted_filters"
+        value={@filter.value}
+        metadata={@choice_source_metadata}
+        input_class={Theme.slot(@theme, :input)}
+      />
+    </div>
+    """
   end
 
   attr(:filter, :map, required: true)
@@ -318,6 +346,23 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
        do: true
 
   defp promoted_multiselect_filter?(_filter), do: false
+
+  defp promoted_choice_source_filter?(%{comp: comp, field_conf: field_conf})
+       when comp in ["=", "!="] do
+    is_map(choice_source_metadata(field_conf))
+  end
+
+  defp promoted_choice_source_filter?(_filter), do: false
+
+  defp choice_source_metadata(%{} = field_conf) do
+    case Map.get(field_conf, :choice_source_metadata) ||
+           Map.get(field_conf, "choice_source_metadata") do
+      metadata when is_map(metadata) -> metadata
+      _ -> nil
+    end
+  end
+
+  defp choice_source_metadata(_field_conf), do: nil
 
   defp parse_selected_ids(value) when is_binary(value) do
     value
