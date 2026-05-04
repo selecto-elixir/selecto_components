@@ -148,6 +148,7 @@ defmodule SelectoComponents.Components.ListPicker do
           >
             <div class="flex items-start gap-2">
               <.type_badge type={field_type} />
+              <.choice_source_indicator type={field_type} />
               <span class="block break-words">{name}</span>
             </div>
           </button>
@@ -226,6 +227,7 @@ defmodule SelectoComponents.Components.ListPicker do
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 items-center gap-2 text-sm">
                     <.type_badge type={selected_type} />
+                    <.choice_source_indicator type={selected_type} />
                     <div class="min-w-0 flex-1 truncate font-medium">
                       <%= if @item_summary != [] do %>
                         {render_slot(@item_summary, {id, item, conf, index})}
@@ -1585,6 +1587,33 @@ defmodule SelectoComponents.Components.ListPicker do
     """
   end
 
+  attr(:type, :any, required: true)
+
+  defp choice_source_indicator(assigns) do
+    choice_source_id = choice_source_id(assigns.type)
+
+    assigns =
+      assigns
+      |> assign(:choice_source_id, choice_source_id)
+      |> assign(:label, choice_source_label(choice_source_id))
+
+    ~H"""
+    <span
+      :if={@choice_source_id}
+      data-choice-source-indicator
+      data-choice-source-id={@choice_source_id}
+      aria-label={@label}
+      title={@label}
+      class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+      style="border-color: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border)); color: var(--sc-accent); background: color-mix(in srgb, var(--sc-accent) 8%, transparent);"
+    >
+      <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M8 4.25A3.75 3.75 0 1 0 8 11.75 3.75 3.75 0 0 0 8 4.25ZM2.75 8a5.25 5.25 0 1 1 9.38 3.24l4.32 4.31a.75.75 0 1 1-1.06 1.06l-4.31-4.32A5.25 5.25 0 0 1 2.75 8Z" />
+      </svg>
+    </span>
+    """
+  end
+
   defp type_badge_label(type) do
     case normalize_icon_key(type) do
       :number -> "Numeric"
@@ -1653,6 +1682,23 @@ defmodule SelectoComponents.Components.ListPicker do
         "color: var(--sc-text-muted); opacity: 0.78;"
     end
   end
+
+  defp choice_source_id(%{} = metadata) do
+    metadata[:choice_source] ||
+      metadata["choice_source"] ||
+      choice_source_metadata_id(metadata[:choice_source_metadata]) ||
+      choice_source_metadata_id(metadata["choice_source_metadata"])
+  end
+
+  defp choice_source_id(_type), do: nil
+
+  defp choice_source_metadata_id(%{} = metadata),
+    do: Map.get(metadata, "id") || Map.get(metadata, :id)
+
+  defp choice_source_metadata_id(_metadata), do: nil
+
+  defp choice_source_label(nil), do: nil
+  defp choice_source_label(choice_source_id), do: "Choice source #{choice_source_id}"
 
   defp normalize_icon_key(%{} = metadata) do
     metadata[:icon] || metadata["icon"] || metadata[:icon_family] || metadata["icon_family"] ||

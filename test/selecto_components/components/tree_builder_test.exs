@@ -42,6 +42,28 @@ defmodule SelectoComponents.Components.TreeBuilderTest do
     assert html =~ ~s(phx-value-element="state")
   end
 
+  test "renders choice source indicators for choice-backed available fields" do
+    html =
+      render_component(
+        TreeBuilder,
+        base_assigns(%{
+          available: [
+            {"customer_id", "Customer",
+             %{
+               type: :integer,
+               choice_source: "customer_choices",
+               choice_source_metadata: %{"id" => "customer_choices"}
+             }}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-type-key="number")
+    assert html =~ ~s(data-choice-source-indicator)
+    assert html =~ ~s(data-choice-source-id="customer_choices")
+    assert html =~ ~s(aria-label="Choice source customer_choices")
+  end
+
   test "renders applied filters as keyboard-focusable rows" do
     html =
       render_component(

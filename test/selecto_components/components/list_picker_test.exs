@@ -95,6 +95,32 @@ defmodule SelectoComponents.Components.ListPickerTest do
     assert html =~ ~s(data-type-icon="CTE")
   end
 
+  test "renders choice source indicators for choice-backed available and selected fields" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"customer_id", "Customer",
+             %{
+               type: :integer,
+               choice_source: "customer_choices",
+               choice_source_metadata: %{"id" => "customer_choices"}
+             }}
+          ],
+          selected_items: [
+            {"selected-1", "customer_id", %{}}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-type-key="number")
+    assert html =~ ~s(data-choice-source-indicator)
+    assert html =~ ~s(data-choice-source-id="customer_choices")
+    assert html =~ ~s(aria-label="Choice source customer_choices")
+    assert length(Regex.scan(~r/data-choice-source-indicator/, html)) == 2
+  end
+
   test "renders selected items with tuple field identifiers" do
     html =
       render_component(
