@@ -1098,7 +1098,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           async fetchOptions(_options = {}) {
             const url = this.optionsUrl();
 
-            if (!url || !this.input || this.input.disabled) {
+            if (!url || !this.isInteractive()) {
               return;
             }
 
@@ -1157,7 +1157,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           async validateCurrentValue(options = {}) {
             const value = this.currentSubmittedValue();
 
-            if (!this.validateUrl() || !this.input || this.input.disabled) {
+            if (!this.validateUrl() || !this.isInteractive()) {
               return;
             }
 
@@ -1214,7 +1214,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           },
 
           hydrateInitialDisplay() {
-            if (this.shouldHydrateDisplay()) {
+            if (this.isInteractive() && this.shouldHydrateDisplay()) {
               this.validateCurrentValue({
                 reason: 'mount',
                 force: true,
@@ -1228,6 +1228,24 @@ defmodule SelectoComponents.Form.FilterRendering do
             const displayValue = String(this.input?.value || '').trim();
 
             return submittedValue !== '' && (displayValue === '' || displayValue === submittedValue);
+          },
+
+          isInteractive() {
+            if (!this.input || this.input.disabled) {
+              return false;
+            }
+
+            if (this.el.closest('[hidden], [inert], [aria-hidden="true"]')) {
+              return false;
+            }
+
+            const style = window.getComputedStyle(this.input);
+
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+              return false;
+            }
+
+            return this.input.getClientRects().length > 0;
           },
 
           applyValidationLabel(payload, value, options = {}) {
