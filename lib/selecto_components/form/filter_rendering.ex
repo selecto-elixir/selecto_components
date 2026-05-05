@@ -929,6 +929,8 @@ defmodule SelectoComponents.Form.FilterRendering do
 
     ~H"""
     <div
+      id={"#{@input_id}-shell"}
+      phx-hook=".ChoiceSourceFilter"
       data-choice-source-filter
       data-choice-source-id={@choice_source_id}
       data-choice-source-field={@field_id}
@@ -939,6 +941,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       data-choice-source-validate-url={@validate_url}
       data-choice-source-validate-method={@validate_method}
       data-choice-source-validate-request={@validate_request_json}
+      data-choice-source-limit="20"
       class={@container_class}
     >
       <div class="relative">
@@ -968,6 +971,311 @@ defmodule SelectoComponents.Form.FilterRendering do
           </svg>
         </button>
       </div>
+      <div
+        data-choice-source-status
+        class="mt-1 hidden text-xs"
+        style="color: var(--sc-text-muted);"
+        aria-live="polite"
+      >
+      </div>
+      <div
+        data-choice-source-options
+        role="listbox"
+        aria-label="Choice suggestions"
+        class="mt-1 hidden max-h-48 overflow-y-auto rounded-md border p-1 shadow-sm"
+        style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+      >
+      </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ChoiceSourceFilter">
+        export default {
+          mounted() {
+            this.input = this.el.querySelector('[data-choice-source-input]');
+            this.trigger = this.el.querySelector('[data-choice-source-trigger]');
+            this.optionsEl = this.el.querySelector('[data-choice-source-options]');
+            this.statusEl = this.el.querySelector('[data-choice-source-status]');
+            this.abortController = null;
+            this.debounceTimer = null;
+            this.highlightedIndex = -1;
+            this.options = [];
+            this.suppressNextInputFetch = false;
+
+            this.onInput = () => {
+              if (this.suppressNextInputFetch) {
+                this.suppressNextInputFetch = false;
+                return;
+              }
+
+              this.scheduleFetch();
+            };
+            this.onFocus = () => {
+              if (this.options.length > 0) {
+                this.showOptions();
+              }
+            };
+            this.onKeydown = (event) => this.handleKeydown(event);
+            this.onTriggerClick = (event) => {
+              event.preventDefault();
+              this.fetchOptions({ immediate: true });
+              this.input?.focus();
+            };
+            this.onDocumentClick = (event) => {
+              if (!this.el.contains(event.target)) {
+                this.hideOptions();
+              }
+            };
+
+            this.input?.addEventListener('input', this.onInput);
+            this.input?.addEventListener('focus', this.onFocus);
+            this.input?.addEventListener('keydown', this.onKeydown);
+            this.trigger?.addEventListener('click', this.onTriggerClick);
+            document.addEventListener('click', this.onDocumentClick);
+          },
+
+          destroyed() {
+            clearTimeout(this.debounceTimer);
+            this.abortController?.abort();
+            this.input?.removeEventListener('input', this.onInput);
+            this.input?.removeEventListener('focus', this.onFocus);
+            this.input?.removeEventListener('keydown', this.onKeydown);
+            this.trigger?.removeEventListener('click', this.onTriggerClick);
+            document.removeEventListener('click', this.onDocumentClick);
+          },
+
+          scheduleFetch() {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => this.fetchOptions(), 250);
+          },
+
+          async fetchOptions(_options = {}) {
+            const url = this.optionsUrl();
+
+            if (!url || !this.input || this.input.disabled) {
+              return;
+            }
+
+            this.abortController?.abort();
+            this.abortController = new AbortController();
+            this.setStatus('Loading choices...');
+
+            try {
+              const response = await fetch(url, {
+                method: this.optionsMethod(),
+                headers: this.requestHeaders('choiceSourceOptionsRequest'),
+                credentials: 'same-origin',
+                signal: this.abortController.signal
+              });
+
+              if (!response.ok) {
+                throw new Error(`Choice source returned ${response.status}`);
+              }
+
+              const payload = await response.json();
+              this.options = Array.isArray(payload.options) ? payload.options : [];
+              this.highlightedIndex = this.options.length > 0 ? 0 : -1;
+              this.renderOptions();
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                return;
+              }
+
+              this.options = [];
+              this.hideOptions();
+              this.setStatus('Choices unavailable');
+            }
+          },
+
+          optionsUrl() {
+            const rawUrl = this.el.dataset.choiceSourceOptionsUrl;
+
+            if (!rawUrl) {
+              return null;
+            }
+
+            const url = new URL(rawUrl, window.location.origin);
+            const search = this.input?.value || '';
+            const limit = this.el.dataset.choiceSourceLimit || '20';
+
+            url.searchParams.set('search', search);
+            url.searchParams.set('limit', limit);
+
+            return url.toString();
+          },
+
+          optionsMethod() {
+            return (this.el.dataset.choiceSourceOptionsMethod || 'get').toUpperCase();
+          },
+
+          requestHeaders(datasetKey) {
+            const request = this.parseDatasetJson(datasetKey);
+            const headers = request?.headers || {};
+
+            return Object.fromEntries(
+              Object.entries(headers).map(([key, value]) => [key, String(value)])
+            );
+          },
+
+          parseDatasetJson(key) {
+            const value = this.el.dataset[key];
+
+            if (!value) {
+              return null;
+            }
+
+            try {
+              return JSON.parse(value);
+            } catch (_error) {
+              return null;
+            }
+          },
+
+          renderOptions() {
+            if (!this.optionsEl) {
+              return;
+            }
+
+            this.optionsEl.innerHTML = '';
+
+            if (this.options.length === 0) {
+              this.hideOptions();
+              this.setStatus('No choices found');
+              return;
+            }
+
+            this.clearStatus();
+
+            this.options.forEach((option, index) => {
+              const item = document.createElement('button');
+              item.type = 'button';
+              item.setAttribute('role', 'option');
+              item.dataset.choiceSourceOption = 'true';
+              item.dataset.choiceSourceOptionIndex = String(index);
+              item.dataset.choiceSourceOptionValue = this.optionValue(option);
+              item.className = 'block w-full rounded px-2 py-1.5 text-left text-sm';
+              item.style.color = 'var(--sc-text-primary)';
+              item.textContent = this.optionLabel(option);
+              item.addEventListener('mousedown', (event) => event.preventDefault());
+              item.addEventListener('click', () => this.selectOption(index));
+              this.optionsEl.appendChild(item);
+            });
+
+            this.showOptions();
+            this.updateHighlight();
+          },
+
+          showOptions() {
+            this.optionsEl?.classList.remove('hidden');
+          },
+
+          hideOptions() {
+            this.optionsEl?.classList.add('hidden');
+            this.highlightedIndex = -1;
+          },
+
+          setStatus(message) {
+            if (!this.statusEl) {
+              return;
+            }
+
+            this.statusEl.textContent = message;
+            this.statusEl.classList.remove('hidden');
+          },
+
+          clearStatus() {
+            if (!this.statusEl) {
+              return;
+            }
+
+            this.statusEl.textContent = '';
+            this.statusEl.classList.add('hidden');
+          },
+
+          handleKeydown(event) {
+            if (event.key === 'Escape') {
+              this.hideOptions();
+              return;
+            }
+
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              this.moveHighlight(1);
+              return;
+            }
+
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              this.moveHighlight(-1);
+              return;
+            }
+
+            if (event.key === 'Enter' && this.highlightedIndex >= 0 && !this.optionsEl?.classList.contains('hidden')) {
+              event.preventDefault();
+              this.selectOption(this.highlightedIndex);
+            }
+          },
+
+          moveHighlight(direction) {
+            if (this.options.length === 0) {
+              return;
+            }
+
+            if (this.optionsEl?.classList.contains('hidden')) {
+              this.showOptions();
+            }
+
+            this.highlightedIndex =
+              (this.highlightedIndex + direction + this.options.length) % this.options.length;
+            this.updateHighlight();
+          },
+
+          updateHighlight() {
+            if (!this.optionsEl) {
+              return;
+            }
+
+            Array.from(this.optionsEl.querySelectorAll('[data-choice-source-option]')).forEach((item, index) => {
+              const highlighted = index === this.highlightedIndex;
+              item.setAttribute('aria-selected', highlighted ? 'true' : 'false');
+              item.style.background = highlighted
+                ? 'color-mix(in srgb, var(--sc-accent) 12%, transparent)'
+                : 'transparent';
+            });
+          },
+
+          selectOption(index) {
+            const option = this.options[index];
+
+            if (!option || !this.input) {
+              return;
+            }
+
+            this.input.value = this.optionValue(option);
+            this.input.dataset.choiceSourceSelectedLabel = this.optionLabel(option);
+            this.suppressNextInputFetch = true;
+            this.input.dispatchEvent(new Event('input', { bubbles: true }));
+            this.hideOptions();
+            this.clearStatus();
+          },
+
+          optionValue(option) {
+            if (option?.value === null || option?.value === undefined) {
+              return '';
+            }
+
+            return String(option.value);
+          },
+
+          optionLabel(option) {
+            const label = option?.label;
+
+            if (label === null || label === undefined || String(label).trim() === '') {
+              return this.optionValue(option);
+            }
+
+            return String(label);
+          }
+        };
+      </script>
     </div>
     """
   end
