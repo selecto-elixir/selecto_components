@@ -942,6 +942,8 @@ defmodule SelectoComponents.Form.FilterRendering do
       data-choice-source-validate-method={@validate_method}
       data-choice-source-validate-request={@validate_request_json}
       data-choice-source-limit="20"
+      data-choice-source-validate-on="blur submit"
+      data-choice-source-validation-state="unknown"
       class={@container_class}
     >
       <div class="relative">
@@ -955,6 +957,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           class={[@input_class, "w-full pr-9"]}
           phx-debounce="300"
           disabled={@disabled}
+          aria-invalid="false"
           data-choice-source-input
         />
         <button
@@ -994,16 +997,23 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.trigger = this.el.querySelector('[data-choice-source-trigger]');
             this.optionsEl = this.el.querySelector('[data-choice-source-options]');
             this.statusEl = this.el.querySelector('[data-choice-source-status]');
+            this.form = this.el.closest('form');
             this.abortController = null;
+            this.validationAbortController = null;
             this.debounceTimer = null;
             this.highlightedIndex = -1;
             this.options = [];
             this.suppressNextInputFetch = false;
+            this.lastValidatedValue = null;
 
             this.onInput = () => {
               if (this.suppressNextInputFetch) {
                 this.suppressNextInputFetch = false;
                 return;
+              }
+
+              if (this.input?.value !== this.lastValidatedValue) {
+                this.setValidationState('unknown', '');
               }
 
               this.scheduleFetch();
@@ -1014,6 +1024,8 @@ defmodule SelectoComponents.Form.FilterRendering do
               }
             };
             this.onKeydown = (event) => this.handleKeydown(event);
+            this.onBlur = () => this.validateCurrentValue({ reason: 'blur' });
+            this.onSubmit = () => this.validateCurrentValue({ reason: 'submit', force: true });
             this.onTriggerClick = (event) => {
               event.preventDefault();
               this.fetchOptions({ immediate: true });
@@ -1028,17 +1040,22 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.input?.addEventListener('input', this.onInput);
             this.input?.addEventListener('focus', this.onFocus);
             this.input?.addEventListener('keydown', this.onKeydown);
+            this.input?.addEventListener('blur', this.onBlur);
             this.trigger?.addEventListener('click', this.onTriggerClick);
+            this.form?.addEventListener('submit', this.onSubmit);
             document.addEventListener('click', this.onDocumentClick);
           },
 
           destroyed() {
             clearTimeout(this.debounceTimer);
             this.abortController?.abort();
+            this.validationAbortController?.abort();
             this.input?.removeEventListener('input', this.onInput);
             this.input?.removeEventListener('focus', this.onFocus);
             this.input?.removeEventListener('keydown', this.onKeydown);
+            this.input?.removeEventListener('blur', this.onBlur);
             this.trigger?.removeEventListener('click', this.onTriggerClick);
+            this.form?.removeEventListener('submit', this.onSubmit);
             document.removeEventListener('click', this.onDocumentClick);
           },
 
@@ -1104,6 +1121,159 @@ defmodule SelectoComponents.Form.FilterRendering do
 
           optionsMethod() {
             return (this.el.dataset.choiceSourceOptionsMethod || 'get').toUpperCase();
+          },
+
+          async validateCurrentValue(options = {}) {
+            const value = this.input?.value || '';
+
+            if (!this.validateUrl() || !this.input || this.input.disabled) {
+              return;
+            }
+
+            if (value.trim() === '') {
+              this.lastValidatedValue = null;
+              this.setValidationState('unknown', '');
+              return;
+            }
+
+            if (options.force !== true && value === this.lastValidatedValue) {
+              return;
+            }
+
+            this.validationAbortController?.abort();
+            this.validationAbortController = new AbortController();
+            this.setValidationState('checking', 'Checking choice...');
+
+            try {
+              const request = this.validationRequest(value);
+              const response = await fetch(request.url, {
+                method: request.method,
+                headers: request.headers,
+                body: request.body,
+                credentials: 'same-origin',
+                signal: this.validationAbortController.signal
+              });
+
+              if (!response.ok) {
+                throw new Error(`Choice validation returned ${response.status}`);
+              }
+
+              const payload = await response.json();
+              this.lastValidatedValue = value;
+
+              if (payload.valid === true || payload.status === 'valid') {
+                this.setValidationState('valid', 'Choice verified');
+              } else if (payload.valid === false || payload.status === 'invalid') {
+                this.setValidationState('invalid', 'Choice not available');
+              } else {
+                this.setValidationState('unknown', 'Choice not verified');
+              }
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                return;
+              }
+
+              this.setValidationState('unavailable', 'Choice validation unavailable');
+            }
+          },
+
+          validateUrl() {
+            return this.el.dataset.choiceSourceValidateUrl || null;
+          },
+
+          validateMethod(template) {
+            return (
+              this.el.dataset.choiceSourceValidateMethod ||
+              template?.method ||
+              'post'
+            ).toUpperCase();
+          },
+
+          validationRequest(value) {
+            const template = this.parseDatasetJson('choiceSourceValidateRequest') || {};
+            const method = this.validateMethod(template);
+            const url = new URL(template.url || this.validateUrl(), window.location.origin);
+            const headers = Object.assign({ accept: 'application/json' }, template.headers || {});
+            const bodyTemplate = template.body || {
+              field: this.el.dataset.choiceSourceField,
+              value: '$value'
+            };
+            const payload = this.replaceTemplateValue(bodyTemplate, value);
+
+            if (method === 'GET') {
+              this.payloadEntries(payload).forEach(([key, entryValue]) => {
+                if (entryValue !== null && entryValue !== undefined) {
+                  url.searchParams.set(key, String(entryValue));
+                }
+              });
+
+              return {
+                method,
+                url: url.toString(),
+                headers: this.normalizeHeaders(headers),
+                body: undefined
+              };
+            }
+
+            if (!Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) {
+              headers['content-type'] = 'application/json';
+            }
+
+            return {
+              method,
+              url: url.toString(),
+              headers: this.normalizeHeaders(headers),
+              body: JSON.stringify(payload)
+            };
+          },
+
+          payloadEntries(payload) {
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+              return Object.entries(payload);
+            }
+
+            return [['value', payload]];
+          },
+
+          replaceTemplateValue(value, replacement) {
+            if (Array.isArray(value)) {
+              return value.map((entry) => this.replaceTemplateValue(entry, replacement));
+            }
+
+            if (value && typeof value === 'object') {
+              return Object.fromEntries(
+                Object.entries(value).map(([key, entry]) => [
+                  key,
+                  this.replaceTemplateValue(entry, replacement)
+                ])
+              );
+            }
+
+            if (typeof value === 'string') {
+              return value.replaceAll('$value', replacement);
+            }
+
+            return value;
+          },
+
+          normalizeHeaders(headers) {
+            return Object.fromEntries(
+              Object.entries(headers || {}).map(([key, value]) => [key, String(value)])
+            );
+          },
+
+          setValidationState(state, message) {
+            this.el.dataset.choiceSourceValidationState = state;
+
+            if (this.input) {
+              this.input.setAttribute('aria-invalid', state === 'invalid' ? 'true' : 'false');
+            }
+
+            if (message) {
+              this.setStatus(message);
+            } else {
+              this.clearStatus();
+            }
           },
 
           requestHeaders(datasetKey) {
@@ -1255,6 +1425,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.input.dispatchEvent(new Event('input', { bubbles: true }));
             this.hideOptions();
             this.clearStatus();
+            this.validateCurrentValue({ reason: 'select', force: true });
           },
 
           optionValue(option) {

@@ -370,12 +370,15 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ ~s(data-choice-source-validate-url="/api/customers/choices/validate")
       assert html =~ ~s(phx-hook="SelectoComponents.Form.FilterRendering.ChoiceSourceFilter")
       assert html =~ ~s(data-choice-source-options)
+      assert html =~ ~s(data-choice-source-validate-on="blur submit")
+      assert html =~ ~s(data-choice-source-validation-state="unknown")
       assert html =~ ~s(role="listbox")
       assert html =~ ~s(data-choice-source-status)
       assert html =~ ~s(data-choice-source-limit="20")
       assert html =~ ~s(type="search")
       assert html =~ ~s(name="filters[f1][value]")
       assert html =~ ~s(value="42")
+      assert html =~ ~s(aria-invalid="false")
       assert html =~ ~s(placeholder="Search Name...")
     end
   end
