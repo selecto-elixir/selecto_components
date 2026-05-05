@@ -412,10 +412,19 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
       domain: request && request.domain,
       field: request && request.field,
       value: request && request.value,
+      label: membership_label(result),
       user_message: result.user_message,
       metadata: result.metadata
     })
   end
+
+  defp membership_label(%Result{metadata: metadata}) when is_map(metadata) do
+    map_value(metadata, :label) ||
+      map_value(metadata, :display_label) ||
+      map_value(metadata, :choice_label)
+  end
+
+  defp membership_label(_result), do: nil
 
   defp error_json(error) when is_map(error) do
     QueryContract.json_safe(%{

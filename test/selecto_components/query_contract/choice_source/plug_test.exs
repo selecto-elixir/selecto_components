@@ -74,7 +74,7 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
         assert request.value == 42
         assert request.context == %{surface: :test, endpoint: :validate}
 
-        Choices.valid(:fixture_member, metadata: %{source: :fixture})
+        Choices.valid(:fixture_member, metadata: %{source: :fixture, label: "Acme Camps"})
       end
 
       conn =
@@ -100,7 +100,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
       assert body["choice_source"] == "customer_choices"
       assert body["field"] == "customer_id"
       assert body["value"] == 42
-      assert body["metadata"] == %{"source" => "fixture"}
+      assert body["label"] == "Acme Camps"
+      assert body["metadata"] == %{"source" => "fixture", "label" => "Acme Camps"}
     end
 
     test "supports configured default fields for membership validation" do

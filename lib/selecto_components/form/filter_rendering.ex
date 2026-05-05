@@ -1074,6 +1074,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.trigger?.addEventListener('click', this.onTriggerClick);
             this.form?.addEventListener('submit', this.onSubmit);
             document.addEventListener('click', this.onDocumentClick);
+            this.hydrateInitialDisplay();
           },
 
           destroyed() {
@@ -1192,6 +1193,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               this.lastValidatedValue = value;
 
               if (payload.valid === true || payload.status === 'valid') {
+                this.applyValidationLabel(payload, value, options);
                 this.setValidationState('valid', 'Choice verified');
               } else if (payload.valid === false || payload.status === 'invalid') {
                 this.setValidationState('invalid', 'Choice not available');
@@ -1209,6 +1211,55 @@ defmodule SelectoComponents.Form.FilterRendering do
 
           currentSubmittedValue() {
             return this.valueInput?.value || '';
+          },
+
+          hydrateInitialDisplay() {
+            if (this.shouldHydrateDisplay()) {
+              this.validateCurrentValue({
+                reason: 'mount',
+                force: true,
+                hydrateDisplay: true
+              });
+            }
+          },
+
+          shouldHydrateDisplay(value = this.currentSubmittedValue()) {
+            const submittedValue = String(value || '').trim();
+            const displayValue = String(this.input?.value || '').trim();
+
+            return submittedValue !== '' && (displayValue === '' || displayValue === submittedValue);
+          },
+
+          applyValidationLabel(payload, value, options = {}) {
+            const label = this.validationLabel(payload);
+
+            if (!label || (options.hydrateDisplay !== true && !this.shouldHydrateDisplay(value))) {
+              return;
+            }
+
+            this.input.value = label;
+            this.input.dataset.choiceSourceSelectedValue = String(value || '');
+            this.input.dataset.choiceSourceSelectedLabel = label;
+            this.setSubmittedValue(value);
+            this.setDisplayValue(label);
+          },
+
+          validationLabel(payload) {
+            const candidates = [
+              payload?.label,
+              payload?.display_label,
+              payload?.choice_label,
+              payload?.option?.label,
+              payload?.metadata?.label,
+              payload?.metadata?.display_label,
+              payload?.metadata?.choice_label,
+              payload?.metadata?.name,
+              payload?.metadata?.full_name
+            ];
+
+            return candidates.find((candidate) => {
+              return candidate !== null && candidate !== undefined && String(candidate).trim() !== '';
+            })?.toString();
           },
 
           setSubmittedValue(value) {
