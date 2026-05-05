@@ -1103,6 +1103,8 @@ defmodule SelectoComponents.Form do
           label: controller_filter_label(selecto, filter, label),
           summary: summary,
           comp: comp,
+          submitted_value: controller_filter_submitted_value(filter),
+          display_value: controller_filter_value(filter),
           value: controller_filter_value(filter),
           value_start: controller_filter_start_value(filter),
           value_end: controller_filter_end_value(filter),
@@ -1300,6 +1302,10 @@ defmodule SelectoComponents.Form do
   defp controller_filter_value(filter) do
     Map.get(filter, "display_value") || Map.get(filter, :display_value) ||
       Map.get(filter, "value") || Map.get(filter, :value) || ""
+  end
+
+  defp controller_filter_submitted_value(filter) do
+    Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
   defp controller_filter_start_value(filter) do

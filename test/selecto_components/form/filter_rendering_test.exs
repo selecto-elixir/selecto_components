@@ -376,10 +376,38 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ ~s(data-choice-source-status)
       assert html =~ ~s(data-choice-source-limit="20")
       assert html =~ ~s(type="search")
+      assert html =~ ~s(data-choice-source-display-input)
+      assert html =~ ~s(data-choice-source-value-input)
+      assert html =~ ~s(data-choice-source-display-value-input)
+      assert html =~ ~s(id="filters-choice-source-value-f1-display")
       assert html =~ ~s(name="filters[f1][value]")
+      assert html =~ ~s(name="filters[f1][display_value]")
       assert html =~ ~s(value="42")
       assert html =~ ~s(aria-invalid="false")
       assert html =~ ~s(placeholder="Search Name...")
+      assert length(Regex.scan(~r/name="filters\[f1\]\[value\]"/, html)) == 1
+    end
+
+    test "keeps submitted id separate from display label" do
+      html =
+        render_component(&FilterRendering.choice_source_filter_input/1, %{
+          uuid: "f1",
+          scope: "filters",
+          value: "42",
+          display_value: "Ada Lovelace",
+          metadata: %{
+            "id" => "customer_choices",
+            "field" => "customer_id",
+            "options_request" => %{"url" => "/api/customers/choices/options"},
+            "validate_request_template" => %{"url" => "/api/customers/choices/validate"}
+          }
+        })
+
+      assert html =~ ~s(name="filters[f1][value]" value="42")
+      assert html =~ ~s(name="filters[f1][display_value]" value="Ada Lovelace")
+      assert html =~ ~s(type="search")
+      assert html =~ ~s(value="Ada Lovelace")
+      assert length(Regex.scan(~r/name="filters\[f1\]\[value\]"/, html)) == 1
     end
   end
 

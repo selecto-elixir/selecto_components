@@ -591,18 +591,16 @@ defmodule SelectoComponents.Form.FilterRendering do
         ) ||
         ""
 
+    choice_source_value = choice_source_submitted_value(assigns.filter_value)
+
     assigns =
       assigns
       |> assign(
         is_multi_select_id: is_multi_select_id,
         choice_source_metadata: choice_source_metadata,
-        choice_source_value:
-          filter_input_value(
-            assigns.filter_value,
-            "value",
-            column_def,
-            assigns[:presentation_context]
-          ) || "",
+        choice_source_value: choice_source_value,
+        choice_source_display_value:
+          choice_source_display_value(assigns.filter_value, choice_source_value),
         supports_manual_in_values: supports_manual_in_values?(assigns.field_type),
         operator_options: operator_options,
         current_comp: current_comp,
@@ -674,6 +672,7 @@ defmodule SelectoComponents.Form.FilterRendering do
               uuid={@uuid}
               scope="filters"
               value={@choice_source_value}
+              display_value={@choice_source_display_value}
               metadata={@choice_source_metadata}
               input_class="sc-input"
               container_class="col-span-2"
@@ -891,6 +890,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   attr(:uuid, :string, required: true)
   attr(:scope, :string, default: "filters")
   attr(:value, :any, default: "")
+  attr(:display_value, :any, default: nil)
   attr(:metadata, :map, required: true)
   attr(:input_class, :string, default: "sc-input")
   attr(:container_class, :string, default: nil)
@@ -906,7 +906,9 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> assign(:control, choice_source_control(metadata))
       |> assign(:placeholder, choice_source_placeholder(metadata))
       |> assign(:input_name, "#{assigns.scope}[#{assigns.uuid}][value]")
+      |> assign(:display_input_name, "#{assigns.scope}[#{assigns.uuid}][display_value]")
       |> assign(:input_id, "#{assigns.scope}-choice-source-value-#{assigns.uuid}")
+      |> assign(:display_input_id, "#{assigns.scope}-choice-source-value-#{assigns.uuid}-display")
       |> assign(:options_url, choice_source_request_value(metadata, "options_request", "url"))
       |> assign(
         :options_method,
@@ -926,6 +928,10 @@ defmodule SelectoComponents.Form.FilterRendering do
         choice_source_request_json(metadata, "validate_request_template")
       )
       |> assign(:value, normalize_string(assigns.value))
+      |> assign(
+        :display_value,
+        normalize_choice_source_display(assigns.display_value, assigns.value)
+      )
 
     ~H"""
     <div
@@ -946,12 +952,24 @@ defmodule SelectoComponents.Form.FilterRendering do
       data-choice-source-validation-state="unknown"
       class={@container_class}
     >
+      <input
+        id={@input_id}
+        type="hidden"
+        name={@input_name}
+        value={@value}
+        data-choice-source-value-input
+      />
+      <input
+        type="hidden"
+        name={@display_input_name}
+        value={@display_value}
+        data-choice-source-display-value-input
+      />
       <div class="relative">
         <input
-          id={@input_id}
+          id={@display_input_id}
           type="search"
-          name={@input_name}
-          value={@value}
+          value={@display_value}
           placeholder={@placeholder}
           autocomplete="off"
           class={[@input_class, "w-full pr-9"]}
@@ -959,6 +977,9 @@ defmodule SelectoComponents.Form.FilterRendering do
           disabled={@disabled}
           aria-invalid="false"
           data-choice-source-input
+          data-choice-source-display-input
+          data-choice-source-initial-value={@value}
+          data-choice-source-initial-label={@display_value}
         />
         <button
           type="button"
@@ -994,6 +1015,8 @@ defmodule SelectoComponents.Form.FilterRendering do
         export default {
           mounted() {
             this.input = this.el.querySelector('[data-choice-source-input]');
+            this.valueInput = this.el.querySelector('[data-choice-source-value-input]');
+            this.displayValueInput = this.el.querySelector('[data-choice-source-display-value-input]');
             this.trigger = this.el.querySelector('[data-choice-source-trigger]');
             this.optionsEl = this.el.querySelector('[data-choice-source-options]');
             this.statusEl = this.el.querySelector('[data-choice-source-status]');
@@ -1005,6 +1028,8 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.options = [];
             this.suppressNextInputFetch = false;
             this.lastValidatedValue = null;
+            this.selectedValue = this.valueInput?.value || this.input?.dataset.choiceSourceInitialValue || '';
+            this.selectedLabel = this.displayValueInput?.value || this.input?.dataset.choiceSourceInitialLabel || '';
 
             this.onInput = () => {
               if (this.suppressNextInputFetch) {
@@ -1012,7 +1037,12 @@ defmodule SelectoComponents.Form.FilterRendering do
                 return;
               }
 
-              if (this.input?.value !== this.lastValidatedValue) {
+              if ((this.input?.value || '') !== this.selectedLabel) {
+                this.setSubmittedValue('');
+                this.setDisplayValue('');
+              }
+
+              if (this.currentSubmittedValue() !== this.lastValidatedValue) {
                 this.setValidationState('unknown', '');
               }
 
@@ -1124,7 +1154,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           },
 
           async validateCurrentValue(options = {}) {
-            const value = this.input?.value || '';
+            const value = this.currentSubmittedValue();
 
             if (!this.validateUrl() || !this.input || this.input.disabled) {
               return;
@@ -1174,6 +1204,30 @@ defmodule SelectoComponents.Form.FilterRendering do
               }
 
               this.setValidationState('unavailable', 'Choice validation unavailable');
+            }
+          },
+
+          currentSubmittedValue() {
+            return this.valueInput?.value || '';
+          },
+
+          setSubmittedValue(value) {
+            const normalizedValue = value || '';
+
+            this.selectedValue = normalizedValue;
+
+            if (this.valueInput) {
+              this.valueInput.value = normalizedValue;
+            }
+          },
+
+          setDisplayValue(value) {
+            const normalizedValue = value || '';
+
+            this.selectedLabel = normalizedValue;
+
+            if (this.displayValueInput) {
+              this.displayValueInput.value = normalizedValue;
             }
           },
 
@@ -1419,8 +1473,14 @@ defmodule SelectoComponents.Form.FilterRendering do
               return;
             }
 
-            this.input.value = this.optionValue(option);
-            this.input.dataset.choiceSourceSelectedLabel = this.optionLabel(option);
+            const value = this.optionValue(option);
+            const label = this.optionLabel(option);
+
+            this.input.value = label;
+            this.input.dataset.choiceSourceSelectedValue = value;
+            this.input.dataset.choiceSourceSelectedLabel = label;
+            this.setSubmittedValue(value);
+            this.setDisplayValue(label);
             this.suppressNextInputFetch = true;
             this.input.dispatchEvent(new Event('input', { bubbles: true }));
             this.hideOptions();
@@ -1536,6 +1596,21 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp supports_manual_in_values?(field_type),
     do: field_type in [:id, :integer, :float, :decimal, :string, :text, :citext, :custom_column]
+
+  defp choice_source_submitted_value(filter_value) when is_map(filter_value) do
+    value_for(filter_value, "value") || ""
+  end
+
+  defp choice_source_submitted_value(_filter_value), do: ""
+
+  defp choice_source_display_value(filter_value, fallback) when is_map(filter_value) do
+    value_for(filter_value, "display_value") ||
+      value_for(filter_value, "choice_label") ||
+      value_for(filter_value, "label") ||
+      fallback
+  end
+
+  defp choice_source_display_value(_filter_value, fallback), do: fallback
 
   defp selected_in_values(filter_value) when is_map(filter_value) do
     cond do
@@ -2120,6 +2195,9 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp normalize_string(value) when is_float(value), do: :erlang.float_to_binary(value)
   defp normalize_string(nil), do: ""
   defp normalize_string(value), do: to_string(value)
+
+  defp normalize_choice_source_display(nil, value), do: normalize_string(value)
+  defp normalize_choice_source_display(value, _fallback), do: normalize_string(value)
 
   @doc """
   Hash filter structure and comparator mode, not filter values.

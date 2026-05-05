@@ -39,7 +39,8 @@ defmodule SelectoComponents.Form.PromotedFilterEditor do
       <FilterRendering.choice_source_filter_input
         uuid={@filter.uuid}
         scope="promoted_filters"
-        value={@filter.value}
+        value={@filter.submitted_value}
+        display_value={@filter.display_value}
         metadata={@choice_source_metadata}
         input_class={Theme.slot(@theme, :input)}
       />

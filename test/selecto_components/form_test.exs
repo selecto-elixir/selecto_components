@@ -283,7 +283,11 @@ defmodule SelectoComponents.FormTest do
     assert html =~ ~s(data-choice-source-validate-url="/api/assignees/choices/validate")
     assert html =~ ~s(name="filters[f1][value]")
     assert html =~ ~s(name="promoted_filters[f1][value]")
+    assert html =~ ~s(name="filters[f1][display_value]")
+    assert html =~ ~s(name="promoted_filters[f1][display_value]")
     assert length(Regex.scan(~r/data-choice-source-filter/, html)) == 2
+    assert length(Regex.scan(~r/data-choice-source-value-input/, html)) == 2
+    assert length(Regex.scan(~r/data-choice-source-display-input/, html)) == 2
   end
 
   test "renders promoted locale-aware IN filters as newline-delimited display values" do
