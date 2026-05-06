@@ -366,6 +366,7 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ ~s(data-choice-source-id="customer_choices")
       assert html =~ ~s(data-choice-source-field="customer_id")
       assert html =~ ~s(data-choice-source-control="autocomplete")
+      assert html =~ ~s(data-choice-source-transport="http")
       assert html =~ ~s(data-choice-source-options-url="/api/customers/choices/options")
       assert html =~ ~s(data-choice-source-validate-url="/api/customers/choices/validate")
       assert html =~ ~s(phx-hook="SelectoComponents.Form.FilterRendering.ChoiceSourceFilter")

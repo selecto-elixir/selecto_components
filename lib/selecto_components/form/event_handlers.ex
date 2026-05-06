@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.EventHandlers do
   - **DrillDown** - Drill-down operations from aggregates and graphs
   - **ListOperations** - List picker operations (add, remove, reorder)
   - **QueryOperations** - Query execution, sorting, and pagination
+  - **ChoiceSourceOperations** - LiveView-backed choice-source options and validation
    - **ModalOperations** - Modal dialog display and interaction
    - **ExportOperations** - Export current results as CSV/JSON
 
@@ -62,6 +63,10 @@ defmodule SelectoComponents.Form.EventHandlers do
   - `{:update_view_config, ...}` - Update configuration
   - `{:filters_updated, ...}` - Update filters
 
+  ### ChoiceSourceOperations
+  - `selecto_choice_source_options` - Resolve choice-source options over LiveView
+  - `selecto_choice_source_validate` - Validate choice-source membership over LiveView
+
    ### ModalOperations
    - `{:show_detail_modal, ...}` - Show detail modal
    - `{:close_detail_modal, ...}` - Close detail modal
@@ -99,6 +104,7 @@ defmodule SelectoComponents.Form.EventHandlers do
       use SelectoComponents.Form.EventHandlers.DrillDown
       use SelectoComponents.Form.EventHandlers.ListOperations
       use SelectoComponents.Form.EventHandlers.QueryOperations
+      use SelectoComponents.Form.EventHandlers.ChoiceSourceOperations
       use SelectoComponents.Form.EventHandlers.ModalOperations
       use SelectoComponents.Form.EventHandlers.ExportOperations
 

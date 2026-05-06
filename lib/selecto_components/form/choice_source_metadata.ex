@@ -110,7 +110,8 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadata do
       |> Map.merge(%{
         "id" => string_id(choice_source_id),
         "field" => string_id(field_id),
-        "status" => "linked"
+        "status" => "linked",
+        "transport" => choice_source_transport(opts)
       })
       |> put_async_options(contract, choice_source_id, opts)
       |> put_membership_validation(contract, choice_source_id, field_id, opts)
@@ -187,6 +188,12 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadata do
     opts
     |> Keyword.take([:base_url, :headers, :params, :search, :limit, :offset])
     |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp choice_source_transport(opts) do
+    opts
+    |> Keyword.get(:transport, Keyword.get(opts, :choice_source_transport, :http))
+    |> to_string()
   end
 
   defp binding_for_field(field, field_id, bindings_by_field) do

@@ -67,6 +67,45 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
       refute Map.has_key?(body, "field")
     end
 
+    test "derives option scope from conn instead of query parameters" do
+      test_pid = self()
+
+      options_resolver = fn %OptionsRequest{} = request ->
+        send(test_pid, {:options_request, request})
+        Choices.options_resolved([%{value: 42, label: "Acme Camps"}])
+      end
+
+      scope_resolver = fn conn ->
+        [
+          actor: conn.assigns.current_user,
+          tenant: "tenant-from-session",
+          context: %{scope: :trusted},
+          filters: [{:tenant_id, "tenant-from-session"}]
+        ]
+      end
+
+      conn =
+        :get
+        |> conn("/choice-sources/customer_choices/options?tenant=spoofed")
+        |> Plug.Conn.assign(:current_user, %{id: 7})
+        |> ChoiceSourcePlug.call(
+          ChoiceSourcePlug.init(
+            domain: domain(),
+            options_resolver: options_resolver,
+            context: %{surface: :test},
+            scope_resolver: scope_resolver
+          )
+        )
+
+      assert conn.status == 200
+
+      assert_receive {:options_request, request}
+      assert request.tenant == "tenant-from-session"
+      assert request.actor == %{id: 7}
+      assert request.filters == [{:tenant_id, "tenant-from-session"}]
+      assert request.context == %{surface: :test, scope: :trusted}
+    end
+
     test "validates choice membership for a submitted field value" do
       membership_resolver = fn %Request{} = request ->
         assert request.choice_source == :customer_choices

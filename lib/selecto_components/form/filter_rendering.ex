@@ -904,6 +904,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> assign(:choice_source_id, choice_source_metadata_value(metadata, "id"))
       |> assign(:field_id, choice_source_metadata_value(metadata, "field"))
       |> assign(:control, choice_source_control(metadata))
+      |> assign(:transport, choice_source_transport(metadata))
       |> assign(:placeholder, choice_source_placeholder(metadata))
       |> assign(:input_name, "#{assigns.scope}[#{assigns.uuid}][value]")
       |> assign(:display_input_name, "#{assigns.scope}[#{assigns.uuid}][display_value]")
@@ -941,6 +942,7 @@ defmodule SelectoComponents.Form.FilterRendering do
       data-choice-source-id={@choice_source_id}
       data-choice-source-field={@field_id}
       data-choice-source-control={@control}
+      data-choice-source-transport={@transport}
       data-choice-source-options-url={@options_url}
       data-choice-source-options-method={@options_method}
       data-choice-source-options-request={@options_request_json}
@@ -1096,9 +1098,7 @@ defmodule SelectoComponents.Form.FilterRendering do
           },
 
           async fetchOptions(_options = {}) {
-            const url = this.optionsUrl();
-
-            if (!url || !this.isInteractive()) {
+            if (!this.isInteractive()) {
               return;
             }
 
@@ -1107,18 +1107,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.setStatus('Loading choices...');
 
             try {
-              const response = await fetch(url, {
-                method: this.optionsMethod(),
-                headers: this.requestHeaders('choiceSourceOptionsRequest'),
-                credentials: 'same-origin',
-                signal: this.abortController.signal
-              });
-
-              if (!response.ok) {
-                throw new Error(`Choice source returned ${response.status}`);
-              }
-
-              const payload = await response.json();
+              const payload = await this.fetchOptionsPayload();
               this.options = Array.isArray(payload.options) ? payload.options : [];
               this.highlightedIndex = this.options.length > 0 ? 0 : -1;
               this.renderOptions();
@@ -1131,6 +1120,40 @@ defmodule SelectoComponents.Form.FilterRendering do
               this.hideOptions();
               this.setStatus('Choices unavailable');
             }
+          },
+
+          fetchOptionsPayload() {
+            if (this.usesLiveViewTransport()) {
+              return this.pushEventRequest('selecto_choice_source_options', this.optionsPayload());
+            }
+
+            const url = this.optionsUrl();
+
+            if (!url) {
+              return Promise.resolve({ options: [] });
+            }
+
+            return fetch(url, {
+              method: this.optionsMethod(),
+              headers: this.requestHeaders('choiceSourceOptionsRequest'),
+              credentials: 'same-origin',
+              signal: this.abortController.signal
+            }).then((response) => {
+              if (!response.ok) {
+                throw new Error(`Choice source returned ${response.status}`);
+              }
+
+              return response.json();
+            });
+          },
+
+          optionsPayload() {
+            return {
+              choice_source: this.el.dataset.choiceSourceId,
+              field: this.el.dataset.choiceSourceField,
+              search: this.input?.value || '',
+              limit: this.el.dataset.choiceSourceLimit || '20'
+            };
           },
 
           optionsUrl() {
@@ -1154,10 +1177,14 @@ defmodule SelectoComponents.Form.FilterRendering do
             return (this.el.dataset.choiceSourceOptionsMethod || 'get').toUpperCase();
           },
 
+          usesLiveViewTransport() {
+            return (this.el.dataset.choiceSourceTransport || '').toLowerCase() === 'live';
+          },
+
           async validateCurrentValue(options = {}) {
             const value = this.currentSubmittedValue();
 
-            if (!this.validateUrl() || !this.isInteractive()) {
+            if (!this.canValidateChoices() || !this.isInteractive()) {
               return;
             }
 
@@ -1176,20 +1203,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.setValidationState('checking', 'Checking choice...');
 
             try {
-              const request = this.validationRequest(value);
-              const response = await fetch(request.url, {
-                method: request.method,
-                headers: request.headers,
-                body: request.body,
-                credentials: 'same-origin',
-                signal: this.validationAbortController.signal
-              });
-
-              if (!response.ok) {
-                throw new Error(`Choice validation returned ${response.status}`);
-              }
-
-              const payload = await response.json();
+              const payload = await this.validationPayload(value);
               this.lastValidatedValue = value;
 
               if (payload.valid === true || payload.status === 'valid') {
@@ -1207,6 +1221,48 @@ defmodule SelectoComponents.Form.FilterRendering do
 
               this.setValidationState('unavailable', 'Choice validation unavailable');
             }
+          },
+
+          canValidateChoices() {
+            return this.usesLiveViewTransport() || Boolean(this.validateUrl());
+          },
+
+          validationPayload(value) {
+            if (this.usesLiveViewTransport()) {
+              return this.pushEventRequest('selecto_choice_source_validate', {
+                choice_source: this.el.dataset.choiceSourceId,
+                field: this.el.dataset.choiceSourceField,
+                value
+              });
+            }
+
+            const request = this.validationRequest(value);
+
+            return fetch(request.url, {
+              method: request.method,
+              headers: request.headers,
+              body: request.body,
+              credentials: 'same-origin',
+              signal: this.validationAbortController.signal
+            }).then((response) => {
+              if (!response.ok) {
+                throw new Error(`Choice validation returned ${response.status}`);
+              }
+
+              return response.json();
+            });
+          },
+
+          pushEventRequest(event, payload) {
+            return new Promise((resolve, reject) => {
+              this.pushEvent(event, payload, (reply) => {
+                if (reply?.error) {
+                  reject(new Error(reply.error.message || 'Choice source unavailable'));
+                } else {
+                  resolve(reply || {});
+                }
+              });
+            });
           },
 
           currentSubmittedValue() {
@@ -2423,6 +2479,13 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   defp choice_source_metadata_value(_metadata, _key), do: nil
+
+  defp choice_source_transport(metadata) do
+    case choice_source_metadata_value(metadata, "transport") do
+      nil -> "http"
+      value -> to_string(value)
+    end
+  end
 
   defp choice_source_control(metadata) when is_map(metadata) do
     presentation = choice_source_metadata_value(metadata, "presentation")

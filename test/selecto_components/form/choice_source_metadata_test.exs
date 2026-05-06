@@ -23,6 +23,7 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
       assert metadata["value_field"] == "id"
       assert metadata["label_field"] == "name"
       assert metadata["status"] == "linked"
+      assert metadata["transport"] == "http"
       assert metadata["async_options"] == true
       assert metadata["validates_membership"] == true
       assert metadata["presentation"] == %{"control" => "autocomplete", "mode" => "async"}
@@ -61,6 +62,12 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
       assert [field] = ChoiceSourceMetadata.choice_source_fields(contract)
       assert field["id"] == "customer_id"
       assert field["choice_source_metadata"]["id"] == "customer_choices"
+    end
+
+    test "can mark choice sources for LiveView transport" do
+      [field] = ChoiceSourceMetadata.choice_source_fields(contract(), transport: :live)
+
+      assert field["choice_source_metadata"]["transport"] == "live"
     end
 
     test "marks metadata unresolved when a binding points at a missing source" do

@@ -12,6 +12,11 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
   Option and membership lookups use `:options_resolver` and
   `:membership_resolver`, each receiving the corresponding
   `Selecto.Domain.Choices` request struct.
+
+  Use `:scope_resolver` when option or membership requests need server-owned
+  actor, tenant, record, context, metadata, or filter constraints. The resolver
+  receives the current `Plug.Conn` and must derive scope from authenticated
+  assigns/session data, not from untrusted query parameters.
   """
 
   import Plug.Conn
@@ -70,9 +75,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
   defp send_options(conn, choice_source_id, opts) do
     conn = fetch_query_params(conn)
 
-    with {:ok, input} <- contract_input(conn, opts) do
-      attrs = options_request_attrs(conn, opts)
-
+    with {:ok, input} <- contract_input(conn, opts),
+         {:ok, attrs} <- options_request_attrs(conn, opts) do
       case safe_list_options(input, choice_source_id, attrs) do
         {:ok, %OptionsResult{} = result} ->
           send_options_json(conn, 200, result_json(result), opts)
@@ -90,12 +94,11 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
   end
 
   defp send_membership(conn, choice_source_id, opts) do
-    request_attrs = membership_request_attrs(conn, opts)
-
     with {:ok, params, conn} <- request_body_params(conn),
          {:ok, raw_value} <- choice_value(params),
          {:ok, field} <- choice_field(params, choice_source_id, opts),
          {:ok, value} <- parse_choice_value(raw_value, field, choice_source_id, conn, opts),
+         {:ok, request_attrs} <- membership_request_attrs(conn, opts),
          {:ok, input} <- contract_input(conn, opts),
          :ok <- ensure_choice_source_exists(input, choice_source_id),
          :ok <-
@@ -176,20 +179,44 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
   defp normalize_resolver_result(input), do: {:ok, input}
 
   defp options_request_attrs(conn, opts) do
-    [
-      by: :choice_source,
-      search: clean_search(param_value(conn.params, :search)),
-      limit: request_limit(param_value(conn.params, :limit), opts),
-      offset: request_offset(param_value(conn.params, :offset)),
-      resolver: Keyword.get(opts, :options_resolver),
-      context: endpoint_context(opts, :options)
-    ]
+    with {:ok, scope_attrs} <- request_scope_attrs(conn, opts, :options) do
+      base_attrs = [
+        by: :choice_source,
+        search: clean_search(param_value(conn.params, :search)),
+        limit: request_limit(param_value(conn.params, :limit), opts),
+        offset: request_offset(param_value(conn.params, :offset)),
+        resolver: Keyword.get(opts, :options_resolver),
+        context: endpoint_context(opts, :options)
+      ]
+
+      {:ok,
+       merge_request_attrs(base_attrs, scope_attrs, [
+         :actor,
+         :tenant,
+         :record,
+         :context,
+         :metadata,
+         :filters,
+         :order_by
+       ])}
+    end
   end
 
-  defp membership_request_attrs(_conn, opts) do
-    [
-      context: endpoint_context(opts, :validate)
-    ]
+  defp membership_request_attrs(conn, opts) do
+    with {:ok, scope_attrs} <- request_scope_attrs(conn, opts, :validate) do
+      base_attrs = [
+        context: endpoint_context(opts, :validate)
+      ]
+
+      {:ok,
+       merge_request_attrs(base_attrs, scope_attrs, [
+         :actor,
+         :tenant,
+         :record,
+         :context,
+         :metadata
+       ])}
+    end
   end
 
   defp safe_list_options(input, choice_source_id, attrs) do
@@ -553,6 +580,115 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
 
     Map.merge(base_context, endpoint_context)
   end
+
+  defp request_scope_attrs(conn, opts, operation) do
+    case Keyword.get(opts, :scope_resolver) || Keyword.get(opts, :request_scope) do
+      nil ->
+        {:ok, []}
+
+      scope when is_map(scope) or is_list(scope) ->
+        {:ok, scope}
+
+      resolver when is_function(resolver, 2) ->
+        resolver
+        |> apply_scope_resolver([conn, operation])
+        |> normalize_scope_result()
+
+      resolver when is_function(resolver, 1) ->
+        resolver
+        |> apply_scope_resolver([conn])
+        |> normalize_scope_result()
+
+      resolver when is_function(resolver, 0) ->
+        resolver
+        |> apply_scope_resolver([])
+        |> normalize_scope_result()
+
+      scope ->
+        {:error, 500, :invalid_choice_source_scope,
+         "choice-source scope must be a map, keyword list, or resolver function: #{inspect(scope)}"}
+    end
+  rescue
+    exception ->
+      {:error, 500, :choice_source_scope_failed, Exception.message(exception)}
+  end
+
+  defp apply_scope_resolver(resolver, args), do: apply(resolver, args)
+
+  defp normalize_scope_result({:ok, attrs}) when is_map(attrs) or is_list(attrs),
+    do: {:ok, attrs}
+
+  defp normalize_scope_result({:error, %{code: code, message: message}}) do
+    {:error, error_status(%{code: code}), code, message}
+  end
+
+  defp normalize_scope_result({:error, reason}) do
+    {:error, 500, :choice_source_scope_failed,
+     "choice-source scope resolver failed: #{inspect(reason)}"}
+  end
+
+  defp normalize_scope_result(nil), do: {:ok, []}
+  defp normalize_scope_result(attrs) when is_map(attrs) or is_list(attrs), do: {:ok, attrs}
+
+  defp normalize_scope_result(attrs) do
+    {:error, 500, :invalid_choice_source_scope_result,
+     "choice-source scope resolver must return a map, keyword list, {:ok, attrs}, or {:error, reason}: #{inspect(attrs)}"}
+  end
+
+  defp merge_request_attrs(base_attrs, override_attrs, allowed_keys) do
+    base = request_attrs_map(base_attrs)
+
+    override =
+      override_attrs
+      |> request_attrs_map()
+      |> Map.take(allowed_keys)
+
+    context =
+      Map.merge(
+        option_map(Map.get(base, :context, %{})),
+        option_map(Map.get(override, :context, %{}))
+      )
+
+    metadata =
+      Map.merge(
+        option_map(Map.get(base, :metadata, %{})),
+        option_map(Map.get(override, :metadata, %{}))
+      )
+
+    base
+    |> Map.merge(override)
+    |> Map.put(:context, context)
+    |> Map.put(:metadata, metadata)
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp request_attrs_map(attrs) when is_map(attrs) do
+    attrs
+    |> Enum.map(fn {key, value} -> {request_attr_key(key), value} end)
+    |> Enum.into(%{})
+  end
+
+  defp request_attrs_map(attrs) when is_list(attrs),
+    do: attrs |> Enum.into(%{}) |> request_attrs_map()
+
+  defp request_attrs_map(_attrs), do: %{}
+
+  defp request_attr_key(key) when is_atom(key), do: key
+
+  defp request_attr_key(key) when is_binary(key) do
+    case key do
+      "actor" -> :actor
+      "tenant" -> :tenant
+      "record" -> :record
+      "context" -> :context
+      "metadata" -> :metadata
+      "filters" -> :filters
+      "order_by" -> :order_by
+      other -> other
+    end
+  end
+
+  defp request_attr_key(key), do: key
 
   defp request_limit(nil, opts), do: default_limit(opts)
 
