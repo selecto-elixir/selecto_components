@@ -1033,7 +1033,9 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.selectedValue = this.valueInput?.value || this.input?.dataset.choiceSourceInitialValue || '';
             this.selectedLabel = this.displayValueInput?.value || this.input?.dataset.choiceSourceInitialLabel || '';
 
-            this.onInput = () => {
+            this.onInput = (event) => {
+              this.stopFormChange(event);
+
               if (this.suppressNextInputFetch) {
                 this.suppressNextInputFetch = false;
                 return;
@@ -1050,6 +1052,7 @@ defmodule SelectoComponents.Form.FilterRendering do
 
               this.scheduleFetch();
             };
+            this.onChange = (event) => this.stopFormChange(event);
             this.onFocus = () => {
               if (this.options.length > 0) {
                 this.showOptions();
@@ -1070,6 +1073,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             };
 
             this.input?.addEventListener('input', this.onInput);
+            this.input?.addEventListener('change', this.onChange);
             this.input?.addEventListener('focus', this.onFocus);
             this.input?.addEventListener('keydown', this.onKeydown);
             this.input?.addEventListener('blur', this.onBlur);
@@ -1084,6 +1088,7 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.abortController?.abort();
             this.validationAbortController?.abort();
             this.input?.removeEventListener('input', this.onInput);
+            this.input?.removeEventListener('change', this.onChange);
             this.input?.removeEventListener('focus', this.onFocus);
             this.input?.removeEventListener('keydown', this.onKeydown);
             this.input?.removeEventListener('blur', this.onBlur);
@@ -1606,11 +1611,22 @@ defmodule SelectoComponents.Form.FilterRendering do
             this.input.dataset.choiceSourceSelectedLabel = label;
             this.setSubmittedValue(value);
             this.setDisplayValue(label);
-            this.suppressNextInputFetch = true;
-            this.input.dispatchEvent(new Event('input', { bubbles: true }));
+            this.notifyValueChanged();
             this.hideOptions();
             this.clearStatus();
             this.validateCurrentValue({ reason: 'select', force: true });
+          },
+
+          stopFormChange(event) {
+            event?.stopPropagation();
+          },
+
+          notifyValueChanged() {
+            const target = this.valueInput || this.displayValueInput;
+
+            if (target) {
+              target.dispatchEvent(new Event('input', { bubbles: true }));
+            }
           },
 
           optionValue(option) {
