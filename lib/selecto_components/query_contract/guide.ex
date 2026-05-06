@@ -201,8 +201,8 @@ defmodule SelectoComponents.QueryContract.Guide do
   defp choice_source_section(choice_sources) do
     table =
       [
-        "| Choice Source | Domain | Value | Label | Options | Validate |",
-        "| --- | --- | --- | --- | --- | --- |"
+        "| Choice Source | Domain | Value | Label | Constraint Policy | Options | Validate |",
+        "| --- | --- | --- | --- | --- | --- | --- |"
         | Enum.map(choice_sources, &choice_source_row/1)
       ]
       |> Enum.join("\n")
@@ -219,11 +219,33 @@ defmodule SelectoComponents.QueryContract.Guide do
       field_cell(Map.get(choice_source, "domain")),
       field_cell(Map.get(choice_source, "value_field")),
       field_cell(Map.get(choice_source, "label_field")),
+      table_cell(constraint_policy_value(choice_source)),
       table_cell(Map.get(links, "options")),
       table_cell(Map.get(links, "validate"))
     ]
     |> table_row()
   end
+
+  defp constraint_policy_value(choice_source) do
+    choice_source
+    |> choice_source_constraint_policy()
+    |> format_constraint_policy()
+  end
+
+  defp choice_source_constraint_policy(choice_source) do
+    Map.get(choice_source, "constraint_policy") ||
+      Map.get(choice_source, :constraint_policy) ||
+      %{}
+  end
+
+  defp format_constraint_policy(policy) when is_map(policy) do
+    policy
+    |> Enum.map(fn {key, value} -> "#{key}=#{value}" end)
+    |> Enum.sort()
+    |> Enum.join(", ")
+  end
+
+  defp format_constraint_policy(_policy), do: ""
 
   defp choice_backed_field_section(fields, choice_sources) do
     choice_source_index = choice_source_index(choice_sources)

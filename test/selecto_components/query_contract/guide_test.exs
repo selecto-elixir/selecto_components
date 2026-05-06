@@ -32,7 +32,7 @@ defmodule SelectoComponents.QueryContract.GuideTest do
       assert markdown =~ "## Choice Sources"
 
       assert markdown =~
-               "| `customer_choices` | `customers` | `id` | `name` | /selecto/orders/choice-sources/customer_choices/options | /selecto/orders/choice-sources/customer_choices/validate |"
+               "| `customer_choices` | `customers` | `id` | `name` | domain_of_interest=fail_closed | /selecto/orders/choice-sources/customer_choices/options | /selecto/orders/choice-sources/customer_choices/validate |"
 
       assert markdown =~ "## Choice-Backed Fields"
 
@@ -89,6 +89,7 @@ defmodule SelectoComponents.QueryContract.GuideTest do
           domain: :customers,
           value_field: :id,
           label_field: :name,
+          constraint_policy: %{domain_of_interest: :fail_closed},
           presentation: %{control: :autocomplete}
         }
       },
