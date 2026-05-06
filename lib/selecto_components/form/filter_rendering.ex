@@ -894,10 +894,21 @@ defmodule SelectoComponents.Form.FilterRendering do
   attr(:metadata, :map, required: true)
   attr(:input_class, :string, default: "sc-input")
   attr(:container_class, :string, default: nil)
+  attr(:input_name, :string, default: nil)
+  attr(:display_input_name, :string, default: nil)
+  attr(:input_id, :string, default: nil)
+  attr(:display_input_id, :string, default: nil)
   attr(:disabled, :boolean, default: false)
 
   def choice_source_filter_input(assigns) do
     metadata = assigns.metadata || %{}
+    input_name = assigns.input_name || "#{assigns.scope}[#{assigns.uuid}][value]"
+
+    display_input_name =
+      assigns.display_input_name || "#{assigns.scope}[#{assigns.uuid}][display_value]"
+
+    input_id = assigns.input_id || "#{assigns.scope}-choice-source-value-#{assigns.uuid}"
+    display_input_id = assigns.display_input_id || "#{input_id}-display"
 
     assigns =
       assigns
@@ -906,10 +917,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       |> assign(:control, choice_source_control(metadata))
       |> assign(:transport, choice_source_transport(metadata))
       |> assign(:placeholder, choice_source_placeholder(metadata))
-      |> assign(:input_name, "#{assigns.scope}[#{assigns.uuid}][value]")
-      |> assign(:display_input_name, "#{assigns.scope}[#{assigns.uuid}][display_value]")
-      |> assign(:input_id, "#{assigns.scope}-choice-source-value-#{assigns.uuid}")
-      |> assign(:display_input_id, "#{assigns.scope}-choice-source-value-#{assigns.uuid}-display")
+      |> assign(:input_name, input_name)
+      |> assign(:display_input_name, display_input_name)
+      |> assign(:input_id, input_id)
+      |> assign(:display_input_id, display_input_id)
       |> assign(:options_url, choice_source_request_value(metadata, "options_request", "url"))
       |> assign(
         :options_method,

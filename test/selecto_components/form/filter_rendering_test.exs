@@ -410,6 +410,31 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       assert html =~ ~s(value="Ada Lovelace")
       assert length(Regex.scan(~r/name="filters\[f1\]\[value\]"/, html)) == 1
     end
+
+    test "allows callers to override submitted and display input names" do
+      html =
+        render_component(&FilterRendering.choice_source_filter_input/1, %{
+          uuid: "assignee_id",
+          value: "7",
+          display_value: "Grace Hopper",
+          input_name: "write_form[fields][assignee_id]",
+          display_input_name: "write_form[field_displays][assignee_id]",
+          input_id: "write-form-field-assignee_id",
+          display_input_id: "write-form-field-assignee_id-display",
+          metadata: %{
+            "id" => "work_item_assignees",
+            "field" => "assignee_id",
+            "transport" => "live"
+          }
+        })
+
+      assert html =~ ~s(id="write-form-field-assignee_id")
+      assert html =~ ~s(id="write-form-field-assignee_id-display")
+      assert html =~ ~s(name="write_form[fields][assignee_id]" value="7")
+      assert html =~ ~s(name="write_form[field_displays][assignee_id]" value="Grace Hopper")
+      assert html =~ ~s(data-choice-source-transport="live")
+      assert length(Regex.scan(~r/name="write_form\[fields\]\[assignee_id\]"/, html)) == 1
+    end
   end
 
   describe "standard filter controller promotion" do
