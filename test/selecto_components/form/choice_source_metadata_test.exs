@@ -27,6 +27,7 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
       assert metadata["async_options"] == true
       assert metadata["validates_membership"] == true
       assert metadata["presentation"] == %{"control" => "autocomplete", "mode" => "async"}
+      assert metadata["constraint_policy"] == %{"domain_of_interest" => "fail_closed"}
 
       assert metadata["options_request"] == %{
                "method" => "get",
@@ -128,6 +129,7 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
           "value_field" => "id",
           "label_field" => "name",
           "presentation" => %{"control" => "autocomplete", "mode" => "async"},
+          "constraint_policy" => %{"domain_of_interest" => "fail_closed"},
           "links" => %{
             "options" => "/api/orders/choice-sources/customer_choices/options",
             "validate" => "/api/orders/choice-sources/customer_choices/validate"

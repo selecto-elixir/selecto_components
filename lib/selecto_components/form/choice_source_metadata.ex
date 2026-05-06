@@ -24,6 +24,7 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadata do
     filters_count
     order_by_count
     presentation
+    constraint_policy
     capability
     links
   )
