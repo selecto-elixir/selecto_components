@@ -14,7 +14,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
   `Selecto.Domain.Choices` request struct.
 
   Use `:scope_resolver` when option or membership requests need server-owned
-  actor, tenant, record, context, metadata, or filter constraints. The resolver
+  actor, tenant, record, context, metadata, or Domain-of-Interest filter
+  constraints. The resolver
   receives the current `Plug.Conn` and must derive scope from authenticated
   assigns/session data, not from untrusted query parameters.
   """
@@ -214,7 +215,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.Plug do
          :tenant,
          :record,
          :context,
-         :metadata
+         :metadata,
+         :filters
        ])}
     end
   end

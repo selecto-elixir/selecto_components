@@ -58,6 +58,13 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
     assert request.tenant == "tenant-from-socket"
     assert request.actor == actor
     assert request.filters == doi_filters
+
+    assert request.constraint_filters == %{
+             source_relationship: [{:eq, "customers.active", true}],
+             choice_source: [["eq", "customers.available", true]],
+             domain_of_interest: doi_filters
+           }
+
     assert request.context.scope == :trusted
     assert request.context.transport == :live_view
     assert request.metadata.scope == :trusted
@@ -66,6 +73,7 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
 
   test "validates membership over LiveView with parser and field/source match" do
     test_pid = self()
+    doi_filters = [{"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}]
 
     membership_resolver = fn %Request{} = request ->
       send(test_pid, {:membership_request, request})
@@ -82,7 +90,8 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
         choice_source_domain: domain(),
         choice_source_membership_resolver: membership_resolver,
         choice_source_value_parser: value_parser,
-        choice_source_scope: %{tenant: "tenant-from-socket"}
+        choice_source_scope: %{tenant: "tenant-from-socket"},
+        view_config: %{filters: doi_filters}
       })
 
     {:reply, reply, ^socket} =
@@ -105,6 +114,13 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
     assert request.field == "customer_id"
     assert request.value == 42
     assert request.tenant == "tenant-from-socket"
+    assert request.filters == doi_filters
+
+    assert request.constraint_filters == %{
+             source_relationship: [{:eq, "customers.active", true}],
+             choice_source: [["eq", "customers.available", true]],
+             domain_of_interest: doi_filters
+           }
   end
 
   test "rejects membership validation when field is bound to a different choice source" do
@@ -155,7 +171,8 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
         customer: %{
           target_domain: :customers,
           source_field: :customer_id,
-          target_field: :id
+          target_field: :id,
+          filters: [{:eq, "customers.active", true}]
         }
       },
       choice_sources: %{
@@ -163,7 +180,8 @@ defmodule SelectoComponents.Form.ChoiceSourceLiveTest do
           domain: :customers,
           value_field: :id,
           label_field: :name,
-          source_relationship: :customer
+          source_relationship: :customer,
+          filters: [["eq", "customers.available", true]]
         },
         other_choices: %{
           domain: :customers,

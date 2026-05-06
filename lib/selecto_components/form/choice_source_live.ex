@@ -18,6 +18,7 @@ defmodule SelectoComponents.Form.ChoiceSourceLive do
 
   @scope_keys [:actor, :tenant, :record, :context, :metadata]
   @options_scope_keys @scope_keys ++ [:filters, :order_by]
+  @membership_scope_keys @scope_keys ++ [:filters]
 
   @doc false
   @spec options_reply(map(), Socket.t()) :: map()
@@ -95,11 +96,12 @@ defmodule SelectoComponents.Form.ChoiceSourceLive do
   defp membership_request_attrs(params, socket) do
     with {:ok, scope_attrs} <- scope_attrs(socket, :validate) do
       base_attrs = [
+        filters: domain_of_interest_filters(socket),
         context: request_context(socket, :validate, params),
         metadata: %{transport: :live_view}
       ]
 
-      {:ok, merge_request_attrs(base_attrs, scope_attrs, @scope_keys)}
+      {:ok, merge_request_attrs(base_attrs, scope_attrs, @membership_scope_keys)}
     end
   end
 

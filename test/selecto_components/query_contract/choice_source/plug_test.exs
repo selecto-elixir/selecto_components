@@ -111,9 +111,21 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
         assert request.choice_source == :customer_choices
         assert request.field == "customer_id"
         assert request.value == 42
+        assert request.filters == [{"status", "open"}]
+
+        assert request.constraint_filters == %{
+                 source_relationship: [{:eq, "customers.active", true}],
+                 choice_source: [["eq", "customers.available", true]],
+                 domain_of_interest: [{"status", "open"}]
+               }
+
         assert request.context == %{surface: :test, endpoint: :validate}
 
         Choices.valid(:fixture_member, metadata: %{source: :fixture, label: "Acme Camps"})
+      end
+
+      scope_resolver = fn _conn ->
+        [filters: [{"status", "open"}]]
       end
 
       conn =
@@ -124,6 +136,7 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
           ChoiceSourcePlug.init(
             domain: domain(),
             membership_resolver: membership_resolver,
+            scope_resolver: scope_resolver,
             context: %{surface: :test},
             membership_context: %{endpoint: :validate}
           )
@@ -258,7 +271,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
         customer: %{
           target_domain: :customers,
           source_field: :customer_id,
-          target_field: :id
+          target_field: :id,
+          filters: [{:eq, "customers.active", true}]
         }
       },
       choice_sources: %{
@@ -267,7 +281,8 @@ defmodule SelectoComponents.QueryContract.ChoiceSource.PlugTest do
           value_field: :id,
           label_field: :name,
           source_relationship: :customer,
-          capability: "customer.choose"
+          capability: "customer.choose",
+          filters: [["eq", "customers.available", true]]
         }
       }
     }
