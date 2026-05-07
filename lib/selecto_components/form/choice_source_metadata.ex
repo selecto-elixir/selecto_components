@@ -136,34 +136,46 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadata do
   end
 
   defp put_async_options(metadata, contract, choice_source_id, opts) do
-    case Client.options_request(contract, choice_source_id, request_opts(opts)) do
-      {:ok, %Request{} = request} ->
-        metadata
-        |> Map.put("async_options", true)
-        |> Map.put("options_request", request_document(request))
+    if live_transport?(metadata) do
+      Map.put(metadata, "async_options", true)
+    else
+      case Client.options_request(contract, choice_source_id, request_opts(opts)) do
+        {:ok, %Request{} = request} ->
+          metadata
+          |> Map.put("async_options", true)
+          |> Map.put("options_request", request_document(request))
 
-      {:error, _error} ->
-        Map.put(metadata, "async_options", false)
+        {:error, _error} ->
+          Map.put(metadata, "async_options", false)
+      end
     end
   end
 
   defp put_membership_validation(metadata, contract, choice_source_id, field_id, opts) do
-    placeholder = Keyword.get(opts, :validation_value_placeholder, @value_placeholder)
+    if live_transport?(metadata) do
+      Map.put(metadata, "validates_membership", true)
+    else
+      placeholder = Keyword.get(opts, :validation_value_placeholder, @value_placeholder)
 
-    request_opts =
-      opts
-      |> request_opts()
-      |> Keyword.put(:field, field_id)
+      request_opts =
+        opts
+        |> request_opts()
+        |> Keyword.put(:field, field_id)
 
-    case Client.validate_request(contract, choice_source_id, placeholder, request_opts) do
-      {:ok, %Request{} = request} ->
-        metadata
-        |> Map.put("validates_membership", true)
-        |> Map.put("validate_request_template", request_document(request))
+      case Client.validate_request(contract, choice_source_id, placeholder, request_opts) do
+        {:ok, %Request{} = request} ->
+          metadata
+          |> Map.put("validates_membership", true)
+          |> Map.put("validate_request_template", request_document(request))
 
-      {:error, _error} ->
-        Map.put(metadata, "validates_membership", false)
+        {:error, _error} ->
+          Map.put(metadata, "validates_membership", false)
+      end
     end
+  end
+
+  defp live_transport?(metadata) when is_map(metadata) do
+    get_value(metadata, :transport) == "live"
   end
 
   defp choice_source_base_metadata(choice_source) do

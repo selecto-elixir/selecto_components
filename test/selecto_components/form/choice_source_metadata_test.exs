@@ -68,7 +68,25 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
     test "can mark choice sources for LiveView transport" do
       [field] = ChoiceSourceMetadata.choice_source_fields(contract(), transport: :live)
 
-      assert field["choice_source_metadata"]["transport"] == "live"
+      metadata = field["choice_source_metadata"]
+
+      assert metadata["transport"] == "live"
+      assert metadata["async_options"] == true
+      assert metadata["validates_membership"] == true
+    end
+
+    test "does not require HTTP links for LiveView transport" do
+      contract = put_in(contract(), ["choice_sources", Access.at!(0), "links"], %{})
+
+      [field] = ChoiceSourceMetadata.choice_source_fields(contract, transport: :live)
+      metadata = field["choice_source_metadata"]
+
+      assert metadata["status"] == "linked"
+      assert metadata["transport"] == "live"
+      assert metadata["async_options"] == true
+      assert metadata["validates_membership"] == true
+      refute Map.has_key?(metadata, "options_request")
+      refute Map.has_key?(metadata, "validate_request_template")
     end
 
     test "marks metadata unresolved when a binding points at a missing source" do

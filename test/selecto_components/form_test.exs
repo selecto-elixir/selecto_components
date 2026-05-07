@@ -290,6 +290,42 @@ defmodule SelectoComponents.FormTest do
     assert length(Regex.scan(~r/data-choice-source-display-input/, html)) == 2
   end
 
+  test "projects live choice-source lookup shells without HTTP links" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          selecto: choice_source_selecto(),
+          choice_source_transport: :live,
+          show_view_configurator: true,
+          active_tab: "filter",
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "assignee_id",
+                 "comp" => "=",
+                 "value" => "7",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(data-choice-source-id="assignee_choices")
+    assert html =~ ~s(data-choice-source-transport="live")
+    assert html =~ ~s(name="filters[f1][value]")
+    assert html =~ ~s(name="promoted_filters[f1][value]")
+    refute html =~ ~s(data-choice-source-options-url="/api/assignees/choices/options")
+    refute html =~ ~s(data-choice-source-validate-url="/api/assignees/choices/validate")
+  end
+
   test "renders promoted locale-aware IN filters as newline-delimited display values" do
     html =
       render_component(

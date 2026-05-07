@@ -2442,7 +2442,8 @@ defmodule SelectoComponents.Form.FilterRendering do
     [
       choice_source_links: Map.get(assigns, :choice_source_links),
       base_url: Map.get(assigns, :choice_source_base_url),
-      headers: Map.get(assigns, :choice_source_headers)
+      headers: Map.get(assigns, :choice_source_headers),
+      transport: Map.get(assigns, :choice_source_transport)
     ]
     |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
   end
