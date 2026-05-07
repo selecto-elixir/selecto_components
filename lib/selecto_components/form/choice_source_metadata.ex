@@ -205,8 +205,23 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadata do
 
   defp choice_source_transport(opts) do
     opts
-    |> Keyword.get(:transport, Keyword.get(opts, :choice_source_transport, :http))
+    |> explicit_choice_source_transport()
+    |> then(fn transport -> transport || inferred_choice_source_transport(opts) || :http end)
     |> to_string()
+  end
+
+  defp explicit_choice_source_transport(opts) do
+    Keyword.get(opts, :transport) || Keyword.get(opts, :choice_source_transport)
+  end
+
+  defp inferred_choice_source_transport(opts) do
+    if choice_source_live_resolver?(opts), do: :live
+  end
+
+  defp choice_source_live_resolver?(opts) do
+    opts
+    |> Keyword.take([:choice_source_options_resolver, :choice_source_membership_resolver])
+    |> Enum.any?(fn {_key, resolver} -> is_function(resolver) end)
   end
 
   defp binding_for_field(field, field_id, bindings_by_field) do

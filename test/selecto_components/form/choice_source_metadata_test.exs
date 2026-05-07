@@ -75,6 +75,21 @@ defmodule SelectoComponents.Form.ChoiceSourceMetadataTest do
       assert metadata["validates_membership"] == true
     end
 
+    test "infers LiveView transport from configured resolvers" do
+      [field] =
+        ChoiceSourceMetadata.choice_source_fields(contract(),
+          choice_source_options_resolver: fn _request -> {:ok, []} end
+        )
+
+      metadata = field["choice_source_metadata"]
+
+      assert metadata["transport"] == "live"
+      assert metadata["async_options"] == true
+      assert metadata["validates_membership"] == true
+      refute Map.has_key?(metadata, "options_request")
+      refute Map.has_key?(metadata, "validate_request_template")
+    end
+
     test "does not require HTTP links for LiveView transport" do
       contract = put_in(contract(), ["choice_sources", Access.at!(0), "links"], %{})
 

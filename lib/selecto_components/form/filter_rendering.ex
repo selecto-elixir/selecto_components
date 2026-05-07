@@ -2443,9 +2443,22 @@ defmodule SelectoComponents.Form.FilterRendering do
       choice_source_links: Map.get(assigns, :choice_source_links),
       base_url: Map.get(assigns, :choice_source_base_url),
       headers: Map.get(assigns, :choice_source_headers),
-      transport: Map.get(assigns, :choice_source_transport)
+      transport: choice_source_projection_transport(assigns)
     ]
     |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+  end
+
+  defp choice_source_projection_transport(assigns) do
+    Map.get(assigns, :choice_source_transport) || inferred_choice_source_transport(assigns)
+  end
+
+  defp inferred_choice_source_transport(assigns) do
+    if choice_source_live_resolver?(assigns), do: :live
+  end
+
+  defp choice_source_live_resolver?(assigns) do
+    [:choice_source_options_resolver, :choice_source_membership_resolver]
+    |> Enum.any?(fn key -> is_function(Map.get(assigns, key)) end)
   end
 
   defp filter_choice_source_metadata_by_field(selecto, opts) do

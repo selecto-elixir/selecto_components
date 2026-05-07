@@ -345,6 +345,23 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
       refute Map.has_key?(metadata.choice_source_metadata, "validate_request_template")
     end
 
+    test "build_filter_list infers live choice-source metadata from resolvers" do
+      filters =
+        FilterRendering.build_filter_list(choice_source_selecto(),
+          choice_source_options_resolver: fn _request -> {:ok, []} end
+        )
+
+      {_id, _name, metadata} =
+        Enum.find(filters, fn {id, _name, _metadata} -> to_string(id) == "customer_id" end)
+
+      assert metadata.choice_source == "customer_choices"
+      assert metadata.choice_source_metadata["transport"] == "live"
+      assert metadata.choice_source_metadata["async_options"] == true
+      assert metadata.choice_source_metadata["validates_membership"] == true
+      refute Map.has_key?(metadata.choice_source_metadata, "options_request")
+      refute Map.has_key?(metadata.choice_source_metadata, "validate_request_template")
+    end
+
     test "renders a lookup shell for equality filters with choice-source metadata" do
       html =
         render_component(&FilterRendering.render_standard_filter/1, %{
