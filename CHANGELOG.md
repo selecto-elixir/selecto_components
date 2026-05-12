@@ -2,6 +2,12 @@
 CHANGES
 =======
 
+Unreleased
+----------
+
+- Relaxed Selecto ecosystem dependency guidance to allow the coordinated 0.5
+  release line while preserving the current 0.4 lower bounds.
+
 V 0.4.7
 --------
 
