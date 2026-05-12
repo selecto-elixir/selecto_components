@@ -622,6 +622,8 @@ defmodule SelectoComponents.Form.ParamsState do
                     "display_value_end",
                     "value2",
                     "display_value2",
+                    "selected_values",
+                    "selected_ids",
                     "mode"
                   ])
                 )
@@ -666,11 +668,13 @@ defmodule SelectoComponents.Form.ParamsState do
         |> Map.put("display_value", normalized_display_value)
 
       comp in ["IN", "NOT IN"] ->
-        Map.put(
-          promoted_values,
-          "value",
-          normalize_promoted_multi_value(Map.get(promoted_values, "value"))
-        )
+        normalized_value = normalize_promoted_multi_value(Map.get(promoted_values, "value"))
+        selected_ids = parse_filter_values(normalized_value)
+
+        promoted_values
+        |> Map.put("value", normalized_value)
+        |> Map.put("selected_values", selected_ids)
+        |> Map.put("selected_ids", selected_ids)
 
       true ->
         promoted_values

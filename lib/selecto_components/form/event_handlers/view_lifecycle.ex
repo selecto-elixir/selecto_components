@@ -82,6 +82,13 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
               # Process all parameters including view-specific configs (aggregates, group_by, etc.)
               socket = ParamsState.form_params_to_state(params, socket)
 
+              socket =
+                if Map.has_key?(params, "promoted_filters") do
+                  assign(socket, view_config_dirty?: true)
+                else
+                  socket
+                end
+
               # Don't execute view on validation - only on submit
               # This allows users to configure aggregates without immediate updates
               {:noreply, socket}

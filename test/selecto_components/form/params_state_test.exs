@@ -1471,6 +1471,30 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(canonicalized, "promoted_filters")
   end
 
+  test "canonicalize_form_params lets promoted multi-select values replace stale selected values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "category_id",
+          "comp" => "IN",
+          "value" => "1,2,3,4,5",
+          "selected_values" => ["1", "2", "3", "4", "5"],
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => ["1", "2"]}
+      }
+    }
+
+    canonicalized = ParamsState.canonicalize_form_params(params)
+
+    assert canonicalized["filters"]["k0"]["value"] == "1,2"
+    assert canonicalized["filters"]["k0"]["selected_values"] == ["1", "2"]
+    assert canonicalized["filters"]["k0"]["selected_ids"] == ["1", "2"]
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
   test "canonicalize_form_params preserves locale-aware promoted numeric controller values" do
     params = %{
       "filters" => %{

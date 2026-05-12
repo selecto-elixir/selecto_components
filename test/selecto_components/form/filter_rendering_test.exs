@@ -492,6 +492,7 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
         })
 
       assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "✓"
       assert html =~ "Promote to View Controller"
     end
 

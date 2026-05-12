@@ -300,6 +300,7 @@ defmodule SelectoComponents.Form do
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
             this.bindKeyboardShortcuts();
+            this.bindPromotedMultiSelects();
 
             this.handleEvent("selecto_export_download", (payload) => {
               const filename = payload.filename || "selecto_export.txt";
@@ -341,6 +342,7 @@ defmodule SelectoComponents.Form do
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
             this.bindKeyboardShortcuts();
+            this.bindPromotedMultiSelects();
             this.flushPendingShortcutFocus();
           },
 
@@ -363,6 +365,73 @@ defmodule SelectoComponents.Form do
 
             if (this.scheduledExportCleanup) {
               this.scheduledExportCleanup();
+            }
+
+            if (this.promotedMultiSelectCleanup) {
+              this.promotedMultiSelectCleanup();
+            }
+          },
+
+          bindPromotedMultiSelects() {
+            if (this.promotedMultiSelectCleanup) {
+              this.promotedMultiSelectCleanup();
+              this.promotedMultiSelectCleanup = null;
+            }
+
+            const selects = Array.from(
+              this.el.querySelectorAll("[data-promoted-filter-multiselect='true']")
+            );
+
+            const handlers = selects.map((select) => {
+              const handler = () => {
+                this.promotedMultiSelectDirty = true;
+                window.selectoPromotedMultiSelectDirty = true;
+                this.markSubmitDirty();
+
+                const form = select.form || select.closest("form");
+
+                if (form) {
+                  form.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+                }
+              };
+
+              select.addEventListener("change", handler);
+
+              return { select, handler };
+            });
+
+            const submit = this.el.querySelector("[data-selecto-submit-button='true']");
+            let submitHandler = null;
+
+            if (submit) {
+              submitHandler = () => {
+                this.promotedMultiSelectDirty = false;
+                window.selectoPromotedMultiSelectDirty = false;
+              };
+
+              submit.addEventListener("click", submitHandler);
+            }
+
+            this.promotedMultiSelectCleanup = () => {
+              handlers.forEach(({ select, handler }) => {
+                select.removeEventListener("change", handler);
+              });
+
+              if (submit && submitHandler) {
+                submit.removeEventListener("click", submitHandler);
+              }
+            };
+
+            if (this.promotedMultiSelectDirty || window.selectoPromotedMultiSelectDirty) {
+              this.markSubmitDirty();
+            }
+          },
+
+          markSubmitDirty() {
+            const submit = this.el.querySelector("[data-selecto-submit-button='true']");
+
+            if (submit) {
+              submit.dataset.dirty = "true";
             }
           },
 
@@ -1515,9 +1584,11 @@ defmodule SelectoComponents.Form do
 
     if schema_atom do
       domain
-      |> get_in([:schemas, schema_atom, :columns])
+      |> get_in([:schemas, schema_atom])
       |> case do
-        columns when is_map(columns) ->
+        schema_config when is_map(schema_config) ->
+          columns = Map.get(schema_config, :columns, %{})
+
           Enum.find_value(columns, fn {_col_name, col_config} ->
             join_mode = Map.get(col_config, :join_mode)
             id_field = Map.get(col_config, :id_field)
@@ -1525,7 +1596,7 @@ defmodule SelectoComponents.Form do
 
             if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
                  (id_field == :id or Atom.to_string(id_field) == field_part) do
-              col_config
+              Map.put(col_config, :source_table, Map.get(schema_config, :source_table))
             end
           end)
 
@@ -1548,7 +1619,7 @@ defmodule SelectoComponents.Form do
 
         if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
              group_by_filter == filter_id do
-          col_config
+          Map.put(col_config, :source_table, Map.get(schema_config, :source_table))
         end
       end)
     end)

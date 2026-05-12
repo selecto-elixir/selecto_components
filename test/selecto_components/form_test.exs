@@ -6,6 +6,20 @@ defmodule SelectoComponents.FormTest do
   alias SelectoComponents.Form
   alias SelectoComponents.Form.FilterRendering
 
+  defmodule OptionRepo do
+    def query(query, [limit]) do
+      send(self(), {:option_query, query, limit})
+
+      {:ok,
+       %{
+         rows: [
+           [1, "Beverages"],
+           [2, "Condiments"]
+         ]
+       }}
+    end
+  end
+
   test "renders an always-visible controller summary when collapsed" do
     html = render_component(Form, base_assigns(%{show_view_configurator: false}))
 
@@ -203,6 +217,41 @@ defmodule SelectoComponents.FormTest do
     assert html =~ "Preview:"
     assert html =~ FilterRendering.date_shortcut_preview("this_month")
     refute html =~ ~s(type="text" name="promoted_filters[f4][value]")
+  end
+
+  test "renders promoted star join id filters with lookup options" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          selecto: star_join_selecto(),
+          show_view_configurator: false,
+          view_config: %{
+            view_mode: "detail",
+            filters: [
+              {"f1", "filters",
+               %{
+                 "filter" => "category_id",
+                 "comp" => "IN",
+                 "value" => "1",
+                 "promote" => "true"
+               }}
+            ],
+            views: %{
+              detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+              aggregate: %{group_by: [], aggregate: [], per_page: "30"}
+            }
+          }
+        })
+      )
+
+    assert_received {:option_query, query, 100}
+    assert query =~ "FROM categories"
+    assert html =~ ~s(name="promoted_filters[f1][value][]")
+    assert html =~ ~s(data-promoted-filter-multiselect="true")
+    assert html =~ ~s(<option value="1" selected>)
+    assert html =~ "Beverages"
+    assert html =~ "Condiments"
   end
 
   test "renders promoted numeric filters using display-local values when present" do
@@ -578,5 +627,44 @@ defmodule SelectoComponents.FormTest do
         validate: "/api/assignees/choices/validate"
       }
     }
+  end
+
+  defp star_join_selecto do
+    domain = %{
+      name: "StarJoinFormTest",
+      source: %{
+        source_table: "products",
+        primary_key: :id,
+        fields: [:id, :category_id],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          category_id: %{type: :integer, name: "Category Id", colid: :category_id}
+        },
+        associations: %{}
+      },
+      schemas: %{
+        category: %{
+          source_table: "categories",
+          primary_key: :id,
+          fields: [:id, :category_name],
+          columns: %{
+            category_name: %{
+              type: :string,
+              id_field: :id,
+              display_field: :category_name,
+              filter_type: :multi_select_id,
+              join_mode: :star,
+              group_by_filter: "category_id"
+            },
+            id: %{type: :integer}
+          },
+          associations: %{}
+        }
+      },
+      joins: %{}
+    }
+
+    Selecto.configure(domain, OptionRepo)
   end
 end

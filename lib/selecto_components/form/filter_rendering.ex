@@ -2951,20 +2951,34 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp promote_checkbox(assigns) do
     ~H"""
-    <div
+    <label
       class="col-span-3 flex items-center gap-2 text-sm"
       style="color: var(--sc-text-secondary);"
     >
       <input type="hidden" name={"filters[#{@uuid}][promote]"} value="false" />
       <input
         type="checkbox"
-        class="checkbox checkbox-sm"
+        class="sr-only"
         name={"filters[#{@uuid}][promote]"}
         value="true"
         checked={@checked}
-        style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
-      /> Promote to View Controller
-    </div>
+      />
+      <span
+        class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold leading-none"
+        style={
+          if @checked do
+            "background: var(--sc-accent); border-color: var(--sc-accent); color: var(--sc-surface-bg);"
+          else
+            "border-color: var(--sc-surface-border);"
+          end
+        }
+      >
+        <%= if @checked do %>
+          ✓
+        <% end %>
+      </span>
+      <span>Promote to View Controller</span>
+    </label>
     """
   end
 
