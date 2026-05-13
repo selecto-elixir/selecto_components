@@ -121,6 +121,31 @@ defmodule SelectoComponents.ActionsTest do
     assert decisions["approve_order"]["metadata"]["field"] == "state"
   end
 
+  test "summarizes and groups visible action items" do
+    actions =
+      write_contract(%{
+        "bulk_archive" => %{
+          "id" => "bulk_archive",
+          "label" => "Archive selected",
+          "scope" => "bulk",
+          "capability" => "orders.archive",
+          "execution" => %{"operation" => "update"}
+        }
+      })
+      |> Actions.available(
+        decisions: %{
+          "approve_order" => :enabled,
+          "bulk_archive" => %{status: :disabled, reason: "No selected rows"}
+        }
+      )
+
+    assert Actions.status_counts(actions) == %{"enabled" => 1, "disabled" => 1}
+    assert actions |> Actions.by_scope() |> Map.keys() |> Enum.sort() == ["bulk", "row"]
+
+    assert actions |> Actions.by_scope() |> Map.fetch!("bulk") |> hd() |> Map.fetch!(:id) ==
+             "bulk_archive"
+  end
+
   test "marks delete-like or destructive actions for guarded UI treatment" do
     contract =
       write_contract(%{

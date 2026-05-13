@@ -128,6 +128,35 @@ defmodule SelectoComponents.Actions do
     normalize_decision(decision, default_status)
   end
 
+  @doc """
+  Counts visible action items by normalized status.
+  """
+  @spec status_counts([action_item()]) :: map()
+  def status_counts(actions) when is_list(actions) do
+    actions
+    |> Enum.reduce(%{"enabled" => 0, "disabled" => 0}, fn action, counts ->
+      status =
+        action
+        |> map_value(:status, "enabled")
+        |> normalize_status()
+
+      Map.update(counts, status, 1, &(&1 + 1))
+    end)
+  end
+
+  @doc """
+  Groups visible action items by scope, using `"unscoped"` when no scope exists.
+  """
+  @spec by_scope([action_item()]) :: map()
+  def by_scope(actions) when is_list(actions) do
+    Enum.group_by(actions, fn action ->
+      action
+      |> map_value(:scope)
+      |> normalize_optional_id()
+      |> Kernel.||("unscoped")
+    end)
+  end
+
   defp action_entries(contract) when is_map(contract) do
     case map_value(contract, :actions) do
       actions when is_list(actions) -> actions
