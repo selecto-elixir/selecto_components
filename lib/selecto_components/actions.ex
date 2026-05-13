@@ -61,6 +61,58 @@ defmodule SelectoComponents.Actions do
   end
 
   @doc """
+  Merges a decision extracted from an action preview/apply result.
+
+  Successful preview/apply payloads usually carry `capability_decision`; errors
+  can be converted into disabled decisions with their validation reason.
+  """
+  @spec put_result_decision(map(), term(), term()) :: map()
+  def put_result_decision(decisions, action_id, result) when is_map(decisions) do
+    Map.put(decisions, normalize_id(action_id), decision_from_result(result))
+  end
+
+  @doc """
+  Converts a preview/apply result into normalized decision metadata.
+  """
+  @spec decision_from_result(term()) :: map()
+  def decision_from_result({:ok, payload}), do: decision_from_result(payload)
+
+  def decision_from_result({:error, {:validation_error, message, details}}) do
+    details = map_or_empty(details)
+
+    %{
+      "status" => "disabled",
+      "reason" => message,
+      "code" => map_value(details, :code),
+      "metadata" => details
+    }
+    |> compact_decision()
+  end
+
+  def decision_from_result({:error, :not_found}) do
+    %{
+      "status" => "disabled",
+      "reason" => "Action target was not found.",
+      "code" => "not_found"
+    }
+  end
+
+  def decision_from_result({:error, reason}) do
+    %{
+      "status" => "disabled",
+      "reason" => inspect(reason)
+    }
+  end
+
+  def decision_from_result(payload) when is_map(payload) do
+    payload
+    |> result_capability_decision()
+    |> normalize_decision("enabled")
+  end
+
+  def decision_from_result(_payload), do: normalize_decision(:enabled, "enabled")
+
+  @doc """
   Returns the decision for an action entry from action id or capability id.
   """
   @spec decision_for(map(), map(), String.t()) :: map()
@@ -198,6 +250,22 @@ defmodule SelectoComponents.Actions do
   end
 
   defp normalize_decision(_decision, default_status), do: normalize_decision(nil, default_status)
+
+  defp result_capability_decision(payload) do
+    map_value(payload, :capability_decision) ||
+      payload
+      |> map_value(:preview, %{})
+      |> map_value(:capability_decision) ||
+      payload
+      |> map_value(:result, %{})
+      |> map_value(:capability_decision)
+  end
+
+  defp compact_decision(decision) do
+    decision
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+    |> Map.new()
+  end
 
   defp normalize_status(status) when status in [:enabled, "enabled"], do: "enabled"
   defp normalize_status(status) when status in [:disabled, "disabled"], do: "disabled"

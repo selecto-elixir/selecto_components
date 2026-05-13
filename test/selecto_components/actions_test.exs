@@ -90,6 +90,37 @@ defmodule SelectoComponents.ActionsTest do
     assert decisions == %{"approve_order" => %{"status" => "disabled"}}
   end
 
+  test "extracts decisions from action result payloads" do
+    decisions =
+      %{}
+      |> Actions.put_result_decision(:approve_order, %{
+        "preview" => %{
+          "capability_decision" => %{
+            "status" => "enabled",
+            "reason" => "Ready"
+          }
+        }
+      })
+
+    assert decisions == %{"approve_order" => %{"status" => "enabled", "reason" => "Ready"}}
+  end
+
+  test "converts validation errors into disabled decisions" do
+    decisions =
+      Actions.put_result_decision(
+        %{},
+        :approve_order,
+        {:error,
+         {:validation_error, "Action precondition failed for state.",
+          %{"code" => "action_precondition_failed", "field" => "state"}}}
+      )
+
+    assert decisions["approve_order"]["status"] == "disabled"
+    assert decisions["approve_order"]["reason"] == "Action precondition failed for state."
+    assert decisions["approve_order"]["code"] == "action_precondition_failed"
+    assert decisions["approve_order"]["metadata"]["field"] == "state"
+  end
+
   test "marks delete-like or destructive actions for guarded UI treatment" do
     contract =
       write_contract(%{
