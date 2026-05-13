@@ -22,6 +22,8 @@ defmodule SelectoComponents.Actions do
           required(:hidden?) => boolean(),
           required(:destructive?) => boolean(),
           required(:requires_confirmation?) => boolean(),
+          required(:confirmation) => map(),
+          required(:confirmation_message) => String.t() | nil,
           required(:reason) => String.t() | nil,
           required(:links) => map(),
           required(:preview_link) => String.t() | nil,
@@ -194,6 +196,8 @@ defmodule SelectoComponents.Actions do
       hidden?: status == "hidden",
       destructive?: destructive_action?(action),
       requires_confirmation?: requires_confirmation?(action),
+      confirmation: action_confirmation(action),
+      confirmation_message: action_confirmation_message(action),
       reason: map_value(decision, :reason),
       links: action_links(action),
       preview_link: action_link(action, "preview"),
@@ -258,11 +262,24 @@ defmodule SelectoComponents.Actions do
   end
 
   defp requires_confirmation?(action) do
-    confirmation = action |> map_value(:confirmation, %{}) |> map_or_empty()
+    confirmation = action_confirmation(action)
 
     truthy?(map_value(action, :requires_confirmation)) ||
       truthy?(map_value(confirmation, :required)) ||
       truthy?(map_value(confirmation, :enabled))
+  end
+
+  defp action_confirmation(action) do
+    action
+    |> map_value(:confirmation, %{})
+    |> map_or_empty()
+  end
+
+  defp action_confirmation_message(action) do
+    action
+    |> action_confirmation()
+    |> map_value(:message)
+    |> normalize_optional_id()
   end
 
   defp normalize_decision(nil, default_status),

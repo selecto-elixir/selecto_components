@@ -26,6 +26,8 @@ defmodule SelectoComponents.ActionsTest do
     assert action.hidden? == false
     assert action.destructive? == false
     assert action.requires_confirmation? == true
+    assert action.confirmation == %{"message" => "Approve this order?", "required" => true}
+    assert action.confirmation_message == "Approve this order?"
     assert action.reason == "Allowed by policy"
     assert action.links["preview"] == "/orders/actions/approve_order/preview"
     assert action.preview_link == "/orders/actions/approve_order/preview"
@@ -176,7 +178,7 @@ defmodule SelectoComponents.ActionsTest do
             "scope" => "row",
             "capability" => "orders.approve",
             "icon" => "check",
-            "confirmation" => %{"required" => true},
+            "confirmation" => %{"required" => true, "message" => "Approve this order?"},
             "execution" => %{"operation" => "update"},
             "links" => %{
               "preview" => "/orders/actions/approve_order/preview",
