@@ -12,14 +12,21 @@ defmodule SelectoComponents.Actions do
   @type action_item :: %{
           required(:id) => String.t(),
           required(:label) => String.t(),
+          required(:description) => String.t() | nil,
           required(:scope) => String.t() | nil,
           required(:operation) => String.t() | nil,
           required(:capability) => String.t() | nil,
+          required(:icon) => String.t() | nil,
           required(:status) => String.t(),
           required(:disabled?) => boolean(),
           required(:hidden?) => boolean(),
+          required(:destructive?) => boolean(),
+          required(:requires_confirmation?) => boolean(),
           required(:reason) => String.t() | nil,
           required(:links) => map(),
+          required(:preview_link) => String.t() | nil,
+          required(:apply_link) => String.t() | nil,
+          required(:attrs) => map(),
           required(:contract) => map()
         }
 
@@ -96,14 +103,21 @@ defmodule SelectoComponents.Actions do
     %{
       id: action |> map_value(:id) |> normalize_id(),
       label: action_label(action),
+      description: action |> map_value(:description) |> normalize_optional_id(),
       scope: action |> map_value(:scope) |> normalize_optional_id(),
       operation: action_operation(action),
       capability: action |> map_value(:capability) |> normalize_optional_id(),
+      icon: action |> map_value(:icon) |> normalize_optional_id(),
       status: status,
       disabled?: status == "disabled",
       hidden?: status == "hidden",
+      destructive?: destructive_action?(action),
+      requires_confirmation?: requires_confirmation?(action),
       reason: map_value(decision, :reason),
       links: action_links(action),
+      preview_link: action_link(action, "preview"),
+      apply_link: action_link(action, "apply"),
+      attrs: action_attrs(action, status),
       contract: action
     }
   end
@@ -129,6 +143,45 @@ defmodule SelectoComponents.Actions do
     action
     |> map_value(:links, %{})
     |> map_or_empty()
+  end
+
+  defp action_link(action, rel) do
+    action
+    |> action_links()
+    |> map_value(rel)
+    |> normalize_optional_id()
+  end
+
+  defp action_attrs(action, status) do
+    %{
+      "data-action-id" => action |> map_value(:id) |> normalize_id(),
+      "data-action-status" => status,
+      "data-action-scope" => action |> map_value(:scope) |> normalize_optional_id(),
+      "data-action-capability" => action |> map_value(:capability) |> normalize_optional_id(),
+      "data-action-operation" => action_operation(action),
+      "data-action-confirmation" => requires_confirmation?(action),
+      "data-action-destructive" => destructive_action?(action)
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp destructive_action?(action) do
+    presentation = action |> map_value(:presentation, %{}) |> map_or_empty()
+    confirmation = action |> map_value(:confirmation, %{}) |> map_or_empty()
+
+    truthy?(map_value(action, :destructive)) ||
+      truthy?(map_value(presentation, :destructive)) ||
+      truthy?(map_value(confirmation, :destructive)) ||
+      action_operation(action) in ["delete", "soft_delete"]
+  end
+
+  defp requires_confirmation?(action) do
+    confirmation = action |> map_value(:confirmation, %{}) |> map_or_empty()
+
+    truthy?(map_value(action, :requires_confirmation)) ||
+      truthy?(map_value(confirmation, :required)) ||
+      truthy?(map_value(confirmation, :enabled))
   end
 
   defp normalize_decision(nil, default_status),
@@ -170,8 +223,14 @@ defmodule SelectoComponents.Actions do
   defp map_value(map, key, default) when is_map(map) and is_atom(key),
     do: Map.get(map, key, Map.get(map, Atom.to_string(key), default))
 
+  defp map_value(map, key, default) when is_map(map) and is_binary(key),
+    do: Map.get(map, key, default)
+
   defp map_value(_map, _key, default), do: default
 
   defp map_or_empty(map) when is_map(map), do: map
   defp map_or_empty(_value), do: %{}
+
+  defp truthy?(value) when value in [true, "true", "1", 1, true, :yes], do: true
+  defp truthy?(_value), do: false
 end
