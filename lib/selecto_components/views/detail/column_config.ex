@@ -106,7 +106,10 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                     theme={@theme}
                     name={"#{@prefix}[format]"}
                     value={Map.get(@config, "format")}
-                    options={SelectoComponents.Helpers.datetime_grouping_format_options()}
+                    options={[
+                      {"", "Default"}
+                      | SelectoComponents.Helpers.datetime_grouping_format_options()
+                    ]}
                   />
                 </label>
 

@@ -235,6 +235,9 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     format = context.format |> to_string()
 
     cond do
+      format == "YYYY-MM-DD HH24" and String.match?(value, ~r/^\d{4}-\d{2}-\d{2} \d{2}$/) ->
+        handle_hourly_datetime_format(value, field_conf)
+
       format == "YYYY-WW" and String.match?(value, ~r/^\d{4}-\d{2}$/) ->
         handle_week_of_year_format(value, field_conf)
 
@@ -529,6 +532,21 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       end_date = Date.new!(end_year, end_month, 1)
 
       {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
+    else
+      {"=", value, ""}
+    end
+  end
+
+  defp handle_hourly_datetime_format(value, field_conf) do
+    if field_conf && Selecto.Temporal.date_like?(field_conf) do
+      [date_part, hour_part] = String.split(value, " ", parts: 2)
+      {:ok, date} = Date.from_iso8601(date_part)
+      {hour, ""} = Integer.parse(hour_part)
+
+      start_naive = NaiveDateTime.new!(date, Time.new!(hour, 0, 0))
+      end_naive = NaiveDateTime.add(start_naive, 3600, :second)
+
+      {"DATE_BETWEEN", NaiveDateTime.to_iso8601(start_naive), NaiveDateTime.to_iso8601(end_naive)}
     else
       {"=", value, ""}
     end

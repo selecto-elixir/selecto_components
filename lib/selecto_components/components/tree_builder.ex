@@ -38,6 +38,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
               <input
                 type="text"
                 id={"filter-input-#{@id}"}
+                data-filter-picker-input
                 placeholder="Filter Available Items"
                 class={Theme.slot(@theme, :input) <> " min-w-0 flex-1"}
               />
@@ -113,6 +114,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element="__AND__"
@@ -125,6 +128,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element="__OR__"
@@ -139,6 +144,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
               class="filterable-item w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
               style="background: var(--sc-surface-bg); border-color: var(--sc-surface-border); color: var(--sc-text-primary);"
               draggable="true"
+              tabindex="-1"
+              role="option"
               phx-dblclick="treedrop"
               phx-value-target="filters"
               phx-value-element={id}
@@ -148,6 +155,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
             >
               <div class="flex items-start gap-2">
                 <.type_glyph type={type_meta} />
+                <.choice_source_indicator type={type_meta} />
                 <span class="block break-words">{name}</span>
               </div>
             </div>
@@ -208,6 +216,31 @@ defmodule SelectoComponents.Components.TreeBuilder do
           writePersistedTypeFilters(values) {
             window.__selectoTreeBuilderTypeFilterValues = window.__selectoTreeBuilderTypeFilterValues || {};
             window.__selectoTreeBuilderTypeFilterValues[this.typePersistKey()] = values || [];
+          },
+
+          readFocusAfterAdd() {
+            const store = window.__selectoTreeBuilderFocusAfterAdd || {};
+            return store[this.persistKey()] || false;
+          },
+
+          writeFocusAfterAdd(value) {
+            window.__selectoTreeBuilderFocusAfterAdd = window.__selectoTreeBuilderFocusAfterAdd || {};
+            window.__selectoTreeBuilderFocusAfterAdd[this.persistKey()] = value || false;
+          },
+
+          readPendingFilterRowFocus() {
+            const store = window.__selectoTreeBuilderPendingFilterRowFocus || {};
+            return store[this.persistKey()] || null;
+          },
+
+          writePendingFilterRowFocus(value) {
+            window.__selectoTreeBuilderPendingFilterRowFocus = window.__selectoTreeBuilderPendingFilterRowFocus || {};
+
+            if (value) {
+              window.__selectoTreeBuilderPendingFilterRowFocus[this.persistKey()] = value;
+            } else {
+              delete window.__selectoTreeBuilderPendingFilterRowFocus[this.persistKey()];
+            }
           },
 
           initializeDragDrop() {
@@ -302,14 +335,38 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   this.applyFilter();
                 };
 
-                this.onFilterKeydown = (e) => {
-                  if (e.key === 'Escape') {
-                    this.filterValue = '';
-                    this.filterInput.value = '';
-                    this.writePersistedFilter(this.filterValue);
-                    this.applyFilter();
-                  }
-                };
+              this.onFilterKeydown = (e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.filterValue = '';
+                  this.filterInput.value = '';
+                  this.writePersistedFilter(this.filterValue);
+                  this.applyFilter();
+                  this.setHighlightedFilterIndex(-1);
+                  return;
+                }
+
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.moveFilterHighlight(1, { focus: true });
+                return;
+              }
+
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.moveFilterHighlight(-1, { focus: true });
+                return;
+              }
+
+                if (e.key === 'Enter' && !e.isComposing) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.addHighlightedOrSingleFilter();
+                }
+              };
 
                 this.filterInput.addEventListener('input', this.onFilterInput);
                 this.filterInput.addEventListener('keydown', this.onFilterKeydown);
@@ -335,7 +392,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                   this.filterInput.value = '';
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
-                  this.filterInput.focus();
+                  this.focusElement(this.filterInput);
                 };
 
                   this.clearButton.addEventListener('click', this.onClearClick);
@@ -411,16 +468,457 @@ defmodule SelectoComponents.Components.TreeBuilder do
               if (this.clearButton) {
                 this.clearButton.style.display = '';
               }
+
+              if (this.highlightedFilterId) {
+                this.restoreHighlightedFilter();
+              }
+            },
+
+            bindFilterItemKeyboard() {
+              if (this.onFilterItemKeydown) {
+                return;
+              }
+
+              this.onFilterItemKeydown = (e) => {
+                const item = e.target.closest('.filterable-item');
+
+                if (!item || !this.el.contains(item)) {
+                  return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.moveFilterHighlight(1, { focus: true });
+                  return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.moveFilterHighlight(-1, { focus: true });
+                  return;
+                }
+
+                if (e.key === 'Enter' && !e.isComposing) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.highlightedFilterId = item.dataset.itemId;
+                  this.addHighlightedFilter();
+                  return;
+                }
+
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.focusElement(this.filterInput);
+                }
+              };
+
+            this.el.addEventListener('keydown', this.onFilterItemKeydown);
+          },
+
+            bindAppliedFilterRowKeyboard() {
+              if (this.onFilterRowKeydown) {
+                return;
+              }
+
+              this.onFilterRowFocusin = (event) => {
+                const row = this.keyboardFilterRow(event.target);
+
+                if (!row) {
+                  return;
+                }
+
+                this.highlightFilterRow(row);
+              };
+
+              this.onFilterRowKeydown = (event) => {
+                const row = this.keyboardFilterRow(event.target);
+
+                if (!row) {
+                  return;
+                }
+
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+                  this.moveFilterRowHighlight(1, { focus: true });
+                  return;
+                }
+
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+                  this.moveFilterRowHighlight(-1, { focus: true });
+                  return;
+                }
+
+                if (event.key === 'Enter' && !event.isComposing) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.focusFilterRowEditor(row);
+                  return;
+                }
+
+                if ((event.key === 'Delete' || event.key === 'Backspace') && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.removeFilterRow(row);
+                  return;
+                }
+
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.clearFilterRowHighlights();
+                  this.focusElement(this.filterInput);
+                }
+              };
+
+              this.el.addEventListener('focusin', this.onFilterRowFocusin);
+              this.el.addEventListener('keydown', this.onFilterRowKeydown);
+            },
+
+            keyboardFilterRow(target) {
+              if (!(target instanceof Element) || this.isFilterRowTextEntryTarget(target)) {
+                return null;
+              }
+
+              const row = target.closest('[data-filter-row]');
+
+              if (!row || !this.el.contains(row)) {
+                return null;
+              }
+
+              return row;
+            },
+
+            isFilterRowTextEntryTarget(target) {
+              return Boolean(
+                target.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='searchbox']")
+              );
+            },
+
+            visibleFilterItems() {
+              return Array.from(this.el.querySelectorAll('.filterable-item')).filter((item) => {
+                return item.style.display !== 'none';
+              });
+            },
+
+            moveFilterHighlight(direction, options = {}) {
+              const items = this.visibleFilterItems();
+
+              if (items.length === 0) {
+                this.setHighlightedFilterIndex(-1);
+                return;
+              }
+
+              const currentIndex = items.findIndex((item) => item.dataset.itemId === this.highlightedFilterId);
+              const nextIndex = currentIndex === -1
+                ? (direction > 0 ? 0 : items.length - 1)
+                : (currentIndex + direction + items.length) % items.length;
+
+              this.setHighlightedFilterIndex(nextIndex, options);
+            },
+
+            setHighlightedFilterIndex(index, options = {}) {
+              const items = this.visibleFilterItems();
+
+              Array.from(this.el.querySelectorAll('.filterable-item')).forEach((item) => {
+                item.removeAttribute('data-keyboard-highlighted');
+                item.setAttribute('aria-selected', 'false');
+                item.style.outline = '';
+                item.style.outlineOffset = '';
+              });
+
+              if (index < 0 || items.length === 0) {
+                this.highlightedFilterId = null;
+                return;
+              }
+
+              const item = items[index % items.length];
+              this.highlightedFilterId = item.dataset.itemId;
+              item.setAttribute('data-keyboard-highlighted', 'true');
+              item.setAttribute('aria-selected', 'true');
+              item.style.outline = '2px solid var(--sc-accent)';
+              item.style.outlineOffset = '2px';
+
+              if (options.scroll !== false) {
+                item.scrollIntoView({ block: 'nearest' });
+              }
+
+              if (options.focus === true) {
+                this.focusElement(item);
+              }
+            },
+
+            focusElement(element) {
+              if (!element || typeof element.focus !== 'function') {
+                return;
+              }
+
+              try {
+                element.focus({ preventScroll: true });
+              } catch (_error) {
+                element.focus();
+              }
+            },
+
+            restoreHighlightedFilter() {
+              const items = this.visibleFilterItems();
+              const index = items.findIndex((item) => item.dataset.itemId === this.highlightedFilterId);
+
+              if (index === -1) {
+                this.setHighlightedFilterIndex(items.length > 0 ? 0 : -1, { scroll: false });
+              } else {
+                this.setHighlightedFilterIndex(index, { scroll: false });
+              }
+            },
+
+            filterRows() {
+              return Array.from(this.el.querySelectorAll('[data-filter-row]')).filter((row) => {
+                return row.offsetParent !== null || row.getClientRects().length > 0;
+              });
+            },
+
+            moveFilterRowHighlight(direction, options = {}) {
+              const rows = this.filterRows();
+
+              if (rows.length === 0) {
+                this.setHighlightedFilterRowIndex(-1);
+                return;
+              }
+
+              const currentIndex = rows.findIndex((row) => row.dataset.filterRowUuid === this.highlightedFilterRowUuid);
+              const nextIndex = currentIndex === -1
+                ? (direction > 0 ? 0 : rows.length - 1)
+                : (currentIndex + direction + rows.length) % rows.length;
+
+              this.setHighlightedFilterRowIndex(nextIndex, options);
+            },
+
+            setHighlightedFilterRowIndex(index, options = {}) {
+              const rows = this.filterRows();
+
+              this.clearFilterRowHighlights();
+
+              if (index < 0 || rows.length === 0) {
+                this.highlightedFilterRowUuid = null;
+                return;
+              }
+
+              this.setHighlightedFilterIndex(-1);
+              const row = rows[index % rows.length];
+              this.highlightFilterRow(row);
+
+              if (options.scroll !== false) {
+                row.scrollIntoView({ block: 'nearest' });
+              }
+
+              if (options.focus === true) {
+                this.focusElement(row);
+              }
+            },
+
+            highlightFilterRow(row) {
+              if (!row) {
+                return;
+              }
+
+              this.clearFilterRowHighlights();
+              this.highlightedFilterRowUuid = row.dataset.filterRowUuid;
+              row.setAttribute('data-keyboard-highlighted', 'true');
+              row.style.outline = '2px solid var(--sc-accent)';
+              row.style.outlineOffset = '2px';
+            },
+
+            clearFilterRowHighlights() {
+              this.filterRows().forEach((row) => {
+                row.removeAttribute('data-keyboard-highlighted');
+                row.style.outline = '';
+                row.style.outlineOffset = '';
+              });
+
+              this.highlightedFilterRowUuid = null;
+            },
+
+            focusFilterRowEditor(row) {
+              const target = this.filterRowEditorTarget(row);
+
+              if (!target) {
+                return;
+              }
+
+              this.focusElement(target);
+
+              if (typeof target.select === 'function') {
+                target.select();
+              }
+            },
+
+            filterRowEditorTarget(row) {
+              if (!row) {
+                return null;
+              }
+
+              const selectors = [
+                "textarea[name*='[pending_values]']:not([disabled])",
+                "input[name*='[value_start]']:not([type='hidden']):not([disabled])",
+                "input[name*='[value]']:not([type='hidden']):not([disabled])",
+                "textarea[name*='[value]']:not([disabled])",
+                "select[name*='[value]']:not([disabled])",
+                "select[name*='[comp]']:not([disabled])",
+                "input:not([type='hidden']):not([disabled])",
+                "textarea:not([disabled])",
+                "select:not([disabled])"
+              ];
+
+              return selectors
+                .flatMap((selector) => Array.from(row.querySelectorAll(selector)))
+                .find((element) => this.focusableElement(element));
+            },
+
+            focusableElement(element) {
+              if (!(element instanceof HTMLElement)) {
+                return false;
+              }
+
+              if (element.disabled || element.closest('[hidden]') || element.closest('.hidden')) {
+                return false;
+              }
+
+              return element.offsetParent !== null || element.getClientRects().length > 0;
+            },
+
+            removeFilterRow(row) {
+              const rows = this.filterRows();
+              const currentIndex = rows.indexOf(row);
+              const nextRow = rows[currentIndex + 1] || rows[currentIndex - 1];
+              const removeButton = row.querySelector('[data-filter-row-remove]');
+
+              if (!removeButton) {
+                return;
+              }
+
+              this.writePendingFilterRowFocus(nextRow ? nextRow.dataset.filterRowUuid : 'search');
+              removeButton.click();
+            },
+
+            restorePendingFilterRowFocus() {
+              const pendingFocus = this.readPendingFilterRowFocus();
+
+              if (!pendingFocus) {
+                return false;
+              }
+
+              this.writePendingFilterRowFocus(null);
+
+              if (pendingFocus === 'search') {
+                this.focusElement(this.filterInput);
+                return true;
+              }
+
+              const row = this.el.querySelector(`[data-filter-row-uuid="${pendingFocus}"]`);
+
+              if (row) {
+                this.highlightFilterRow(row);
+                this.focusElement(row);
+                return true;
+              }
+
+              this.focusElement(this.filterInput);
+              return true;
+            },
+
+            focusAddedFilter(element) {
+              const rows = this.filterRows();
+
+              if (rows.length === 0) {
+                this.focusElement(this.filterInput);
+                return;
+              }
+
+              const matchingRows = element && !['__AND__', '__OR__'].includes(element)
+                ? rows.filter((row) => row.dataset.filterRowField === element)
+                : [];
+              const row = matchingRows[matchingRows.length - 1] || rows[rows.length - 1];
+
+              this.highlightFilterRow(row);
+
+              if (row.dataset.filterRowKind === 'filter') {
+                this.focusFilterRowEditor(row);
+              } else {
+                this.focusElement(row);
+              }
+            },
+
+            addHighlightedOrSingleFilter() {
+              const items = this.visibleFilterItems();
+              const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedFilterId);
+
+              if (highlightedItem) {
+                this.addFilterItem(highlightedItem);
+                return;
+              }
+
+              if (items.length === 1) {
+                this.addFilterItem(items[0]);
+              }
+            },
+
+            addHighlightedFilter() {
+              const items = this.visibleFilterItems();
+
+              if (items.length === 0) {
+                return;
+              }
+
+              const highlightedItem =
+                items.find((item) => item.dataset.itemId === this.highlightedFilterId) || items[0];
+
+              this.addFilterItem(highlightedItem);
+            },
+
+            addFilterItem(item) {
+              const element = item?.dataset?.itemId;
+
+              if (!element) {
+                return;
+              }
+
+              this.highlightedFilterId = element;
+              this.writeFocusAfterAdd(element);
+              this.pushEvent('treedrop', {
+                target: 'filters',
+                element
+              });
             },
 
             mounted() {
               this.filterValue = this.readPersistedFilter();
               this.selectedTypeFilters = this.readPersistedTypeFilters();
+              this.highlightedFilterId = null;
+              this.highlightedFilterRowUuid = null;
               this.filterWasFocused = false;
               this.bindFilter();
               this.bindTypeFilters();
+              this.bindFilterItemKeyboard();
+              this.bindAppliedFilterRowKeyboard();
               this.initializeDragDrop();
               this.applyFilter();
+
+              if (this.readFocusAfterAdd()) {
+                const element = this.readFocusAfterAdd();
+                this.writeFocusAfterAdd(false);
+                this.focusAddedFilter(element);
+              } else {
+                this.restorePendingFilterRowFocus();
+              }
             },
 
           beforeUpdate() {
@@ -432,10 +930,16 @@ defmodule SelectoComponents.Components.TreeBuilder do
             updated() {
               this.bindFilter();
               this.bindTypeFilters();
+              this.bindFilterItemKeyboard();
+              this.bindAppliedFilterRowKeyboard();
               this.applyFilter();
 
+            if (this.restorePendingFilterRowFocus()) {
+              return;
+            }
+
             if (this.filterWasFocused && this.filterInput) {
-              this.filterInput.focus();
+              this.focusElement(this.filterInput);
 
               if (this.filterInput.setSelectionRange) {
                 const length = this.filterInput.value.length;
@@ -458,6 +962,18 @@ defmodule SelectoComponents.Components.TreeBuilder do
             if (this.filterInput && this.onFilterKeydown) {
               this.filterInput.removeEventListener('keydown', this.onFilterKeydown);
             }
+
+              if (this.onFilterItemKeydown) {
+                this.el.removeEventListener('keydown', this.onFilterItemKeydown);
+              }
+
+              if (this.onFilterRowKeydown) {
+                this.el.removeEventListener('keydown', this.onFilterRowKeydown);
+              }
+
+              if (this.onFilterRowFocusin) {
+                this.el.removeEventListener('focusin', this.onFilterRowFocusin);
+              }
 
               if (this.clearButton && this.onClearClick) {
                 this.clearButton.removeEventListener('click', this.onClearClick);
@@ -494,6 +1010,18 @@ defmodule SelectoComponents.Components.TreeBuilder do
       nil -> filter_id || "Unknown Filter"
     end
   end
+
+  defp filter_row_field(config) when is_map(config), do: Map.get(config, "filter", "")
+  defp filter_row_field(_config), do: ""
+
+  defp filter_row_label(available, config) when is_map(config) do
+    "Filter #{get_filter_name(available, Map.get(config, "filter"))}"
+  end
+
+  defp filter_row_label(_available, conjunction) when is_binary(conjunction),
+    do: "#{conjunction} filter group"
+
+  defp filter_row_label(_available, _config), do: "Filter row"
 
   attr(:type, :any, required: true)
 
@@ -576,6 +1104,33 @@ defmodule SelectoComponents.Components.TreeBuilder do
     """
   end
 
+  attr(:type, :any, required: true)
+
+  defp choice_source_indicator(assigns) do
+    choice_source_id = choice_source_id(assigns.type)
+
+    assigns =
+      assigns
+      |> assign(:choice_source_id, choice_source_id)
+      |> assign(:label, choice_source_label(choice_source_id))
+
+    ~H"""
+    <span
+      :if={@choice_source_id}
+      data-choice-source-indicator
+      data-choice-source-id={@choice_source_id}
+      aria-label={@label}
+      title={@label}
+      class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+      style="border-color: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border)); color: var(--sc-accent); background: color-mix(in srgb, var(--sc-accent) 8%, transparent);"
+    >
+      <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M8 4.25A3.75 3.75 0 1 0 8 11.75 3.75 3.75 0 0 0 8 4.25ZM2.75 8a5.25 5.25 0 1 1 9.38 3.24l4.32 4.31a.75.75 0 1 1-1.06 1.06l-4.31-4.32A5.25 5.25 0 0 1 2.75 8Z" />
+      </svg>
+    </span>
+    """
+  end
+
   defp available_type_filters(available) do
     available
     |> Enum.reduce(%{}, fn {_id, _name, field_type}, acc ->
@@ -652,6 +1207,23 @@ defmodule SelectoComponents.Components.TreeBuilder do
         "color: var(--sc-text-muted); opacity: 0.78;"
     end
   end
+
+  defp choice_source_id(%{} = metadata) do
+    metadata[:choice_source] ||
+      metadata["choice_source"] ||
+      choice_source_metadata_id(metadata[:choice_source_metadata]) ||
+      choice_source_metadata_id(metadata["choice_source_metadata"])
+  end
+
+  defp choice_source_id(_type), do: nil
+
+  defp choice_source_metadata_id(%{} = metadata),
+    do: Map.get(metadata, "id") || Map.get(metadata, :id)
+
+  defp choice_source_metadata_id(_metadata), do: nil
+
+  defp choice_source_label(nil), do: nil
+  defp choice_source_label(choice_source_id), do: "Choice source #{choice_source_id}"
 
   defp normalize_icon_key(%{} = metadata) do
     metadata[:icon] || metadata["icon"] || metadata[:icon_family] || metadata["icon_family"] ||
@@ -736,6 +1308,13 @@ defmodule SelectoComponents.Components.TreeBuilder do
           class="relative border p-2 pl-6 pr-10"
           style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
           id={uuid}
+          data-filter-row
+          data-filter-row-uuid={uuid}
+          data-filter-row-kind={if is_map(config), do: "filter", else: "section"}
+          data-filter-row-field={filter_row_field(config)}
+          tabindex="0"
+          role="group"
+          aria-label={filter_row_label(@available, config)}
         >
           <%= case {uuid, s_section, config} do %>
             <% {uuid, _section, conjunction} when is_binary(conjunction) -> %>
@@ -754,7 +1333,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 component_id: @component_id
               })}
               <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} />
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} data-filter-row-remove />
               </div>
             <% {uuid, section, fv} -> %>
               <div
@@ -769,7 +1348,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
                 </div>
               </div>
               <div class="absolute top-1 right-1 flex">
-                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} />
+                <.sc_x_button phx-click="filter_remove" phx-value-uuid={uuid} data-filter-row-remove />
               </div>
           <% end %>
           <!-- new section -->

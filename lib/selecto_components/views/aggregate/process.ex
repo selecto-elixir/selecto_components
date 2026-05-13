@@ -250,7 +250,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
               case Map.get(col, :requires_select) do
                 x when is_list(x) -> {:row, col.requires_select, alias}
                 x when is_function(x) -> {:row, col.requires_select.(e), alias}
-                nil -> {col.colid, alias}
+                nil -> {:field, col.colid, alias}
               end
 
             x when x in [:string, :text, :citext] ->
@@ -488,11 +488,6 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     field_with_alias = aggregate_field_ref(col.colid)
 
     case format do
-      # Standard date formats
-      x when x in ~w(YYYY-MM-DD YYYY-MM YYYY YYYY-WW YYYY-Q MM DD D HH24) ->
-        maybe_timezone_aware_datetime_selector(col, field_with_alias, x, presentation_context)
-
-      # Bucket formats
       "age_buckets" when is_binary(bucket_ranges) and bucket_ranges != "" ->
         # Generate CASE expression for age buckets in group by.
         # Joined fields need their fully-qualified reference, not the pivot alias.
@@ -524,6 +519,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           )
 
         {:raw_sql, case_sql}
+
+      format when is_binary(format) and format not in ["", "default"] ->
+        maybe_timezone_aware_datetime_selector(
+          col,
+          field_with_alias,
+          format,
+          presentation_context
+        )
 
       _ ->
         # Default to day format
@@ -575,11 +578,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp timezone_grouping_expression(col, field_ref, presentation_context) do
     timezone = runtime_timezone(presentation_context)
+    storage_timezone = storage_timezone(col)
 
     case Selecto.Temporal.epoch_storage(col) do
       :unix_seconds -> "to_timestamp(#{field_ref}) AT TIME ZONE '#{timezone}'"
       :unix_milliseconds -> "to_timestamp((#{field_ref}) / 1000.0) AT TIME ZONE '#{timezone}'"
-      _ -> "#{field_ref} AT TIME ZONE '#{timezone}'"
+      _ -> "(#{field_ref} AT TIME ZONE '#{storage_timezone}') AT TIME ZONE '#{timezone}'"
     end
   end
 
@@ -591,6 +595,12 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp runtime_timezone(_presentation_context), do: nil
+
+  defp storage_timezone(col) do
+    col
+    |> Selecto.Presentation.presentation()
+    |> Map.get(:storage_timezone, "Etc/UTC")
+  end
 
   def aggregates(aggregates, columns) do
     result =

@@ -33,9 +33,54 @@ defmodule SelectoComponents.Components.TreeBuilderTest do
     html = render_component(TreeBuilder, base_assigns())
 
     assert html =~ ~s(phx-dblclick="treedrop")
+    assert html =~ ~s(data-filter-picker-input)
+    assert html =~ ~s(role="option")
+    assert html =~ ~s(tabindex="-1")
     assert html =~ ~s(phx-value-element="__AND__")
     assert html =~ ~s(phx-value-element="__OR__")
     assert html =~ ~s(phx-value-element="title")
     assert html =~ ~s(phx-value-element="state")
+  end
+
+  test "renders choice source indicators for choice-backed available fields" do
+    html =
+      render_component(
+        TreeBuilder,
+        base_assigns(%{
+          available: [
+            {"customer_id", "Customer",
+             %{
+               type: :integer,
+               choice_source: "customer_choices",
+               choice_source_metadata: %{"id" => "customer_choices"}
+             }}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-type-key="number")
+    assert html =~ ~s(data-choice-source-indicator)
+    assert html =~ ~s(data-choice-source-id="customer_choices")
+    assert html =~ ~s(aria-label="Choice source customer_choices")
+  end
+
+  test "renders applied filters as keyboard-focusable rows" do
+    html =
+      render_component(
+        TreeBuilder,
+        base_assigns(%{
+          filters: [
+            {"filter-1", "filters", %{"filter" => "title", "comp" => "=", "value" => "abc"}}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-filter-row)
+    assert html =~ ~s(data-filter-row-uuid="filter-1")
+    assert html =~ ~s(data-filter-row-kind="filter")
+    assert html =~ ~s(data-filter-row-field="title")
+    assert html =~ ~s(tabindex="0")
+    assert html =~ ~s(aria-label="Filter Title")
+    assert html =~ ~s(data-filter-row-remove)
   end
 end

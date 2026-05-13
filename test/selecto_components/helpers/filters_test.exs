@@ -122,6 +122,27 @@ defmodule SelectoComponents.Helpers.FiltersTest do
     Selecto.configure(domain, nil)
   end
 
+  defp time_selecto do
+    domain = %{
+      name: "FiltersTimeTest",
+      source: %{
+        source_table: "records",
+        primary_key: :id,
+        fields: [:id, :alarm_time],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer},
+          alarm_time: %{type: :time}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   describe "filter_recurse/3 text prefix buckets" do
     test "preserves explicit text search mode config" do
       filters = %{
@@ -325,6 +346,65 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       sql = IO.iodata_to_binary(iodata)
       assert sql =~ "TO_TIMESTAMP((selecto_root.occurred_at_epoch) / 1000.0)"
       assert sql =~ "EXTRACT(ISODOW FROM"
+    end
+  end
+
+  describe "filter_recurse/3 time coercion" do
+    test "coerces equality filters for time columns into %Time{}" do
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "alarm_time",
+            "comp" => "=",
+            "value" => "06:20:00"
+          }
+        ]
+      }
+
+      [{"alarm_time", value}] = Filters.filter_recurse(time_selecto(), filters, "filters")
+
+      assert %Time{} = value
+      assert value == ~T[06:20:00]
+    end
+
+    test "coerces time ranges and in-lists" do
+      between_filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "alarm_time",
+            "comp" => "BETWEEN",
+            "value_start" => "06:20:00",
+            "value_end" => "11:05:00"
+          }
+        ]
+      }
+
+      [{"alarm_time", {:between, start_time, end_time}}] =
+        Filters.filter_recurse(time_selecto(), between_filters, "filters")
+
+      assert start_time == ~T[06:20:00]
+      assert end_time == ~T[11:05:00]
+
+      in_filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "alarm_time",
+            "comp" => "IN",
+            "value" => "06:20:00,11:05:00"
+          }
+        ]
+      }
+
+      [{"alarm_time", {:in, values}}] =
+        Filters.filter_recurse(time_selecto(), in_filters, "filters")
+
+      assert values == [~T[06:20:00], ~T[11:05:00]]
     end
   end
 

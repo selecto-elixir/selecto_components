@@ -1471,6 +1471,186 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     refute Map.has_key?(canonicalized, "promoted_filters")
   end
 
+  test "canonicalize_form_params lets promoted multi-select values replace stale selected values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "category_id",
+          "comp" => "IN",
+          "value" => "1,2,3,4,5",
+          "selected_values" => ["1", "2", "3", "4", "5"],
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => ["1", "2"]}
+      }
+    }
+
+    canonicalized = ParamsState.canonicalize_form_params(params)
+
+    assert canonicalized["filters"]["k0"]["value"] == "1,2"
+    assert canonicalized["filters"]["k0"]["selected_values"] == ["1", "2"]
+    assert canonicalized["filters"]["k0"]["selected_ids"] == ["1", "2"]
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
+  test "canonicalize_form_params preserves locale-aware promoted numeric controller values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "amount",
+          "comp" => ">=",
+          "value" => "145.5",
+          "display_value" => "145,5",
+          "promote" => "true"
+        },
+        "k1" => %{
+          "filter" => "amount",
+          "comp" => "BETWEEN",
+          "value_start" => "1234.5",
+          "value_end" => "2345.5",
+          "display_value_start" => "1.234,5",
+          "display_value_end" => "2.345,5",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => "145,5"},
+        "k1" => %{"value_start" => "1.234,5", "value_end" => "2.345,5"}
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        selecto(),
+        %{locale: "de-DE"}
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "145.5"
+    assert canonicalized["filters"]["k0"]["display_value"] == "145,5"
+    assert canonicalized["filters"]["k1"]["value_start"] == "1234.5"
+    assert canonicalized["filters"]["k1"]["display_value_start"] == "1.234,5"
+    assert canonicalized["filters"]["k1"]["value_end"] == "2345.5"
+    assert canonicalized["filters"]["k1"]["display_value_end"] == "2.345,5"
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
+  test "canonicalize_form_params is idempotent for locale-aware numeric filters with display values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "amount",
+          "comp" => ">=",
+          "value" => "145.5",
+          "display_value" => "145,5"
+        },
+        "k1" => %{
+          "filter" => "amount",
+          "comp" => "BETWEEN",
+          "value_start" => "1234.5",
+          "value_end" => "2345.5",
+          "display_value_start" => "1.234,5",
+          "display_value_end" => "2.345,5"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        selecto(),
+        %{locale: "de-DE"}
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "145.5"
+    assert canonicalized["filters"]["k0"]["display_value"] == "145,5"
+    assert canonicalized["filters"]["k1"]["value_start"] == "1234.5"
+    assert canonicalized["filters"]["k1"]["value_end"] == "2345.5"
+    assert canonicalized["filters"]["k1"]["display_value_start"] == "1.234,5"
+    assert canonicalized["filters"]["k1"]["display_value_end"] == "2.345,5"
+  end
+
+  test "canonicalize_form_params is idempotent for locale-aware measurement filters with display values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "temperature_c",
+          "comp" => ">=",
+          "value" => "0.277777777778",
+          "display_value" => "32,5 F"
+        }
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        presentation_selecto(),
+        %{locale: "de-DE", unit_system: :us_customary}
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "0.277777777778"
+    assert canonicalized["filters"]["k0"]["display_value"] == "32,5 F"
+  end
+
+  test "canonicalize_form_params preserves locale-aware promoted numeric IN controller values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "amount",
+          "comp" => "IN",
+          "value" => "145.5,146.5",
+          "display_value" => "145,5\n146,5",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => "145,5\n146,5"}
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        selecto(),
+        %{locale: "de-DE"}
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "145.5,146.5"
+    assert canonicalized["filters"]["k0"]["display_value"] == "145,5\n146,5"
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
+  test "canonicalize_form_params preserves locale-aware promoted measurement IN controller values" do
+    params = %{
+      "filters" => %{
+        "k0" => %{
+          "filter" => "temperature_c",
+          "comp" => "IN",
+          "value" => "0.277777777778,100",
+          "display_value" => "32,5 F\n212 F",
+          "promote" => "true"
+        }
+      },
+      "promoted_filters" => %{
+        "k0" => %{"value" => "32,5 F\n212 F"}
+      }
+    }
+
+    canonicalized =
+      ParamsState.canonicalize_form_params(
+        params,
+        presentation_selecto(),
+        %{locale: "de-DE", unit_system: :us_customary}
+      )
+
+    assert canonicalized["filters"]["k0"]["value"] == "0.277777777778,100"
+    assert canonicalized["filters"]["k0"]["display_value"] == "32,5 F\n212 F"
+    refute Map.has_key?(canonicalized, "promoted_filters")
+  end
+
   test "compact_url_params rewrites raw form UUID keys to compact keys" do
     params = %{
       "filters" => %{

@@ -73,6 +73,24 @@ defmodule SelectoComponents.PresentationTest do
              "2023-12-31 19:00"
   end
 
+  test "formats naive UTC instant values in the requested timezone" do
+    column = %{
+      type: :utc_datetime_usec,
+      presentation: %{
+        semantic_type: :temporal,
+        temporal_kind: :instant,
+        storage_timezone: "Etc/UTC",
+        display_timezone: :viewer
+      }
+    }
+
+    assert Presentation.format_cell(
+             ~N[2026-04-02 16:45:00.123456],
+             column,
+             %{timezone: "Europe/Berlin"}
+           ) == "2026-04-02 18:45"
+  end
+
   test "formats temporal values through a custom locale adapter when configured" do
     column = %{
       type: :integer,

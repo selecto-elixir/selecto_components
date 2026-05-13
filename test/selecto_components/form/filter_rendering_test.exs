@@ -302,6 +302,175 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     end
   end
 
+  describe "choice-source filter rendering" do
+    test "build_filter_list carries choice-source metadata into available filters" do
+      filters =
+        FilterRendering.build_filter_list(choice_source_selecto(),
+          choice_source_links: choice_source_links()
+        )
+
+      {_id, _name, metadata} =
+        Enum.find(filters, fn {id, _name, _metadata} -> to_string(id) == "customer_id" end)
+
+      assert metadata.choice_source == "customer_choices"
+      assert metadata.choice_source_metadata["id"] == "customer_choices"
+      assert metadata.choice_source_metadata["field"] == "customer_id"
+
+      assert metadata.choice_source_metadata["presentation"] == %{
+               "control" => "autocomplete",
+               "mode" => "async"
+             }
+
+      assert metadata.choice_source_metadata["options_request"]["url"] ==
+               "/api/customers/choices/options"
+
+      assert metadata.choice_source_metadata["validate_request_template"]["url"] ==
+               "/api/customers/choices/validate"
+    end
+
+    test "build_filter_list projects live choice-source metadata without HTTP links" do
+      filters =
+        FilterRendering.build_filter_list(choice_source_selecto(),
+          choice_source_transport: :live
+        )
+
+      {_id, _name, metadata} =
+        Enum.find(filters, fn {id, _name, _metadata} -> to_string(id) == "customer_id" end)
+
+      assert metadata.choice_source == "customer_choices"
+      assert metadata.choice_source_metadata["transport"] == "live"
+      assert metadata.choice_source_metadata["async_options"] == true
+      assert metadata.choice_source_metadata["validates_membership"] == true
+      refute Map.has_key?(metadata.choice_source_metadata, "options_request")
+      refute Map.has_key?(metadata.choice_source_metadata, "validate_request_template")
+    end
+
+    test "build_filter_list infers live choice-source metadata from resolvers" do
+      filters =
+        FilterRendering.build_filter_list(choice_source_selecto(),
+          choice_source_options_resolver: fn _request -> {:ok, []} end
+        )
+
+      {_id, _name, metadata} =
+        Enum.find(filters, fn {id, _name, _metadata} -> to_string(id) == "customer_id" end)
+
+      assert metadata.choice_source == "customer_choices"
+      assert metadata.choice_source_metadata["transport"] == "live"
+      assert metadata.choice_source_metadata["async_options"] == true
+      assert metadata.choice_source_metadata["validates_membership"] == true
+      refute Map.has_key?(metadata.choice_source_metadata, "options_request")
+      refute Map.has_key?(metadata.choice_source_metadata, "validate_request_template")
+    end
+
+    test "renders a lookup shell for equality filters with choice-source metadata" do
+      html =
+        render_component(&FilterRendering.render_standard_filter/1, %{
+          uuid: "f1",
+          section: "filters",
+          index: 0,
+          field_type: :integer,
+          filter_value: %{
+            "filter" => "customer_id",
+            "comp" => "=",
+            "value" => "42"
+          },
+          selecto: choice_source_selecto(),
+          column_def: %{
+            type: :integer,
+            choice_source_metadata: %{
+              "id" => "customer_choices",
+              "field" => "customer_id",
+              "label_field" => "name",
+              "presentation" => %{"control" => "autocomplete", "mode" => "async"},
+              "options_request" => %{
+                "method" => "get",
+                "url" => "/api/customers/choices/options"
+              },
+              "validate_request_template" => %{
+                "method" => "post",
+                "url" => "/api/customers/choices/validate",
+                "body" => %{"field" => "customer_id", "value" => "$value"}
+              }
+            }
+          },
+          filter_def: %{type: :integer}
+        })
+
+      assert html =~ ~s(data-choice-source-filter)
+      assert html =~ ~s(data-choice-source-id="customer_choices")
+      assert html =~ ~s(data-choice-source-field="customer_id")
+      assert html =~ ~s(data-choice-source-control="autocomplete")
+      assert html =~ ~s(data-choice-source-transport="http")
+      assert html =~ ~s(data-choice-source-options-url="/api/customers/choices/options")
+      assert html =~ ~s(data-choice-source-validate-url="/api/customers/choices/validate")
+      assert html =~ ~s(phx-hook="SelectoComponents.Form.FilterRendering.ChoiceSourceFilter")
+      assert html =~ ~s(data-choice-source-options)
+      assert html =~ ~s(data-choice-source-validate-on="blur submit")
+      assert html =~ ~s(data-choice-source-validation-state="unknown")
+      assert html =~ ~s(role="listbox")
+      assert html =~ ~s(data-choice-source-status)
+      assert html =~ ~s(data-choice-source-limit="20")
+      assert html =~ ~s(type="search")
+      assert html =~ ~s(data-choice-source-display-input)
+      assert html =~ ~s(data-choice-source-value-input)
+      assert html =~ ~s(data-choice-source-display-value-input)
+      assert html =~ ~s(id="filters-choice-source-value-f1-display")
+      assert html =~ ~s(name="filters[f1][value]")
+      assert html =~ ~s(name="filters[f1][display_value]")
+      assert html =~ ~s(value="42")
+      assert html =~ ~s(aria-invalid="false")
+      assert html =~ ~s(placeholder="Search Name...")
+      assert length(Regex.scan(~r/name="filters\[f1\]\[value\]"/, html)) == 1
+    end
+
+    test "keeps submitted id separate from display label" do
+      html =
+        render_component(&FilterRendering.choice_source_filter_input/1, %{
+          uuid: "f1",
+          scope: "filters",
+          value: "42",
+          display_value: "Ada Lovelace",
+          metadata: %{
+            "id" => "customer_choices",
+            "field" => "customer_id",
+            "options_request" => %{"url" => "/api/customers/choices/options"},
+            "validate_request_template" => %{"url" => "/api/customers/choices/validate"}
+          }
+        })
+
+      assert html =~ ~s(name="filters[f1][value]" value="42")
+      assert html =~ ~s(name="filters[f1][display_value]" value="Ada Lovelace")
+      assert html =~ ~s(type="search")
+      assert html =~ ~s(value="Ada Lovelace")
+      assert length(Regex.scan(~r/name="filters\[f1\]\[value\]"/, html)) == 1
+    end
+
+    test "allows callers to override submitted and display input names" do
+      html =
+        render_component(&FilterRendering.choice_source_filter_input/1, %{
+          uuid: "assignee_id",
+          value: "7",
+          display_value: "Grace Hopper",
+          input_name: "write_form[fields][assignee_id]",
+          display_input_name: "write_form[field_displays][assignee_id]",
+          input_id: "write-form-field-assignee_id",
+          display_input_id: "write-form-field-assignee_id-display",
+          metadata: %{
+            "id" => "work_item_assignees",
+            "field" => "assignee_id",
+            "transport" => "live"
+          }
+        })
+
+      assert html =~ ~s(id="write-form-field-assignee_id")
+      assert html =~ ~s(id="write-form-field-assignee_id-display")
+      assert html =~ ~s(name="write_form[fields][assignee_id]" value="7")
+      assert html =~ ~s(name="write_form[field_displays][assignee_id]" value="Grace Hopper")
+      assert html =~ ~s(data-choice-source-transport="live")
+      assert length(Regex.scan(~r/name="write_form\[fields\]\[assignee_id\]"/, html)) == 1
+    end
+  end
+
   describe "standard filter controller promotion" do
     test "renders a promote checkbox for non-equals standard filters" do
       html =
@@ -323,6 +492,7 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
         })
 
       assert html =~ ~s(name="filters[f1][promote]")
+      assert html =~ "✓"
       assert html =~ "Promote to View Controller"
     end
 
@@ -518,6 +688,50 @@ defmodule SelectoComponents.Form.FilterRenderingTest do
     }
 
     Selecto.configure(domain, nil)
+  end
+
+  defp choice_source_selecto do
+    domain = %{
+      name: "ChoiceSourceFilterRenderingTest",
+      source: %{
+        source_table: "orders",
+        primary_key: :id,
+        fields: [:id, :customer_id, :status],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, colid: :id, name: "ID"},
+          customer_id: %{
+            type: :integer,
+            colid: :customer_id,
+            name: "Customer",
+            choice_source: :customer_choices
+          },
+          status: %{type: :string, colid: :status, name: "Status"}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      choice_sources: %{
+        customer_choices: %{
+          domain: :customers,
+          value_field: :id,
+          label_field: :name,
+          presentation: %{control: :autocomplete, mode: :async}
+        }
+      }
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
+  defp choice_source_links do
+    %{
+      customer_choices: %{
+        options: "/api/customers/choices/options",
+        validate: "/api/customers/choices/validate"
+      }
+    }
   end
 
   defp render_presentation_selecto do

@@ -6,6 +6,7 @@ defmodule SelectoComponents.Components.SqlDebug do
 
   use Phoenix.Component
   alias Phoenix.LiveView.JS
+  alias SelectoComponents.Debug.SqlFormatter
   alias SelectoComponents.Env
   alias SelectoComponents.Theme
 
@@ -117,52 +118,7 @@ defmodule SelectoComponents.Components.SqlDebug do
 
   # Private functions
 
-  defp format_sql(sql) do
-    sql
-    |> add_syntax_highlighting()
-    |> indent_sql()
-  end
-
-  defp add_syntax_highlighting(sql) do
-    # Basic SQL syntax highlighting
-    keywords = ~w(
-      select from where join left right inner outer on
-      group by order having limit offset distinct
-      as and or not in exists between like ilike
-      case when then else end null is true false
-      insert into values update set delete
-      create table alter drop index primary key foreign references
-      begin commit rollback transaction
-      with recursive union all intersect except
-      json_agg array_agg row_to_json to_json jsonb_agg
-    )
-
-    # Replace keywords with highlighted versions
-    Enum.reduce(keywords, sql, fn keyword, acc ->
-      # Case-insensitive replacement
-      Regex.replace(
-        ~r/\b#{keyword}\b/i,
-        acc,
-        "<span class='sql-keyword'>#{String.upcase(keyword)}</span>"
-      )
-    end)
-  end
-
-  defp indent_sql(sql) do
-    # Basic SQL indentation for readability
-    sql
-    |> String.replace("SELECT", "\nSELECT")
-    |> String.replace("FROM", "\nFROM")
-    |> String.replace("WHERE", "\nWHERE")
-    |> String.replace("JOIN", "\n  JOIN")
-    |> String.replace("LEFT JOIN", "\n  LEFT JOIN")
-    |> String.replace("RIGHT JOIN", "\n  RIGHT JOIN")
-    |> String.replace("GROUP BY", "\nGROUP BY")
-    |> String.replace("ORDER BY", "\nORDER BY")
-    |> String.replace("HAVING", "\nHAVING")
-    |> String.replace("LIMIT", "\nLIMIT")
-    |> String.trim()
-  end
+  defp format_sql(sql), do: SqlFormatter.format(sql)
 
   defp truncate_sql(sql, max_length \\ 100) do
     if String.length(sql) > max_length do

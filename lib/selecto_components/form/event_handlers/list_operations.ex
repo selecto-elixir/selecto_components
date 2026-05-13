@@ -86,6 +86,8 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
           ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
 
+        ListPickerOperations.send_list_picker_update(view, list, updated_view_config)
+
         {:noreply, socket}
       end
 
@@ -133,6 +135,8 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
           ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
 
+        ListPickerOperations.send_list_picker_update(view, list, updated_view_config)
+
         {:noreply, socket}
       end
 
@@ -175,6 +179,8 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         if view_module do
           ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
+
+        ListPickerOperations.send_list_picker_update(view, list, updated_view_config)
 
         {:noreply, socket}
       end
@@ -222,6 +228,8 @@ defmodule SelectoComponents.Form.EventHandlers.ListOperations do
         if view_module do
           ListPickerOperations.send_view_update(view_module, updated_view_config, socket.assigns)
         end
+
+        ListPickerOperations.send_list_picker_update(view, list, updated_view_config)
 
         {:noreply, socket}
       end

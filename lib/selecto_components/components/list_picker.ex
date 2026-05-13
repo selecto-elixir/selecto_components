@@ -15,7 +15,15 @@ defmodule SelectoComponents.Components.ListPicker do
 
   attr(:available, :list, required: true)
   attr(:selected_items, :list, required: true)
+  attr(:view, :any, required: true)
   attr(:fieldname, :string, required: true)
+  attr(:compact, :boolean, default: false)
+  attr(:available_label, :string, default: "Available")
+  attr(:selected_label, :string, default: "Selected")
+  attr(:available_height_class, :string, default: nil)
+  attr(:selected_height_class, :string, default: nil)
+  attr(:available_max_height, :string, default: nil)
+  attr(:selected_max_height, :string, default: nil)
 
   slot(:item_form)
   slot(:item_summary)
@@ -30,6 +38,13 @@ defmodule SelectoComponents.Components.ListPicker do
     assigns =
       assigns
       |> Map.put_new(:theme, Theme.default_theme(:light))
+      |> Map.put_new(:compact, false)
+      |> Map.put_new(:available_label, "Available")
+      |> Map.put_new(:selected_label, "Selected")
+      |> Map.put_new(:available_height_class, nil)
+      |> Map.put_new(:selected_height_class, nil)
+      |> Map.put_new(:available_max_height, nil)
+      |> Map.put_new(:selected_max_height, nil)
       |> assign(view_id: view_id)
       |> assign(available: sorted_available)
       |> assign(type_filters: available_type_filters(sorted_available))
@@ -40,11 +55,13 @@ defmodule SelectoComponents.Components.ListPicker do
       id={"#{@component_dom_id}-filter"}
       phx-hook=".ListPickerFilter"
       data-list-picker-root
-      class="grid min-w-0 grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] items-start gap-3"
+      data-list-picker-fieldname={@fieldname}
+      class={picker_root_class(@compact)}
+      style={picker_root_style(@compact)}
     >
       <section class="min-w-0 space-y-2">
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">Available</div>
+          <div class="text-sm font-semibold">{@available_label}</div>
 
           <div class="mt-2 flex items-center gap-1">
             <input
@@ -109,25 +126,32 @@ defmodule SelectoComponents.Components.ListPicker do
         </div>
 
         <div
-          class={Theme.slot(@theme, :panel) <> " flex h-96 min-w-0 flex-col gap-1 overflow-auto p-2"}
-          style="background: var(--sc-surface-bg-alt);"
+          data-scroll-handoff
+          class={[
+            Theme.slot(@theme, :panel),
+            "flex min-w-0 flex-col gap-1 overflow-y-auto p-2",
+            picker_pane_height_class(@compact, @available_height_class)
+          ]}
+          style={picker_pane_style("background: var(--sc-surface-bg-alt);", @compact, @available_max_height)}
         >
-          <div
+          <button
             :for={{id, name, field_type} <- @available}
+            type="button"
             data-picker-action="add"
             data-view-id={@view_id}
             data-list-id={@fieldname}
             data-item-id={id}
             data-type-key={normalize_icon_key(field_type)}
             data-available-item
-            class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-sm transition"
+            class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-left text-sm transition"
             style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
           >
             <div class="flex items-start gap-2">
               <.type_badge type={field_type} />
+              <.choice_source_indicator type={field_type} />
               <span class="block break-words">{name}</span>
             </div>
-          </div>
+          </button>
         </div>
       </section>
 
@@ -139,10 +163,17 @@ defmodule SelectoComponents.Components.ListPicker do
         style="background: var(--sc-surface-bg);"
       >
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">Selected</div>
+          <div class="text-sm font-semibold">{@selected_label}</div>
         </div>
 
-        <div class="min-h-0 flex-1 space-y-2 overflow-auto xl:h-96">
+        <div
+          data-scroll-handoff
+          class={[
+            "min-h-0 space-y-2 overflow-y-auto pr-1",
+            picker_pane_height_class(@compact, @selected_height_class)
+          ]}
+          style={picker_pane_style("", @compact, @selected_max_height)}
+        >
           <button
             id={"#{@component_dom_id}-reorder-button"}
             type="button"
@@ -170,8 +201,10 @@ defmodule SelectoComponents.Components.ListPicker do
             <div
               id={"#{@component_dom_id}-item-#{id}"}
               phx-hook=".ListPickerEditor"
-              draggable="true"
               data-picker-item-id={id}
+              data-selected-item
+              tabindex="0"
+              aria-label={"Selected item #{selected_item_label(item)}"}
               class="w-full rounded-xl border px-3 py-2 shadow-sm transition"
               style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 65%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
             >
@@ -179,9 +212,12 @@ defmodule SelectoComponents.Components.ListPicker do
               <div class="flex items-center gap-3">
                 <button
                   type="button"
+                  data-drag-handle
+                  draggable="true"
                   class="cursor-grab active:cursor-grabbing"
                   style="color: var(--sc-text-muted);"
                   title="Drag to reorder"
+                  aria-label="Drag to reorder"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
@@ -191,11 +227,12 @@ defmodule SelectoComponents.Components.ListPicker do
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 items-center gap-2 text-sm">
                     <.type_badge type={selected_type} />
+                    <.choice_source_indicator type={selected_type} />
                     <div class="min-w-0 flex-1 truncate font-medium">
                       <%= if @item_summary != [] do %>
                         {render_slot(@item_summary, {id, item, conf, index})}
                       <% else %>
-                        <span class="truncate">{item}</span>
+                        <span class="truncate">{selected_item_label(item)}</span>
                       <% end %>
                     </div>
                   </div>
@@ -244,27 +281,116 @@ defmodule SelectoComponents.Components.ListPicker do
         export default {
           mounted() {
             this.draggedItemId = null;
+            this.draggedItemEl = null;
+            this.activeDropItemId = null;
+            this.boundItems = new WeakSet();
 
-            const reorderButtonId = this.el.dataset.reorderButtonId;
-            const reorderButton = reorderButtonId ? document.getElementById(reorderButtonId) : null;
+            this.resolveComponentCid = () => {
+              const root = this.el.closest('[data-list-picker-root]');
+              const cid =
+                root?.getAttribute('data-phx-component') ||
+                this.el.closest('[data-phx-component]')?.getAttribute('data-phx-component');
+
+              return cid ? parseInt(cid, 10) : null;
+            };
+
+            const reorderButton = () => {
+              const reorderButtonId = this.el.dataset.reorderButtonId;
+              return reorderButtonId ? document.getElementById(reorderButtonId) : null;
+            };
 
             const itemElements = () => Array.from(this.el.querySelectorAll('[data-picker-item-id]'));
 
             const clearDropIndicators = () => {
+              this.activeDropItemId = null;
               itemElements().forEach((item) => {
                 item.classList.remove('ring-2', 'ring-primary/40');
               });
             };
 
-            const bindItem = (item) => {
-              if (item.dataset.sortableBound === 'true') {
+            const markDropTarget = (item) => {
+              const targetItemId = item.dataset.pickerItemId;
+
+              if (!targetItemId || this.activeDropItemId === targetItemId) {
                 return;
               }
 
-              item.dataset.sortableBound = 'true';
+              clearDropIndicators();
+              this.activeDropItemId = targetItemId;
+              item.classList.add('ring-2', 'ring-primary/40');
+            };
+
+            const selectionContainer = (itemId) => {
+              const item = this.el.querySelector(`[data-picker-item-id="${itemId}"]`);
+              return item?.closest(`[id^="${this.el.id}-selection-"]`) || item;
+            };
+
+            const moveSelection = (draggedItemId, targetItemId) => {
+              const draggedNode = selectionContainer(draggedItemId);
+              const targetNode = selectionContainer(targetItemId);
+
+              if (!draggedNode || !targetNode || draggedNode === targetNode) {
+                return;
+              }
+
+              const selections = Array.from(this.el.querySelectorAll(`[id^="${this.el.id}-selection-"]`));
+              const draggedIndex = selections.indexOf(draggedNode);
+              const targetIndex = selections.indexOf(targetNode);
+
+              if (draggedIndex === -1 || targetIndex === -1) {
+                return;
+              }
+
+              if (draggedIndex < targetIndex) {
+                targetNode.after(draggedNode);
+              } else {
+                targetNode.before(draggedNode);
+              }
+            };
+
+            const pushReorder = (targetItemId) => {
+              const button = reorderButton();
+
+              clearDropIndicators();
+
+              if (!button || !this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId) {
+                return;
+              }
+
+              moveSelection(this.draggedItemId, targetItemId);
+
+              button.dataset.itemId = this.draggedItemId;
+              button.dataset.targetItemId = targetItemId;
+
+              const form = this.el.closest('form');
+              const componentCid = this.resolveComponentCid();
+
+              this.pushEventTo(componentCid || this.el, 'reorder', {
+                view: button.dataset.viewId,
+                'list-id': button.dataset.listId,
+                item: this.draggedItemId,
+                'target-item': targetItemId,
+                form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+              });
+            };
+
+            const bindItem = (item) => {
+              if (this.boundItems.has(item)) {
+                return;
+              }
+
+              this.boundItems.add(item);
 
               item.addEventListener('dragstart', (event) => {
+                const handle = event.target.closest('[data-drag-handle]');
+
+                if (!handle || !item.contains(handle)) {
+                  event.preventDefault();
+                  return;
+                }
+
                 this.draggedItemId = item.dataset.pickerItemId;
+                this.draggedItemEl = item;
                 item.classList.add('opacity-60');
 
                 if (event.dataTransfer) {
@@ -274,7 +400,9 @@ defmodule SelectoComponents.Components.ListPicker do
               });
 
               item.addEventListener('dragend', () => {
-                item.classList.remove('opacity-60');
+                this.draggedItemEl?.classList.remove('opacity-60');
+                this.draggedItemId = null;
+                this.draggedItemEl = null;
                 clearDropIndicators();
               });
 
@@ -284,38 +412,12 @@ defmodule SelectoComponents.Components.ListPicker do
                 }
 
                 event.preventDefault();
-                clearDropIndicators();
-                item.classList.add('ring-2', 'ring-primary/40');
-              });
-
-              item.addEventListener('dragleave', () => {
-                item.classList.remove('ring-2', 'ring-primary/40');
+                markDropTarget(item);
               });
 
               item.addEventListener('drop', (event) => {
                 event.preventDefault();
-
-                const targetItemId = item.dataset.pickerItemId;
-
-                clearDropIndicators();
-
-                if (!this.draggedItemId || !targetItemId || this.draggedItemId === targetItemId || !reorderButton) {
-                  return;
-                }
-
-                reorderButton.dataset.itemId = this.draggedItemId;
-                reorderButton.dataset.targetItemId = targetItemId;
-
-                const root = this.el.closest('[data-list-picker-root]');
-                const form = root?.closest('form');
-
-                this.pushEventTo(this.el, 'reorder', {
-                  view: reorderButton.dataset.viewId,
-                  'list-id': reorderButton.dataset.listId,
-                  item: this.draggedItemId,
-                  'target-item': targetItemId,
-                  form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-                });
+                pushReorder(item.dataset.pickerItemId);
               });
             };
 
@@ -367,11 +469,18 @@ defmodule SelectoComponents.Components.ListPicker do
           mounted() {
             this.filterValue = this.readPersistedFilter();
             this.selectedTypeFilters = this.readPersistedTypeFilters();
+            this.highlightedAvailableItemId = null;
+            this.highlightedSelectedItemId = null;
             this.filterWasFocused = false;
+            this.focusSearchAfterAdd = false;
+            this.focusSelectedItemAfterPatch = null;
 
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableItemKeyboard();
+            this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
+            this.bindScrollHandoff();
             this.applyFilter();
           },
 
@@ -384,17 +493,23 @@ defmodule SelectoComponents.Components.ListPicker do
           updated() {
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableItemKeyboard();
+            this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
+            this.bindScrollHandoff();
             this.applyFilter();
 
-            if (this.filterWasFocused && this.filterInput) {
-              this.filterInput.focus();
+            if ((this.filterWasFocused || this.focusSearchAfterAdd) && this.filterInput) {
+              this.focusElement(this.filterInput);
+              this.focusSearchAfterAdd = false;
 
               if (this.filterInput.setSelectionRange) {
                 const length = this.filterInput.value.length;
                 this.filterInput.setSelectionRange(length, length);
               }
             }
+
+            this.restoreSelectedFocusAfterPatch();
           },
 
           destroyed() {
@@ -425,6 +540,25 @@ defmodule SelectoComponents.Components.ListPicker do
               this.el.removeEventListener('click', this.handleActionClick);
             }
 
+            if (this.handleAvailableItemKeydown) {
+              this.el.removeEventListener('keydown', this.handleAvailableItemKeydown);
+            }
+
+            if (this.handleSelectedItemKeydown) {
+              this.el.removeEventListener('keydown', this.handleSelectedItemKeydown);
+            }
+
+            if (this.handleSelectedItemFocusin) {
+              this.el.removeEventListener('focusin', this.handleSelectedItemFocusin);
+            }
+
+            if (this.scrollHandoffHandlers) {
+              this.scrollHandoffHandlers.forEach((handler, pane) => {
+                pane.removeEventListener('wheel', handler);
+              });
+              this.scrollHandoffHandlers.clear();
+            }
+
             this.writePersistedFilter(this.filterValue || '');
             this.writePersistedTypeFilters(this.selectedTypeFilters || []);
           },
@@ -450,19 +584,27 @@ defmodule SelectoComponents.Components.ListPicker do
 
               event.preventDefault();
 
-              const form = this.el.closest('form');
-              this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
-              this.writePersistedFilter(this.filterValue);
-
-              this.pushEventTo(this.el, action, {
-                view: trigger.dataset.viewId,
-                'list-id': trigger.dataset.listId,
-                item: trigger.dataset.itemId,
-                form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
-              });
+              this.dispatchPickerAction(trigger);
             };
 
             this.el.addEventListener('click', this.handleActionClick);
+          },
+
+          dispatchPickerAction(trigger, options = {}) {
+            const form = this.el.closest('form');
+            this.filterValue = this.filterInput ? this.filterInput.value : (this.filterValue || '');
+            this.writePersistedFilter(this.filterValue);
+
+            if (options.focusSearchAfterAdd === true && trigger.dataset.pickerAction === 'add') {
+              this.focusSearchAfterAdd = true;
+            }
+
+            this.pushEventTo(this.el, trigger.dataset.pickerAction, {
+              view: trigger.dataset.viewId,
+              'list-id': trigger.dataset.listId,
+              item: trigger.dataset.itemId,
+              form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+            });
           },
 
           bindFilter() {
@@ -484,14 +626,52 @@ defmodule SelectoComponents.Components.ListPicker do
                   this.filterValue = this.filterInput.value;
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
+                  this.setHighlightedAvailableItemIndex(-1);
                 };
 
                 this.handleFilterKeydown = (event) => {
                   if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
                     this.filterValue = '';
                     this.filterInput.value = '';
                     this.writePersistedFilter(this.filterValue);
                     this.applyFilter();
+                    this.setHighlightedAvailableItemIndex(-1);
+                    return;
+                  }
+
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.moveAvailableItemHighlight(1, { focus: true });
+                    return;
+                  }
+
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.moveAvailableItemHighlight(-1, { focus: true });
+                    return;
+                  }
+
+                  if (
+                    event.key === 'ArrowRight' &&
+                    !event.altKey &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
+                    this.cursorAtEnd(this.filterInput) &&
+                    this.focusSelectedItemFromAvailable()
+                  ) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                  }
+
+                  if (event.key === 'Enter' && !event.isComposing) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.addHighlightedOrSingleAvailableItem();
                   }
                 };
 
@@ -517,7 +697,8 @@ defmodule SelectoComponents.Components.ListPicker do
                   this.filterInput.value = '';
                   this.writePersistedFilter(this.filterValue);
                   this.applyFilter();
-                  this.filterInput.focus();
+                  this.setHighlightedAvailableItemIndex(-1);
+                  this.focusElement(this.filterInput);
                 };
 
                 this.clearButton.addEventListener('click', this.handleClearClick);
@@ -567,6 +748,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
               this.writePersistedTypeFilters(this.selectedTypeFilters);
               this.applyFilter();
+              this.setHighlightedAvailableItemIndex(-1);
             };
 
             this.typeFilterCheckboxes.forEach((checkbox) => {
@@ -574,6 +756,67 @@ defmodule SelectoComponents.Components.ListPicker do
               checkbox.removeEventListener('change', this.handleTypeFilterChange);
               checkbox.addEventListener('change', this.handleTypeFilterChange);
             });
+          },
+
+          bindScrollHandoff() {
+            const panes = Array.from(this.el.querySelectorAll('[data-scroll-handoff]'));
+            this.scrollHandoffHandlers = this.scrollHandoffHandlers || new Map();
+
+            this.scrollHandoffHandlers.forEach((handler, pane) => {
+              if (!panes.includes(pane)) {
+                pane.removeEventListener('wheel', handler);
+                this.scrollHandoffHandlers.delete(pane);
+              }
+            });
+
+            panes.forEach((pane) => {
+              if (this.scrollHandoffHandlers.has(pane)) {
+                return;
+              }
+
+              const handler = (event) => {
+                if (pane.scrollHeight <= pane.clientHeight || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+                  return;
+                }
+
+                const scrollingUp = event.deltaY < 0;
+                const scrollingDown = event.deltaY > 0;
+                const atTop = pane.scrollTop <= 0;
+                const atBottom = Math.ceil(pane.scrollTop + pane.clientHeight) >= pane.scrollHeight;
+
+                if (!((scrollingUp && atTop) || (scrollingDown && atBottom))) {
+                  return;
+                }
+
+                const parent = this.scrollableParent(pane.parentElement);
+
+                if (!parent) {
+                  return;
+                }
+
+                event.preventDefault();
+                parent.scrollBy({ top: event.deltaY, behavior: 'auto' });
+              };
+
+              pane.addEventListener('wheel', handler, { passive: false });
+              this.scrollHandoffHandlers.set(pane, handler);
+            });
+          },
+
+          scrollableParent(node) {
+            let current = node;
+
+            while (current && current !== document.body && current !== document.documentElement) {
+              const style = window.getComputedStyle(current);
+
+              if (/(auto|scroll)/.test(style.overflowY) && current.scrollHeight > current.clientHeight) {
+                return current;
+              }
+
+              current = current.parentElement;
+            }
+
+            return document.scrollingElement || document.documentElement;
           },
 
           applyFilter() {
@@ -596,6 +839,484 @@ defmodule SelectoComponents.Components.ListPicker do
 
             if (this.clearButton) {
               this.clearButton.classList.toggle('hidden', filterValue === '' && typeFilters.length === 0);
+            }
+
+            if (this.highlightedAvailableItemId) {
+              this.restoreHighlightedAvailableItem();
+            }
+          },
+
+          bindAvailableItemKeyboard() {
+            if (this.handleAvailableItemKeydown) {
+              return;
+            }
+
+            this.handleAvailableItemKeydown = (event) => {
+              const item = event.target.closest('[data-available-item]');
+
+              if (!item || !this.el.contains(item)) {
+                return;
+              }
+
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.moveAvailableItemHighlight(1, { focus: true });
+                return;
+              }
+
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.moveAvailableItemHighlight(-1, { focus: true });
+                return;
+              }
+
+              if (event.key === 'Enter' && !event.isComposing) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.highlightedAvailableItemId = item.dataset.itemId;
+                this.addAvailableItem(item);
+                return;
+              }
+
+              if (
+                event.key === 'ArrowRight' &&
+                !event.altKey &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                this.focusSelectedItemFromAvailable()
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.focusElement(this.filterInput);
+              }
+            };
+
+            this.el.addEventListener('keydown', this.handleAvailableItemKeydown);
+          },
+
+          bindSelectedItemKeyboard() {
+            if (this.handleSelectedItemKeydown) {
+              return;
+            }
+
+            this.handleSelectedItemFocusin = (event) => {
+              const item = this.selectedKeyboardItem(event.target);
+
+              if (!item) {
+                return;
+              }
+
+              this.highlightSelectedItem(item);
+            };
+
+            this.handleSelectedItemKeydown = (event) => {
+              const item = this.selectedKeyboardItem(event.target);
+
+              if (!item) {
+                return;
+              }
+
+              if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.altKey) {
+                  this.reorderSelectedItem(item, 1);
+                } else {
+                  this.highlightedSelectedItemId = item.dataset.pickerItemId;
+                  this.moveSelectedItemHighlight(1, { focus: true });
+                }
+
+                return;
+              }
+
+              if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.altKey) {
+                  this.reorderSelectedItem(item, -1);
+                } else {
+                  this.highlightedSelectedItemId = item.dataset.pickerItemId;
+                  this.moveSelectedItemHighlight(-1, { focus: true });
+                }
+
+                return;
+              }
+
+              if (
+                event.key === 'ArrowLeft' &&
+                !event.altKey &&
+                !event.ctrlKey &&
+                !event.metaKey
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.focusAvailableSide();
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.clearSelectedItemHighlights();
+                this.focusElement(this.filterInput);
+                return;
+              }
+
+              if ((event.key === 'Delete' || event.key === 'Backspace') && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.removeSelectedItem(item);
+                return;
+              }
+
+              if (event.key === 'Enter' && !event.isComposing && !this.isNestedCommandTarget(event.target, item)) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.toggleSelectedItemEditor(item);
+              }
+            };
+
+            this.el.addEventListener('focusin', this.handleSelectedItemFocusin);
+            this.el.addEventListener('keydown', this.handleSelectedItemKeydown);
+          },
+
+          selectedKeyboardItem(target) {
+            if (!(target instanceof Element) || this.isTextEntryTarget(target)) {
+              return null;
+            }
+
+            const item = target.closest('[data-selected-item]');
+
+            if (!item || !this.el.contains(item)) {
+              return null;
+            }
+
+            return item;
+          },
+
+          isTextEntryTarget(target) {
+            return Boolean(
+              target.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='searchbox']")
+            );
+          },
+
+          isNestedCommandTarget(target, item) {
+            return target !== item && Boolean(target.closest("button, a, [role='button'], [data-picker-action], [data-editor-toggle]"));
+          },
+
+          cursorAtEnd(input) {
+            if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') {
+              return true;
+            }
+
+            const length = input.value.length;
+            return input.selectionStart === length && input.selectionEnd === length;
+          },
+
+          visibleAvailableItems() {
+            return Array.from(this.el.querySelectorAll('[data-available-item]')).filter((item) => {
+              return item.style.display !== 'none';
+            });
+          },
+
+          selectedItems() {
+            return Array.from(this.el.querySelectorAll('[data-selected-item][data-picker-item-id]'));
+          },
+
+          moveAvailableItemHighlight(direction, options = {}) {
+            const items = this.visibleAvailableItems();
+
+            if (items.length === 0) {
+              this.setHighlightedAvailableItemIndex(-1);
+              return;
+            }
+
+            const currentIndex = items.findIndex((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+            const nextIndex = currentIndex === -1
+              ? (direction > 0 ? 0 : items.length - 1)
+              : (currentIndex + direction + items.length) % items.length;
+
+            this.setHighlightedAvailableItemIndex(nextIndex, options);
+          },
+
+          setHighlightedAvailableItemIndex(index, options = {}) {
+            const items = this.visibleAvailableItems();
+
+            this.clearAvailableItemHighlights();
+
+            if (index < 0 || items.length === 0) {
+              this.highlightedAvailableItemId = null;
+              return;
+            }
+
+            this.clearSelectedItemHighlights();
+
+            const item = items[index % items.length];
+            this.highlightedAvailableItemId = item.dataset.itemId;
+            item.setAttribute('data-keyboard-highlighted', 'true');
+            item.style.outline = '2px solid var(--sc-accent)';
+            item.style.outlineOffset = '2px';
+
+            if (options.scroll !== false) {
+              item.scrollIntoView({ block: 'nearest' });
+            }
+
+            if (options.focus === true) {
+              this.focusElement(item);
+            }
+          },
+
+          restoreHighlightedAvailableItem() {
+            const items = this.visibleAvailableItems();
+            const index = items.findIndex((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (index === -1) {
+              this.setHighlightedAvailableItemIndex(items.length > 0 ? 0 : -1, { scroll: false });
+            } else {
+              this.setHighlightedAvailableItemIndex(index, { scroll: false });
+            }
+          },
+
+          clearAvailableItemHighlights() {
+            Array.from(this.el.querySelectorAll('[data-available-item]')).forEach((item) => {
+              item.removeAttribute('data-keyboard-highlighted');
+              item.style.outline = '';
+              item.style.outlineOffset = '';
+            });
+
+            this.highlightedAvailableItemId = null;
+          },
+
+          moveSelectedItemHighlight(direction, options = {}) {
+            const items = this.selectedItems();
+
+            if (items.length === 0) {
+              this.setHighlightedSelectedItemIndex(-1);
+              return;
+            }
+
+            const currentIndex = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+            const nextIndex = currentIndex === -1
+              ? (direction > 0 ? 0 : items.length - 1)
+              : (currentIndex + direction + items.length) % items.length;
+
+            this.setHighlightedSelectedItemIndex(nextIndex, options);
+          },
+
+          setHighlightedSelectedItemIndex(index, options = {}) {
+            const items = this.selectedItems();
+
+            this.clearSelectedItemHighlights();
+
+            if (index < 0 || items.length === 0) {
+              this.highlightedSelectedItemId = null;
+              return;
+            }
+
+            this.clearAvailableItemHighlights();
+
+            const item = items[index % items.length];
+            this.highlightSelectedItem(item);
+
+            if (options.scroll !== false) {
+              item.scrollIntoView({ block: 'nearest' });
+            }
+
+            if (options.focus === true) {
+              this.focusElement(item);
+            }
+          },
+
+          highlightSelectedItem(item) {
+            if (!item) {
+              return;
+            }
+
+            this.clearSelectedItemHighlights();
+            this.highlightedSelectedItemId = item.dataset.pickerItemId;
+            item.setAttribute('data-keyboard-highlighted', 'true');
+            item.style.outline = '2px solid var(--sc-accent)';
+            item.style.outlineOffset = '2px';
+          },
+
+          clearSelectedItemHighlights() {
+            this.selectedItems().forEach((item) => {
+              item.removeAttribute('data-keyboard-highlighted');
+              item.style.outline = '';
+              item.style.outlineOffset = '';
+            });
+
+            this.highlightedSelectedItemId = null;
+          },
+
+          restoreHighlightedSelectedItem() {
+            const items = this.selectedItems();
+            const index = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+
+            if (index === -1) {
+              this.setHighlightedSelectedItemIndex(items.length > 0 ? 0 : -1, { scroll: false });
+            } else {
+              this.setHighlightedSelectedItemIndex(index, { scroll: false });
+            }
+          },
+
+          focusSelectedItemFromAvailable() {
+            const items = this.selectedItems();
+
+            if (items.length === 0) {
+              return false;
+            }
+
+            const index = items.findIndex((item) => item.dataset.pickerItemId === this.highlightedSelectedItemId);
+            this.setHighlightedSelectedItemIndex(index === -1 ? 0 : index, { focus: true });
+            return true;
+          },
+
+          focusAvailableSide() {
+            const items = this.visibleAvailableItems();
+            const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (highlightedItem) {
+              this.setHighlightedAvailableItemIndex(items.indexOf(highlightedItem), { focus: true });
+              return;
+            }
+
+            this.clearSelectedItemHighlights();
+            this.focusElement(this.filterInput);
+          },
+
+          restoreSelectedFocusAfterPatch() {
+            if (!this.focusSelectedItemAfterPatch) {
+              if (this.highlightedSelectedItemId) {
+                this.restoreHighlightedSelectedItem();
+              }
+
+              return;
+            }
+
+            const itemId = this.focusSelectedItemAfterPatch;
+            this.focusSelectedItemAfterPatch = null;
+
+            if (itemId === 'filter') {
+              this.clearSelectedItemHighlights();
+              this.focusElement(this.filterInput);
+              return;
+            }
+
+            const items = this.selectedItems();
+            const index = items.findIndex((item) => item.dataset.pickerItemId === itemId);
+
+            if (index === -1) {
+              if (items.length > 0) {
+                this.setHighlightedSelectedItemIndex(0, { focus: true });
+              } else {
+                this.focusElement(this.filterInput);
+              }
+
+              return;
+            }
+
+            this.setHighlightedSelectedItemIndex(index, { focus: true });
+          },
+
+          reorderSelectedItem(item, direction) {
+            const items = this.selectedItems();
+            const currentIndex = items.indexOf(item);
+            const target = items[currentIndex + direction];
+
+            if (currentIndex === -1 || !target) {
+              return;
+            }
+
+            this.highlightedSelectedItemId = item.dataset.pickerItemId;
+            this.focusSelectedItemAfterPatch = item.dataset.pickerItemId;
+            this.dispatchSelectedReorder(item, target);
+          },
+
+          dispatchSelectedReorder(item, target) {
+            const reorderButton = this.el.querySelector('[data-picker-action="reorder"]');
+
+            if (!reorderButton || !item || !target) {
+              return;
+            }
+
+            const form = this.el.closest('form');
+
+            this.pushEventTo(this.el, 'reorder', {
+              view: reorderButton.dataset.viewId,
+              'list-id': reorderButton.dataset.listId,
+              item: item.dataset.pickerItemId,
+              'target-item': target.dataset.pickerItemId,
+              form_state_query: form ? new URLSearchParams(new FormData(form)).toString() : null
+            });
+          },
+
+          removeSelectedItem(item) {
+            const trigger = item.querySelector('[data-picker-action="remove"]');
+
+            if (!trigger) {
+              return;
+            }
+
+            const items = this.selectedItems();
+            const currentIndex = items.indexOf(item);
+            const nextItem = items[currentIndex + 1] || items[currentIndex - 1];
+            this.focusSelectedItemAfterPatch = nextItem ? nextItem.dataset.pickerItemId : 'filter';
+            this.dispatchPickerAction(trigger);
+          },
+
+          toggleSelectedItemEditor(item) {
+            const toggle = item.querySelector('[data-editor-toggle]');
+
+            if (toggle) {
+              toggle.click();
+            }
+          },
+
+          addHighlightedOrSingleAvailableItem() {
+            const items = this.visibleAvailableItems();
+            const highlightedItem = items.find((item) => item.dataset.itemId === this.highlightedAvailableItemId);
+
+            if (highlightedItem) {
+              this.addAvailableItem(highlightedItem);
+              return;
+            }
+
+            if (items.length === 1) {
+              this.addAvailableItem(items[0]);
+            }
+          },
+
+          addAvailableItem(item) {
+            if (!item) {
+              return;
+            }
+
+            this.highlightedAvailableItemId = item.dataset.itemId;
+            this.dispatchPickerAction(item, { focusSearchAfterAdd: true });
+          },
+
+          focusElement(element) {
+            if (!element || typeof element.focus !== 'function') {
+              return;
+            }
+
+            try {
+              element.focus({ preventScroll: true });
+            } catch (_error) {
+              element.focus();
             }
           }
         };
@@ -707,14 +1428,46 @@ defmodule SelectoComponents.Components.ListPicker do
     {:noreply, socket}
   end
 
+  defp picker_root_class(true) do
+    "grid min-w-0 items-start gap-3"
+  end
+
+  defp picker_root_class(_compact) do
+    "grid min-w-0 items-start gap-3"
+  end
+
+  defp picker_root_style(true), do: "grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);"
+
+  defp picker_root_style(_compact),
+    do: "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
+
+  defp picker_pane_height_class(_compact, override)
+       when is_binary(override) and byte_size(override) > 0,
+       do: override
+
+  defp picker_pane_height_class(true, _override), do: "max-h-72"
+  defp picker_pane_height_class(_compact, _override), do: "max-h-[32rem]"
+
+  defp picker_pane_style(base_style, compact, override) do
+    max_height = picker_pane_max_height(compact, override)
+    "#{base_style} max-height: #{max_height};"
+  end
+
+  defp picker_pane_max_height(_compact, override)
+       when is_binary(override) and byte_size(override) > 0,
+       do: override
+
+  defp picker_pane_max_height(true, _override), do: "18rem"
+  defp picker_pane_max_height(_compact, _override), do: "24rem"
+
   defp selected_item_type(available, item) do
-    item_str = to_string(item || "")
+    item_str = field_id_string(item)
 
     Enum.find_value(available || [], :unknown, fn
       {id, name, field_type} ->
         cond do
-          to_string(id) == item_str -> field_type
-          to_string(name) == item_str -> field_type
+          field_id_string(id) == item_str -> field_type
+          selected_item_label(name) == item_str -> field_type
           true -> nil
         end
 
@@ -722,6 +1475,20 @@ defmodule SelectoComponents.Components.ListPicker do
         nil
     end)
   end
+
+  defp selected_item_label(nil), do: ""
+  defp selected_item_label(value) when is_binary(value), do: value
+  defp selected_item_label(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp selected_item_label({func, {field, format}}),
+    do: "#{func}(#{selected_item_label(field)}, #{selected_item_label(format)})"
+
+  defp selected_item_label({func, field}), do: "#{func}(#{selected_item_label(field)})"
+  defp selected_item_label(value), do: inspect(value)
+
+  defp field_id_string({_func, {field, _format}}), do: field_id_string(field)
+  defp field_id_string({_func, field}), do: field_id_string(field)
+  defp field_id_string(value), do: selected_item_label(value)
 
   defp available_type_filters(available) do
     available
@@ -820,6 +1587,33 @@ defmodule SelectoComponents.Components.ListPicker do
     """
   end
 
+  attr(:type, :any, required: true)
+
+  defp choice_source_indicator(assigns) do
+    choice_source_id = choice_source_id(assigns.type)
+
+    assigns =
+      assigns
+      |> assign(:choice_source_id, choice_source_id)
+      |> assign(:label, choice_source_label(choice_source_id))
+
+    ~H"""
+    <span
+      :if={@choice_source_id}
+      data-choice-source-indicator
+      data-choice-source-id={@choice_source_id}
+      aria-label={@label}
+      title={@label}
+      class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+      style="border-color: color-mix(in srgb, var(--sc-accent) 55%, var(--sc-surface-border)); color: var(--sc-accent); background: color-mix(in srgb, var(--sc-accent) 8%, transparent);"
+    >
+      <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M8 4.25A3.75 3.75 0 1 0 8 11.75 3.75 3.75 0 0 0 8 4.25ZM2.75 8a5.25 5.25 0 1 1 9.38 3.24l4.32 4.31a.75.75 0 1 1-1.06 1.06l-4.31-4.32A5.25 5.25 0 0 1 2.75 8Z" />
+      </svg>
+    </span>
+    """
+  end
+
   defp type_badge_label(type) do
     case normalize_icon_key(type) do
       :number -> "Numeric"
@@ -888,6 +1682,23 @@ defmodule SelectoComponents.Components.ListPicker do
         "color: var(--sc-text-muted); opacity: 0.78;"
     end
   end
+
+  defp choice_source_id(%{} = metadata) do
+    metadata[:choice_source] ||
+      metadata["choice_source"] ||
+      choice_source_metadata_id(metadata[:choice_source_metadata]) ||
+      choice_source_metadata_id(metadata["choice_source_metadata"])
+  end
+
+  defp choice_source_id(_type), do: nil
+
+  defp choice_source_metadata_id(%{} = metadata),
+    do: Map.get(metadata, "id") || Map.get(metadata, :id)
+
+  defp choice_source_metadata_id(_metadata), do: nil
+
+  defp choice_source_label(nil), do: nil
+  defp choice_source_label(choice_source_id), do: "Choice source #{choice_source_id}"
 
   defp normalize_icon_key(%{} = metadata) do
     metadata[:icon] || metadata["icon"] || metadata[:icon_family] || metadata["icon_family"] ||

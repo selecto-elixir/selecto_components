@@ -16,10 +16,22 @@ defmodule SelectoComponents.Form.FilterRendering do
   use Phoenix.Component
   require Logger
 
+  alias SelectoComponents.Form.ColumnCatalog
   alias SelectoComponents.Presentation
   alias SelectoComponents.SchemaUtils
 
   @identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/
+  @choice_source_metadata_atom_keys %{
+    "control" => :control,
+    "field" => :field,
+    "id" => :id,
+    "label_field" => :label_field,
+    "method" => :method,
+    "options_request" => :options_request,
+    "presentation" => :presentation,
+    "url" => :url,
+    "validate_request_template" => :validate_request_template
+  }
 
   @doc """
   Render a filter form based on the filter definition and field type.
@@ -67,6 +79,10 @@ defmodule SelectoComponents.Form.FilterRendering do
       if is_map(column_def),
         do: SchemaUtils.with_resolved_type(assigns.selecto, column_def),
         else: column_def
+
+    choice_source_field = choice_source_field_metadata(assigns, filter_id)
+    filter_def = put_choice_source_metadata(filter_def, choice_source_field)
+    column_def = put_choice_source_metadata(column_def, choice_source_field)
 
     # Determine the field type
     field_type =
@@ -527,6 +543,9 @@ defmodule SelectoComponents.Form.FilterRendering do
     column_def = Map.get(assigns, :column_def) || Map.get(assigns, :filter_def)
     is_multi_select_id = column_def && Map.get(column_def, :filter_type) == :multi_select_id
 
+    choice_source_metadata =
+      choice_source_metadata(column_def) || choice_source_metadata(assigns.filter_def)
+
     filter_id = value_for(assigns.filter_value, "filter")
     operator_options = standard_operator_options(assigns.field_type, assigns.selecto, filter_id)
     operator_values = Enum.map(operator_options, &elem(&1, 0))
@@ -572,10 +591,16 @@ defmodule SelectoComponents.Form.FilterRendering do
         ) ||
         ""
 
+    choice_source_value = choice_source_submitted_value(assigns.filter_value)
+
     assigns =
       assigns
       |> assign(
         is_multi_select_id: is_multi_select_id,
+        choice_source_metadata: choice_source_metadata,
+        choice_source_value: choice_source_value,
+        choice_source_display_value:
+          choice_source_display_value(assigns.filter_value, choice_source_value),
         supports_manual_in_values: supports_manual_in_values?(assigns.field_type),
         operator_options: operator_options,
         current_comp: current_comp,
@@ -642,6 +667,17 @@ defmodule SelectoComponents.Form.FilterRendering do
                 phx-debounce="300"
               />
             </div>
+          <% choice_source_filter_shell?(@choice_source_metadata, @current_comp) -> %>
+            <.choice_source_filter_input
+              uuid={@uuid}
+              scope="filters"
+              value={@choice_source_value}
+              display_value={@choice_source_display_value}
+              metadata={@choice_source_metadata}
+              input_class="sc-input"
+              container_class="col-span-2"
+              disabled={@current_comp in ["IS NULL", "IS NOT NULL"]}
+            />
           <% @supports_manual_in_values and @current_comp in ["IN", "NOT IN"] -> %>
             <div
               id={"filter-in-values-#{@uuid}-#{:erlang.phash2({@selected_in_values, @current_comp})}"}
@@ -844,6 +880,789 @@ defmodule SelectoComponents.Form.FilterRendering do
     """
   end
 
+  @doc """
+  Renders the non-fetching choice-source input shell used by filter editors.
+
+  The shell preserves the normal `value` form field while exposing the
+  advertised choice-source request templates as data attributes for a later
+  hook-driven autocomplete pass.
+  """
+  attr(:uuid, :string, required: true)
+  attr(:scope, :string, default: "filters")
+  attr(:value, :any, default: "")
+  attr(:display_value, :any, default: nil)
+  attr(:metadata, :map, required: true)
+  attr(:input_class, :string, default: "sc-input")
+  attr(:container_class, :string, default: nil)
+  attr(:input_name, :string, default: nil)
+  attr(:display_input_name, :string, default: nil)
+  attr(:input_id, :string, default: nil)
+  attr(:display_input_id, :string, default: nil)
+  attr(:disabled, :boolean, default: false)
+
+  def choice_source_filter_input(assigns) do
+    metadata = assigns.metadata || %{}
+    input_name = assigns.input_name || "#{assigns.scope}[#{assigns.uuid}][value]"
+
+    display_input_name =
+      assigns.display_input_name || "#{assigns.scope}[#{assigns.uuid}][display_value]"
+
+    input_id = assigns.input_id || "#{assigns.scope}-choice-source-value-#{assigns.uuid}"
+    display_input_id = assigns.display_input_id || "#{input_id}-display"
+
+    assigns =
+      assigns
+      |> assign(:choice_source_id, choice_source_metadata_value(metadata, "id"))
+      |> assign(:field_id, choice_source_metadata_value(metadata, "field"))
+      |> assign(:control, choice_source_control(metadata))
+      |> assign(:transport, choice_source_transport(metadata))
+      |> assign(:placeholder, choice_source_placeholder(metadata))
+      |> assign(:input_name, input_name)
+      |> assign(:display_input_name, display_input_name)
+      |> assign(:input_id, input_id)
+      |> assign(:display_input_id, display_input_id)
+      |> assign(:options_url, choice_source_request_value(metadata, "options_request", "url"))
+      |> assign(
+        :options_method,
+        choice_source_request_value(metadata, "options_request", "method")
+      )
+      |> assign(:options_request_json, choice_source_request_json(metadata, "options_request"))
+      |> assign(
+        :validate_url,
+        choice_source_request_value(metadata, "validate_request_template", "url")
+      )
+      |> assign(
+        :validate_method,
+        choice_source_request_value(metadata, "validate_request_template", "method")
+      )
+      |> assign(
+        :validate_request_json,
+        choice_source_request_json(metadata, "validate_request_template")
+      )
+      |> assign(:value, normalize_string(assigns.value))
+      |> assign(
+        :display_value,
+        normalize_choice_source_display(assigns.display_value, assigns.value)
+      )
+
+    ~H"""
+    <div
+      id={"#{@input_id}-shell"}
+      phx-hook=".ChoiceSourceFilter"
+      data-choice-source-filter
+      data-choice-source-id={@choice_source_id}
+      data-choice-source-field={@field_id}
+      data-choice-source-control={@control}
+      data-choice-source-transport={@transport}
+      data-choice-source-options-url={@options_url}
+      data-choice-source-options-method={@options_method}
+      data-choice-source-options-request={@options_request_json}
+      data-choice-source-validate-url={@validate_url}
+      data-choice-source-validate-method={@validate_method}
+      data-choice-source-validate-request={@validate_request_json}
+      data-choice-source-limit="20"
+      data-choice-source-validate-on="blur submit"
+      data-choice-source-validation-state="unknown"
+      class={@container_class}
+    >
+      <input
+        id={@input_id}
+        type="hidden"
+        name={@input_name}
+        value={@value}
+        data-choice-source-value-input
+      />
+      <input
+        type="hidden"
+        name={@display_input_name}
+        value={@display_value}
+        data-choice-source-display-value-input
+      />
+      <div class="relative">
+        <input
+          id={@display_input_id}
+          type="search"
+          value={@display_value}
+          placeholder={@placeholder}
+          autocomplete="off"
+          class={[@input_class, "w-full pr-9"]}
+          phx-debounce="300"
+          disabled={@disabled}
+          aria-invalid="false"
+          data-choice-source-input
+          data-choice-source-display-input
+          data-choice-source-initial-value={@value}
+          data-choice-source-initial-label={@display_value}
+        />
+        <button
+          type="button"
+          class="absolute right-2 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center"
+          style="color: var(--sc-accent);"
+          tabindex="-1"
+          title="Find choices"
+          aria-label="Find choices"
+          data-choice-source-trigger
+        >
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M8 4.25A3.75 3.75 0 1 0 8 11.75 3.75 3.75 0 0 0 8 4.25ZM2.75 8a5.25 5.25 0 1 1 9.38 3.24l4.32 4.31a.75.75 0 1 1-1.06 1.06l-4.31-4.32A5.25 5.25 0 0 1 2.75 8Z" />
+          </svg>
+        </button>
+      </div>
+      <div
+        data-choice-source-status
+        class="mt-1 hidden text-xs"
+        style="color: var(--sc-text-muted);"
+        aria-live="polite"
+      >
+      </div>
+      <div
+        data-choice-source-options
+        role="listbox"
+        aria-label="Choice suggestions"
+        class="mt-1 hidden max-h-48 overflow-y-auto rounded-md border p-1 shadow-sm"
+        style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+      >
+      </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ChoiceSourceFilter">
+        export default {
+          mounted() {
+            this.input = this.el.querySelector('[data-choice-source-input]');
+            this.valueInput = this.el.querySelector('[data-choice-source-value-input]');
+            this.displayValueInput = this.el.querySelector('[data-choice-source-display-value-input]');
+            this.trigger = this.el.querySelector('[data-choice-source-trigger]');
+            this.optionsEl = this.el.querySelector('[data-choice-source-options]');
+            this.statusEl = this.el.querySelector('[data-choice-source-status]');
+            this.form = this.el.closest('form');
+            this.abortController = null;
+            this.validationAbortController = null;
+            this.debounceTimer = null;
+            this.highlightedIndex = -1;
+            this.options = [];
+            this.suppressNextInputFetch = false;
+            this.lastValidatedValue = null;
+            this.selectedValue = this.valueInput?.value || this.input?.dataset.choiceSourceInitialValue || '';
+            this.selectedLabel = this.displayValueInput?.value || this.input?.dataset.choiceSourceInitialLabel || '';
+
+            this.onInput = (event) => {
+              this.stopFormChange(event);
+
+              if (this.suppressNextInputFetch) {
+                this.suppressNextInputFetch = false;
+                return;
+              }
+
+              if ((this.input?.value || '') !== this.selectedLabel) {
+                this.setSubmittedValue('');
+                this.setDisplayValue('');
+              }
+
+              if (this.currentSubmittedValue() !== this.lastValidatedValue) {
+                this.setValidationState('unknown', '');
+              }
+
+              this.scheduleFetch();
+            };
+            this.onChange = (event) => this.stopFormChange(event);
+            this.onFocus = () => {
+              if (this.options.length > 0) {
+                this.showOptions();
+              }
+            };
+            this.onKeydown = (event) => this.handleKeydown(event);
+            this.onBlur = () => this.validateCurrentValue({ reason: 'blur' });
+            this.onSubmit = () => this.validateCurrentValue({ reason: 'submit', force: true });
+            this.onTriggerClick = (event) => {
+              event.preventDefault();
+              this.fetchOptions({ immediate: true });
+              this.input?.focus();
+            };
+            this.onDocumentClick = (event) => {
+              if (!this.el.contains(event.target)) {
+                this.hideOptions();
+              }
+            };
+
+            this.input?.addEventListener('input', this.onInput);
+            this.input?.addEventListener('change', this.onChange);
+            this.input?.addEventListener('focus', this.onFocus);
+            this.input?.addEventListener('keydown', this.onKeydown);
+            this.input?.addEventListener('blur', this.onBlur);
+            this.trigger?.addEventListener('click', this.onTriggerClick);
+            this.form?.addEventListener('submit', this.onSubmit);
+            document.addEventListener('click', this.onDocumentClick);
+            this.hydrateInitialDisplay();
+          },
+
+          destroyed() {
+            clearTimeout(this.debounceTimer);
+            this.abortController?.abort();
+            this.validationAbortController?.abort();
+            this.input?.removeEventListener('input', this.onInput);
+            this.input?.removeEventListener('change', this.onChange);
+            this.input?.removeEventListener('focus', this.onFocus);
+            this.input?.removeEventListener('keydown', this.onKeydown);
+            this.input?.removeEventListener('blur', this.onBlur);
+            this.trigger?.removeEventListener('click', this.onTriggerClick);
+            this.form?.removeEventListener('submit', this.onSubmit);
+            document.removeEventListener('click', this.onDocumentClick);
+          },
+
+          scheduleFetch() {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => this.fetchOptions(), 250);
+          },
+
+          async fetchOptions(_options = {}) {
+            if (!this.isInteractive()) {
+              return;
+            }
+
+            this.abortController?.abort();
+            this.abortController = new AbortController();
+            this.setStatus('Loading choices...');
+
+            try {
+              const payload = await this.fetchOptionsPayload();
+              this.options = Array.isArray(payload.options) ? payload.options : [];
+              this.highlightedIndex = this.options.length > 0 ? 0 : -1;
+              this.renderOptions();
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                return;
+              }
+
+              this.options = [];
+              this.hideOptions();
+              this.setStatus('Choices unavailable');
+            }
+          },
+
+          fetchOptionsPayload() {
+            if (this.usesLiveViewTransport()) {
+              return this.pushEventRequest('selecto_choice_source_options', this.optionsPayload());
+            }
+
+            const url = this.optionsUrl();
+
+            if (!url) {
+              return Promise.resolve({ options: [] });
+            }
+
+            return fetch(url, {
+              method: this.optionsMethod(),
+              headers: this.requestHeaders('choiceSourceOptionsRequest'),
+              credentials: 'same-origin',
+              signal: this.abortController.signal
+            }).then((response) => {
+              if (!response.ok) {
+                throw new Error(`Choice source returned ${response.status}`);
+              }
+
+              return response.json();
+            });
+          },
+
+          optionsPayload() {
+            return {
+              choice_source: this.el.dataset.choiceSourceId,
+              field: this.el.dataset.choiceSourceField,
+              search: this.input?.value || '',
+              limit: this.el.dataset.choiceSourceLimit || '20'
+            };
+          },
+
+          optionsUrl() {
+            const rawUrl = this.el.dataset.choiceSourceOptionsUrl;
+
+            if (!rawUrl) {
+              return null;
+            }
+
+            const url = new URL(rawUrl, window.location.origin);
+            const search = this.input?.value || '';
+            const limit = this.el.dataset.choiceSourceLimit || '20';
+
+            url.searchParams.set('search', search);
+            url.searchParams.set('limit', limit);
+
+            return url.toString();
+          },
+
+          optionsMethod() {
+            return (this.el.dataset.choiceSourceOptionsMethod || 'get').toUpperCase();
+          },
+
+          usesLiveViewTransport() {
+            return (this.el.dataset.choiceSourceTransport || '').toLowerCase() === 'live';
+          },
+
+          async validateCurrentValue(options = {}) {
+            const value = this.currentSubmittedValue();
+
+            if (!this.canValidateChoices() || !this.isInteractive()) {
+              return;
+            }
+
+            if (value.trim() === '') {
+              this.lastValidatedValue = null;
+              this.setValidationState('unknown', '');
+              return;
+            }
+
+            if (options.force !== true && value === this.lastValidatedValue) {
+              return;
+            }
+
+            this.validationAbortController?.abort();
+            this.validationAbortController = new AbortController();
+            this.setValidationState('checking', 'Checking choice...');
+
+            try {
+              const payload = await this.validationPayload(value);
+              this.lastValidatedValue = value;
+
+              if (payload.valid === true || payload.status === 'valid') {
+                this.applyValidationLabel(payload, value, options);
+                this.setValidationState('valid', 'Choice verified');
+              } else if (payload.valid === false || payload.status === 'invalid') {
+                this.setValidationState('invalid', 'Choice not available');
+              } else {
+                this.setValidationState('unknown', 'Choice not verified');
+              }
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                return;
+              }
+
+              this.setValidationState('unavailable', 'Choice validation unavailable');
+            }
+          },
+
+          canValidateChoices() {
+            return this.usesLiveViewTransport() || Boolean(this.validateUrl());
+          },
+
+          validationPayload(value) {
+            if (this.usesLiveViewTransport()) {
+              return this.pushEventRequest('selecto_choice_source_validate', {
+                choice_source: this.el.dataset.choiceSourceId,
+                field: this.el.dataset.choiceSourceField,
+                value
+              });
+            }
+
+            const request = this.validationRequest(value);
+
+            return fetch(request.url, {
+              method: request.method,
+              headers: request.headers,
+              body: request.body,
+              credentials: 'same-origin',
+              signal: this.validationAbortController.signal
+            }).then((response) => {
+              if (!response.ok) {
+                throw new Error(`Choice validation returned ${response.status}`);
+              }
+
+              return response.json();
+            });
+          },
+
+          pushEventRequest(event, payload) {
+            return new Promise((resolve, reject) => {
+              this.pushEvent(event, payload, (reply) => {
+                if (reply?.error) {
+                  reject(new Error(reply.error.message || 'Choice source unavailable'));
+                } else {
+                  resolve(reply || {});
+                }
+              });
+            });
+          },
+
+          currentSubmittedValue() {
+            return this.valueInput?.value || '';
+          },
+
+          hydrateInitialDisplay() {
+            if (this.isInteractive() && this.shouldHydrateDisplay()) {
+              this.validateCurrentValue({
+                reason: 'mount',
+                force: true,
+                hydrateDisplay: true
+              });
+            }
+          },
+
+          shouldHydrateDisplay(value = this.currentSubmittedValue()) {
+            const submittedValue = String(value || '').trim();
+            const displayValue = String(this.input?.value || '').trim();
+
+            return submittedValue !== '' && (displayValue === '' || displayValue === submittedValue);
+          },
+
+          isInteractive() {
+            if (!this.input || this.input.disabled) {
+              return false;
+            }
+
+            if (this.el.closest('[hidden], [inert], [aria-hidden="true"]')) {
+              return false;
+            }
+
+            const style = window.getComputedStyle(this.input);
+
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+              return false;
+            }
+
+            return this.input.getClientRects().length > 0;
+          },
+
+          applyValidationLabel(payload, value, options = {}) {
+            const label = this.validationLabel(payload);
+
+            if (!label || (options.hydrateDisplay !== true && !this.shouldHydrateDisplay(value))) {
+              return;
+            }
+
+            this.input.value = label;
+            this.input.dataset.choiceSourceSelectedValue = String(value || '');
+            this.input.dataset.choiceSourceSelectedLabel = label;
+            this.setSubmittedValue(value);
+            this.setDisplayValue(label);
+          },
+
+          validationLabel(payload) {
+            const candidates = [
+              payload?.label,
+              payload?.display_label,
+              payload?.choice_label,
+              payload?.option?.label,
+              payload?.metadata?.label,
+              payload?.metadata?.display_label,
+              payload?.metadata?.choice_label,
+              payload?.metadata?.name,
+              payload?.metadata?.full_name
+            ];
+
+            return candidates.find((candidate) => {
+              return candidate !== null && candidate !== undefined && String(candidate).trim() !== '';
+            })?.toString();
+          },
+
+          setSubmittedValue(value) {
+            const normalizedValue = value || '';
+
+            this.selectedValue = normalizedValue;
+
+            if (this.valueInput) {
+              this.valueInput.value = normalizedValue;
+            }
+          },
+
+          setDisplayValue(value) {
+            const normalizedValue = value || '';
+
+            this.selectedLabel = normalizedValue;
+
+            if (this.displayValueInput) {
+              this.displayValueInput.value = normalizedValue;
+            }
+          },
+
+          validateUrl() {
+            return this.el.dataset.choiceSourceValidateUrl || null;
+          },
+
+          validateMethod(template) {
+            return (
+              this.el.dataset.choiceSourceValidateMethod ||
+              template?.method ||
+              'post'
+            ).toUpperCase();
+          },
+
+          validationRequest(value) {
+            const template = this.parseDatasetJson('choiceSourceValidateRequest') || {};
+            const method = this.validateMethod(template);
+            const url = new URL(template.url || this.validateUrl(), window.location.origin);
+            const headers = Object.assign({ accept: 'application/json' }, template.headers || {});
+            const bodyTemplate = template.body || {
+              field: this.el.dataset.choiceSourceField,
+              value: '$value'
+            };
+            const payload = this.replaceTemplateValue(bodyTemplate, value);
+
+            if (method === 'GET') {
+              this.payloadEntries(payload).forEach(([key, entryValue]) => {
+                if (entryValue !== null && entryValue !== undefined) {
+                  url.searchParams.set(key, String(entryValue));
+                }
+              });
+
+              return {
+                method,
+                url: url.toString(),
+                headers: this.normalizeHeaders(headers),
+                body: undefined
+              };
+            }
+
+            if (!Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) {
+              headers['content-type'] = 'application/json';
+            }
+
+            return {
+              method,
+              url: url.toString(),
+              headers: this.normalizeHeaders(headers),
+              body: JSON.stringify(payload)
+            };
+          },
+
+          payloadEntries(payload) {
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+              return Object.entries(payload);
+            }
+
+            return [['value', payload]];
+          },
+
+          replaceTemplateValue(value, replacement) {
+            if (Array.isArray(value)) {
+              return value.map((entry) => this.replaceTemplateValue(entry, replacement));
+            }
+
+            if (value && typeof value === 'object') {
+              return Object.fromEntries(
+                Object.entries(value).map(([key, entry]) => [
+                  key,
+                  this.replaceTemplateValue(entry, replacement)
+                ])
+              );
+            }
+
+            if (typeof value === 'string') {
+              return value.replaceAll('$value', replacement);
+            }
+
+            return value;
+          },
+
+          normalizeHeaders(headers) {
+            return Object.fromEntries(
+              Object.entries(headers || {}).map(([key, value]) => [key, String(value)])
+            );
+          },
+
+          setValidationState(state, message) {
+            this.el.dataset.choiceSourceValidationState = state;
+
+            if (this.input) {
+              this.input.setAttribute('aria-invalid', state === 'invalid' ? 'true' : 'false');
+            }
+
+            if (message) {
+              this.setStatus(message);
+            } else {
+              this.clearStatus();
+            }
+          },
+
+          requestHeaders(datasetKey) {
+            const request = this.parseDatasetJson(datasetKey);
+            const headers = request?.headers || {};
+
+            return Object.fromEntries(
+              Object.entries(headers).map(([key, value]) => [key, String(value)])
+            );
+          },
+
+          parseDatasetJson(key) {
+            const value = this.el.dataset[key];
+
+            if (!value) {
+              return null;
+            }
+
+            try {
+              return JSON.parse(value);
+            } catch (_error) {
+              return null;
+            }
+          },
+
+          renderOptions() {
+            if (!this.optionsEl) {
+              return;
+            }
+
+            this.optionsEl.innerHTML = '';
+
+            if (this.options.length === 0) {
+              this.hideOptions();
+              this.setStatus('No choices found');
+              return;
+            }
+
+            this.clearStatus();
+
+            this.options.forEach((option, index) => {
+              const item = document.createElement('button');
+              item.type = 'button';
+              item.setAttribute('role', 'option');
+              item.dataset.choiceSourceOption = 'true';
+              item.dataset.choiceSourceOptionIndex = String(index);
+              item.dataset.choiceSourceOptionValue = this.optionValue(option);
+              item.className = 'block w-full rounded px-2 py-1.5 text-left text-sm';
+              item.style.color = 'var(--sc-text-primary)';
+              item.textContent = this.optionLabel(option);
+              item.addEventListener('mousedown', (event) => event.preventDefault());
+              item.addEventListener('click', () => this.selectOption(index));
+              this.optionsEl.appendChild(item);
+            });
+
+            this.showOptions();
+            this.updateHighlight();
+          },
+
+          showOptions() {
+            this.optionsEl?.classList.remove('hidden');
+          },
+
+          hideOptions() {
+            this.optionsEl?.classList.add('hidden');
+            this.highlightedIndex = -1;
+          },
+
+          setStatus(message) {
+            if (!this.statusEl) {
+              return;
+            }
+
+            this.statusEl.textContent = message;
+            this.statusEl.classList.remove('hidden');
+          },
+
+          clearStatus() {
+            if (!this.statusEl) {
+              return;
+            }
+
+            this.statusEl.textContent = '';
+            this.statusEl.classList.add('hidden');
+          },
+
+          handleKeydown(event) {
+            if (event.key === 'Escape') {
+              this.hideOptions();
+              return;
+            }
+
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              this.moveHighlight(1);
+              return;
+            }
+
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              this.moveHighlight(-1);
+              return;
+            }
+
+            if (event.key === 'Enter' && this.highlightedIndex >= 0 && !this.optionsEl?.classList.contains('hidden')) {
+              event.preventDefault();
+              this.selectOption(this.highlightedIndex);
+            }
+          },
+
+          moveHighlight(direction) {
+            if (this.options.length === 0) {
+              return;
+            }
+
+            if (this.optionsEl?.classList.contains('hidden')) {
+              this.showOptions();
+            }
+
+            this.highlightedIndex =
+              (this.highlightedIndex + direction + this.options.length) % this.options.length;
+            this.updateHighlight();
+          },
+
+          updateHighlight() {
+            if (!this.optionsEl) {
+              return;
+            }
+
+            Array.from(this.optionsEl.querySelectorAll('[data-choice-source-option]')).forEach((item, index) => {
+              const highlighted = index === this.highlightedIndex;
+              item.setAttribute('aria-selected', highlighted ? 'true' : 'false');
+              item.style.background = highlighted
+                ? 'color-mix(in srgb, var(--sc-accent) 12%, transparent)'
+                : 'transparent';
+            });
+          },
+
+          selectOption(index) {
+            const option = this.options[index];
+
+            if (!option || !this.input) {
+              return;
+            }
+
+            const value = this.optionValue(option);
+            const label = this.optionLabel(option);
+
+            this.input.value = label;
+            this.input.dataset.choiceSourceSelectedValue = value;
+            this.input.dataset.choiceSourceSelectedLabel = label;
+            this.setSubmittedValue(value);
+            this.setDisplayValue(label);
+            this.notifyValueChanged();
+            this.hideOptions();
+            this.clearStatus();
+            this.validateCurrentValue({ reason: 'select', force: true });
+          },
+
+          stopFormChange(event) {
+            event?.stopPropagation();
+          },
+
+          notifyValueChanged() {
+            const target = this.valueInput || this.displayValueInput;
+
+            if (target) {
+              target.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          },
+
+          optionValue(option) {
+            if (option?.value === null || option?.value === undefined) {
+              return '';
+            }
+
+            return String(option.value);
+          },
+
+          optionLabel(option) {
+            const label = option?.label;
+
+            if (label === null || label === undefined || String(label).trim() === '') {
+              return this.optionValue(option);
+            }
+
+            return String(label);
+          }
+        };
+      </script>
+    </div>
+    """
+  end
+
   defp standard_operator_options(field_type, selecto, filter_id) do
     if enum_filter?(selecto, filter_id) do
       [
@@ -929,6 +1748,21 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp supports_manual_in_values?(field_type),
     do: field_type in [:id, :integer, :float, :decimal, :string, :text, :citext, :custom_column]
+
+  defp choice_source_submitted_value(filter_value) when is_map(filter_value) do
+    value_for(filter_value, "value") || ""
+  end
+
+  defp choice_source_submitted_value(_filter_value), do: ""
+
+  defp choice_source_display_value(filter_value, fallback) when is_map(filter_value) do
+    value_for(filter_value, "display_value") ||
+      value_for(filter_value, "choice_label") ||
+      value_for(filter_value, "label") ||
+      fallback
+  end
+
+  defp choice_source_display_value(_filter_value, fallback), do: fallback
 
   defp selected_in_values(filter_value) when is_map(filter_value) do
     cond do
@@ -1514,6 +2348,9 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp normalize_string(nil), do: ""
   defp normalize_string(value), do: to_string(value)
 
+  defp normalize_choice_source_display(nil, value), do: normalize_string(value)
+  defp normalize_choice_source_display(value, _fallback), do: normalize_string(value)
+
   @doc """
   Hash filter structure and comparator mode, not filter values.
 
@@ -1542,7 +2379,9 @@ defmodule SelectoComponents.Form.FilterRendering do
   - Columns marked as filterable (make_filter: true)
   - Columns without custom formatting (assumed to be filterable)
   """
-  def build_filter_list(selecto) do
+  def build_filter_list(selecto, opts \\ []) do
+    choice_source_metadata_by_field = filter_choice_source_metadata_by_field(selecto, opts)
+
     # Include explicit filters and only columns that are marked as filterable
     filterable_columns =
       Selecto.columns(selecto)
@@ -1566,7 +2405,8 @@ defmodule SelectoComponents.Form.FilterRendering do
            format: Map.get(c, :format),
            icon: Map.get(c, :icon),
            icon_family: Map.get(c, :icon_family)
-         }}
+         }
+         |> put_choice_source_metadata(id, choice_source_metadata_by_field)}
 
       %{id: id} = c ->
         {id, c.name,
@@ -1575,9 +2415,151 @@ defmodule SelectoComponents.Form.FilterRendering do
            format: Map.get(c, :format),
            icon: Map.get(c, :icon),
            icon_family: Map.get(c, :icon_family)
-         }}
+         }
+         |> put_choice_source_metadata(id, choice_source_metadata_by_field)}
     end)
   end
+
+  defp choice_source_field_metadata(assigns, field_id) do
+    assigns
+    |> choice_source_metadata_by_field()
+    |> Map.get(to_string(field_id))
+  end
+
+  defp choice_source_metadata_by_field(assigns) when is_map(assigns) do
+    case Map.get(assigns, :choice_source_metadata_by_field) do
+      metadata_by_field when is_map(metadata_by_field) ->
+        metadata_by_field
+
+      _ ->
+        assigns
+        |> Map.get(:selecto)
+        |> ColumnCatalog.choice_source_metadata_by_field(choice_source_metadata_opts(assigns))
+    end
+  end
+
+  defp choice_source_metadata_opts(assigns) when is_map(assigns) do
+    [
+      choice_source_links: Map.get(assigns, :choice_source_links),
+      base_url: Map.get(assigns, :choice_source_base_url),
+      headers: Map.get(assigns, :choice_source_headers),
+      transport: choice_source_projection_transport(assigns)
+    ]
+    |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+  end
+
+  defp choice_source_projection_transport(assigns) do
+    Map.get(assigns, :choice_source_transport) || inferred_choice_source_transport(assigns)
+  end
+
+  defp inferred_choice_source_transport(assigns) do
+    if choice_source_live_resolver?(assigns), do: :live
+  end
+
+  defp choice_source_live_resolver?(assigns) do
+    [:choice_source_options_resolver, :choice_source_membership_resolver]
+    |> Enum.any?(fn key -> is_function(Map.get(assigns, key)) end)
+  end
+
+  defp filter_choice_source_metadata_by_field(selecto, opts) do
+    case Keyword.get(opts, :choice_source_metadata_by_field) do
+      metadata_by_field when is_map(metadata_by_field) ->
+        metadata_by_field
+
+      _ ->
+        ColumnCatalog.choice_source_metadata_by_field(selecto, opts)
+    end
+  end
+
+  defp put_choice_source_metadata(nil, _choice_source_field), do: nil
+
+  defp put_choice_source_metadata(
+         %{} = field_def,
+         %{"choice_source_metadata" => metadata} = field
+       ) do
+    field_def
+    |> Map.put(:choice_source, Map.get(field, "choice_source"))
+    |> Map.put(:choice_source_metadata, metadata)
+  end
+
+  defp put_choice_source_metadata(field_def, _choice_source_field), do: field_def
+
+  defp put_choice_source_metadata(metadata, field_id, choice_source_metadata_by_field) do
+    case Map.get(choice_source_metadata_by_field, to_string(field_id)) do
+      %{"choice_source_metadata" => metadata_document} = field ->
+        metadata
+        |> Map.put(:choice_source, Map.get(field, "choice_source"))
+        |> Map.put(:choice_source_metadata, metadata_document)
+
+      _field ->
+        metadata
+    end
+  end
+
+  defp choice_source_filter_shell?(metadata, comp) when is_map(metadata),
+    do: comp in ["=", "!="]
+
+  defp choice_source_filter_shell?(_metadata, _comp), do: false
+
+  defp choice_source_metadata(%{} = field_conf) do
+    case Map.get(field_conf, :choice_source_metadata) ||
+           Map.get(field_conf, "choice_source_metadata") do
+      metadata when is_map(metadata) -> metadata
+      _ -> nil
+    end
+  end
+
+  defp choice_source_metadata(_field_conf), do: nil
+
+  defp choice_source_metadata_value(metadata, key) when is_map(metadata) do
+    atom_key = Map.get(@choice_source_metadata_atom_keys, key)
+
+    if atom_key,
+      do: Map.get(metadata, key, Map.get(metadata, atom_key)),
+      else: Map.get(metadata, key)
+  end
+
+  defp choice_source_metadata_value(_metadata, _key), do: nil
+
+  defp choice_source_transport(metadata) do
+    case choice_source_metadata_value(metadata, "transport") do
+      nil -> "http"
+      value -> to_string(value)
+    end
+  end
+
+  defp choice_source_control(metadata) when is_map(metadata) do
+    presentation = choice_source_metadata_value(metadata, "presentation")
+
+    case choice_source_metadata_value(presentation || %{}, "control") do
+      nil -> "lookup"
+      control -> to_string(control)
+    end
+  end
+
+  defp choice_source_placeholder(metadata) do
+    case choice_source_metadata_value(metadata, "label_field") do
+      nil -> "Search choices..."
+      label_field -> "Search #{Phoenix.Naming.humanize(label_field)}..."
+    end
+  end
+
+  defp choice_source_request_value(metadata, request_key, value_key) when is_map(metadata) do
+    metadata
+    |> choice_source_metadata_value(request_key)
+    |> choice_source_metadata_value(value_key)
+  end
+
+  defp choice_source_request_value(_metadata, _request_key, _value_key), do: nil
+
+  defp choice_source_request_json(metadata, request_key) when is_map(metadata) do
+    case choice_source_metadata_value(metadata, request_key) do
+      request when is_map(request) -> Jason.encode!(request)
+      _ -> nil
+    end
+  end
+
+  defp choice_source_request_json(_metadata, _request_key), do: nil
 
   defp find_join_mode_config(selecto, filter_id, column_def) do
     # Check if column_def already has join_mode
@@ -1969,20 +2951,34 @@ defmodule SelectoComponents.Form.FilterRendering do
 
   defp promote_checkbox(assigns) do
     ~H"""
-    <div
+    <label
       class="col-span-3 flex items-center gap-2 text-sm"
       style="color: var(--sc-text-secondary);"
     >
       <input type="hidden" name={"filters[#{@uuid}][promote]"} value="false" />
       <input
         type="checkbox"
-        class="checkbox checkbox-sm"
+        class="sr-only"
         name={"filters[#{@uuid}][promote]"}
         value="true"
         checked={@checked}
-        style="border-color: var(--sc-surface-border); --chkbg: var(--sc-accent); --chkfg: var(--sc-surface-bg);"
-      /> Promote to View Controller
-    </div>
+      />
+      <span
+        class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold leading-none"
+        style={
+          if @checked do
+            "background: var(--sc-accent); border-color: var(--sc-accent); color: var(--sc-surface-bg);"
+          else
+            "border-color: var(--sc-surface-border);"
+          end
+        }
+      >
+        <%= if @checked do %>
+          ✓
+        <% end %>
+      </span>
+      <span>Promote to View Controller</span>
+    </label>
     """
   end
 

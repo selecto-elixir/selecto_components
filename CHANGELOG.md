@@ -2,6 +2,21 @@
 CHANGES
 =======
 
+Unreleased
+----------
+
+- Relaxed Selecto ecosystem dependency guidance to allow the coordinated 0.5
+  release line while preserving the current 0.4 lower bounds.
+
+V 0.4.7
+--------
+
+- Fixed ListPicker update handling across field-picker contexts so selected and
+  available item state stays synchronized when keyboard and picker operations
+  move, add, remove, or reorder fields.
+- Updated packaged `selecto` compatibility to require `>= 0.4.5`.
+- Bump package version to `0.4.7`.
+
 V 0.4.6
 --------
 
@@ -27,6 +42,35 @@ V 0.4.6
   stable when selected fields or aliases collide.
 - Fixed aggregate drill-down filter promotion so promoted filters and related
   aggregate interactions preserve the expected filter state.
+- Added a scoped keyboard shortcut foundation for the Selecto form, including
+  shortcut config, a help modal, view switching, export-tab navigation, and
+  `Cmd/Ctrl + Enter` apply handling.
+- Expanded the default shortcut set with filter focus, previous/next tab
+  navigation, and direct CSV/TSV/JSON/XLSX export shortcuts.
+- Added keyboard-driven filter insertion from the filter search: arrow keys
+  highlight visible filter columns, Enter adds the highlighted filter, and
+  Escape clears the search.
+- Fixed keyboard shortcut help so it stays hidden until requested and tightened
+  filter-picker key handling so Arrow/Enter/Escape remain scoped to the picker.
+- Updated filter search Enter handling so it adds a filter directly when the
+  visible match is unambiguous, without guessing from a longer result list.
+- Added keyboard controls for applied filter rows: ArrowUp/ArrowDown move
+  between filters, Enter focuses the value editor, Delete/Backspace removes,
+  and Escape returns to filter search.
+- Added keyboard picker behavior to ListPicker available-field searches:
+  ArrowUp/ArrowDown move through visible fields, Enter adds the highlighted or
+  only matching field, and Escape returns to or clears the search.
+- Added keyboard controls for selected ListPicker fields: ArrowUp/ArrowDown
+  move focus, Alt+ArrowUp/Alt+ArrowDown reorder, Delete/Backspace remove, and
+  Enter toggles the selected field editor.
+- Added results-table keyboard navigation: `R` focuses results, arrow keys move
+  through result cells, Enter opens row/drill-down actions, PageUp/PageDown
+  paginate, and Escape returns to the View Controller.
+- Added `F then G` and `F then A` shortcuts to open the controller and jump
+  directly to the Aggregate view's Group By and Aggregate field pickers.
+- Added `F then S`, `F then O`, `F then X`, `F then Y`, and `F then R`
+  shortcuts for Detail selected fields, Detail ordering, and Graph axis/series
+  field pickers.
 - Fixed custom datetime bucket SQL so relative date buckets such as
   `today, yesterday, 2-7, 8+` compile into valid date comparisons instead of
   invalid timestamp-vs-integer SQL.

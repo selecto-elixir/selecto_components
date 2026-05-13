@@ -14,6 +14,7 @@ It is the package you use when you want users to:
 
 ## What It Includes
 
+- `SelectoComponents.Explorer` as the preferred top-level exploration surface
 - `SelectoComponents.Form` for query-building and view configuration
 - `SelectoComponents.Results` for result rendering
 - built-in views:
@@ -27,19 +28,19 @@ It is the package you use when you want users to:
 
 - Phoenix 1.7+
 - Elixir ~> 1.18
-- `selecto >= 0.4.3 and < 0.5.0`
-- an adapter package such as `selecto_db_postgresql >= 0.4.2 and < 0.5.0`
-- `selecto_mix >= 0.4.2 and < 0.5.0` if you want generators and installation helpers
+- `selecto >= 0.4.5 and < 0.6.0`
+- an adapter package such as `selecto_db_postgresql >= 0.4.3 and < 0.6.0`
+- `selecto_mix >= 0.4.5 and < 0.6.0` if you want generators and installation helpers
 
 ## Installation
 
 ```elixir
 def deps do
   [
-    {:selecto_components, ">= 0.4.5 and < 0.5.0"},
-    {:selecto, ">= 0.4.3 and < 0.5.0"},
-    {:selecto_db_postgresql, ">= 0.4.2 and < 0.5.0"},
-    {:selecto_mix, ">= 0.4.2 and < 0.5.0"}
+    {:selecto_components, ">= 0.4.7 and < 0.6.0"},
+    {:selecto, ">= 0.4.5 and < 0.6.0"},
+    {:selecto_db_postgresql, ">= 0.4.3 and < 0.6.0"},
+    {:selecto_mix, ">= 0.4.5 and < 0.6.0"}
   ]
 end
 ```
@@ -58,6 +59,13 @@ That wires:
 - Tailwind `@source` coverage for component templates
 
 ## Minimal Usage
+
+`SelectoComponents.Explorer` is now the preferred render surface.
+
+Current migration note:
+
+- use `SelectoComponents.Form` in the parent LiveView for the existing event-handler and `get_initial_state/2` compatibility path
+- render `SelectoComponents.Explorer` instead of rendering `Form` and `Results` separately
 
 ```elixir
 defmodule MyAppWeb.ProductLive do
@@ -81,16 +89,40 @@ defmodule MyAppWeb.ProductLive do
 
   def render(assigns) do
     ~H"""
-    <.live_component module={SelectoComponents.Form} id="product-form" {assigns} />
-    <.live_component module={SelectoComponents.Results} id="product-results" {assigns} />
+    <.live_component module={SelectoComponents.Explorer} id="product-explorer" {assigns} />
     """
   end
 end
 ```
 
+## Config-Driven Explorer
+
+You can also hand `Explorer` a smaller config struct while keeping the current parent LiveView compatibility boot path:
+
+```elixir
+config = %SelectoComponents.Explorer.Config{
+  id: "products",
+  selecto: ProductDomain.new(Repo),
+  views: [
+    SelectoComponents.Views.spec(:detail, SelectoComponents.Views.Detail, "Detail", %{}),
+    SelectoComponents.Views.spec(:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", %{}),
+    SelectoComponents.Views.spec(:graph, SelectoComponents.Views.Graph, "Graph", %{})
+  ],
+  title: "Products Explorer",
+  presentation: %{timezone: "America/New_York"}
+}
+```
+
+The current runtime still expects the parent LiveView to own state/event setup. `Explorer.Config` is the first host-facing config seam, not a full replacement for that compatibility path yet.
+
 ## Common Add-Ons
 
-You can keep the basic `Form` + `Results` pairing and progressively add host-app integrations.
+You can start from `Explorer` and progressively add host-app integrations.
+
+Compatibility note:
+
+- `Form` + `Results` still work
+- new docs/examples should prefer `Explorer`
 
 ### Saved Views
 
@@ -125,6 +157,36 @@ Recommended execution model: use Oban (or another worker system) to run due sche
 ### Extension Views
 
 Map views and other extension-provided view systems are merged from domain extensions rather than hard-coded into the package.
+
+## Query Contracts
+
+`SelectoComponents.QueryContract.build/1` returns the constrained
+`Selecto.Domain.query_contract/1` projection for Components-facing tooling. It
+accepts an authored domain, a normalized domain, or a configured Selecto struct
+without changing the existing Explorer/Form runtime path.
+
+Use `SelectoComponents.QueryContract.json_document/1` or `encode_json/2` when a
+consumer needs a `query_contract.json`-ready artifact with string keys and
+JSON-compatible values. Pass `query_contract_url` and `query_guide_url` to add
+discovery links for tools that need to move between the JSON contract and its
+Markdown guide. The JSON and Markdown Plugs also emit HTTP `Link` headers for
+the same pair of artifacts, plus byte-accurate `ETag` headers with
+`If-None-Match` support for conditional GETs.
+
+Use `SelectoComponents.QueryContract.validate_intent/2` to check a generated
+detail, aggregate, or graph query intent against a query contract before handing
+it to runtime query code. Host apps can also mount
+`SelectoComponents.QueryContract.IntentValidator.Plug` to expose the same
+validation over an HTTP POST endpoint.
+
+Host apps can mount `SelectoComponents.QueryContract.Plug` for a small JSON
+endpoint:
+
+```elixir
+forward "/selecto/orders/query-contract.json",
+        SelectoComponents.QueryContract.Plug,
+        domain: MyApp.SelectoDomains.Orders.domain()
+```
 
 ## Custom View Systems
 

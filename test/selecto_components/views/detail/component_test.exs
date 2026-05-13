@@ -62,6 +62,13 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ "aria-label=\"Previous page\""
     assert html =~ "aria-label=\"Next page\""
     assert html =~ "aria-label=\"Last page\""
+    assert html =~ ~s(data-selecto-results-page="previous")
+    assert html =~ ~s(data-selecto-results-page="next")
+    assert html =~ ~s(data-selecto-result-row)
+    assert html =~ ~s(data-selecto-result-cell)
+    assert html =~ ~s(data-result-row-index="0")
+    assert html =~ ~s(data-result-column-index="1")
+    assert html =~ ~s(tabindex="-1")
   end
 
   test "disables forward pagination buttons on the last page" do
@@ -233,6 +240,59 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
 
     assert html =~ "32.0 F"
     assert html =~ "2023-12-31 19:00"
+  end
+
+  test "renders naive instant detail values in the viewer timezone" do
+    detail_selecto =
+      Selecto.configure(
+        %{
+          name: "DetailNaiveInstantTest",
+          source: %{
+            source_table: "records",
+            primary_key: :id,
+            fields: [:id, :published_at_usec],
+            redact_fields: [],
+            columns: %{
+              id: %{type: :integer},
+              published_at_usec: %{
+                type: :utc_datetime_usec,
+                presentation: %{
+                  semantic_type: :temporal,
+                  temporal_kind: :instant,
+                  storage_timezone: "Etc/UTC",
+                  display_timezone: :viewer
+                }
+              }
+            },
+            associations: %{}
+          },
+          schemas: %{},
+          joins: %{}
+        },
+        nil
+      )
+      |> Map.put(:set, %{
+        columns: [
+          %{
+            "field" => "published_at_usec",
+            "alias" => "published_at_usec",
+            "uuid" => "published-col"
+          }
+        ]
+      })
+
+    assigns =
+      base_assigns(%{
+        selecto: detail_selecto,
+        query_results:
+          {[[~N[2026-04-02 16:45:00.123456]]], ["published_at_usec"], ["Published At Usec"]},
+        view_meta: %{page: 0, per_page: 10, total_rows: 1, subselect_configs: []},
+        presentation_context: %{timezone: "Europe/Berlin"}
+      })
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "2026-04-02 18:45"
   end
 
   test "renders row values when column uuid does not match row-data uuid mapping" do

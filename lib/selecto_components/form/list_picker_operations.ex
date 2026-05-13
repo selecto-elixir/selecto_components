@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.ListPickerOperations do
   """
 
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.Components.ListPicker
   alias SelectoComponents.Form.ColumnCatalog
   alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
@@ -63,15 +64,22 @@ defmodule SelectoComponents.Form.ListPickerOperations do
     else
       {item, item_list} = List.pop_at(item_list, item_index)
 
+      target_index =
+        case direction do
+          "up" -> max(item_index - 1, 0)
+          :up -> max(item_index - 1, 0)
+          "down" -> min(item_index + 1, length(item_list))
+          :down -> min(item_index + 1, length(item_list))
+          _ -> item_index
+        end
+
       item_list =
-        List.insert_at(
-          item_list,
-          case direction do
-            "up" -> item_index - 1
-            "down" -> item_index + 1
-          end,
-          item
-        )
+        if target_index == item_index do
+          item_list
+          |> List.insert_at(item_index, item)
+        else
+          List.insert_at(item_list, target_index, item)
+        end
 
       put_in(view_config.views[view][list], item_list)
     end
@@ -156,4 +164,44 @@ defmodule SelectoComponents.Form.ListPickerOperations do
       selecto: ColumnCatalog.picker_selecto(socket_assigns.selecto)
     )
   end
+
+  @doc """
+  Send an update directly to the list picker affected by a list change.
+
+  The view form update keeps form-level assigns current, while this focused
+  update ensures the concrete picker LiveComponent also receives the changed
+  list when the event originated inside that picker.
+  """
+  def send_list_picker_update(view, list, updated_view_config) do
+    view = SafeAtom.to_view_mode(view)
+    list = SafeAtom.to_list_name(list)
+
+    Phoenix.LiveView.send_update(ListPicker,
+      id: list_picker_component_id(view, list),
+      selected_items: view_list(updated_view_config, view, list)
+    )
+  end
+
+  defp view_list(view_config, view, list) do
+    view_config
+    |> map_get(:views, %{})
+    |> map_get(view, %{})
+    |> map_get(list, [])
+  end
+
+  defp map_get(map, key, default) when is_map(map) and is_atom(key) do
+    Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp map_get(map, key, default) when is_map(map) and is_binary(key) do
+    Map.get(map, key, default)
+  end
+
+  defp map_get(_map, _key, default), do: default
+
+  defp list_picker_component_id(view, list)
+       when view in [:graph, :timeseries, :chart] and list in [:x_axis, :y_axis, :series],
+       do: "#{view}_#{list}"
+
+  defp list_picker_component_id(_view, list), do: Atom.to_string(list)
 end

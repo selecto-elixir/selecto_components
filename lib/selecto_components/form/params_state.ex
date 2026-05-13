@@ -10,18 +10,16 @@ defmodule SelectoComponents.Form.ParamsState do
   - Managing URL state updates
   """
 
-  import SelectoComponents.Helpers.Filters, only: [filter_recurse: 3]
-  alias SelectoComponents.Performance.MetricsCollector
-  alias SelectoComponents.DBSupport
+  alias SelectoComponents.Execution.CTEs
+  alias SelectoComponents.Execution.Executor
+  alias SelectoComponents.Execution.Plan
+  alias SelectoComponents.Execution.ResultState
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
-  alias SelectoComponents.Views.Detail.QueryPagination
-  alias SelectoComponents.SubselectBuilder
-  alias SelectoComponents.EnhancedTable.Sorting
-  alias SelectoComponents.SafeAtom
-  alias SelectoComponents.QueryResults
   alias SelectoComponents.Presentation
-  alias SelectoComponents.Views.Runtime, as: ViewRuntime
+  alias SelectoComponents.Session.Codec
+  alias SelectoComponents.Session.URL
+  alias SelectoComponents.Session.Store, as: SessionStore
   require Logger
 
   @map_param_keys ~w(
@@ -49,94 +47,12 @@ defmodule SelectoComponents.Form.ParamsState do
   @doc """
   Convert view_config structure to URL parameters format.
   """
-  def view_config_to_params(view_config) do
-    view_mode = get_map_value(view_config, :view_mode, "aggregate")
-    ctes = get_map_value(view_config, :ctes, [])
-    filters = get_map_value(view_config, :filters, [])
-    views = get_map_value(view_config, :views, %{})
-
-    params = %{
-      "view_mode" => view_mode,
-      "ctes" => ctes_to_params(ctes),
-      "filters" => filters_to_params(filters)
-    }
-
-    view_params =
-      views
-      |> Enum.reduce(%{}, fn {view_key, view_data}, acc ->
-        view = SafeAtom.to_view_mode(view_key)
-        Map.merge(acc, view_data_to_params(view, view_data))
-      end)
-
-    Map.merge(params, view_params)
-  end
-
-  defp view_data_to_params(_view, nil), do: %{}
-
-  defp view_data_to_params(view, view_data) when is_map(view_data) do
-    Enum.reduce(view_data, %{}, fn {list_name, items}, acc ->
-      cond do
-        view == :map and list_name in [:map_layers, "map_layers"] ->
-          merge_scalar_view_param(acc, view, list_name, items)
-
-        view == :map ->
-          merge_scalar_view_param(acc, view, list_name, items)
-
-        is_list(items) ->
-          Map.put(acc, to_string(list_name), view_items_to_params(items))
-
-        true ->
-          merge_scalar_view_param(acc, view, list_name, items)
-      end
-    end)
-  end
-
-  defp view_data_to_params(_view, _view_data), do: %{}
+  def view_config_to_params(view_config), do: URL.view_config_to_params(view_config)
 
   @doc """
   Convert full view_config structure to saved-view persistence format.
   """
-  def view_config_to_saved_params(view_config) when is_map(view_config) do
-    %{
-      "view_mode" => get_map_value(view_config, :view_mode, "aggregate"),
-      "ctes" => normalize_saved_ctes_for_storage(get_map_value(view_config, :ctes, [])),
-      "filters" => normalize_saved_filters_for_storage(get_map_value(view_config, :filters, [])),
-      "views" => normalize_saved_views_for_storage(get_map_value(view_config, :views, %{}))
-    }
-  end
-
-  def view_config_to_saved_params(view_config), do: view_config
-
-  defp view_items_to_params(items) do
-    items
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn
-      {{id, field, config}, index}, item_acc ->
-        Map.put(
-          item_acc,
-          compact_param_key(index),
-          Map.merge(config, %{
-            "uuid" => id,
-            "field" => field,
-            "index" => to_string(index)
-          })
-        )
-
-      {[id, field, config], index}, item_acc ->
-        Map.put(
-          item_acc,
-          compact_param_key(index),
-          Map.merge(config, %{
-            "uuid" => id,
-            "field" => field,
-            "index" => to_string(index)
-          })
-        )
-
-      {_unknown_item, _index}, item_acc ->
-        item_acc
-    end)
-  end
+  def view_config_to_saved_params(view_config), do: Codec.view_config_to_saved_params(view_config)
 
   defp ctes_to_params(ctes) when is_list(ctes) do
     ctes
@@ -170,89 +86,6 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp ctes_to_params(_ctes), do: %{}
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:per_page, "per_page"] do
-    Map.put(acc, "aggregate_per_page", AggregateOptions.normalize_per_page_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid, "grid"] do
-    Map.put(acc, "aggregate_grid", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid_colorize, "grid_colorize"] do
-    Map.put(acc, "aggregate_grid_colorize", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, :aggregate, key, value)
-       when key in [:grid_color_scale, "grid_color_scale"] do
-    Map.put(
-      acc,
-      "aggregate_grid_color_scale",
-      AggregateOptions.normalize_grid_color_scale_mode(value)
-    )
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:max_rows, "max_rows"] do
-    Map.put(acc, "max_rows", DetailOptions.normalize_max_rows_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:count_mode, "count_mode"] do
-    Map.put(acc, "count_mode", DetailOptions.normalize_count_mode_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :detail, key, value)
-       when key in [:row_click_action, "row_click_action"] do
-    maybe_put_param(acc, "row_click_action", normalize_optional_scalar(value))
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value)
-       when key in [:center, "center"] do
-    maybe_put_center_params(acc, value)
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value)
-       when key in [:map_layers, "map_layers"] do
-    maybe_put_param(acc, "map_layers", normalize_map_layers_param(value))
-  end
-
-  defp merge_scalar_view_param(acc, :map, key, value) do
-    case map_param_key(key) do
-      nil ->
-        acc
-
-      param_key ->
-        maybe_put_param(acc, param_key, normalize_map_param_value(param_key, value))
-    end
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, key, value)
-       when key in [:per_page, "per_page"] do
-    Map.put(acc, "per_page", normalize_per_page_param(value, "30"))
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, key, value)
-       when key in [:prevent_denormalization, "prevent_denormalization"] do
-    Map.put(acc, "prevent_denormalization", to_string(value))
-  end
-
-  defp merge_scalar_view_param(acc, _selected_view, _key, _value), do: acc
-
-  defp normalize_per_page_param(nil, default), do: default
-
-  defp normalize_per_page_param(value, default) when is_binary(value) do
-    trimmed = String.trim(value)
-    if byte_size(trimmed) > 0, do: trimmed, else: default
-  end
-
-  defp normalize_per_page_param(value, _default) when is_integer(value), do: to_string(value)
-  defp normalize_per_page_param(value, _default) when is_atom(value), do: Atom.to_string(value)
-
-  defp normalize_per_page_param(_value, default), do: default
 
   defp normalize_optional_scalar(nil), do: nil
 
@@ -351,8 +184,13 @@ defmodule SelectoComponents.Form.ParamsState do
       String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
     end)
     |> Enum.reduce([], fn
-      {u, %{"conjunction" => conj} = f}, acc -> acc ++ [{u, Map.get(f, "section"), conj}]
-      {u, f}, acc -> acc ++ [{u, Map.get(f, "section"), f}]
+      {param_key, %{"conjunction" => conj} = f}, acc ->
+        uuid = get_map_value(f, :uuid, param_key)
+        acc ++ [{uuid, Map.get(f, "section"), conj}]
+
+      {param_key, f}, acc ->
+        uuid = get_map_value(f, :uuid, param_key)
+        acc ++ [{uuid, Map.get(f, "section"), f}]
     end)
   end
 
@@ -579,6 +417,10 @@ defmodule SelectoComponents.Form.ParamsState do
   5. Updates socket state with results or errors
   """
   def view_from_params(params, socket) do
+    Logger.debug(fn ->
+      "[selecto_components] view_from_params start view_mode=#{Map.get(params, "view_mode") || Map.get(params, :view_mode)} connected=#{Phoenix.LiveView.connected?(socket)} pid=#{inspect(self())}"
+    end)
+
     result_socket =
       try do
         socket =
@@ -588,325 +430,21 @@ defmodule SelectoComponents.Form.ParamsState do
             execution_error: nil
           )
 
-        presentation_context =
-          socket.assigns
-          |> Map.get(:presentation_context, %{})
-          |> Presentation.resolve_context()
+        plan = Plan.build(params, socket)
+        result = Executor.run(plan, socket)
+        socket = ResultState.assign_result(socket, result)
 
-        params = canonicalize_form_params(params, socket.assigns[:selecto], presentation_context)
-        params = put_runtime_presentation_context(params, presentation_context)
+        if result.executed do
+          ResultState.maybe_notify_query_executed(result)
+          row_count = ResultState.success_row_count(result)
 
-        old_selecto = socket.assigns.selecto
-
-        selecto =
-          Selecto.configure(
-            old_selecto.domain,
-            old_selecto.postgrex_opts,
-            adapter: old_selecto.adapter,
-            validate: false
-          )
-          |> maybe_apply_ctes(params)
-
-        raw_columns = Selecto.columns(selecto)
-
-        columns_list = SelectoComponents.Form.ColumnCatalog.picker_columns(selecto)
-
-        columns_map =
-          raw_columns
-          |> Enum.into(%{}, fn {key, col} ->
-            col_with_metadata =
-              col
-              |> Map.put(:field, col.name)
-              |> Map.put(:colid, key)
-
-            {key, col_with_metadata}
-          end)
-          |> then(fn cols ->
-            Enum.reduce(cols, cols, fn {_colid, col}, acc ->
-              Map.put(acc, col.name, col)
-            end)
+          Logger.debug(fn ->
+            "[selecto_components] view_from_params success view_mode=#{result.applied_view} rows=#{row_count} sql?=#{is_binary(result.last_query_info[:sql]) and result.last_query_info[:sql] != ""} pid=#{inspect(self())}"
           end)
 
-        filters_by_section =
-          Map.get(params, "filters", %{})
-          |> Map.values()
-          |> Enum.filter(fn f ->
-            is_map(f) &&
-              Map.has_key?(f, "section") &&
-              (Map.has_key?(f, "filter") || Map.get(f, "is_section") in ["Y", true, "true"])
-          end)
-          |> Enum.reduce(%{}, fn f, acc ->
-            Map.put(acc, Map.get(f, "section"), Map.get(acc, Map.get(f, "section"), []) ++ [f])
-          end)
-
-        filtered = filter_recurse(selecto, filters_by_section, "filters")
-
-        selected_view = SafeAtom.to_view_mode(get_map_value(params, :view_mode))
-
-        params =
-          if selected_view == :detail && Map.has_key?(socket.assigns, :current_detail_page) do
-            Map.put(params, "detail_page", to_string(socket.assigns.current_detail_page))
-          else
-            params
-          end
-
-        view_tuple = Enum.find(socket.assigns.views, fn {id, _, _, _} -> id == selected_view end)
-
-        {view_set, view_meta} =
-          case view_tuple do
-            {_id, _module, _name, _opt} = tuple ->
-              ViewRuntime.view(
-                tuple,
-                params,
-                columns_map,
-                filtered,
-                selecto
-              )
-
-            nil ->
-              raise "View mode '#{selected_view}' not found in configured views"
-          end
-
-        selecto =
-          selecto
-          |> Map.put(:set, Map.merge(Map.get(selecto, :set, %{}), view_set))
-
-        view_mode = Map.get(params, "view_mode", "detail")
-        selected_columns = SelectoComponents.Form.get_selected_columns_from_params(params)
-
-        selecto =
-          Selecto.AutoRetarget.maybe_apply(selecto,
-            view_mode: view_mode,
-            selected: selected_columns
-          )
-
-        selecto =
-          if Map.has_key?(selecto.set, :denorm_groups) and is_map(selecto.set.denorm_groups) and
-               map_size(selecto.set.denorm_groups) > 0 do
-            denorm_groups = selecto.set.denorm_groups
-
-            try do
-              Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-                SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
-              end)
-            rescue
-              _e ->
-                selecto
-            end
-          else
-            selecto
-          end
-
-        selecto =
-          if socket.assigns[:sort_by] do
-            Sorting.apply_sort_to_query(selecto, socket.assigns.sort_by)
-          else
-            selecto
-          end
-
-        {query_result, view_meta, page_query_cache} =
-          execute_query_with_detail_pagination(selecto, params, view_meta, socket)
-
-        case query_result do
-          {:ok, {rows, columns, aliases}, metadata} ->
-            query_sql = Map.get(metadata, :sql)
-            query_params = Map.get(metadata, :params, [])
-            execution_time = Map.get(metadata, :execution_time, 0)
-
-            if is_binary(query_sql) and query_sql != "" do
-              MetricsCollector.record_query(
-                query_sql,
-                execution_time,
-                %{
-                  rows_returned: length(rows),
-                  total_rows:
-                    Map.get(
-                      view_meta,
-                      :total_rows,
-                      Map.get(view_meta, :aggregate_total_rows, length(rows))
-                    ),
-                  columns_count: length(columns),
-                  view_mode: socket.assigns.view_config.view_mode,
-                  has_filters: length(list_field(selecto.set, :filtered)) > 0,
-                  has_grouping: length(list_field(selecto.set, :group_by)) > 0,
-                  params: query_params
-                }
-              )
-            end
-
-            {rows_for_display, view_meta} = maybe_cap_aggregate_rows(rows, view_meta, params)
-
-            normalized_rows =
-              normalize_rows_for_view(
-                rows_for_display,
-                columns,
-                socket.assigns.view_config.view_mode
-              )
-
-            view_meta = Map.merge(view_meta, %{exe_id: UUID.uuid4()})
-
-            detail_cache_assignment =
-              if DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil
-
-            aggregate_cache_assignment =
-              if AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil
-
-            cache_debug_info =
-              build_query_cache_debug_info(
-                detail_cache_assignment,
-                params,
-                normalized_rows,
-                columns,
-                aliases
-              )
-
-            previous_last_query_info = socket.assigns[:last_query_info] || %{}
-            executed_sql? = is_binary(query_sql) and query_sql != ""
-
-            effective_sql =
-              if executed_sql? do
-                query_sql
-              else
-                Map.get(previous_last_query_info, :sql)
-              end
-
-            effective_params =
-              if executed_sql? do
-                query_params
-              else
-                Map.get(previous_last_query_info, :params, query_params)
-              end
-
-            effective_timing =
-              if executed_sql? do
-                execution_time
-              else
-                Map.get(previous_last_query_info, :timing)
-              end
-
-            last_query_info = %{
-              sql: effective_sql,
-              params: effective_params,
-              timing: effective_timing,
-              page_cache_memory_bytes: cache_debug_info.bytes,
-              page_cache_pages: cache_debug_info.pages,
-              page_cache_rows: cache_debug_info.rows
-            }
-
-            socket =
-              Phoenix.Component.assign(socket,
-                selecto: selecto,
-                columns: columns_list,
-                field_filters: Selecto.filters(selecto),
-                presentation_context: presentation_context,
-                query_results: {normalized_rows, columns, aliases},
-                used_params: drop_runtime_only_params(params),
-                applied_view: get_map_value(params, :view_mode),
-                view_meta: view_meta,
-                detail_page_cache: detail_cache_assignment,
-                aggregate_page_cache: aggregate_cache_assignment,
-                executed: true,
-                execution_error: nil,
-                last_query_info: last_query_info
-              )
-
-            send(
-              self(),
-              {:query_executed,
-               %{
-                 selecto: selecto,
-                 query_results: {normalized_rows, columns, aliases},
-                 last_query_info: last_query_info,
-                 view_meta: view_meta,
-                 applied_view: get_map_value(params, :view_mode),
-                 detail_page_cache: detail_cache_assignment,
-                 aggregate_page_cache: aggregate_cache_assignment
-               }}
-            )
-
-            socket
-
-          {:error, %{__struct__: module} = error} when module == Selecto.Error ->
-            sanitized_error =
-              SelectoComponents.Form.sanitize_error_for_environment(
-                error,
-                execution_error_opts(error, params, operation: "view-apply")
-              )
-
-            {error_sql, error_params} =
-              try do
-                case Selecto.to_sql(selecto) do
-                  {sql, params} -> {sql, params}
-                  _ -> {nil, []}
-                end
-              rescue
-                _ -> {nil, []}
-              end
-
-            Phoenix.Component.assign(socket,
-              selecto: selecto,
-              columns: columns_list,
-              field_filters: Selecto.filters(selecto),
-              presentation_context: presentation_context,
-              query_results: nil,
-              used_params: drop_runtime_only_params(params),
-              applied_view: get_map_value(params, :view_mode),
-              view_meta: view_meta,
-              detail_page_cache:
-                if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
-              aggregate_page_cache:
-                if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
-              executed: false,
-              execution_error: sanitized_error,
-              last_query_info: %{
-                sql: error_sql,
-                params: error_params,
-                timing: nil
-              }
-            )
-
-          {:error, error} ->
-            sanitized_error =
-              SelectoComponents.Form.build_selecto_error(
-                :query_error,
-                inspect(error),
-                %{original_error: error}
-              )
-              |> SelectoComponents.Form.sanitize_error_for_environment(
-                execution_error_opts(error, params, operation: "view-apply")
-              )
-
-            {error_sql, error_params} =
-              try do
-                case Selecto.to_sql(selecto) do
-                  {sql, params} -> {sql, params}
-                  _ -> {nil, []}
-                end
-              rescue
-                _ -> {nil, []}
-              end
-
-            Phoenix.Component.assign(socket,
-              selecto: selecto,
-              columns: columns_list,
-              field_filters: Selecto.filters(selecto),
-              presentation_context: presentation_context,
-              query_results: nil,
-              used_params: drop_runtime_only_params(params),
-              applied_view: get_map_value(params, :view_mode),
-              view_meta: view_meta,
-              detail_page_cache:
-                if(DetailOptions.detail_view_mode?(params), do: page_query_cache, else: nil),
-              aggregate_page_cache:
-                if(AggregateOptions.aggregate_view_mode?(params), do: page_query_cache, else: nil),
-              executed: false,
-              execution_error: sanitized_error,
-              last_query_info: %{
-                sql: error_sql,
-                params: error_params,
-                timing: nil
-              }
-            )
+          socket
+        else
+          socket
         end
       rescue
         error ->
@@ -926,289 +464,31 @@ defmodule SelectoComponents.Form.ParamsState do
               view_mode: view_mode_value(params)
             )
 
-          Phoenix.Component.assign(socket,
-            query_results: nil,
-            used_params: drop_runtime_only_params(params),
-            applied_view: view_mode_value(params, socket.assigns[:applied_view]),
-            executed: false,
-            execution_error: sanitized_error,
-            view_meta: %{},
-            detail_page_cache: nil,
-            aggregate_page_cache: nil,
-            last_query_info: %{}
-          )
+          ResultState.build_processing_failure(socket, params, sanitized_error)
       catch
         :exit, reason ->
-          Phoenix.Component.assign(socket,
-            query_results: nil,
-            used_params: drop_runtime_only_params(params),
-            applied_view: view_mode_value(params, socket.assigns[:applied_view]),
-            executed: false,
-            execution_error:
-              SelectoComponents.Form.build_selecto_error(
-                :system_error,
-                "System error occurred while processing view",
-                %{
-                  exit_reason: inspect(reason),
-                  view_mode: view_mode_value(params, socket.assigns[:applied_view])
-                }
-              )
-              |> SelectoComponents.Form.sanitize_error_for_environment(
-                stage: if(reason == :timeout, do: :timeout, else: :lifecycle),
-                category: if(reason == :timeout, do: :timeout, else: :runtime),
-                code: if(reason == :timeout, do: :query_timed_out, else: :system_exit),
-                operation: "view-apply",
+          execution_error =
+            SelectoComponents.Form.build_selecto_error(
+              :system_error,
+              "System error occurred while processing view",
+              %{
+                exit_reason: inspect(reason),
                 view_mode: view_mode_value(params, socket.assigns[:applied_view])
-              ),
-            view_meta: %{},
-            detail_page_cache: nil,
-            aggregate_page_cache: nil,
-            last_query_info: %{}
-          )
+              }
+            )
+            |> SelectoComponents.Form.sanitize_error_for_environment(
+              stage: if(reason == :timeout, do: :timeout, else: :lifecycle),
+              category: if(reason == :timeout, do: :timeout, else: :runtime),
+              code: if(reason == :timeout, do: :query_timed_out, else: :system_exit),
+              operation: "view-apply",
+              view_mode: view_mode_value(params, socket.assigns[:applied_view])
+            )
+
+          ResultState.build_exit_failure(socket, params, execution_error)
       end
 
     mark_form_state_applied(result_socket)
   end
-
-  defp execute_query_with_detail_pagination(selecto, params, view_meta, socket) do
-    cond do
-      DetailOptions.detail_view_mode?(params) ->
-        QueryPagination.execute(selecto, params, view_meta, socket)
-
-      AggregateOptions.aggregate_view_mode?(params) ->
-        execute_aggregate_query_with_pagination(selecto, params, view_meta, socket)
-
-      true ->
-        {execute_query_with_metadata(selecto), view_meta, nil}
-    end
-  end
-
-  defp execute_aggregate_query_with_pagination(selecto, params, view_meta, socket) do
-    per_page_setting =
-      AggregateOptions.normalize_per_page_param(
-        Map.get(view_meta, :per_page, AggregateOptions.default_per_page())
-      )
-
-    requested_page = normalize_page_param(get_map_value(params, :aggregate_page, 0))
-    base_selecto = clear_limit_offset(selecto)
-
-    cache_signature = aggregate_cache_signature(params, socket.assigns[:sort_by])
-
-    aggregate_cache =
-      init_or_reset_aggregate_cache(
-        socket.assigns[:aggregate_page_cache],
-        cache_signature,
-        per_page_setting
-      )
-
-    if per_page_setting == "all" or aggregate_grid_enabled?(params) do
-      updated_view_meta =
-        view_meta
-        |> Map.put(:aggregate_server_paged?, false)
-        |> Map.put(:aggregate_page, 0)
-
-      {execute_query_with_metadata(base_selecto), updated_view_meta, nil}
-    else
-      per_page = AggregateOptions.per_page_to_int(per_page_setting, 0)
-
-      case maybe_fetch_aggregate_total_rows(base_selecto, aggregate_cache) do
-        {:ok, {aggregate_cache, total_rows, count_metadata}} ->
-          safe_page = clamp_aggregate_page(requested_page, total_rows, per_page)
-
-          case maybe_fetch_aggregate_page(base_selecto, aggregate_cache, safe_page, per_page) do
-            {:ok, {aggregate_cache, rows, columns, aliases, metadata}} ->
-              merged_metadata =
-                Map.merge(metadata || %{}, %{
-                  aggregate_count_sql: Map.get(count_metadata, :sql),
-                  aggregate_count_params: Map.get(count_metadata, :params, []),
-                  aggregate_count_execution_time: Map.get(count_metadata, :execution_time)
-                })
-
-              updated_view_meta =
-                view_meta
-                |> Map.put(:aggregate_server_paged?, true)
-                |> Map.put(:aggregate_page, safe_page)
-                |> Map.put(:aggregate_total_rows, total_rows)
-
-              {{:ok, {rows, columns, aliases}, merged_metadata}, updated_view_meta,
-               aggregate_cache}
-
-            {:error, error} ->
-              {{:error, error}, view_meta, aggregate_cache}
-          end
-
-        {:error, error} ->
-          {{:error, error}, view_meta, aggregate_cache}
-      end
-    end
-  end
-
-  defp aggregate_grid_enabled?(params) do
-    get_map_value(params, :aggregate_grid, false) in [true, "true", "on", "1", 1]
-  end
-
-  defp init_or_reset_aggregate_cache(
-         %{signature: signature, per_page_setting: per_page_setting} = cache,
-         signature,
-         per_page_setting
-       ) do
-    cache
-  end
-
-  defp init_or_reset_aggregate_cache(_cache, signature, per_page_setting) do
-    %{
-      signature: signature,
-      per_page_setting: per_page_setting,
-      total_rows: nil,
-      pages: %{}
-    }
-  end
-
-  defp aggregate_cache_signature(params, sort_by) do
-    %{
-      params: Map.drop(params, ["aggregate_page", "detail_page"]),
-      sort_by: sort_by || []
-    }
-  end
-
-  defp maybe_fetch_aggregate_total_rows(_selecto, %{total_rows: total_rows} = cache)
-       when is_integer(total_rows) and total_rows >= 0 do
-    {:ok, {cache, total_rows, %{sql: nil, params: [], execution_time: 0, cache_hit: true}}}
-  end
-
-  defp maybe_fetch_aggregate_total_rows(selecto, cache) do
-    case execute_aggregate_total_rows(selecto) do
-      {:ok, total_rows, count_metadata} ->
-        {:ok, {Map.put(cache, :total_rows, total_rows), total_rows, count_metadata}}
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp maybe_fetch_aggregate_page(selecto, cache, page, per_page) do
-    case get_in(cache, [:pages, page]) do
-      %{rows: rows, columns: columns, aliases: aliases} ->
-        {:ok,
-         {cache, rows, columns, aliases,
-          %{sql: nil, params: [], execution_time: 0, cache_hit: true, pagination_mode: :cache}}}
-
-      _ ->
-        row_offset = page * per_page
-
-        paged_selecto =
-          selecto
-          |> Selecto.limit(per_page)
-          |> Selecto.offset(row_offset)
-
-        case execute_query_with_metadata(paged_selecto) do
-          {:ok, {rows, columns, aliases}, metadata} ->
-            normalized_rows = QueryResults.normalize_rows(rows)
-
-            pages =
-              cache
-              |> Map.get(:pages, %{})
-              |> Map.put(page, %{rows: normalized_rows, columns: columns, aliases: aliases})
-
-            updated_cache = Map.put(cache, :pages, pages)
-
-            {:ok,
-             {updated_cache, normalized_rows, columns, aliases,
-              Map.put(metadata || %{}, :pagination_mode, :offset)}}
-
-          {:error, error} ->
-            {:error, error}
-        end
-    end
-  end
-
-  defp execute_aggregate_total_rows(selecto) do
-    count_selecto =
-      update_in(selecto.set, fn set ->
-        set
-        |> Map.delete(:limit)
-        |> Map.delete(:offset)
-        |> Map.put(:order_by, [])
-      end)
-
-    {base_sql, aliases, base_params} = Selecto.gen_sql(count_selecto, [])
-    count_sql = build_aggregate_count_sql(base_sql, aliases, selecto)
-    started_at = System.monotonic_time(:millisecond)
-
-    case execute_raw_query(selecto, count_sql, base_params) do
-      {:ok, {[[count_value]], _columns, _aliases}} ->
-        execution_time = System.monotonic_time(:millisecond) - started_at
-
-        {:ok, normalize_count(count_value),
-         %{
-           sql: count_sql,
-           params: base_params,
-           execution_time: execution_time
-         }}
-
-      {:ok, {rows, _columns, _aliases}} ->
-        {:error,
-         Selecto.Error.query_error(
-           "Unexpected aggregate count query result",
-           count_sql,
-           base_params,
-           %{
-             rows: rows
-           }
-         )}
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp build_aggregate_count_sql(base_sql, aliases, selecto) do
-    if DBSupport.requires_derived_table_column_aliases?(selecto) do
-      column_list =
-        aliases
-        |> aggregate_count_column_aliases()
-        |> Enum.join(", ")
-
-      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count (#{column_list})"
-    else
-      "SELECT count(*) AS total_rows FROM (#{base_sql}) AS selecto_aggregate_count"
-    end
-  end
-
-  defp aggregate_count_column_aliases(aliases) when is_list(aliases) and aliases != [] do
-    aliases
-    |> Enum.with_index(1)
-    |> Enum.map(fn {_alias, index} -> "agg_col_#{index}" end)
-  end
-
-  defp aggregate_count_column_aliases(_aliases), do: ["agg_col_1"]
-
-  defp clear_limit_offset(selecto) do
-    update_in(selecto.set, fn set ->
-      set
-      |> Map.delete(:limit)
-      |> Map.delete(:offset)
-    end)
-  end
-
-  defp clamp_aggregate_page(page, total_rows, per_page)
-       when is_integer(total_rows) and total_rows > 0 do
-    max_page = div(total_rows - 1, max(per_page, 1))
-    min(max(page, 0), max_page)
-  end
-
-  defp clamp_aggregate_page(page, _total_rows, _per_page), do: max(page, 0)
-
-  defp normalize_page_param(value) when is_integer(value), do: max(value, 0)
-
-  defp normalize_page_param(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {page, ""} -> max(page, 0)
-      _ -> 0
-    end
-  end
-
-  defp normalize_page_param(_), do: 0
 
   defp view_mode_value(params, fallback \\ nil) do
     get_map_value(params, :view_mode, fallback)
@@ -1226,73 +506,6 @@ defmodule SelectoComponents.Form.ParamsState do
     SelectoComponents.Form.build_selecto_error(type, message, details)
   end
 
-  defp execution_error_opts(error, params, extra_opts) do
-    view_mode = view_mode_value(params)
-
-    Keyword.merge(
-      [
-        stage: execution_error_stage(error),
-        category: execution_error_category(error),
-        code: execution_error_code(error),
-        view_mode: view_mode
-      ],
-      extra_opts
-    )
-  end
-
-  defp execution_error_stage(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :input
-      :configuration_error -> :configuration
-      :field_resolution_error -> :configuration
-      :timeout_error -> :timeout
-      :connection_error -> :db_execute
-      :transformation_error -> :result_process
-      :query_error -> if(Map.get(error, :query), do: :db_execute, else: :query_build)
-      _ -> :unknown
-    end
-  end
-
-  defp execution_error_stage(:timeout), do: :timeout
-  defp execution_error_stage({:error, :timeout}), do: :timeout
-  defp execution_error_stage(_), do: :db_execute
-
-  defp execution_error_category(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :validation
-      :configuration_error -> :configuration
-      :field_resolution_error -> :configuration
-      :timeout_error -> :timeout
-      :connection_error -> :connection
-      :transformation_error -> :processing
-      :permission_error -> :authorization
-      :query_error -> :query
-      _ -> :runtime
-    end
-  end
-
-  defp execution_error_category(:timeout), do: :timeout
-  defp execution_error_category({:error, :timeout}), do: :timeout
-  defp execution_error_category(_), do: :query
-
-  defp execution_error_code(%{__struct__: module} = error) when module == Selecto.Error do
-    case Map.get(error, :type, :query_error) do
-      :validation_error -> :validation_error
-      :configuration_error -> :invalid_view_config
-      :field_resolution_error -> :unknown_field
-      :timeout_error -> :query_timed_out
-      :connection_error -> :connection_error
-      :transformation_error -> :result_processing_failed
-      :permission_error -> :permission_error
-      :query_error -> if(Map.get(error, :query), do: :db_query_failed, else: :query_build_failed)
-      type -> type
-    end
-  end
-
-  defp execution_error_code(:timeout), do: :query_timed_out
-  defp execution_error_code({:error, :timeout}), do: :query_timed_out
-  defp execution_error_code(_), do: :db_query_failed
-
   defp format_stacktrace(stacktrace) when is_list(stacktrace) do
     stacktrace
     |> Exception.format_stacktrace()
@@ -1303,171 +516,22 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp format_stacktrace(stacktrace), do: inspect(stacktrace, limit: 30)
 
-  defp build_query_cache_debug_info(detail_cache, params, rows, columns, aliases) do
-    cond do
-      is_map(detail_cache) ->
-        QueryPagination.cache_debug_info(detail_cache)
-
-      AggregateOptions.aggregate_view_mode?(params) ->
-        %{
-          bytes: term_size_bytes({rows, columns, aliases}),
-          pages: 1,
-          rows: length(rows)
-        }
-
-      true ->
-        %{bytes: nil, pages: nil, rows: nil}
-    end
-  end
-
-  defp maybe_cap_aggregate_rows(rows, view_meta, params) when is_list(rows) do
-    if AggregateOptions.aggregate_view_mode?(params) do
-      total_rows = length(rows)
-
-      case AggregateOptions.max_client_rows() do
-        :infinity ->
-          {
-            rows,
-            Map.merge(view_meta, %{
-              aggregate_rows_capped?: false,
-              aggregate_total_rows_before_cap: total_rows,
-              aggregate_max_client_rows: :infinity
-            })
-          }
-
-        max_client_rows when is_integer(max_client_rows) and total_rows > max_client_rows ->
-          {
-            Enum.take(rows, max_client_rows),
-            Map.merge(view_meta, %{
-              aggregate_rows_capped?: true,
-              aggregate_total_rows_before_cap: total_rows,
-              aggregate_max_client_rows: max_client_rows
-            })
-          }
-
-        max_client_rows when is_integer(max_client_rows) ->
-          {
-            rows,
-            Map.merge(view_meta, %{
-              aggregate_rows_capped?: false,
-              aggregate_total_rows_before_cap: total_rows,
-              aggregate_max_client_rows: max_client_rows
-            })
-          }
-
-        _other ->
-          {rows, view_meta}
-      end
-    else
-      {rows, view_meta}
-    end
-  end
-
-  defp maybe_cap_aggregate_rows(rows, view_meta, _params), do: {rows, view_meta}
-
-  defp term_size_bytes(term) do
-    :erts_debug.size(term) * :erlang.system_info(:wordsize)
-  rescue
-    _ -> nil
-  end
-
-  defp execute_query_with_metadata(selecto) do
-    try do
-      Selecto.execute_with_metadata(selecto)
-    rescue
-      error ->
-        {:error, Selecto.Error.from_reason(error)}
-    catch
-      :exit, reason ->
-        {:error,
-         Selecto.Error.connection_error("Database connection failed", %{exit_reason: reason})}
-    end
-  end
-
-  defp execute_raw_query(selecto, query, params) do
-    DBSupport.execute_raw_query(selecto, query, params)
-  end
-
-  defp normalize_count(value) when is_integer(value), do: value
-  defp normalize_count(value) when is_float(value), do: trunc(value)
-
-  defp normalize_count(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {count, _} -> count
-      :error -> 0
-    end
-  end
-
-  defp normalize_count(value) do
-    value
-    |> to_string()
-    |> normalize_count()
-  rescue
-    _ -> 0
-  end
-
-  defp normalize_rows_for_view(rows, _columns, "detail")
-       when is_list(rows) and rows != [] and (is_list(hd(rows)) or is_tuple(hd(rows))) do
-    rows
-    |> Enum.map(fn row ->
-      if is_tuple(row), do: Tuple.to_list(row), else: row
-    end)
-    |> QueryResults.normalize_rows()
-  end
-
-  defp normalize_rows_for_view(rows, _columns, _view_mode), do: QueryResults.normalize_rows(rows)
-
   @doc """
   Build view_config from URL params, updating only filter state.
   """
   def filter_params_to_state(params, socket) do
-    filters = view_filter_process(params, "filters")
-
-    assign_view_config(socket, %{
-      socket.assigns.view_config
-      | filters: filters
-    })
+    params
+    |> Codec.filter_params_to_view_config(socket)
+    |> then(&assign_view_config(socket, &1))
   end
 
   @doc """
   Build view_config from URL params, updating full state including view-specific configs.
   """
   def params_to_state(params, socket) do
-    params =
-      canonicalize_form_params(
-        params,
-        socket.assigns[:selecto],
-        socket.assigns[:presentation_context]
-      )
-
-    filters = view_filter_process(params, "filters")
-    existing_config = socket.assigns[:view_config] || %{}
-
-    selected_view =
-      SafeAtom.to_view_mode(
-        Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-      )
-
-    view_configs =
-      Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
-        Map.merge(acc, %{
-          view =>
-            updated_view_state(view, selected_view, view_tuple, params, existing_config, socket)
-        })
-      end)
-      |> preserve_missing_detail_view_params(existing_config, params)
-
-    provisional_config =
-      Map.merge(existing_config, %{
-        filters: filters,
-        views: view_configs,
-        view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-      })
-
-    assign_view_config(
-      socket,
-      sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
-    )
+    params
+    |> Codec.params_to_view_config(socket)
+    |> then(&assign_view_config(socket, &1))
   end
 
   @doc """
@@ -1477,484 +541,38 @@ defmodule SelectoComponents.Form.ParamsState do
   so every view can be reconstructed from the browser state in one pass.
   """
   def form_params_to_state(params, socket) do
-    params =
-      canonicalize_form_params(
-        params,
-        socket.assigns[:selecto],
-        socket.assigns[:presentation_context]
-      )
-
-    existing_config = socket.assigns[:view_config] || %{}
-    stale_submit? = stale_form_submit?(params, socket)
-    filters = submitted_filters_state(params, existing_config, stale_submit?)
-
-    view_configs =
-      Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
-        Map.put(
-          acc,
-          view,
-          submitted_view_state(view, view_tuple, params, existing_config, socket, stale_submit?)
-        )
-      end)
-      |> preserve_missing_detail_view_params(existing_config, params)
-
-    provisional_config =
-      Map.merge(existing_config, %{
-        filters: filters,
-        views: view_configs,
-        view_mode: Map.get(params, "view_mode", existing_config[:view_mode] || "aggregate")
-      })
-
-    assign_view_config(
-      socket,
-      sync_view_config_ctes(provisional_config, socket.assigns[:selecto])
-    )
+    params
+    |> Codec.form_params_to_view_config(socket)
+    |> then(&assign_view_config(socket, &1))
   end
 
   @doc """
   Restore a saved-view payload into socket state.
   """
-  def saved_params_to_state(saved_params, socket) when is_map(saved_params) do
-    if Map.has_key?(saved_params, "views") or Map.has_key?(saved_params, :views) do
-      existing_config = socket.assigns[:view_config] || %{}
-
-      restored_config = %{
-        view_mode:
-          get_map_value(
-            saved_params,
-            :view_mode,
-            get_map_value(existing_config, :view_mode, "aggregate")
-          ),
-        filters: normalize_saved_filters_from_storage(get_map_value(saved_params, :filters, [])),
-        views: restore_saved_views(saved_params, existing_config, socket)
-      }
-
-      socket
-      |> assign_view_config(
-        existing_config
-        |> Map.merge(restored_config)
-        |> sync_view_config_ctes(socket.assigns[:selecto])
-      )
-    else
-      params_to_state(saved_params, socket)
-    end
+  def saved_params_to_state(saved_params, socket) do
+    saved_params
+    |> Codec.saved_params_to_view_config(socket)
+    |> then(&assign_view_config(socket, &1))
   end
 
-  def saved_params_to_state(saved_params, socket), do: params_to_state(saved_params, socket)
+  def sync_view_config_ctes(view_config, selecto), do: CTEs.sync_view_config(view_config, selecto)
 
-  def sync_view_config_ctes(view_config, %Selecto{} = selecto) when is_map(view_config) do
-    derived_names = derived_cte_names_from_view_config(view_config, selecto)
-    existing_ctes = get_map_value(view_config, :ctes, [])
-    synced_ctes = build_cte_entries(derived_names, existing_ctes)
-
-    Map.put(view_config, :ctes, synced_ctes)
-  end
-
-  def sync_view_config_ctes(view_config, _selecto), do: view_config
-
-  defp submitted_view_state(view, view_tuple, params, existing_config, socket, stale_submit?) do
-    existing_view = get_in(existing_config, [:views, view])
-
-    cond do
-      view_params_present?(view, params) ->
-        submitted_view = ViewRuntime.param_to_state(view_tuple, params)
-
-        if stale_submit? do
-          merge_submitted_view_state(view, submitted_view, existing_view || %{}, params)
-        else
-          submitted_view
-        end
-
-      existing_view ->
-        existing_view
-
-      selecto = socket.assigns[:selecto] ->
-        ViewRuntime.initial_state(view_tuple, selecto)
-
-      true ->
-        %{}
-    end
-  end
-
-  defp view_params_present?(view, params) when is_map(params) do
-    view_param_keys(view)
-    |> Enum.any?(fn key -> Map.has_key?(params, key) end)
-  end
-
-  defp view_params_present?(_view, _params), do: false
-
-  defp submitted_filters_state(params, existing_config, stale_submit?) do
-    existing_filters = get_map_value(existing_config, :filters, [])
-
-    if Map.has_key?(params, "filters") do
-      submitted_filters = view_filter_process(params, "filters")
-
-      if stale_submit? do
-        merge_submitted_filters(submitted_filters, existing_filters)
-      else
-        submitted_filters
-      end
-    else
-      existing_filters
-    end
-  end
+  def apply_ctes_for_params(selecto, params), do: CTEs.apply_for_params(selecto, params)
 
   def assign_view_config(socket, view_config) do
-    Phoenix.Component.assign(socket,
-      view_config: view_config,
-      form_state_revision: next_form_state_revision(socket),
-      view_config_dirty?: view_config != Map.get(socket.assigns, :applied_view_config)
-    )
+    SessionStore.assign_view_config(socket, view_config)
   end
 
   def mark_form_state_applied(socket) do
-    current_view_config = Map.get(socket.assigns, :view_config, %{})
-
-    Phoenix.Component.assign(
-      socket,
-      :applied_form_state_revision,
-      normalize_form_state_revision(socket.assigns[:form_state_revision])
-    )
-    |> Phoenix.Component.assign(:applied_view_config, current_view_config)
-    |> Phoenix.Component.assign(:view_config_dirty?, false)
+    SessionStore.mark_form_state_applied(socket)
   end
-
-  defp stale_form_submit?(params, socket) do
-    case Map.get(params, "form_state_revision") do
-      nil ->
-        false
-
-      submitted_revision ->
-        normalize_form_state_revision(submitted_revision) != socket.assigns[:form_state_revision]
-    end
-  end
-
-  defp next_form_state_revision(socket) do
-    socket.assigns
-    |> Map.get(:form_state_revision, 0)
-    |> normalize_form_state_revision()
-    |> Kernel.+(1)
-  end
-
-  defp normalize_form_state_revision(value) when is_integer(value), do: value
-
-  defp normalize_form_state_revision(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {parsed, ""} -> parsed
-      _ -> 0
-    end
-  end
-
-  defp normalize_form_state_revision(_value), do: 0
-
-  defp merge_submitted_filters([], existing_filters), do: existing_filters
-
-  defp merge_submitted_filters(submitted_filters, existing_filters) do
-    submitted_by_uuid =
-      Map.new(submitted_filters, fn {uuid, section, value} ->
-        {uuid, {section, value}}
-      end)
-
-    Enum.map(existing_filters, fn {uuid, section, value} = existing_filter ->
-      case Map.get(submitted_by_uuid, uuid) do
-        nil ->
-          existing_filter
-
-        {submitted_section, submitted_value} ->
-          {uuid, submitted_section || section, merge_filter_value(value, submitted_value)}
-      end
-    end)
-  end
-
-  defp merge_filter_value(existing_value, submitted_value)
-       when is_map(existing_value) and is_map(submitted_value) do
-    Map.merge(existing_value, submitted_value)
-  end
-
-  defp merge_filter_value(_existing_value, submitted_value), do: submitted_value
-
-  defp merge_submitted_view_state(view, submitted_view, existing_view, params) do
-    state_keys =
-      submitted_view_specs(view) |> Enum.map(fn {_type, _param_key, state_key} -> state_key end)
-
-    merged_view = Map.merge(existing_view, Map.drop(submitted_view, state_keys))
-
-    Enum.reduce(submitted_view_specs(view), merged_view, fn
-      {:list, param_key, state_key}, acc ->
-        if Map.has_key?(params, param_key) do
-          submitted_items = Map.get(submitted_view, state_key, [])
-          existing_items = Map.get(existing_view, state_key, [])
-          Map.put(acc, state_key, merge_submitted_list_items(submitted_items, existing_items))
-        else
-          Map.put(
-            acc,
-            state_key,
-            Map.get(existing_view, state_key, Map.get(submitted_view, state_key, []))
-          )
-        end
-
-      {:scalar, param_key, state_key}, acc ->
-        if Map.has_key?(params, param_key) do
-          Map.put(acc, state_key, Map.get(submitted_view, state_key))
-        else
-          Map.put(
-            acc,
-            state_key,
-            Map.get(existing_view, state_key, Map.get(submitted_view, state_key))
-          )
-        end
-    end)
-  end
-
-  defp merge_submitted_list_items([], existing_items), do: existing_items
-
-  defp merge_submitted_list_items(submitted_items, existing_items) do
-    submitted_by_uuid =
-      Map.new(submitted_items, fn item ->
-        {list_item_uuid(item), item}
-      end)
-
-    Enum.map(existing_items, fn existing_item ->
-      case Map.get(submitted_by_uuid, list_item_uuid(existing_item)) do
-        nil -> existing_item
-        submitted_item -> merge_list_item(existing_item, submitted_item)
-      end
-    end)
-  end
-
-  defp merge_list_item(
-         {uuid, field, existing_config},
-         {_submitted_uuid, _submitted_field, submitted_config}
-       )
-       when is_map(existing_config) and is_map(submitted_config) do
-    {uuid, field, Map.merge(existing_config, submitted_config)}
-  end
-
-  defp merge_list_item([uuid, field, existing_config], [
-         _submitted_uuid,
-         _submitted_field,
-         submitted_config
-       ])
-       when is_map(existing_config) and is_map(submitted_config) do
-    [uuid, field, Map.merge(existing_config, submitted_config)]
-  end
-
-  defp merge_list_item(existing_item, _submitted_item), do: existing_item
-
-  defp list_item_uuid({uuid, _field, _config}), do: uuid
-  defp list_item_uuid([uuid, _field, _config]), do: uuid
-  defp list_item_uuid(other), do: other
-
-  defp submitted_view_specs(:detail) do
-    [
-      {:list, "selected", :selected},
-      {:list, "order_by", :order_by},
-      {:scalar, "per_page", :per_page},
-      {:scalar, "max_rows", :max_rows},
-      {:scalar, "count_mode", :count_mode},
-      {:scalar, "row_click_action", :row_click_action},
-      {:scalar, "prevent_denormalization", :prevent_denormalization}
-    ]
-  end
-
-  defp submitted_view_specs(:aggregate) do
-    [
-      {:list, "group_by", :group_by},
-      {:list, "aggregate", :aggregate},
-      {:scalar, "aggregate_per_page", :per_page},
-      {:scalar, "aggregate_grid", :grid},
-      {:scalar, "aggregate_grid_colorize", :grid_colorize},
-      {:scalar, "aggregate_grid_color_scale", :grid_color_scale}
-    ]
-  end
-
-  defp submitted_view_specs(:graph) do
-    [
-      {:list, "x_axis", :x_axis},
-      {:list, "y_axis", :y_axis},
-      {:list, "series", :series},
-      {:scalar, "chart_type", :chart_type},
-      {:scalar, "options", :options}
-    ]
-  end
-
-  defp submitted_view_specs(_view), do: []
-
-  defp view_param_keys(:detail),
-    do: [
-      "selected",
-      "order_by",
-      "per_page",
-      "max_rows",
-      "count_mode",
-      "row_click_action",
-      "prevent_denormalization"
-    ]
-
-  defp view_param_keys(:aggregate),
-    do: [
-      "group_by",
-      "aggregate",
-      "aggregate_per_page",
-      "aggregate_grid",
-      "aggregate_grid_colorize",
-      "aggregate_grid_color_scale"
-    ]
-
-  defp view_param_keys(:graph), do: ["x_axis", "y_axis", "series", "chart_type", "options"]
-
-  defp view_param_keys(:map), do: ["map_layers" | @map_param_keys]
-
-  defp view_param_keys(_view), do: []
-
-  defp updated_view_state(view, selected_view, view_tuple, params, existing_config, socket) do
-    cond do
-      view == selected_view ->
-        ViewRuntime.param_to_state(view_tuple, params)
-
-      existing_view = get_in(existing_config, [:views, view]) ->
-        existing_view
-
-      selecto = socket.assigns[:selecto] ->
-        ViewRuntime.initial_state(view_tuple, selecto)
-
-      true ->
-        %{}
-    end
-  end
-
-  defp normalize_saved_views_for_storage(views) when is_map(views) do
-    Map.new(views, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
-  end
-
-  defp normalize_saved_views_for_storage(_views), do: %{}
-
-  defp normalize_saved_ctes_for_storage(ctes) when is_list(ctes), do: normalize_saved_term(ctes)
-  defp normalize_saved_ctes_for_storage(_ctes), do: []
-
-  defp normalize_saved_filters_for_storage(filters) when is_list(filters) do
-    Enum.map(filters, &normalize_saved_term/1)
-  end
-
-  defp normalize_saved_filters_for_storage(_filters), do: []
-
-  defp normalize_saved_term(term) when is_map(term) do
-    Map.new(term, fn {key, value} -> {to_string(key), normalize_saved_term(value)} end)
-  end
-
-  defp normalize_saved_term(term) when is_list(term), do: Enum.map(term, &normalize_saved_term/1)
-
-  defp normalize_saved_term(term) when is_tuple(term),
-    do: term |> Tuple.to_list() |> normalize_saved_term()
-
-  defp normalize_saved_term(term), do: term
-
-  defp normalize_saved_filters_from_storage(filters) when is_list(filters) do
-    Enum.map(filters, fn
-      [uuid, section, filter_data] -> {uuid, section, filter_data}
-      {uuid, section, filter_data} -> {uuid, section, filter_data}
-      other -> other
-    end)
-  end
-
-  defp normalize_saved_filters_from_storage(_filters), do: []
-
-  defp restore_saved_views(saved_params, existing_config, socket) do
-    Enum.reduce(socket.assigns.views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
-      restored_view =
-        case get_in(saved_params, ["views", Atom.to_string(view)]) ||
-               get_in(saved_params, [:views, view]) do
-          nil ->
-            get_in(existing_config, [:views, view]) ||
-              if(socket.assigns[:selecto],
-                do: ViewRuntime.initial_state(view_tuple, socket.assigns.selecto),
-                else: %{}
-              )
-
-          saved_view ->
-            saved_view
-            |> normalize_saved_term()
-            |> normalize_restored_view(view)
-        end
-
-      Map.put(acc, view, restored_view)
-    end)
-  end
-
-  defp normalize_restored_view(saved_view, :detail) when is_map(saved_view) do
-    normalize_saved_boolean(saved_view, :prevent_denormalization, true)
-  end
-
-  defp normalize_restored_view(saved_view, _view), do: saved_view
-
-  defp normalize_saved_boolean(saved_view, key, default) do
-    current_value = Map.get(saved_view, key, Map.get(saved_view, to_string(key), default))
-    normalized_value = normalize_saved_boolean_value(current_value, default)
-
-    saved_view
-    |> Map.put(key, normalized_value)
-    |> Map.put(to_string(key), normalized_value)
-  end
-
-  defp normalize_saved_boolean_value(value, _default) when value in [true, "true", "on", 1, "1"],
-    do: true
-
-  defp normalize_saved_boolean_value(value, _default)
-       when value in [false, "false", 0, "0"],
-       do: false
-
-  defp normalize_saved_boolean_value([value | _rest], default),
-    do: normalize_saved_boolean_value(value, default)
-
-  defp normalize_saved_boolean_value(nil, default), do: default
-  defp normalize_saved_boolean_value(_value, default), do: default
-
-  defp preserve_missing_detail_view_params(view_configs, existing_config, params) do
-    existing_detail = get_in(existing_config, [:views, :detail]) || %{}
-    detail_config = Map.get(view_configs, :detail, %{})
-
-    detail_config =
-      detail_config
-      |> preserve_scalar_when_missing(existing_detail, params, "row_click_action")
-      |> preserve_scalar_when_missing(existing_detail, params, "per_page")
-      |> preserve_scalar_when_missing(existing_detail, params, "max_rows")
-      |> preserve_scalar_when_missing(existing_detail, params, "count_mode")
-      |> preserve_scalar_when_missing(existing_detail, params, "prevent_denormalization")
-
-    Map.put(view_configs, :detail, detail_config)
-  end
-
-  defp preserve_scalar_when_missing(detail_config, existing_detail, params, param_key) do
-    if is_map(params) and Map.has_key?(params, param_key) do
-      detail_config
-    else
-      preserve_scalar_from_existing(detail_config, existing_detail, param_key)
-    end
-  end
-
-  defp preserve_scalar_from_existing(detail_config, existing_detail, param_key) do
-    param_atom = detail_param_atom(param_key)
-    existing_value = Map.get(existing_detail, param_atom, Map.get(existing_detail, param_key))
-
-    if is_nil(existing_value) do
-      detail_config
-    else
-      Map.put(detail_config, param_atom, existing_value)
-    end
-  end
-
-  defp detail_param_atom("row_click_action"), do: :row_click_action
-  defp detail_param_atom("per_page"), do: :per_page
-  defp detail_param_atom("max_rows"), do: :max_rows
-  defp detail_param_atom("count_mode"), do: :count_mode
-  defp detail_param_atom("prevent_denormalization"), do: :prevent_denormalization
 
   def canonicalize_form_params(params, selecto \\ nil, presentation_context \\ %{})
 
   def canonicalize_form_params(params, selecto, presentation_context) when is_map(params) do
     params =
       params
-      |> merge_promoted_filter_params()
+      |> merge_promoted_filter_params(selecto, presentation_context)
       |> canonicalize_filter_params(selecto, presentation_context)
 
     row_click_action =
@@ -1970,9 +588,11 @@ defmodule SelectoComponents.Form.ParamsState do
 
   def canonicalize_form_params(params, _selecto, _presentation_context), do: params
 
-  defp merge_promoted_filter_params(params) when not is_map(params), do: params
+  defp merge_promoted_filter_params(params, _selecto, _presentation_context)
+       when not is_map(params),
+       do: params
 
-  defp merge_promoted_filter_params(params) do
+  defp merge_promoted_filter_params(params, selecto, presentation_context) do
     case {Map.get(params, "filters"), Map.get(params, "promoted_filters")} do
       {filters, promoted_filters} when is_map(filters) and is_map(promoted_filters) ->
         merged_filters =
@@ -1981,7 +601,12 @@ defmodule SelectoComponents.Form.ParamsState do
               current_filter = Map.get(acc, uuid, %{})
 
               normalized_values =
-                normalize_promoted_filter_values(current_filter, promoted_values)
+                normalize_promoted_filter_values(
+                  current_filter,
+                  promoted_values,
+                  selecto,
+                  presentation_context
+                )
 
               Map.put(
                 acc,
@@ -1990,9 +615,15 @@ defmodule SelectoComponents.Form.ParamsState do
                   current_filter,
                   Map.take(normalized_values, [
                     "value",
+                    "display_value",
                     "value_start",
+                    "display_value_start",
                     "value_end",
+                    "display_value_end",
                     "value2",
+                    "display_value2",
+                    "selected_values",
+                    "selected_ids",
                     "mode"
                   ])
                 )
@@ -2011,7 +642,12 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
-  defp normalize_promoted_filter_values(current_filter, promoted_values) do
+  defp normalize_promoted_filter_values(
+         current_filter,
+         promoted_values,
+         selecto,
+         _presentation_context
+       ) do
     comp =
       current_filter
       |> get_map_value("comp", "=")
@@ -2019,14 +655,29 @@ defmodule SelectoComponents.Form.ParamsState do
       |> String.trim()
       |> String.upcase()
 
-    if comp in ["IN", "NOT IN"] do
-      Map.put(
-        promoted_values,
-        "value",
-        normalize_promoted_multi_value(Map.get(promoted_values, "value"))
-      )
-    else
-      promoted_values
+    filter_id = get_map_value(current_filter, "filter")
+    column = resolve_filter_column(selecto, filter_id)
+
+    cond do
+      comp in ["IN", "NOT IN"] and locale_sensitive_in_filter_column?(column) ->
+        normalized_display_value =
+          normalize_locale_sensitive_multi_value_input(Map.get(promoted_values, "value"))
+
+        promoted_values
+        |> Map.put("value", normalized_display_value)
+        |> Map.put("display_value", normalized_display_value)
+
+      comp in ["IN", "NOT IN"] ->
+        normalized_value = normalize_promoted_multi_value(Map.get(promoted_values, "value"))
+        selected_ids = parse_filter_values(normalized_value)
+
+        promoted_values
+        |> Map.put("value", normalized_value)
+        |> Map.put("selected_values", selected_ids)
+        |> Map.put("selected_ids", selected_ids)
+
+      true ->
+        promoted_values
     end
   end
 
@@ -2098,39 +749,48 @@ defmodule SelectoComponents.Form.ParamsState do
     canonical_unit = Selecto.Presentation.canonical_unit(column)
     comp = normalize_filter_comp(filter)
 
-    filter
-    |> maybe_put_display_value("value")
-    |> maybe_put_display_value("value_start")
-    |> maybe_put_display_value("value_end")
-    |> maybe_put_display_value("value2")
-    |> maybe_canonicalize_measurement_key(
-      "value",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value_start",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value_end",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
-    |> maybe_canonicalize_measurement_key(
-      "value2",
-      comp,
-      display_unit,
-      canonical_unit,
-      presentation_context
-    )
+    if comp in ["IN", "NOT IN"] do
+      canonicalize_measurement_multi_value_filter(
+        filter,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+    else
+      filter
+      |> maybe_put_display_value("value")
+      |> maybe_put_display_value("value_start")
+      |> maybe_put_display_value("value_end")
+      |> maybe_put_display_value("value2")
+      |> maybe_canonicalize_measurement_key(
+        "value",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value_start",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value_end",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+      |> maybe_canonicalize_measurement_key(
+        "value2",
+        comp,
+        display_unit,
+        canonical_unit,
+        presentation_context
+      )
+    end
   end
 
   defp maybe_canonicalize_measurement_key(
@@ -2165,7 +825,7 @@ defmodule SelectoComponents.Form.ParamsState do
          presentation_context
        ) do
     case convert_measurement_filter_value(
-           Map.get(filter, key),
+           canonicalization_source_value(filter, key),
            display_unit,
            canonical_unit,
            presentation_context
@@ -2279,15 +939,19 @@ defmodule SelectoComponents.Form.ParamsState do
   defp canonicalize_numeric_filter(filter, presentation_context) do
     comp = normalize_filter_comp(filter)
 
-    filter
-    |> maybe_put_display_value("value")
-    |> maybe_put_display_value("value_start")
-    |> maybe_put_display_value("value_end")
-    |> maybe_put_display_value("value2")
-    |> maybe_canonicalize_numeric_key("value", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value_start", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value_end", comp, presentation_context)
-    |> maybe_canonicalize_numeric_key("value2", comp, presentation_context)
+    if comp in ["IN", "NOT IN"] do
+      canonicalize_numeric_multi_value_filter(filter, presentation_context)
+    else
+      filter
+      |> maybe_put_display_value("value")
+      |> maybe_put_display_value("value_start")
+      |> maybe_put_display_value("value_end")
+      |> maybe_put_display_value("value2")
+      |> maybe_canonicalize_numeric_key("value", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value_start", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value_end", comp, presentation_context)
+      |> maybe_canonicalize_numeric_key("value2", comp, presentation_context)
+    end
   end
 
   defp maybe_canonicalize_numeric_key(filter, _key, comp, _presentation_context)
@@ -2307,7 +971,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp maybe_canonicalize_numeric_key(filter, key, _comp, presentation_context) do
-    case Map.get(filter, key) do
+    case canonicalization_source_value(filter, key) do
       value when value in [nil, ""] ->
         filter
 
@@ -2325,6 +989,134 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp locale_numeric_column?(_column), do: false
+
+  defp locale_sensitive_in_filter_column?(column) when is_map(column) do
+    Selecto.Presentation.measurement?(column) or locale_numeric_column?(column)
+  end
+
+  defp locale_sensitive_in_filter_column?(_column), do: false
+
+  defp canonicalize_measurement_multi_value_filter(
+         filter,
+         display_unit,
+         canonical_unit,
+         presentation_context
+       ) do
+    with {display_tokens, source} when display_tokens != [] <-
+           multi_value_tokens_for_locale_aware_filter(filter),
+         canonical_tokens when canonical_tokens != :error <-
+           map_multi_value_tokens_while(display_tokens, fn token ->
+             case convert_measurement_filter_value(
+                    token,
+                    display_unit,
+                    canonical_unit,
+                    presentation_context
+                  ) do
+               {:ok, converted} -> {:cont, converted}
+               :skip -> {:halt, :error}
+             end
+           end) do
+      filter
+      |> Map.put("value", Enum.join(canonical_tokens, ","))
+      |> maybe_put_multi_value_display(source, display_tokens)
+    else
+      _ -> filter
+    end
+  end
+
+  defp canonicalize_numeric_multi_value_filter(filter, presentation_context) do
+    with {display_tokens, source} when display_tokens != [] <-
+           multi_value_tokens_for_locale_aware_filter(filter),
+         canonical_tokens when canonical_tokens != :error <-
+           map_multi_value_tokens_while(display_tokens, fn token ->
+             case Presentation.parse_number(token, presentation_context) do
+               number when is_float(number) -> {:cont, float_to_filter_string(number)}
+               _ -> {:halt, :error}
+             end
+           end) do
+      filter
+      |> Map.put("value", Enum.join(canonical_tokens, ","))
+      |> maybe_put_multi_value_display(source, display_tokens)
+    else
+      _ -> filter
+    end
+  end
+
+  defp multi_value_tokens_for_locale_aware_filter(filter) when is_map(filter) do
+    cond do
+      is_binary(Map.get(filter, "display_value")) ->
+        {multi_value_display_tokens(Map.get(filter, "display_value"), true), :display}
+
+      is_binary(Map.get(filter, :display_value)) ->
+        {multi_value_display_tokens(Map.get(filter, :display_value), true), :display}
+
+      true ->
+        {multi_value_display_tokens(Map.get(filter, "value") || Map.get(filter, :value), false),
+         :value}
+    end
+  end
+
+  defp multi_value_tokens_for_locale_aware_filter(_filter), do: {[], :value}
+
+  defp multi_value_display_tokens(values, _preserve_commas?) when is_list(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp multi_value_display_tokens(values, preserve_commas?) when is_binary(values) do
+    normalized = String.replace(values, ~r/\r\n|\r/, "\n")
+
+    cond do
+      normalized == "" ->
+        []
+
+      String.contains?(normalized, "\n") ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      String.contains?(normalized, ";") ->
+        normalized
+        |> String.split(";")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      preserve_commas? ->
+        [String.trim(normalized)]
+        |> Enum.reject(&(&1 == ""))
+
+      true ->
+        normalized
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp multi_value_display_tokens(_values, _preserve_commas?), do: []
+
+  defp maybe_put_multi_value_display(filter, :display, display_tokens) do
+    Map.put(filter, "display_value", Enum.join(display_tokens, "\n"))
+  end
+
+  defp maybe_put_multi_value_display(filter, _source, _display_tokens), do: filter
+
+  defp map_multi_value_tokens_while(tokens, mapper)
+       when is_list(tokens) and is_function(mapper, 1) do
+    Enum.reduce_while(tokens, [], fn token, acc ->
+      case mapper.(token) do
+        {:cont, value} -> {:cont, [value | acc]}
+        {:halt, value} -> {:halt, value}
+      end
+    end)
+    |> case do
+      :error -> :error
+      values when is_list(values) -> Enum.reverse(values)
+    end
+  end
 
   defp canonicalize_temporal_filter(filter, column, presentation_context) do
     comp = normalize_filter_comp(filter)
@@ -2359,7 +1151,7 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   defp maybe_canonicalize_temporal_key(filter, key, _comp, column, timezone) do
-    case local_input_to_utc_string(Map.get(filter, key), column, timezone) do
+    case local_input_to_utc_string(canonicalization_source_value(filter, key), column, timezone) do
       nil -> filter
       converted -> Map.put(filter, key, converted)
     end
@@ -2444,6 +1236,35 @@ defmodule SelectoComponents.Form.ParamsState do
       value -> Map.put_new(filter, "display_#{key}", value)
     end
   end
+
+  defp canonicalization_source_value(filter, key) when is_map(filter) do
+    Map.get(filter, "display_#{key}") || Map.get(filter, key)
+  end
+
+  defp normalize_locale_sensitive_multi_value_input(value) when is_binary(value) do
+    normalized = String.replace(value, ~r/\r\n|\r/, "\n")
+
+    cond do
+      String.contains?(normalized, "\n") ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.join("\n")
+
+      String.contains?(normalized, ";") ->
+        normalized
+        |> String.split(";")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.join("\n")
+
+      true ->
+        String.trim(normalized)
+    end
+  end
+
+  defp normalize_locale_sensitive_multi_value_input(value), do: value
 
   defp normalize_promoted_multi_value(value) when is_binary(value) do
     value
@@ -2777,14 +1598,6 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp maybe_put_param(params, key, value), do: maybe_put_param(params, key, value, true)
 
-  defp map_param_key(key) when is_atom(key), do: map_param_key(Atom.to_string(key))
-
-  defp map_param_key(key) when is_binary(key) do
-    if key in @map_param_keys, do: key, else: nil
-  end
-
-  defp map_param_key(_), do: nil
-
   defp normalize_map_param_value(key, value) when key in @map_boolean_param_keys do
     normalize_map_boolean(value)
   end
@@ -2836,15 +1649,6 @@ defmodule SelectoComponents.Form.ParamsState do
 
   defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
   defp normalize_map_scalar(_value), do: nil
-
-  defp list_field(map, key) when is_map(map) and is_atom(key) do
-    case Map.get(map, key, []) do
-      list when is_list(list) -> list
-      _ -> []
-    end
-  end
-
-  defp list_field(_map, _key), do: []
 
   @doc """
   Check if view parameters have changed significantly enough to require a view reset.
@@ -2911,31 +1715,7 @@ defmodule SelectoComponents.Form.ParamsState do
   Update the URL to include the configured view parameters.
   """
   def state_to_url(params, socket, opts \\ []) do
-    params =
-      params
-      |> compact_url_params()
-      |> merge_special_debug_params(socket)
-
-    params_encoded = Plug.Conn.Query.encode(params)
-    my_path = socket.assigns.my_path
-    full_path = "#{my_path}?#{params_encoded}"
-
-    Phoenix.LiveView.push_patch(socket, Keyword.merge([to: full_path], opts))
-  end
-
-  defp merge_special_debug_params(params, socket) do
-    existing_params = Map.get(socket.assigns, :params, %{})
-
-    debug_params =
-      %{
-        "selecto_debug" => get_map_value(existing_params, :selecto_debug),
-        "debug" => get_map_value(existing_params, :debug),
-        "debug_token" => get_map_value(existing_params, :debug_token)
-      }
-      |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-      |> Map.new()
-
-    Map.merge(debug_params, params)
+    URL.state_to_url(params, socket, opts)
   end
 
   defp get_map_value(map, key, default \\ nil)
@@ -2947,269 +1727,13 @@ defmodule SelectoComponents.Form.ParamsState do
   defp get_map_value(_map, _key, default), do: default
 
   @doc false
-  def compact_url_params(params) when is_map(params) do
-    Enum.reduce(url_compactable_keys(), params, fn key, acc ->
-      case Map.get(acc, key) do
-        section when is_map(section) -> Map.put(acc, key, compact_param_section(section))
-        _ -> acc
-      end
-    end)
-  end
-
-  def compact_url_params(params), do: params
-
-  defp compact_param_section(section) when is_map(section) do
-    section
-    |> Enum.sort_by(fn {_k, v} -> sort_index_for_compaction(v) end)
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn {{original_key, value}, index}, acc ->
-      compacted_value =
-        case value do
-          map when is_map(map) -> Map.put_new(map, "uuid", original_key)
-          other -> other
-        end
-
-      Map.put(acc, compact_param_key(index), compacted_value)
-    end)
-  end
-
-  defp url_compactable_keys do
-    [
-      "ctes",
-      "filters",
-      "selected",
-      "order_by",
-      "group_by",
-      "aggregate",
-      "x_axis",
-      "y_axis",
-      "series"
-    ]
-  end
-
-  defp maybe_apply_ctes(selecto, params) when is_map(params) do
-    explicit_names =
-      params
-      |> ctes_from_params([])
-      |> Enum.map(&cte_entry_name/1)
-      |> Enum.reject(&is_nil/1)
-
-    derived_names = derived_cte_names_from_params(params, selecto)
-
-    Enum.reduce(explicit_names ++ derived_names, selecto, fn
-      name, acc when is_binary(name) and name != "" ->
-        if name in SelectoComponents.Form.ColumnCatalog.available_cte_names(acc) and
-             not cte_already_applied?(acc, name) do
-          Selecto.with_cte(acc, name)
-        else
-          acc
-        end
-
-      _name, acc ->
-        acc
-    end)
-  end
-
-  defp maybe_apply_ctes(selecto, _params), do: selecto
-
-  defp ctes_from_params(params, default) when is_map(params) do
-    case Map.get(params, "ctes") do
-      section when is_map(section) ->
-        section
-        |> Enum.sort_by(fn {_uuid, value} -> sort_index_for_compaction(value) end)
-        |> Enum.map(fn {uuid, value} ->
-          cte_uuid = get_map_value(value, :uuid, uuid)
-          name = get_map_value(value, :name)
-
-          {cte_uuid, name, Map.drop(stringify_map_keys(value), ["uuid", "name", "index"])}
-        end)
-        |> Enum.reject(fn {_uuid, name, _config} -> is_nil(name) or to_string(name) == "" end)
-
-      _ ->
-        default
-    end
-  end
-
-  defp ctes_from_params(_params, default), do: default
-
-  defp derived_cte_names_from_params(params, %Selecto{} = selecto) when is_map(params) do
-    field_ids =
-      params
-      |> field_ids_from_params()
-      |> Kernel.++(filter_ids_from_params(params))
-
-    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
-  end
-
-  defp derived_cte_names_from_params(_params, _selecto), do: []
-
-  defp derived_cte_names_from_view_config(view_config, %Selecto{} = selecto)
-       when is_map(view_config) do
-    field_ids =
-      view_config
-      |> field_ids_from_view_config()
-      |> Kernel.++(filter_ids_from_view_config(view_config))
-
-    SelectoComponents.Form.ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
-  end
-
-  defp derived_cte_names_from_view_config(_view_config, _selecto), do: []
-
-  defp field_ids_from_params(params) when is_map(params) do
-    ["selected", "order_by", "group_by", "aggregate", "x_axis", "y_axis", "series"]
-    |> Enum.flat_map(fn section ->
-      params
-      |> Map.get(section, %{})
-      |> list_field_ids_from_param_section()
-    end)
-  end
-
-  defp field_ids_from_params(_params), do: []
-
-  defp list_field_ids_from_param_section(section) when is_map(section) do
-    section
-    |> Map.values()
-    |> Enum.map(&get_map_value(&1, :field))
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp list_field_ids_from_param_section(_section), do: []
-
-  defp filter_ids_from_params(params) when is_map(params) do
-    params
-    |> Map.get("filters", %{})
-    |> Map.values()
-    |> Enum.map(&get_map_value(&1, :filter))
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp filter_ids_from_params(_params), do: []
-
-  defp field_ids_from_view_config(view_config) when is_map(view_config) do
-    view_config
-    |> get_map_value(:views, %{})
-    |> Map.values()
-    |> Enum.flat_map(&field_ids_from_view_state/1)
-  end
-
-  defp field_ids_from_view_config(_view_config), do: []
-
-  defp field_ids_from_view_state(view_state) when is_map(view_state) do
-    [:selected, :order_by, :group_by, :aggregate, :x_axis, :y_axis, :series]
-    |> Enum.flat_map(fn key ->
-      view_state
-      |> get_map_value(key, [])
-      |> list_field_ids_from_items()
-    end)
-  end
-
-  defp field_ids_from_view_state(_view_state), do: []
-
-  defp list_field_ids_from_items(items) when is_list(items) do
-    Enum.map(items, fn
-      {_uuid, field, _config} -> field
-      [_, field, _config] -> field
-      _other -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp list_field_ids_from_items(_items), do: []
-
-  defp filter_ids_from_view_config(view_config) when is_map(view_config) do
-    view_config
-    |> get_map_value(:filters, [])
-    |> Enum.map(fn
-      {_uuid, _section, filter_value} -> get_map_value(filter_value, :filter)
-      [_, _, filter_value] -> get_map_value(filter_value, :filter)
-      _other -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp filter_ids_from_view_config(_view_config), do: []
-
-  defp build_cte_entries(names, existing_ctes) when is_list(names) do
-    existing_by_name =
-      Map.new(existing_ctes, fn entry ->
-        case normalize_cte_entry(entry) do
-          {uuid, name, config} -> {name, {uuid, name, config}}
-          nil -> {nil, nil}
-        end
-      end)
-
-    names
-    |> Enum.uniq()
-    |> Enum.map(fn name ->
-      Map.get(existing_by_name, name, {"auto-cte-#{name}", name, %{}})
-    end)
-  end
-
-  defp build_cte_entries(_names, _existing_ctes), do: []
-
-  defp normalize_cte_entry({uuid, name, config}),
-    do: {to_string(uuid), to_string(name), config || %{}}
-
-  defp normalize_cte_entry([uuid, name, config]),
-    do: {to_string(uuid), to_string(name), config || %{}}
-
-  defp normalize_cte_entry(_entry), do: nil
-
-  defp cte_entry_name({_, name, _}) when is_binary(name), do: name
-  defp cte_entry_name([_, name, _]) when is_binary(name), do: name
-  defp cte_entry_name(_entry), do: nil
-
-  defp cte_already_applied?(%Selecto{} = selecto, name) do
-    selecto
-    |> get_in([Access.key(:set, %{}), Access.key(:ctes, [])])
-    |> Enum.any?(fn spec ->
-      spec_name =
-        Map.get(spec, :name) ||
-          Map.get(spec, :as) ||
-          Map.get(spec, "name") ||
-          Map.get(spec, "as")
-
-      to_string(spec_name || "") == name
-    end)
-  end
-
-  defp cte_already_applied?(_selecto, _name), do: false
+  def compact_url_params(params), do: URL.compact_url_params(params)
 
   defp stringify_map_keys(map) when is_map(map) do
     Map.new(map, fn {key, value} -> {to_string(key), value} end)
   end
 
   defp stringify_map_keys(_value), do: %{}
-
-  defp sort_index_for_compaction(value) when is_map(value) do
-    case Map.get(value, "index") do
-      idx when is_binary(idx) ->
-        case Integer.parse(idx) do
-          {num, ""} -> num
-          _ -> 0
-        end
-
-      idx when is_integer(idx) ->
-        idx
-
-      _ ->
-        0
-    end
-  end
-
-  defp sort_index_for_compaction(_value), do: 0
-
-  defp put_runtime_presentation_context(params, presentation_context) when is_map(params) do
-    Map.put(params, "_presentation_context", presentation_context || %{})
-  end
-
-  defp put_runtime_presentation_context(params, _presentation_context), do: params
-
-  defp drop_runtime_only_params(params) when is_map(params) do
-    Map.delete(params, "_presentation_context")
-  end
-
-  defp drop_runtime_only_params(params), do: params
 
   defp drop_unused_form_params(params) when is_map(params) do
     params

@@ -39,10 +39,11 @@ defmodule SelectoComponents.Components.ListPickerTest do
         })
       )
 
-    assert html =~ "grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"
+    assert html =~ "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
+    assert html =~ ~s(data-list-picker-fieldname="selected")
     assert html =~ ">Selected<"
     assert html =~ ~s(data-type-icon="Text")
     assert html =~ ~s(data-type-icon="Date")
@@ -52,6 +53,31 @@ defmodule SelectoComponents.Components.ListPickerTest do
     html = render_component(ListPicker, base_assigns(%{selected_items: []}))
 
     assert html =~ "Pick items from the available list to add them here."
+  end
+
+  test "uses the full selected item as the draggable element" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-picker-item-id="selected-1")
+    assert html =~ ~s(draggable="true")
+    assert html =~ ~s(title="Drag to reorder")
+  end
+
+  test "renders selected items as keyboard-focusable controls" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-selected-item)
+    assert html =~ ~s(tabindex="0")
+    assert html =~ ~s(aria-label="Selected item Chosen Item")
+  end
+
+  test "renders available items as keyboard-focusable add actions" do
+    html = render_component(ListPicker, base_assigns(%{}))
+
+    assert html =~ ~s(data-filter-input)
+    assert html =~ ~s(type="button" data-picker-action="add")
+    assert html =~ ~s(data-available-item)
+    assert html =~ ~s(data-item-id="alpha")
   end
 
   test "renders a dedicated badge for cte-backed columns" do
@@ -67,5 +93,50 @@ defmodule SelectoComponents.Components.ListPickerTest do
       )
 
     assert html =~ ~s(data-type-icon="CTE")
+  end
+
+  test "renders choice source indicators for choice-backed available and selected fields" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"customer_id", "Customer",
+             %{
+               type: :integer,
+               choice_source: "customer_choices",
+               choice_source_metadata: %{"id" => "customer_choices"}
+             }}
+          ],
+          selected_items: [
+            {"selected-1", "customer_id", %{}}
+          ]
+        })
+      )
+
+    assert html =~ ~s(data-type-key="number")
+    assert html =~ ~s(data-choice-source-indicator)
+    assert html =~ ~s(data-choice-source-id="customer_choices")
+    assert html =~ ~s(aria-label="Choice source customer_choices")
+    assert length(Regex.scan(~r/data-choice-source-indicator/, html)) == 2
+  end
+
+  test "renders selected items with tuple field identifiers" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"created_at", "Created At", :utc_datetime}
+          ],
+          selected_items: [
+            {"selected-1", {:to_char, {"created_at", "YYYY-MM"}}, %{}}
+          ],
+          item_summary: []
+        })
+      )
+
+    assert html =~ ~s|aria-label="Selected item to_char(created_at, YYYY-MM)"|
+    assert html =~ ~s(data-type-icon="Date")
   end
 end

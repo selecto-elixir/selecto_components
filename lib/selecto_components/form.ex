@@ -17,6 +17,8 @@ defmodule SelectoComponents.Form do
   alias SelectoComponents.Form.TabPanel
   alias SelectoComponents.Form.Tabs
   alias SelectoComponents.Form.ViewPanel
+  alias SelectoComponents.Keyboard.ShortcutHelp
+  alias SelectoComponents.Keyboard.Shortcuts
 
   @doc """
   Form for configuing Selecto View
@@ -30,15 +32,31 @@ defmodule SelectoComponents.Form do
   @impl true
   def render(assigns) do
     form_selecto = ColumnCatalog.picker_selecto(assigns.selecto)
+    choice_source_metadata_opts = choice_source_metadata_opts(assigns)
+
+    choice_source_metadata_by_field =
+      ColumnCatalog.choice_source_metadata_by_field(assigns.selecto, choice_source_metadata_opts)
+
+    use_saved_views = Map.get(assigns, :saved_view_module, false)
+    keyboard_shortcuts = Shortcuts.normalize(Map.get(assigns, :keyboard_shortcuts, true))
+    shortcut_context = [views: assigns.views, use_saved_views: use_saved_views]
 
     controller_filters =
-      controller_filters(assigns.selecto, Map.get(assigns.view_config, :filters, []))
+      controller_filters(
+        assigns.selecto,
+        Map.get(assigns.view_config, :filters, []),
+        choice_source_metadata_by_field
+      )
 
     assigns =
       assign(assigns,
         columns: build_column_list(assigns.selecto),
         form_selecto: form_selecto,
-        field_filters: FilterRendering.build_filter_list(assigns.selecto),
+        field_filters:
+          FilterRendering.build_filter_list(assigns.selecto,
+            choice_source_metadata_by_field: choice_source_metadata_by_field
+          ),
+        choice_source_metadata_by_field: choice_source_metadata_by_field,
         controller_title: Map.get(assigns, :controller_title, "View Controller"),
         show_view_configurator: Map.get(assigns, :show_view_configurator, true),
         current_view_label: current_view_label(assigns.views, assigns.view_config.view_mode),
@@ -58,7 +76,7 @@ defmodule SelectoComponents.Form do
             Map.get(assigns, :form_state_revision, 0)
           ),
         theme: Theme.resolve_theme(assigns),
-        use_saved_views: Map.get(assigns, :saved_view_module, false),
+        use_saved_views: use_saved_views,
         use_exported_views: Map.get(assigns, :exported_view_module, false),
         use_export_delivery: Map.get(assigns, :export_delivery_module, false),
         use_scheduled_exports: Map.get(assigns, :scheduled_export_module, false),
@@ -71,6 +89,11 @@ defmodule SelectoComponents.Form do
         detail_modal_visible: detail_modal_visible?(assigns),
         detail_modal_component: Map.get(assigns, :detail_modal_component),
         presentation_context: Map.get(assigns, :presentation_context, %{}),
+        keyboard_shortcuts: keyboard_shortcuts,
+        keyboard_shortcut_groups: Shortcuts.shortcut_groups(keyboard_shortcuts, shortcut_context),
+        keyboard_shortcut_map_json:
+          keyboard_shortcuts |> Shortcuts.keymap(shortcut_context) |> Jason.encode!(),
+        keyboard_shortcut_views: Shortcuts.available_view_ids(assigns.views),
         form: to_form(%{}, as: "view_config")
       )
 
@@ -80,6 +103,14 @@ defmodule SelectoComponents.Form do
       phx-hook=".ExportDownloads"
       data-selecto-form
       data-selecto-theme={@theme.id}
+      data-selecto-shortcuts-enabled={to_string(Shortcuts.enabled?(@keyboard_shortcuts))}
+      data-selecto-shortcuts-show-hints={to_string(Shortcuts.show_hints?(@keyboard_shortcuts))}
+      data-selecto-shortcut-map={@keyboard_shortcut_map_json}
+      data-selecto-shortcut-sequence-timeout={Shortcuts.sequence_timeout_ms(@keyboard_shortcuts)}
+      data-selecto-active-tab={@active_tab || "view"}
+      data-selecto-active-view={@view_config.view_mode || "detail"}
+      data-selecto-available-views={Enum.join(@keyboard_shortcut_views, ",")}
+      data-selecto-use-saved-views={to_string(@use_saved_views)}
       style={Theme.style_attr(@theme)}
       class={[Theme.slot(@theme, :root), Theme.slot(@theme, :panel), "border-2 p-1"]}
     >
@@ -255,12 +286,21 @@ defmodule SelectoComponents.Form do
         modal_detail_data={Map.get(assigns, :modal_detail_data, %{})}
       />
 
+      <ShortcutHelp.modal
+        :if={Shortcuts.enabled?(@keyboard_shortcuts) and Shortcuts.show_hints?(@keyboard_shortcuts)}
+        id={@id}
+        theme={@theme}
+        groups={@keyboard_shortcut_groups}
+      />
+
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ExportDownloads">
         export default {
           mounted() {
             this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
+            this.bindKeyboardShortcuts();
+            this.bindPromotedMultiSelects();
 
             this.handleEvent("selecto_export_download", (payload) => {
               const filename = payload.filename || "selecto_export.txt";
@@ -301,9 +341,20 @@ defmodule SelectoComponents.Form do
             this.bindExportDownloadButtons();
             this.bindEmailExportButton();
             this.bindScheduledExportButton();
+            this.bindKeyboardShortcuts();
+            this.bindPromotedMultiSelects();
+            this.flushPendingShortcutFocus();
           },
 
           destroyed() {
+            if (this.keyboardShortcutCleanup) {
+              this.keyboardShortcutCleanup();
+            }
+
+            if (this.shortcutHelpCleanup) {
+              this.shortcutHelpCleanup();
+            }
+
             if (this.emailExportCleanup) {
               this.emailExportCleanup();
             }
@@ -315,6 +366,646 @@ defmodule SelectoComponents.Form do
             if (this.scheduledExportCleanup) {
               this.scheduledExportCleanup();
             }
+
+            if (this.promotedMultiSelectCleanup) {
+              this.promotedMultiSelectCleanup();
+            }
+          },
+
+          bindPromotedMultiSelects() {
+            if (this.promotedMultiSelectCleanup) {
+              this.promotedMultiSelectCleanup();
+              this.promotedMultiSelectCleanup = null;
+            }
+
+            const selects = Array.from(
+              this.el.querySelectorAll("[data-promoted-filter-multiselect='true']")
+            );
+
+            const handlers = selects.map((select) => {
+              const handler = () => {
+                this.promotedMultiSelectDirty = true;
+                window.selectoPromotedMultiSelectDirty = true;
+                this.markSubmitDirty();
+
+                const form = select.form || select.closest("form");
+
+                if (form) {
+                  form.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+                }
+              };
+
+              select.addEventListener("change", handler);
+
+              return { select, handler };
+            });
+
+            const submit = this.el.querySelector("[data-selecto-submit-button='true']");
+            let submitHandler = null;
+
+            if (submit) {
+              submitHandler = () => {
+                this.promotedMultiSelectDirty = false;
+                window.selectoPromotedMultiSelectDirty = false;
+              };
+
+              submit.addEventListener("click", submitHandler);
+            }
+
+            this.promotedMultiSelectCleanup = () => {
+              handlers.forEach(({ select, handler }) => {
+                select.removeEventListener("change", handler);
+              });
+
+              if (submit && submitHandler) {
+                submit.removeEventListener("click", submitHandler);
+              }
+            };
+
+            if (this.promotedMultiSelectDirty || window.selectoPromotedMultiSelectDirty) {
+              this.markSubmitDirty();
+            }
+          },
+
+          markSubmitDirty() {
+            const submit = this.el.querySelector("[data-selecto-submit-button='true']");
+
+            if (submit) {
+              submit.dataset.dirty = "true";
+            }
+          },
+
+          bindKeyboardShortcuts() {
+            if (this.keyboardShortcutCleanup) {
+              this.keyboardShortcutCleanup();
+              this.keyboardShortcutCleanup = null;
+            }
+
+            this.bindShortcutHelpButtons();
+
+            if (this.el.dataset.selectoShortcutsEnabled !== "true") {
+              return;
+            }
+
+            this.shortcutMap = this.readShortcutMap();
+            this.shortcutSequence = [];
+            this.shortcutSequenceTimeout = Number.parseInt(
+              this.el.dataset.selectoShortcutSequenceTimeout || "900",
+              10
+            );
+
+            if (!Number.isFinite(this.shortcutSequenceTimeout) || this.shortcutSequenceTimeout < 250) {
+              this.shortcutSequenceTimeout = 900;
+            }
+
+            const keydownHandler = (event) => this.handleShortcutKeydown(event);
+
+            document.addEventListener("keydown", keydownHandler);
+
+            this.keyboardShortcutCleanup = () => {
+              document.removeEventListener("keydown", keydownHandler);
+              this.clearShortcutSequence();
+            };
+          },
+
+          bindShortcutHelpButtons() {
+            if (this.shortcutHelpCleanup) {
+              this.shortcutHelpCleanup();
+              this.shortcutHelpCleanup = null;
+            }
+
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            const buttons = Array.from(modal.querySelectorAll("[data-selecto-shortcut-help-close]"));
+            const handlers = buttons.map((button) => {
+              const handler = (event) => {
+                event.preventDefault();
+                this.closeShortcutHelp();
+              };
+
+              button.addEventListener("click", handler);
+              return { button, handler };
+            });
+
+            this.shortcutHelpCleanup = () => {
+              handlers.forEach(({ button, handler }) => button.removeEventListener("click", handler));
+            };
+          },
+
+          readShortcutMap() {
+            try {
+              return JSON.parse(this.el.dataset.selectoShortcutMap || "{}");
+            } catch (_error) {
+              return {};
+            }
+          },
+
+          handleShortcutKeydown(event) {
+            if (!this.isActiveShortcutInstance()) {
+              return;
+            }
+
+            const key = this.normalizedShortcutKey(event);
+
+            if (!key) {
+              return;
+            }
+
+            if (this.shortcutHelpOpen()) {
+              if (key === "escape" || key === "?") {
+                event.preventDefault();
+                this.closeShortcutHelp();
+              }
+
+              return;
+            }
+
+            if (this.shortcutIgnoredTarget(event.target)) {
+              return;
+            }
+
+            const sequence = [...(this.shortcutSequence || []), key];
+            const action = this.shortcutActionFor(sequence);
+
+            if (action) {
+              event.preventDefault();
+              this.clearShortcutSequence();
+              this.runShortcutAction(action);
+              return;
+            }
+
+            if (this.hasShortcutPrefix(sequence)) {
+              event.preventDefault();
+              this.setShortcutSequence(sequence);
+              return;
+            }
+
+            this.clearShortcutSequence();
+          },
+
+          normalizedShortcutKey(event) {
+            if (event.isComposing) {
+              return null;
+            }
+
+            let key = event.key;
+
+            if (!key || key === "Unidentified" || key === "Dead") {
+              return null;
+            }
+
+            if (key === " ") {
+              key = "space";
+            } else {
+              key = key.toLowerCase();
+            }
+
+            const parts = [];
+
+            if (event.metaKey || event.ctrlKey) {
+              parts.push("mod");
+            }
+
+            if (event.altKey) {
+              parts.push("alt");
+            }
+
+            if (event.shiftKey && key !== "?") {
+              parts.push("shift");
+            }
+
+            parts.push(key);
+
+            return parts.join("+");
+          },
+
+          shortcutActionFor(sequence) {
+            const normalized = sequence.join(" ");
+
+            return Object.entries(this.shortcutMap || {}).find(([_action, bindings]) => {
+              return Array.isArray(bindings) && bindings.includes(normalized);
+            })?.[0];
+          },
+
+          hasShortcutPrefix(sequence) {
+            const normalized = sequence.join(" ");
+
+            return Object.values(this.shortcutMap || {}).some((bindings) => {
+              return Array.isArray(bindings) && bindings.some((binding) => binding.startsWith(`${normalized} `));
+            });
+          },
+
+          setShortcutSequence(sequence) {
+            this.clearShortcutSequence();
+            this.shortcutSequence = sequence;
+            this.shortcutSequenceTimer = window.setTimeout(() => {
+              this.shortcutSequence = [];
+              this.shortcutSequenceTimer = null;
+            }, this.shortcutSequenceTimeout || 900);
+          },
+
+          clearShortcutSequence() {
+            if (this.shortcutSequenceTimer) {
+              window.clearTimeout(this.shortcutSequenceTimer);
+              this.shortcutSequenceTimer = null;
+            }
+
+            this.shortcutSequence = [];
+          },
+
+          runShortcutAction(action) {
+            switch (action) {
+              case "help":
+                this.openShortcutHelp();
+                break;
+              case "apply":
+                this.submitCurrentForm();
+                break;
+              case "focus_filters":
+                this.focusFilters();
+                break;
+              case "focus_results":
+                this.focusResults();
+                break;
+              case "focus_selected_picker":
+                this.focusFieldPicker("detail", "selected");
+                break;
+              case "focus_order_by_picker":
+                this.focusFieldPicker("detail", "order_by");
+                break;
+              case "focus_group_by_picker":
+                this.focusFieldPicker("aggregate", "group_by");
+                break;
+              case "focus_aggregate_picker":
+                this.focusFieldPicker("aggregate", "aggregate");
+                break;
+              case "focus_x_axis_picker":
+                this.focusFieldPicker("graph", "x_axis");
+                break;
+              case "focus_y_axis_picker":
+                this.focusFieldPicker("graph", "y_axis");
+                break;
+              case "focus_series_picker":
+                this.focusFieldPicker("graph", "series");
+                break;
+              case "export_tab":
+                this.switchMainTab("export");
+                break;
+              case "next_tab":
+                this.switchRelativeMainTab(1);
+                break;
+              case "previous_tab":
+                this.switchRelativeMainTab(-1);
+                break;
+              case "saved_views_tab":
+                if (this.el.dataset.selectoUseSavedViews === "true") {
+                  this.switchMainTab("save");
+                }
+                break;
+              case "export_csv":
+                this.exportCurrentResults("csv");
+                break;
+              case "export_tsv":
+                this.exportCurrentResults("tsv");
+                break;
+              case "export_json":
+                this.exportCurrentResults("json");
+                break;
+              case "export_xlsx":
+                this.exportCurrentResults("xlsx");
+                break;
+              case "detail_view":
+                this.switchViewMode("detail");
+                break;
+              case "aggregate_view":
+                this.switchViewMode("aggregate");
+                break;
+              case "graph_view":
+                this.switchViewMode("graph");
+                break;
+              default:
+                break;
+            }
+          },
+
+          mainTabButtons() {
+            return Array.from(this.el.querySelectorAll("[role='tab'][id^='main-tab-']"));
+          },
+
+          currentMainTab() {
+            const selected = this.mainTabButtons().find((button) => {
+              return button.getAttribute("aria-selected") === "true";
+            });
+
+            if (selected?.id?.startsWith("main-tab-")) {
+              return selected.id.replace("main-tab-", "");
+            }
+
+            return this.el.dataset.selectoActiveTab || "view";
+          },
+
+          switchMainTab(tab) {
+            const tabButton = this.el.querySelector(`#main-tab-${tab}`);
+
+            if (tabButton) {
+              tabButton.click();
+              this.focusElement(tabButton);
+              return;
+            }
+
+            this.pushEvent("set_active_tab", { tab });
+          },
+
+          switchRelativeMainTab(direction) {
+            const tabs = this.mainTabButtons();
+
+            if (tabs.length === 0) {
+              return;
+            }
+
+            const currentTab = this.currentMainTab();
+            const currentIndex = Math.max(
+              tabs.findIndex((button) => button.id === `main-tab-${currentTab}`),
+              0
+            );
+            const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+            const nextTab = tabs[nextIndex].id.replace("main-tab-", "");
+
+            this.switchMainTab(nextTab);
+          },
+
+          switchViewMode(view) {
+            const availableViews = (this.el.dataset.selectoAvailableViews || "")
+              .split(",")
+              .filter((item) => item !== "");
+
+            if (!availableViews.includes(view)) {
+              return;
+            }
+
+            const input = this.el.querySelector("[data-view-mode-input]");
+
+            if (input && input.value !== view) {
+              input.value = view;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+
+            const viewButton = Array.from(this.el.querySelectorAll("[data-view-tab]")).find((button) => {
+              return button.dataset.viewId === view;
+            });
+
+            if (viewButton) {
+              this.focusElement(viewButton);
+            }
+
+            this.switchMainTab("view");
+          },
+
+          exportCurrentResults(format) {
+            const button = this.el.querySelector(
+              `[data-export-download-button='true'][data-format='${format}']`
+            );
+
+            if (!button) {
+              return;
+            }
+
+            button.click();
+          },
+
+          focusFilters() {
+            this.pendingShortcutFocus = "filters";
+            this.ensureControllerExpanded();
+            this.switchMainTab("filter");
+
+            window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
+          },
+
+          focusResults() {
+            const results = document.querySelector("[data-selecto-results-region]");
+
+            if (!results) {
+              return;
+            }
+
+            this.focusElement(results);
+            results.dispatchEvent(new CustomEvent("selecto:focus-results", { bubbles: true }));
+          },
+
+          focusFieldPicker(view, fieldname) {
+            this.pendingShortcutFocus = `field_picker:${fieldname}`;
+            this.ensureControllerExpanded();
+            this.switchViewMode(view);
+            this.switchMainTab("view");
+
+            window.setTimeout(() => this.flushPendingShortcutFocus(), 80);
+          },
+
+          ensureControllerExpanded() {
+            const body = this.el.querySelector("[data-selecto-controller-body]");
+
+            if (!body || !body.classList.contains("hidden")) {
+              return;
+            }
+
+            const toggle = this.el.querySelector("[data-selecto-controller-summary] button[aria-controls]");
+
+            if (toggle) {
+              toggle.click();
+            }
+          },
+
+          flushPendingShortcutFocus() {
+            if (!this.pendingShortcutFocus) {
+              return;
+            }
+
+            const target = this.pendingShortcutFocus === "filters"
+              ? this.firstFocusableFilterInput()
+              : this.pendingShortcutFocus.startsWith("field_picker:")
+                ? this.fieldPickerSearchInput(this.pendingShortcutFocus.replace("field_picker:", ""))
+                : null;
+
+            if (!target) {
+              return;
+            }
+
+            this.pendingShortcutFocus = null;
+            this.focusElement(target);
+
+            if (typeof target.select === "function") {
+              target.select();
+            }
+          },
+
+          fieldPickerSearchInput(fieldname) {
+            const root = Array.from(this.el.querySelectorAll("[data-list-picker-fieldname]")).find((element) => {
+              return element.dataset.listPickerFieldname === fieldname;
+            });
+
+            if (root) {
+              const details = root.closest("details");
+
+              if (details && !details.open) {
+                details.open = true;
+              }
+            }
+
+            const target = root
+              ? root.querySelector("[data-filter-input]")
+              : this.el.querySelector(`#list-picker-${fieldname}-filter [data-filter-input]`);
+
+            if (this.focusableShortcutTarget(target)) {
+              return target;
+            }
+
+            return null;
+          },
+
+          firstFocusableFilterInput() {
+            const selectors = [
+              "[name^='promoted_filters'][name$='[value]']",
+              "[name^='promoted_filters'][name$='[value_start]']",
+              "#main-tabpanel-filter [data-filter-picker-input]",
+              "#main-tabpanel-filter [data-filter-input]",
+              "#main-tabpanel-filter textarea[name*='[pending_values]']",
+              "#main-tabpanel-filter input[name*='[value]']:not([type='hidden'])",
+              "#main-tabpanel-filter textarea[name*='[value]']",
+              "#main-tabpanel-filter select[name*='[value]']"
+            ];
+
+            return selectors
+              .flatMap((selector) => Array.from(this.el.querySelectorAll(selector)))
+              .find((element) => this.focusableShortcutTarget(element));
+          },
+
+          focusableShortcutTarget(element) {
+            if (!(element instanceof HTMLElement)) {
+              return false;
+            }
+
+            if (element.disabled || element.closest("[hidden]")) {
+              return false;
+            }
+
+            if (element.closest(".hidden") && !element.closest("[data-selecto-controller-summary]")) {
+              return false;
+            }
+
+            return element.offsetParent !== null || element.getClientRects().length > 0;
+          },
+
+          submitCurrentForm() {
+            const form = this.el.querySelector("form");
+
+            if (!form) {
+              return;
+            }
+
+            if (typeof form.requestSubmit === "function") {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+          },
+
+          openShortcutHelp() {
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            this.shortcutHelpPreviousFocus = document.activeElement;
+            modal.hidden = false;
+            modal.removeAttribute("hidden");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            this.focusElement(modal.querySelector("[data-selecto-shortcut-help-dialog]"));
+          },
+
+          closeShortcutHelp() {
+            const modal = this.shortcutHelpModal();
+
+            if (!modal) {
+              return;
+            }
+
+            modal.hidden = true;
+            modal.setAttribute("hidden", "");
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+
+            if (
+              this.shortcutHelpPreviousFocus &&
+              typeof this.shortcutHelpPreviousFocus.focus === "function" &&
+              document.contains(this.shortcutHelpPreviousFocus)
+            ) {
+              this.focusElement(this.shortcutHelpPreviousFocus);
+            }
+
+            this.shortcutHelpPreviousFocus = null;
+          },
+
+          shortcutHelpModal() {
+            return this.el.querySelector("[data-selecto-shortcut-help]");
+          },
+
+          shortcutHelpOpen() {
+            const modal = this.shortcutHelpModal();
+
+            return Boolean(modal && !modal.hidden && !modal.classList.contains("hidden"));
+          },
+
+          focusElement(element) {
+            if (!element || typeof element.focus !== "function") {
+              return;
+            }
+
+            try {
+              element.focus({ preventScroll: true });
+            } catch (_error) {
+              element.focus();
+            }
+          },
+
+          shortcutIgnoredTarget(target) {
+            if (!(target instanceof Element)) {
+              return false;
+            }
+
+            if (target.closest("[data-selecto-shortcuts-ignore='true']")) {
+              return true;
+            }
+
+            if (target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']")) {
+              return true;
+            }
+
+            const role = target.getAttribute("role");
+
+            return role === "textbox" || role === "searchbox";
+          },
+
+          isActiveShortcutInstance() {
+            const activeElement = document.activeElement;
+            const activeForm =
+              activeElement instanceof Element ? activeElement.closest("[data-selecto-form]") : null;
+
+            if (activeForm && activeForm !== this.el) {
+              return false;
+            }
+
+            if (!activeForm && document.querySelectorAll("[data-selecto-form]").length > 1) {
+              return false;
+            }
+
+            return true;
           },
 
           bindEmailExportButton() {
@@ -439,17 +1130,17 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  defp controller_filters(selecto, filters) do
+  defp controller_filters(selecto, filters, choice_source_metadata_by_field) do
     filters
     |> Enum.reduce([], fn
       {uuid, _section, %{} = filter}, acc ->
-        case controller_filter_data(selecto, uuid, filter) do
+        case controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
           nil -> acc
           filter_data -> [filter_data | acc]
         end
 
       [uuid, _section, %{} = filter], acc ->
-        case controller_filter_data(selecto, uuid, filter) do
+        case controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
           nil -> acc
           filter_data -> [filter_data | acc]
         end
@@ -460,10 +1151,12 @@ defmodule SelectoComponents.Form do
     |> Enum.reverse()
   end
 
-  defp controller_filter_data(selecto, uuid, filter) do
+  defp controller_filter_data(selecto, uuid, filter, choice_source_metadata_by_field) do
     label = filter_label(selecto, filter)
     comp = normalize_summary_comp(Map.get(filter, "comp") || Map.get(filter, :comp))
     summary = filter_summary(selecto, filter)
+    field_conf = controller_filter_field_conf(selecto, filter, choice_source_metadata_by_field)
+    field_type = controller_filter_field_type(selecto, filter)
     render_kind = controller_filter_render_kind(selecto, filter, comp)
 
     case {label, summary} do
@@ -479,13 +1172,15 @@ defmodule SelectoComponents.Form do
           label: controller_filter_label(selecto, filter, label),
           summary: summary,
           comp: comp,
+          submitted_value: controller_filter_submitted_value(filter),
+          display_value: controller_filter_value(filter),
           value: controller_filter_value(filter),
           value_start: controller_filter_start_value(filter),
           value_end: controller_filter_end_value(filter),
           mode: controller_filter_mode(selecto, filter, render_kind),
-          list_value: controller_filter_list_value(filter),
-          field_type: controller_filter_field_type(selecto, filter),
-          field_conf: controller_filter_field_conf(selecto, filter),
+          list_value: controller_filter_list_value(filter, field_conf),
+          field_type: field_type,
+          field_conf: field_conf,
           render_kind: render_kind,
           text_search_mode_options: controller_filter_mode_options(selecto, render_kind),
           editable: promoted_filter?(filter) and render_kind != :unsupported
@@ -674,28 +1369,83 @@ defmodule SelectoComponents.Form do
   end
 
   defp controller_filter_value(filter) do
+    Map.get(filter, "display_value") || Map.get(filter, :display_value) ||
+      Map.get(filter, "value") || Map.get(filter, :value) || ""
+  end
+
+  defp controller_filter_submitted_value(filter) do
     Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
   defp controller_filter_start_value(filter) do
-    Map.get(filter, "value_start") || Map.get(filter, :value_start) || Map.get(filter, "value") ||
-      Map.get(filter, :value) || ""
+    Map.get(filter, "display_value_start") || Map.get(filter, :display_value_start) ||
+      Map.get(filter, "value_start") || Map.get(filter, :value_start) ||
+      Map.get(filter, "display_value") || Map.get(filter, :display_value) ||
+      Map.get(filter, "value") || Map.get(filter, :value) || ""
   end
 
   defp controller_filter_end_value(filter) do
-    Map.get(filter, "value_end") || Map.get(filter, :value_end) || Map.get(filter, "value2") ||
-      Map.get(filter, :value2) || ""
+    Map.get(filter, "display_value_end") || Map.get(filter, :display_value_end) ||
+      Map.get(filter, "value_end") || Map.get(filter, :value_end) ||
+      Map.get(filter, "display_value2") || Map.get(filter, :display_value2) ||
+      Map.get(filter, "value2") || Map.get(filter, :value2) || ""
   end
 
-  defp controller_filter_list_value(filter) do
-    filter
-    |> controller_filter_value()
-    |> to_string()
-    |> String.split(~r/[\r\n,]+/)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n")
+  defp controller_filter_list_value(filter, field_conf) do
+    display_value =
+      Map.get(filter, "display_value") || Map.get(filter, :display_value)
+
+    values =
+      cond do
+        locale_sensitive_controller_list_field?(field_conf) and is_binary(display_value) ->
+          split_controller_list_value(display_value, true)
+
+        true ->
+          filter
+          |> controller_filter_value()
+          |> split_controller_list_value(false)
+      end
+
+    Enum.join(values, "\n")
   end
+
+  defp split_controller_list_value(value, preserve_commas?) do
+    normalized =
+      value
+      |> to_string()
+      |> String.replace(~r/\r\n|\r/, "\n")
+
+    cond do
+      normalized == "" ->
+        []
+
+      preserve_commas? ->
+        normalized
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      true ->
+        normalized
+        |> String.split(~r/[\r\n,]+/)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  defp locale_sensitive_controller_list_field?(field_conf) when is_map(field_conf) do
+    Selecto.Presentation.measurement?(field_conf) or
+      locale_numeric_controller_field_type?(Selecto.Temporal.date_like_type(field_conf)) or
+      locale_numeric_controller_field_type?(Map.get(field_conf, :type))
+  end
+
+  defp locale_sensitive_controller_list_field?(field_conf),
+    do: locale_numeric_controller_field_type?(field_conf)
+
+  defp locale_numeric_controller_field_type?(type) when type in [:integer, :float, :decimal],
+    do: true
+
+  defp locale_numeric_controller_field_type?(_type), do: false
 
   defp controller_filter_mode(selecto, filter, :text_search) do
     case Map.get(filter, "mode") || Map.get(filter, :mode) do
@@ -770,13 +1520,19 @@ defmodule SelectoComponents.Form do
     end
   end
 
-  defp controller_filter_field_conf(selecto, filter) do
+  defp controller_filter_field_conf(selecto, filter, choice_source_metadata_by_field \\ %{}) do
     filter_id = Map.get(filter, "filter") || Map.get(filter, :filter)
     filter_def = controller_filter_definition(selecto, filter)
     column_def = controller_filter_column_definition(selecto, filter, filter_def)
 
-    controller_join_mode_field_conf(selecto, filter_id, filter_def || column_def) ||
-      filter_def || column_def || controller_filter_field_type(selecto, filter)
+    field_conf =
+      controller_join_mode_field_conf(selecto, filter_id, filter_def || column_def) ||
+        filter_def || column_def || controller_filter_field_type(selecto, filter)
+
+    put_controller_choice_source_metadata(
+      field_conf,
+      Map.get(choice_source_metadata_by_field, to_string(filter_id))
+    )
   end
 
   defp controller_join_mode_field_conf(
@@ -828,9 +1584,11 @@ defmodule SelectoComponents.Form do
 
     if schema_atom do
       domain
-      |> get_in([:schemas, schema_atom, :columns])
+      |> get_in([:schemas, schema_atom])
       |> case do
-        columns when is_map(columns) ->
+        schema_config when is_map(schema_config) ->
+          columns = Map.get(schema_config, :columns, %{})
+
           Enum.find_value(columns, fn {_col_name, col_config} ->
             join_mode = Map.get(col_config, :join_mode)
             id_field = Map.get(col_config, :id_field)
@@ -838,7 +1596,7 @@ defmodule SelectoComponents.Form do
 
             if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
                  (id_field == :id or Atom.to_string(id_field) == field_part) do
-              col_config
+              Map.put(col_config, :source_table, Map.get(schema_config, :source_table))
             end
           end)
 
@@ -861,7 +1619,7 @@ defmodule SelectoComponents.Form do
 
         if join_mode in [:lookup, :star, :tag] and filter_type == :multi_select_id and
              group_by_filter == filter_id do
-          col_config
+          Map.put(col_config, :source_table, Map.get(schema_config, :source_table))
         end
       end)
     end)
@@ -907,6 +1665,40 @@ defmodule SelectoComponents.Form do
         "DAY_OF_MONTH",
         "HOUR_OF_DAY"
       ]
+  end
+
+  defp put_controller_choice_source_metadata(
+         %{} = field_conf,
+         %{"choice_source_metadata" => metadata} = field
+       ) do
+    field_conf
+    |> Map.put(:choice_source, Map.get(field, "choice_source"))
+    |> Map.put(:choice_source_metadata, metadata)
+  end
+
+  defp put_controller_choice_source_metadata(field_conf, _choice_source_field), do: field_conf
+
+  defp choice_source_metadata_opts(assigns) do
+    [
+      choice_source_links: Map.get(assigns, :choice_source_links),
+      base_url: Map.get(assigns, :choice_source_base_url),
+      headers: Map.get(assigns, :choice_source_headers),
+      transport: choice_source_projection_transport(assigns)
+    ]
+    |> Keyword.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+  end
+
+  defp choice_source_projection_transport(assigns) do
+    Map.get(assigns, :choice_source_transport) || inferred_choice_source_transport(assigns)
+  end
+
+  defp inferred_choice_source_transport(assigns) do
+    if choice_source_live_resolver?(assigns), do: :live
+  end
+
+  defp choice_source_live_resolver?(assigns) do
+    [:choice_source_options_resolver, :choice_source_membership_resolver]
+    |> Enum.any?(fn key -> is_function(Map.get(assigns, key)) end)
   end
 
   defp polymorphic_filter?(filter) do

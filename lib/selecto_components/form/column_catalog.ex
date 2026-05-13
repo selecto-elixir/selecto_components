@@ -1,6 +1,9 @@
 defmodule SelectoComponents.Form.ColumnCatalog do
   @moduledoc false
 
+  alias SelectoComponents.Form.ChoiceSourceMetadata
+  alias SelectoComponents.QueryContract
+
   def picker_selecto(%Selecto{} = selecto) do
     selecto
     |> base_selecto()
@@ -17,6 +20,7 @@ defmodule SelectoComponents.Form.ColumnCatalog do
 
   def picker_columns(%Selecto{} = selecto) do
     cte_names = available_cte_names(selecto)
+    choice_source_metadata = choice_source_metadata_by_field(selecto)
 
     selecto
     |> picker_selecto()
@@ -31,7 +35,8 @@ defmodule SelectoComponents.Form.ColumnCatalog do
          icon: picker_icon(column, cte_names),
          icon_family: picker_icon(column, cte_names),
          cte_name: cte_name_for_field_id(column.colid, cte_names)
-       }}
+       }
+       |> put_choice_source_metadata(column.colid, choice_source_metadata)}
     end)
     |> Enum.sort(fn {_, left_name, _}, {_, right_name, _} -> left_name <= right_name end)
   end
@@ -78,6 +83,28 @@ defmodule SelectoComponents.Form.ColumnCatalog do
 
   def cte_name_for_field_id(_field_id, _cte_names), do: nil
 
+  def choice_source_metadata_by_field(selecto, opts \\ [])
+
+  def choice_source_metadata_by_field(%Selecto{} = selecto, opts) do
+    selecto
+    |> Selecto.domain()
+    |> QueryContract.json_document(opts)
+    |> case do
+      {:ok, document, _diagnostics} ->
+        document
+        |> ChoiceSourceMetadata.choice_source_fields(opts)
+        |> Map.new(fn field -> {to_string(Map.fetch!(field, "id")), field} end)
+
+      {:error, _diagnostics} ->
+        %{}
+    end
+  rescue
+    _exception ->
+      %{}
+  end
+
+  def choice_source_metadata_by_field(_selecto, _opts), do: %{}
+
   defp base_selecto(%Selecto{} = selecto) do
     Selecto.configure(
       selecto.domain,
@@ -91,6 +118,18 @@ defmodule SelectoComponents.Form.ColumnCatalog do
     case cte_name_for_field_id(Map.get(column, :colid), cte_names) do
       nil -> Map.get(column, :icon) || Map.get(column, :icon_family)
       _cte_name -> :cte
+    end
+  end
+
+  defp put_choice_source_metadata(metadata, field_id, choice_source_metadata) do
+    case Map.get(choice_source_metadata, to_string(field_id)) do
+      %{"choice_source_metadata" => metadata_document} = field ->
+        metadata
+        |> Map.put(:choice_source, Map.get(field, "choice_source"))
+        |> Map.put(:choice_source_metadata, metadata_document)
+
+      _field ->
+        metadata
     end
   end
 

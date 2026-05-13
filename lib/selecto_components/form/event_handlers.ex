@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.EventHandlers do
   - **DrillDown** - Drill-down operations from aggregates and graphs
   - **ListOperations** - List picker operations (add, remove, reorder)
   - **QueryOperations** - Query execution, sorting, and pagination
+  - **ChoiceSourceOperations** - LiveView-backed choice-source options and validation
    - **ModalOperations** - Modal dialog display and interaction
    - **ExportOperations** - Export current results as CSV/JSON
 
@@ -62,6 +63,10 @@ defmodule SelectoComponents.Form.EventHandlers do
   - `{:update_view_config, ...}` - Update configuration
   - `{:filters_updated, ...}` - Update filters
 
+  ### ChoiceSourceOperations
+  - `selecto_choice_source_options` - Resolve choice-source options over LiveView
+  - `selecto_choice_source_validate` - Validate choice-source membership over LiveView
+
    ### ModalOperations
    - `{:show_detail_modal, ...}` - Show detail modal
    - `{:close_detail_modal, ...}` - Close detail modal
@@ -99,6 +104,7 @@ defmodule SelectoComponents.Form.EventHandlers do
       use SelectoComponents.Form.EventHandlers.DrillDown
       use SelectoComponents.Form.EventHandlers.ListOperations
       use SelectoComponents.Form.EventHandlers.QueryOperations
+      use SelectoComponents.Form.EventHandlers.ChoiceSourceOperations
       use SelectoComponents.Form.EventHandlers.ModalOperations
       use SelectoComponents.Form.EventHandlers.ExportOperations
 
@@ -114,6 +120,8 @@ defmodule SelectoComponents.Form.EventHandlers do
       alias SelectoComponents.Form.ParamsState
       alias SelectoComponents.Form.ListPickerOperations
       alias SelectoComponents.Form.DrillDownFilters
+      alias SelectoComponents.Session.Builder, as: SessionBuilder
+      alias SelectoComponents.Session.Store, as: SessionStore
       alias SelectoComponents.Extensions, as: ComponentExtensions
       alias SelectoComponents.Views.Runtime, as: ViewRuntime
 
@@ -132,27 +140,8 @@ defmodule SelectoComponents.Form.EventHandlers do
       """
       def get_initial_state(views, selecto) do
         views = ComponentExtensions.merge_views(views, selecto)
-
-        default_view_mode =
-          case views do
-            [{id, _, _, _} | _] -> Atom.to_string(id)
-            _ -> "aggregate"
-          end
-
-        view_configs =
-          Enum.reduce(views, %{}, fn {view, _module, _name, _opt} = view_tuple, acc ->
-            Map.merge(acc, %{
-              view => ViewRuntime.initial_state(view_tuple, selecto)
-            })
-          end)
-
         columns_list = SelectoComponents.Form.ColumnCatalog.picker_columns(selecto)
-
-        initial_view_config = %{
-          view_mode: default_view_mode,
-          views: view_configs,
-          filters: []
-        }
+        session = SessionBuilder.build(views, selecto)
 
         [
           selecto: selecto,
@@ -164,16 +153,10 @@ defmodule SelectoComponents.Form.EventHandlers do
           query_results: [],
           detail_page_cache: nil,
           aggregate_page_cache: nil,
-          form_state_revision: 0,
-          applied_form_state_revision: 0,
-          applied_view_config: initial_view_config,
-          view_config_dirty?: false,
           validation_locked_until_patch: false,
           applied_view: nil,
-          active_tab: "view",
-          view_config: initial_view_config,
           view_meta: %{}
-        ]
+        ] ++ SessionStore.initial_assigns(session)
       end
 
       @doc """

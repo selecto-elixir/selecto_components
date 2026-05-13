@@ -103,6 +103,9 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   end
 
   defp debug_requested?(params, session) do
+    params = normalize_lookup_map(params)
+    session = normalize_lookup_map(session)
+
     flag =
       params["selecto_debug"] ||
         params[:selecto_debug] ||
@@ -117,6 +120,9 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   end
 
   defp extract_debug_token(params, session) do
+    params = normalize_lookup_map(params)
+    session = normalize_lookup_map(session)
+
     params["debug_token"] ||
       params[:debug_token] ||
       session["debug_token"] ||
@@ -156,6 +162,10 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   end
 
   defp secure_compare(_, _), do: false
+
+  defp normalize_lookup_map(%_{} = value), do: Map.from_struct(value)
+  defp normalize_lookup_map(value) when is_map(value), do: value
+  defp normalize_lookup_map(_value), do: %{}
 
   @doc """
   Generate a secure random token for production debug access.

@@ -815,35 +815,41 @@ defmodule SelectoComponents.Views.Map.Component do
 
   def prepare_features(rows, aliases, map_layers) when is_list(rows) and is_list(aliases) do
     layers = map_layer_indexes(aliases, map_layers)
+    row_lists = Enum.map(rows, &row_to_list/1)
 
-    rows
-    |> Enum.map(&row_to_list/1)
-    |> Enum.flat_map(fn row ->
-      Enum.map(layers, fn layer ->
-        geometry = row |> Enum.at(layer.geometry_ix) |> parse_geometry()
-        raw_color = row |> optional_value(layer.color_ix)
-        track_key = row |> optional_value(layer.track_by_ix)
-        track_order = row |> optional_value(layer.track_order_ix)
+    point_features =
+      row_lists
+      |> Enum.flat_map(fn row ->
+        Enum.map(layers, fn layer ->
+          geometry = geometry_from_row(row, layer)
+          raw_color = row |> optional_value(layer.color_ix)
+          track_key = row |> optional_value(layer.track_by_ix)
+          track_order = row |> optional_value(layer.track_order_ix)
 
-        if geometry do
-          %{
-            "type" => "Feature",
-            "geometry" => geometry,
-            "properties" => %{
-              "popup" => optional_value(row, layer.popup_ix),
-              "color" => normalize_marker_color(raw_color, layer.config),
-              "raw_color" => raw_color,
-              "track_key" => track_key,
-              "track_order" => track_order,
-              "layer" => layer.layer_id
+          if geometry do
+            %{
+              "type" => "Feature",
+              "geometry" => geometry,
+              "properties" => %{
+                "popup" => optional_value(row, layer.popup_ix),
+                "color" => normalize_marker_color(raw_color, layer.config),
+                "raw_color" => raw_color,
+                "track_key" => track_key,
+                "track_order" => track_order,
+                "layer" => layer.layer_id
+              }
             }
-          }
-        else
-          nil
-        end
+          else
+            nil
+          end
+        end)
       end)
-    end)
-    |> Enum.reject(&is_nil/1)
+      |> Enum.reject(&is_nil/1)
+
+    path_features = build_explicit_track_path_features(row_lists, layers)
+
+    point_features
+    |> Kernel.++(path_features)
     |> append_track_features(layers)
   end
 
@@ -861,13 +867,20 @@ defmodule SelectoComponents.Views.Map.Component do
       aliases
       |> Enum.with_index()
       |> Enum.filter(fn {alias_name, _ix} ->
-        String.starts_with?(to_string(alias_name), "__map_geometry")
+        String.starts_with?(to_string(alias_name), "__map_geometry") or
+          String.starts_with?(to_string(alias_name), "__map_lat")
       end)
       |> Enum.map(fn {alias_name, geometry_ix} ->
-        suffix = String.replace_prefix(to_string(alias_name), "__map_geometry", "")
+        suffix =
+          to_string(alias_name)
+          |> String.replace_prefix("__map_geometry", "")
+          |> String.replace_prefix("__map_lat", "")
 
         %{
           geometry_ix: geometry_ix,
+          latitude_ix: index_for_alias(aliases, "__map_lat#{suffix}", nil),
+          longitude_ix: index_for_alias(aliases, "__map_lng#{suffix}", nil),
+          track_path_ix: index_for_alias(aliases, "__map_track_path#{suffix}", nil),
           popup_ix: index_for_alias(aliases, "__map_popup#{suffix}", nil),
           color_ix: index_for_alias(aliases, "__map_color#{suffix}", nil),
           track_by_ix: index_for_alias(aliases, "__map_track_by#{suffix}", nil),
@@ -884,6 +897,9 @@ defmodule SelectoComponents.Views.Map.Component do
       [
         %{
           geometry_ix: 0,
+          latitude_ix: index_for_alias(aliases, "__map_lat", 0),
+          longitude_ix: index_for_alias(aliases, "__map_lng", 1),
+          track_path_ix: index_for_alias(aliases, "__map_track_path", nil),
           popup_ix: index_for_alias(aliases, "__map_popup", nil),
           color_ix: index_for_alias(aliases, "__map_color", nil),
           track_by_ix: index_for_alias(aliases, "__map_track_by", nil),
@@ -1220,6 +1236,214 @@ defmodule SelectoComponents.Views.Map.Component do
     features ++ track_features
   end
 
+  defp build_explicit_track_path_features(rows, layers) do
+    layers
+    |> Enum.flat_map(fn layer ->
+      config = Map.get(layer, :config, %{})
+      show_endpoints = truthy?(Map.get(config, :show_track_endpoints, true))
+      show_arrows = truthy?(Map.get(config, :show_track_arrows, true))
+
+      rows
+      |> Enum.flat_map(fn row ->
+        build_track_path_features_from_row(row, layer, show_endpoints, show_arrows)
+      end)
+    end)
+  end
+
+  defp build_track_path_features_from_row(row, layer, show_endpoints, show_arrows) do
+    path_value = optional_value(row, Map.get(layer, :track_path_ix))
+
+    case parse_track_path(path_value) do
+      coords when is_list(coords) and length(coords) > 1 ->
+        popup = optional_value(row, layer.popup_ix) || "Track"
+        color = normalize_marker_color(optional_value(row, layer.color_ix), layer.config)
+        layer_id = layer.layer_id
+        start_coord = List.first(coords)
+        end_coord = List.last(coords)
+
+        line_feature = %{
+          "type" => "Feature",
+          "geometry" => %{"type" => "LineString", "coordinates" => coords},
+          "properties" => %{
+            "popup" => popup,
+            "color" => color,
+            "layer" => layer_id,
+            "feature_kind" => "track"
+          }
+        }
+
+        endpoint_features =
+          if show_endpoints do
+            [
+              %{
+                "type" => "Feature",
+                "geometry" => %{"type" => "Point", "coordinates" => start_coord},
+                "properties" => %{
+                  "popup" => "Start #{popup}",
+                  "color" => "#16a34a",
+                  "layer" => layer_id,
+                  "feature_kind" => "track_start"
+                }
+              },
+              %{
+                "type" => "Feature",
+                "geometry" => %{"type" => "Point", "coordinates" => end_coord},
+                "properties" => %{
+                  "popup" => "End #{popup}",
+                  "color" => "#dc2626",
+                  "layer" => layer_id,
+                  "feature_kind" => "track_end"
+                }
+              }
+            ]
+          else
+            []
+          end
+
+        arrow_features =
+          if show_arrows do
+            coords
+            |> Enum.chunk_every(2, 1, :discard)
+            |> Enum.with_index(1)
+            |> Enum.map(fn {[from_coord, to_coord], segment_index} ->
+              %{
+                "type" => "Feature",
+                "geometry" => %{
+                  "type" => "Point",
+                  "coordinates" => midpoint(from_coord, to_coord)
+                },
+                "properties" => %{
+                  "popup" => "Direction #{popup} segment #{segment_index}",
+                  "color" => color,
+                  "layer" => layer_id,
+                  "feature_kind" => "track_arrow",
+                  "arrow_symbol" => arrow_symbol(from_coord, to_coord)
+                }
+              }
+            end)
+          else
+            []
+          end
+
+        [line_feature] ++ endpoint_features ++ arrow_features
+
+      _ ->
+        []
+    end
+  end
+
+  defp parse_track_path(nil), do: []
+
+  defp parse_track_path(%{"type" => "LineString", "coordinates" => coords})
+       when is_list(coords) do
+    coords
+    |> Enum.map(&normalize_path_coordinate/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_track_path(%{"type" => _type} = geometry) do
+    case parse_geometry(geometry) do
+      %{"type" => "LineString", "coordinates" => coords} when is_list(coords) ->
+        coords
+        |> Enum.map(&normalize_path_coordinate/1)
+        |> Enum.reject(&is_nil/1)
+
+      %{"type" => "Point", "coordinates" => coord} ->
+        case normalize_path_coordinate(coord) do
+          nil -> []
+          normalized -> [normalized]
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp parse_track_path(%{"geometry" => geometry}), do: parse_track_path(geometry)
+
+  defp parse_track_path(list) when is_list(list) do
+    list
+    |> Enum.map(&normalize_path_item/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_track_path(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        []
+
+      String.starts_with?(trimmed, "{") or String.starts_with?(trimmed, "[") ->
+        case Jason.decode(trimmed) do
+          {:ok, decoded} ->
+            parse_track_path(decoded)
+
+          _ ->
+            case parse_geometry(trimmed) do
+              %{"type" => "LineString", "coordinates" => coords} ->
+                coords
+                |> Enum.map(&normalize_path_coordinate/1)
+                |> Enum.reject(&is_nil/1)
+
+              _ ->
+                []
+            end
+        end
+
+      true ->
+        case parse_geometry(trimmed) do
+          %{"type" => "LineString", "coordinates" => coords} ->
+            coords
+            |> Enum.map(&normalize_path_coordinate/1)
+            |> Enum.reject(&is_nil/1)
+
+          _ ->
+            []
+        end
+    end
+  end
+
+  defp parse_track_path(_), do: []
+
+  defp normalize_path_item(%{"type" => _type} = geometry) do
+    case parse_track_path(geometry) do
+      [coord] -> coord
+      _ -> nil
+    end
+  end
+
+  defp normalize_path_item(%{"geometry" => geometry}), do: normalize_path_item(geometry)
+
+  defp normalize_path_item(%{} = item) do
+    lat =
+      Map.get(item, "lat") || Map.get(item, :lat) || Map.get(item, "latitude") ||
+        Map.get(item, :latitude)
+
+    lng =
+      Map.get(item, "lng") || Map.get(item, :lng) || Map.get(item, "longitude") ||
+        Map.get(item, :longitude)
+
+    build_point_coordinate(lat, lng)
+  end
+
+  defp normalize_path_item([lng, lat]), do: build_point_coordinate(lat, lng)
+  defp normalize_path_item({lng, lat}), do: build_point_coordinate(lat, lng)
+  defp normalize_path_item(_), do: nil
+
+  defp normalize_path_coordinate([lng, lat]), do: build_point_coordinate(lat, lng)
+  defp normalize_path_coordinate({lng, lat}), do: build_point_coordinate(lat, lng)
+  defp normalize_path_coordinate(_), do: nil
+
+  defp build_point_coordinate(lat, lng) do
+    with lat when is_number(lat) <- parse_coordinate(lat),
+         lng when is_number(lng) <- parse_coordinate(lng) do
+      [lng, lat]
+    else
+      _ -> nil
+    end
+  end
+
   defp midpoint([lng1, lat1], [lng2, lat2]) do
     [(lng1 + lng2) / 2.0, (lat1 + lat2) / 2.0]
   end
@@ -1429,6 +1653,46 @@ defmodule SelectoComponents.Views.Map.Component do
   end
 
   defp parse_geometry(_), do: nil
+
+  defp geometry_from_row(row, layer) do
+    case row |> Enum.at(layer.geometry_ix) |> parse_geometry() do
+      nil ->
+        build_point_geometry(
+          optional_value(row, layer.latitude_ix),
+          optional_value(row, layer.longitude_ix)
+        )
+
+      geometry ->
+        geometry
+    end
+  end
+
+  defp build_point_geometry(lat, lng) do
+    with lat when is_number(lat) <- parse_coordinate(lat),
+         lng when is_number(lng) <- parse_coordinate(lng) do
+      %{"type" => "Point", "coordinates" => [lng, lat]}
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_coordinate(value) when is_integer(value), do: value * 1.0
+  defp parse_coordinate(value) when is_float(value), do: value
+
+  defp parse_coordinate(value) when is_binary(value) do
+    case Float.parse(String.trim(value)) do
+      {parsed, ""} -> parsed
+      _ -> nil
+    end
+  end
+
+  defp parse_coordinate(%{__struct__: Decimal} = value) do
+    value |> Decimal.to_float()
+  rescue
+    _ -> nil
+  end
+
+  defp parse_coordinate(_), do: nil
 
   defp strip_srid_prefix("SRID=" <> rest) do
     case String.split(rest, ";", parts: 2) do

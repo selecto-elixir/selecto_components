@@ -217,4 +217,21 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ "sc-input"
     assert html =~ "sc-select"
   end
+
+  test "detail column config keeps temporal format on default when none is configured" do
+    html =
+      render_component(ColumnConfig, %{
+        id: "detail-column-config-default-format",
+        theme: Theme.default_theme(:light),
+        item: "published_at_usec",
+        col: %{type: :utc_datetime, name: "Published At", colid: :published_at_usec},
+        columns: [{:published_at_usec, "Published At", :utc_datetime}],
+        prefix: "selected[c0]",
+        config: %{}
+      })
+
+    assert html =~ ~s(name="selected[c0][format]")
+    assert html =~ ~s(<option value="">Default</option>)
+    refute html =~ ~s(<option value="YYYY-MM-DD" selected>)
+  end
 end

@@ -59,12 +59,28 @@ defmodule SelectoComponents.Results do
     ~H"""
     <div
       id={"selecto-results-#{@id}-#{@theme.id}"}
+      phx-hook=".ResultsKeyboard"
+      data-selecto-results-region
       data-selecto-theme={@theme.id}
       style={Theme.style_attr(@theme)}
       class={Theme.slot(@theme, :root)}
+      tabindex="0"
+      role="region"
+      aria-label="Selecto results"
     >
       <style>
         <%= Phoenix.HTML.raw(@theme_stylesheet) %>
+
+        [data-selecto-results-region]:focus {
+          outline: 2px solid var(--sc-accent);
+          outline-offset: 3px;
+        }
+
+        [data-selecto-result-cell]:focus {
+          outline: 2px solid var(--sc-accent);
+          outline-offset: -2px;
+          background: color-mix(in srgb, var(--sc-accent-soft) 35%, transparent);
+        }
       </style>
       <div
         :if={@normalized_execution_error && !@applied_view}
@@ -126,6 +142,274 @@ defmodule SelectoComponents.Results do
           execution_error={assigns[:execution_error]}
         />
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ResultsKeyboard">
+        export default {
+          mounted() {
+            this.onFocusResults = (event) => {
+              event.preventDefault();
+              this.focusFirstCell();
+            };
+
+            this.onKeydown = (event) => this.handleResultKeydown(event);
+
+            this.el.addEventListener("selecto:focus-results", this.onFocusResults);
+            this.el.addEventListener("keydown", this.onKeydown);
+          },
+
+          destroyed() {
+            if (this.onFocusResults) {
+              this.el.removeEventListener("selecto:focus-results", this.onFocusResults);
+            }
+
+            if (this.onKeydown) {
+              this.el.removeEventListener("keydown", this.onKeydown);
+            }
+          },
+
+          handleResultKeydown(event) {
+            if (this.isTextEntryTarget(event.target)) {
+              return;
+            }
+
+            const key = event.key;
+            const currentCell = this.currentCell(event.target);
+            const navigationKeys = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End", "Enter"];
+
+            if (!currentCell && navigationKeys.includes(key)) {
+              event.preventDefault();
+              this.focusFirstCell();
+              return;
+            }
+
+            if (!currentCell) {
+              return;
+            }
+
+            if (key === "ArrowDown") {
+              event.preventDefault();
+              this.moveFromCell(currentCell, 1, 0);
+              return;
+            }
+
+            if (key === "ArrowUp") {
+              event.preventDefault();
+              this.moveFromCell(currentCell, -1, 0);
+              return;
+            }
+
+            if (key === "ArrowRight") {
+              event.preventDefault();
+              this.moveFromCell(currentCell, 0, 1);
+              return;
+            }
+
+            if (key === "ArrowLeft") {
+              event.preventDefault();
+              this.moveFromCell(currentCell, 0, -1);
+              return;
+            }
+
+            if (key === "Home") {
+              event.preventDefault();
+              this.focusRowEdge(currentCell, "first");
+              return;
+            }
+
+            if (key === "End") {
+              event.preventDefault();
+              this.focusRowEdge(currentCell, "last");
+              return;
+            }
+
+            if (key === "Enter" && !event.isComposing) {
+              event.preventDefault();
+              this.activateCell(currentCell);
+              return;
+            }
+
+            if (key === "PageDown") {
+              event.preventDefault();
+              this.clickPageButton("next");
+              return;
+            }
+
+            if (key === "PageUp") {
+              event.preventDefault();
+              this.clickPageButton("previous");
+              return;
+            }
+
+            if (key === "Escape") {
+              event.preventDefault();
+              this.focusController();
+            }
+          },
+
+          currentCell(target) {
+            if (!(target instanceof Element)) {
+              return null;
+            }
+
+            const cell = target.closest("[data-selecto-result-cell]");
+
+            if (!cell || !this.el.contains(cell)) {
+              return null;
+            }
+
+            return cell;
+          },
+
+          resultCells() {
+            return Array.from(this.el.querySelectorAll("[data-selecto-result-cell]")).filter((cell) => {
+              return cell.offsetParent !== null || cell.getClientRects().length > 0;
+            });
+          },
+
+          focusFirstCell() {
+            const firstCell = this.resultCells()[0];
+
+            if (firstCell) {
+              this.focusElement(firstCell);
+              return true;
+            }
+
+            this.focusElement(this.el);
+            return false;
+          },
+
+          moveFromCell(cell, rowDelta, columnDelta) {
+            const matrix = this.cellMatrix();
+            const row = Number.parseInt(cell.dataset.resultRowIndex || "0", 10);
+            const column = Number.parseInt(cell.dataset.resultColumnIndex || "0", 10);
+
+            if (matrix.rowKeys.length === 0) {
+              return;
+            }
+
+            if (rowDelta !== 0) {
+              const rowPosition = Math.max(matrix.rowKeys.indexOf(row), 0);
+              const targetRowPosition = this.clamp(rowPosition + rowDelta, 0, matrix.rowKeys.length - 1);
+              const targetRow = matrix.rowKeys[targetRowPosition];
+              const targetCell = this.nearestCellInRow(matrix.rows.get(targetRow) || [], column);
+              this.focusElement(targetCell || cell);
+              return;
+            }
+
+            const rowCells = matrix.rows.get(row) || [];
+            const columnPosition = Math.max(
+              rowCells.findIndex((candidate) => Number.parseInt(candidate.dataset.resultColumnIndex || "0", 10) === column),
+              0
+            );
+            const targetColumnPosition = this.clamp(columnPosition + columnDelta, 0, rowCells.length - 1);
+
+            this.focusElement(rowCells[targetColumnPosition] || cell);
+          },
+
+          focusRowEdge(cell, edge) {
+            const row = Number.parseInt(cell.dataset.resultRowIndex || "0", 10);
+            const rowCells = this.cellMatrix().rows.get(row) || [];
+            const target = edge === "last" ? rowCells[rowCells.length - 1] : rowCells[0];
+
+            this.focusElement(target || cell);
+          },
+
+          cellMatrix() {
+            const rows = new Map();
+
+            this.resultCells().forEach((cell) => {
+              const row = Number.parseInt(cell.dataset.resultRowIndex || "0", 10);
+
+              if (!rows.has(row)) {
+                rows.set(row, []);
+              }
+
+              rows.get(row).push(cell);
+            });
+
+            rows.forEach((cells) => {
+              cells.sort((left, right) => {
+                return Number.parseInt(left.dataset.resultColumnIndex || "0", 10) -
+                  Number.parseInt(right.dataset.resultColumnIndex || "0", 10);
+              });
+            });
+
+            return {
+              rows,
+              rowKeys: Array.from(rows.keys()).sort((left, right) => left - right)
+            };
+          },
+
+          nearestCellInRow(cells, column) {
+            return cells.reduce((nearest, cell) => {
+              if (!nearest) {
+                return cell;
+              }
+
+              const nearestColumn = Number.parseInt(nearest.dataset.resultColumnIndex || "0", 10);
+              const currentColumn = Number.parseInt(cell.dataset.resultColumnIndex || "0", 10);
+
+              return Math.abs(currentColumn - column) < Math.abs(nearestColumn - column) ? cell : nearest;
+            }, null);
+          },
+
+          activateCell(cell) {
+            const action = cell.querySelector("[data-selecto-result-action]");
+
+            if (action) {
+              action.click();
+              return;
+            }
+
+            const row = cell.closest("[data-selecto-result-row]");
+
+            if (row && row.dataset.rowActionType && row.dataset.rowActionType !== "none") {
+              row.click();
+            }
+          },
+
+          clickPageButton(direction) {
+            const button = this.el.querySelector(`[data-selecto-results-page='${direction}']:not([disabled])`);
+
+            if (button) {
+              button.click();
+              this.focusElement(this.el);
+            }
+          },
+
+          focusController() {
+            const form = document.querySelector("[data-selecto-form]");
+            const target =
+              form?.querySelector("[role='tab'][aria-selected='true'][id^='main-tab-']") ||
+              form?.querySelector("[data-selecto-controller-summary] button[aria-controls]");
+
+            this.focusElement(target || this.el);
+          },
+
+          isTextEntryTarget(target) {
+            return Boolean(
+              target instanceof Element &&
+              target.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='searchbox']")
+            );
+          },
+
+          focusElement(element) {
+            if (!element || typeof element.focus !== "function") {
+              return;
+            }
+
+            try {
+              element.focus({ preventScroll: true });
+            } catch (_error) {
+              element.focus();
+            }
+          },
+
+          clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+          }
+        }
+      </script>
     </div>
     """
   end
@@ -135,11 +419,17 @@ defmodule SelectoComponents.Results do
     # Since this is a LiveComponent, we might not have direct access to socket
     # The parent LiveView should pass these through assigns if needed
     params = assigns[:params] || assigns[:used_params] || %{}
-    session = assigns[:session] || %{}
+    session = normalize_debug_session(assigns[:session])
 
     # Use ProductionConfig to check if debug should be shown
     ProductionConfig.debug_enabled?(params, session)
   end
+
+  defp normalize_debug_session(%SelectoComponents.Session{} = session),
+    do: Map.from_struct(session)
+
+  defp normalize_debug_session(session) when is_map(session), do: session
+  defp normalize_debug_session(_session), do: %{}
 
   defp normalize_execution_error(assigns) do
     case Map.get(assigns, :execution_error) do

@@ -216,7 +216,44 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       )
 
     assert {:field, {:raw_sql, sql}, "Created At"} = selector
-    assert sql == "to_char(selecto_root.created_at AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+
+    assert sql ==
+             "to_char((selecto_root.created_at AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'America/New_York', 'YYYY-MM')"
+  end
+
+  test "group by preserves composite datetime formats with viewer timezone" do
+    columns = %{
+      "published_at_usec" => %{
+        name: "Published At Usec",
+        type: :utc_datetime_usec,
+        colid: :published_at_usec,
+        presentation: %{
+          semantic_type: :temporal,
+          temporal_kind: :instant,
+          storage_timezone: "Etc/UTC",
+          display_timezone: :viewer
+        }
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "published_at_usec",
+            "format" => "YYYY-MM-DD HH24",
+            "index" => "0"
+          }
+        },
+        columns,
+        nil,
+        %{timezone: "Europe/Berlin"}
+      )
+
+    assert {:field, {:raw_sql, sql}, "Published At Usec"} = selector
+
+    assert sql ==
+             "to_char((selecto_root.published_at_usec AT TIME ZONE 'Etc/UTC') AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD HH24')"
   end
 
   test "group by uses viewer timezone for epoch-backed instant year buckets" do
@@ -324,6 +361,43 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
       )
 
     assert {:field, "date_tier.id", "Date Tier"} = hd(view_set.selected)
+  end
+
+  test "view builds field selectors for custom-column group by items" do
+    columns = %{
+      "assignee_display" => %{
+        name: "Assignee",
+        type: :custom_column,
+        colid: "assignee_display",
+        requires_join: :assignee
+      },
+      "id" => %{name: "ID", type: :id, colid: "id"}
+    }
+
+    {view_set, _meta} =
+      Process.view(
+        nil,
+        %{
+          "group_by" => %{
+            "g1" => %{"field" => "assignee_display", "index" => "0", "format" => "default"}
+          },
+          "aggregate" => %{
+            "a1" => %{"field" => "id", "index" => "0", "format" => "count"}
+          }
+        },
+        columns,
+        [],
+        nil
+      )
+
+    assert view_set.selected == [
+             {:field, "assignee_display", "Assignee"},
+             {:field, {:count, "id"}, "ID Count"}
+           ]
+
+    assert view_set.group_by == [
+             {:rollup, [{:field, "assignee_display", "Assignee"}]}
+           ]
   end
 
   test "view collapses linked group by items into rollup grouping sets" do
