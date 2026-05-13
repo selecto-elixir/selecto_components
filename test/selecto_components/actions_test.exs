@@ -148,6 +148,22 @@ defmodule SelectoComponents.ActionsTest do
              "bulk_archive"
   end
 
+  test "builds action request templates" do
+    [action] = Actions.available(write_contract())
+
+    assert Actions.request_template(action, target: %{"id" => "42"}, dry_run: true) == %{
+             "action" => "approve_order",
+             "target" => %{"id" => "42"},
+             "dry_run" => true
+           }
+
+    assert Actions.request_template(action, confirmed: true) == %{
+             "action" => "approve_order",
+             "target" => %{"id" => ""},
+             "confirmed" => true
+           }
+  end
+
   test "marks delete-like or destructive actions for guarded UI treatment" do
     contract =
       write_contract(%{

@@ -159,6 +159,21 @@ defmodule SelectoComponents.Actions do
     end)
   end
 
+  @doc """
+  Builds a portable action request template for preview/apply/availability calls.
+  """
+  @spec request_template(map(), keyword()) :: map()
+  def request_template(action, opts \\ []) when is_map(action) do
+    target = Keyword.get(opts, :target, %{"id" => ""})
+
+    %{
+      "action" => action |> map_value(:id) |> normalize_id(),
+      "target" => SelectoComponents.QueryContract.json_safe(target)
+    }
+    |> maybe_put("dry_run", Keyword.get(opts, :dry_run))
+    |> maybe_put("confirmed", Keyword.get(opts, :confirmed))
+  end
+
   defp action_entries(contract) when is_map(contract) do
     case map_value(contract, :actions) do
       actions when is_list(actions) -> actions
@@ -344,6 +359,9 @@ defmodule SelectoComponents.Actions do
 
   defp map_or_empty(map) when is_map(map), do: map
   defp map_or_empty(_value), do: %{}
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp truthy?(value) when value in [true, "true", "1", 1, true, :yes], do: true
   defp truthy?(_value), do: false
