@@ -30,6 +30,19 @@ defmodule SelectoComponents.ActionsTest do
     assert action.confirmation_message == "Approve this order?"
     assert action.reason == "Allowed by policy"
     assert action.links["preview"] == "/orders/actions/approve_order/preview"
+
+    assert action.endpoints["preview"] == %{
+             "href" => "/orders/actions/approve_order/preview",
+             "method" => "POST",
+             "rel" => "preview"
+           }
+
+    assert action.endpoints["apply"] == %{
+             "href" => "/orders/actions/approve_order/apply",
+             "method" => "POST",
+             "rel" => "apply"
+           }
+
     assert action.preview_link == "/orders/actions/approve_order/preview"
     assert action.apply_link == "/orders/actions/approve_order/apply"
 
@@ -161,6 +174,40 @@ defmodule SelectoComponents.ActionsTest do
              "action" => "approve_order",
              "target" => %{"id" => ""},
              "confirmed" => true
+           }
+  end
+
+  test "normalizes rich link maps into endpoint metadata" do
+    contract =
+      write_contract(%{
+        "escalate_order" => %{
+          "id" => "escalate_order",
+          "label" => "Escalate order",
+          "scope" => "row",
+          "capability" => "orders.escalate",
+          "execution" => %{"operation" => "update"},
+          "links" => %{
+            "preview" => %{"href" => "/orders/actions/escalate/preview", "method" => "post"},
+            "apply" => %{"path" => "/orders/actions/escalate/apply", "method" => "patch"}
+          }
+        }
+      })
+
+    action = contract |> Actions.available() |> Enum.find(&(&1.id == "escalate_order"))
+
+    assert action.preview_link == "/orders/actions/escalate/preview"
+    assert action.apply_link == "/orders/actions/escalate/apply"
+
+    assert action.endpoints["preview"] == %{
+             "href" => "/orders/actions/escalate/preview",
+             "method" => "POST",
+             "rel" => "preview"
+           }
+
+    assert action.endpoints["apply"] == %{
+             "href" => "/orders/actions/escalate/apply",
+             "method" => "PATCH",
+             "rel" => "apply"
            }
   end
 

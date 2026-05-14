@@ -26,6 +26,7 @@ defmodule SelectoComponents.Actions do
           required(:confirmation_message) => String.t() | nil,
           required(:reason) => String.t() | nil,
           required(:links) => map(),
+          required(:endpoints) => map(),
           required(:preview_link) => String.t() | nil,
           required(:apply_link) => String.t() | nil,
           required(:attrs) => map(),
@@ -215,6 +216,7 @@ defmodule SelectoComponents.Actions do
       confirmation_message: action_confirmation_message(action),
       reason: map_value(decision, :reason),
       links: action_links(action),
+      endpoints: action_endpoints(action),
       preview_link: action_link(action, "preview"),
       apply_link: action_link(action, "apply"),
       attrs: action_attrs(action, status),
@@ -249,8 +251,51 @@ defmodule SelectoComponents.Actions do
     action
     |> action_links()
     |> map_value(rel)
+    |> link_href()
     |> normalize_optional_id()
   end
+
+  defp action_endpoints(action) do
+    action
+    |> action_links()
+    |> Enum.reduce(%{}, fn {rel, link}, endpoints ->
+      rel = normalize_id(rel)
+
+      case action_endpoint(rel, link) do
+        nil -> endpoints
+        endpoint -> Map.put(endpoints, rel, endpoint)
+      end
+    end)
+  end
+
+  defp action_endpoint(rel, link) do
+    href = link_href(link) |> normalize_optional_id()
+
+    if href do
+      %{
+        "href" => href,
+        "method" => link_method(link),
+        "rel" => rel
+      }
+    end
+  end
+
+  defp link_href(link) when is_map(link) do
+    map_value(link, :href) ||
+      map_value(link, :url) ||
+      map_value(link, :path)
+  end
+
+  defp link_href(link), do: link
+
+  defp link_method(link) when is_map(link) do
+    link
+    |> map_value(:method, "POST")
+    |> normalize_id()
+    |> String.upcase()
+  end
+
+  defp link_method(_link), do: "POST"
 
   defp action_attrs(action, status) do
     %{
