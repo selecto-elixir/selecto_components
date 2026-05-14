@@ -28,6 +28,21 @@ defmodule SelectoComponents.ActionsTest do
     assert action.requires_confirmation? == true
     assert action.confirmation == %{"message" => "Approve this order?", "required" => true}
     assert action.confirmation_message == "Approve this order?"
+
+    assert action.inputs == [
+             %{"id" => "note", "required" => true, "type" => "string"},
+             %{
+               "default" => false,
+               "id" => "notify_customer",
+               "required" => false,
+               "type" => "boolean"
+             }
+           ]
+
+    assert action.input_template == %{"note" => "", "notify_customer" => false}
+    assert action.required_inputs == ["note"]
+    assert [%{"id" => "with_manager_review"} = variant] = action.variants
+    assert variant["inputs"] == [%{"id" => "manager_id", "required" => true, "type" => "integer"}]
     assert action.reason == "Allowed by policy"
     assert action.links["preview"] == "/orders/actions/approve_order/preview"
 
@@ -167,13 +182,21 @@ defmodule SelectoComponents.ActionsTest do
     assert Actions.request_template(action, target: %{"id" => "42"}, dry_run: true) == %{
              "action" => "approve_order",
              "target" => %{"id" => "42"},
+             "inputs" => %{"note" => "", "notify_customer" => false},
              "dry_run" => true
            }
 
     assert Actions.request_template(action, confirmed: true) == %{
              "action" => "approve_order",
              "target" => %{"id" => ""},
+             "inputs" => %{"note" => "", "notify_customer" => false},
              "confirmed" => true
+           }
+
+    assert Actions.request_template(action, inputs: %{"note" => "Ship it"}) == %{
+             "action" => "approve_order",
+             "target" => %{"id" => ""},
+             "inputs" => %{"note" => "Ship it"}
            }
   end
 
@@ -242,6 +265,23 @@ defmodule SelectoComponents.ActionsTest do
             "capability" => "orders.approve",
             "icon" => "check",
             "confirmation" => %{"required" => true, "message" => "Approve this order?"},
+            "inputs" => [
+              %{"id" => "note", "type" => "string", "required" => true},
+              %{
+                "id" => "notify_customer",
+                "type" => "boolean",
+                "required" => false,
+                "default" => false
+              }
+            ],
+            "variants" => [
+              %{
+                "id" => "with_manager_review",
+                "inputs" => [
+                  %{"id" => "manager_id", "type" => "integer", "required" => true}
+                ]
+              }
+            ],
             "execution" => %{"operation" => "update"},
             "links" => %{
               "preview" => "/orders/actions/approve_order/preview",

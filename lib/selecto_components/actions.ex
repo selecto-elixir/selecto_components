@@ -24,6 +24,10 @@ defmodule SelectoComponents.Actions do
           required(:requires_confirmation?) => boolean(),
           required(:confirmation) => map(),
           required(:confirmation_message) => String.t() | nil,
+          required(:inputs) => [map()],
+          required(:input_template) => map(),
+          required(:required_inputs) => [String.t()],
+          required(:variants) => [map()],
           required(:reason) => String.t() | nil,
           required(:links) => map(),
           required(:endpoints) => map(),
@@ -166,11 +170,13 @@ defmodule SelectoComponents.Actions do
   @spec request_template(map(), keyword()) :: map()
   def request_template(action, opts \\ []) when is_map(action) do
     target = Keyword.get(opts, :target, %{"id" => ""})
+    inputs = Keyword.get(opts, :inputs, action_input_template(action))
 
     %{
       "action" => action |> map_value(:id) |> normalize_id(),
       "target" => SelectoComponents.QueryContract.json_safe(target)
     }
+    |> maybe_put("inputs", empty_to_nil(SelectoComponents.QueryContract.json_safe(inputs)))
     |> maybe_put("dry_run", Keyword.get(opts, :dry_run))
     |> maybe_put("confirmed", Keyword.get(opts, :confirmed))
   end
@@ -214,6 +220,10 @@ defmodule SelectoComponents.Actions do
       requires_confirmation?: requires_confirmation?(action),
       confirmation: action_confirmation(action),
       confirmation_message: action_confirmation_message(action),
+      inputs: action_inputs(action),
+      input_template: action_input_template(action),
+      required_inputs: action_required_inputs(action),
+      variants: action_variants(action),
       reason: map_value(decision, :reason),
       links: action_links(action),
       endpoints: action_endpoints(action),
@@ -342,6 +352,92 @@ defmodule SelectoComponents.Actions do
     |> normalize_optional_id()
   end
 
+  defp action_inputs(action) do
+    action
+    |> map_value(:inputs, [])
+    |> normalize_input_entries()
+  end
+
+  defp action_variants(action) do
+    action
+    |> map_value(:variants, [])
+    |> normalize_variant_entries()
+  end
+
+  defp normalize_input_entries(inputs) when is_list(inputs) do
+    inputs
+    |> Enum.map(&map_or_empty/1)
+    |> Enum.reject(&(&1 == %{}))
+  end
+
+  defp normalize_input_entries(inputs) when is_map(inputs) do
+    inputs
+    |> Enum.map(fn {id, input} ->
+      input
+      |> map_or_empty()
+      |> Map.put_new("id", normalize_id(id))
+    end)
+  end
+
+  defp normalize_input_entries(_inputs), do: []
+
+  defp normalize_variant_entries(variants) when is_list(variants) do
+    variants
+    |> Enum.map(fn variant ->
+      variant = map_or_empty(variant)
+      Map.update(variant, "inputs", [], &normalize_input_entries/1)
+    end)
+    |> Enum.reject(&(&1 == %{}))
+  end
+
+  defp normalize_variant_entries(variants) when is_map(variants) do
+    variants
+    |> Enum.map(fn {id, variant} ->
+      variant
+      |> map_or_empty()
+      |> Map.put_new("id", normalize_id(id))
+      |> Map.update("inputs", [], &normalize_input_entries/1)
+    end)
+  end
+
+  defp normalize_variant_entries(_variants), do: []
+
+  defp action_input_template(action) do
+    action
+    |> action_inputs()
+    |> input_template()
+  end
+
+  defp input_template(inputs) do
+    inputs
+    |> Enum.map(fn input ->
+      {input |> map_value(:id) |> normalize_id(), input_default(input)}
+    end)
+    |> Enum.reject(fn {id, _value} -> id == "" end)
+    |> Map.new()
+  end
+
+  defp input_default(input) do
+    cond do
+      present?(map_value(input, :default)) ->
+        map_value(input, :default)
+
+      input |> map_value(:type) |> normalize_id() == "collection" ->
+        []
+
+      true ->
+        ""
+    end
+  end
+
+  defp action_required_inputs(action) do
+    action
+    |> action_inputs()
+    |> Enum.filter(&(map_value(&1, :required) |> truthy?()))
+    |> Enum.map(&(map_value(&1, :id) |> normalize_id()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
   defp normalize_decision(nil, default_status),
     do: %{"status" => normalize_status(default_status)}
 
@@ -407,6 +503,11 @@ defmodule SelectoComponents.Actions do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp empty_to_nil(value) when value in [%{}, []], do: nil
+  defp empty_to_nil(value), do: value
+
+  defp present?(value), do: not is_nil(value)
 
   defp truthy?(value) when value in [true, "true", "1", 1, true, :yes], do: true
   defp truthy?(_value), do: false
