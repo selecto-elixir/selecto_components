@@ -87,6 +87,22 @@ defmodule SelectoComponents.QueryContractTest do
     end
   end
 
+  describe "json_safe/1" do
+    test "normalizes date and time structs before generic map traversal" do
+      assert QueryContract.json_safe(%{
+               inserted_at: ~N[2026-05-14 18:56:38],
+               published_at: ~U[2026-05-14 18:56:38Z],
+               due_on: ~D[2026-05-14],
+               starts_at: ~T[18:56:38]
+             }) == %{
+               "inserted_at" => "2026-05-14T18:56:38",
+               "published_at" => "2026-05-14T18:56:38Z",
+               "due_on" => "2026-05-14",
+               "starts_at" => "18:56:38"
+             }
+    end
+  end
+
   describe "json_document/1" do
     test "returns a JSON-ready query contract document" do
       assert {:ok, document, diagnostics} =
