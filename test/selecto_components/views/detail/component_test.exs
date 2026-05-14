@@ -543,6 +543,71 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert detail_data.component_assigns.workspace_name == "Austin Workspace 2-1"
   end
 
+  test "show_row_details can open an action form live component" do
+    domain = %{
+      name: "DetailActionFormTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, title: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{
+        archive_form: %{
+          name: "Archive",
+          type: :live_component,
+          required_fields: [:id, :title],
+          payload: %{
+            title: ~S(Archive #{{id}}),
+            module: SelectoComponents.Modal.ActionFormModal,
+            assigns: %{
+              target: %{id: {:field, "id"}},
+              action: %{
+                id: "archive",
+                label: "Archive",
+                description: "Move a completed work item into the archived state.",
+                operation: "update",
+                scope: "row",
+                confirmation: %{required: true, message: "Archive this work item?"}
+              }
+            }
+          }
+        }
+      }
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        selecto:
+          Selecto.configure(domain, nil)
+          |> Map.put(:set, %{
+            columns: [
+              %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+              %{"field" => "title", "alias" => "title", "uuid" => "title-col"}
+            ]
+          }),
+        enable_modal_detail: false,
+        view_meta: %{row_click_action: "archive_form"},
+        processed_results: {[[42, "Ship archive forms"]], ["id", "title"]},
+        query_results: {[[42, "Ship archive forms"]], ["id", "title"], ["id", "title"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.action_type == :live_component
+    assert detail_data.component_module == SelectoComponents.Modal.ActionFormModal
+    assert detail_data.component_assigns.target.id == 42
+    assert detail_data.component_assigns.action.id == "archive"
+    assert detail_data.title == "Archive #42"
+  end
+
   test "renders external link row action data attributes" do
     domain = %{
       name: "DetailExternalLinkTest",

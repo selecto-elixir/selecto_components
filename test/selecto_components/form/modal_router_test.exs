@@ -50,4 +50,35 @@ defmodule SelectoComponents.Form.ModalRouterTest do
     assert html =~ "Open in new tab"
     assert html =~ "https://example.com/detail/1"
   end
+
+  test "routes live component action forms through the modal router" do
+    html =
+      render_component(&ModalRouter.router/1, %{
+        visible: true,
+        modal_detail_data: %{
+          action_type: :live_component,
+          record: %{"id" => 42, "title" => "Launch"},
+          records: [%{"id" => 42, "title" => "Launch"}],
+          current_index: 0,
+          total_records: 1,
+          component_module: SelectoComponents.Modal.ActionFormModal,
+          component_assigns: %{
+            action: %{
+              "id" => "archive",
+              "label" => "Archive",
+              "description" => "Move to archive",
+              "operation" => "update",
+              "scope" => "row",
+              "confirmation" => %{"required" => true, "message" => "Archive this row?"}
+            },
+            target: %{"id" => 42}
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-modal)
+    assert html =~ "Archive"
+    assert html =~ "Archive this row?"
+    assert html =~ ~s(&quot;action&quot;: &quot;archive&quot;)
+  end
 end
