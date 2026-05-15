@@ -59,8 +59,35 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
       })
 
     assert html =~ ~s(data-selecto-action-form-applied)
+    assert html =~ ~s(data-action-status="applied")
+
+    assert html =~
+             ~r/data-selecto-action-form-input="note"[\s\S]*name="inputs\[note\]"[\s\S]*disabled/
+
+    assert html =~ ~r/name="confirmed"[\s\S]*disabled/
     assert html =~ ~r/value="preview"[\s\S]*disabled/
     assert html =~ ~r/value="apply"[\s\S]*disabled/
+  end
+
+  test "render exposes stable action metadata and submit hooks" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: Map.put(action(), "capability", "work_items.archive"),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        confirmed: true
+      })
+
+    assert html =~ ~s(data-selecto-action-form-modal)
+    assert html =~ ~s(data-action-id="archive")
+    assert html =~ ~s(data-action-capability="work_items.archive")
+    assert html =~ ~s(data-action-operation="update")
+    assert html =~ ~s(data-action-scope="row")
+    assert html =~ ~s(data-action-status="enabled")
+    assert html =~ ~s(data-selecto-action-form-input="note")
+    assert html =~ ~s(data-selecto-action-form-submit="preview")
+    assert html =~ ~s(data-selecto-action-form-submit="apply")
   end
 
   test "render summarizes preview and apply results" do
@@ -117,7 +144,13 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
       })
 
     assert html =~ ~s(data-selecto-action-form-disabled)
+    assert html =~ ~s(data-action-status="disabled")
     assert html =~ "Action precondition failed for state."
+
+    assert html =~
+             ~r/data-selecto-action-form-input="note"[\s\S]*name="inputs\[note\]"[\s\S]*disabled/
+
+    assert html =~ ~r/name="confirmed"[\s\S]*disabled/
     assert html =~ ~r/value="preview"[\s\S]*disabled/
     assert html =~ ~r/value="apply"[\s\S]*disabled/
   end
@@ -146,7 +179,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
 
     assert html =~ ~s(<textarea)
     assert html =~ ~s(name="inputs[archive_reason]")
-    assert html =~ ~s(<select name="inputs[archive_disposition]")
+    assert html =~ ~r/<select[^>]+name="inputs\[archive_disposition\]"/
     assert html =~ ~s(<option value="obsolete" selected)
     assert html =~ "Duplicate"
   end
@@ -180,9 +213,9 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
         record: %{"id" => 42}
       })
 
-    assert html =~ ~s(<select name="inputs[archive_disposition]")
+    assert html =~ ~r/<select[^>]+name="inputs\[archive_disposition\]"/
     assert html =~ ~s(<option value="completed" selected)
-    assert html =~ ~s(<textarea name="inputs[archive_reason]" rows="3")
+    assert html =~ ~r/<textarea[^>]+name="inputs\[archive_reason\]"[^>]+rows="3"/
   end
 
   test "submit_action_form normalizes declared boolean inputs while preserving extras" do

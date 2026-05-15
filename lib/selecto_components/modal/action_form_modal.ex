@@ -47,6 +47,10 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         confirmed: truthy?(Map.get(assigns, :confirmed))
       )
 
+    applied? = applied_result?(Map.get(assigns, :last_result))
+    disabled? = disabled_action?(action)
+    controls_disabled? = disabled? || applied?
+
     assigns =
       assigns
       |> assign(:action, action)
@@ -62,13 +66,23 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign_new(:last_result, fn -> nil end)
       |> assign_new(:last_error, fn -> nil end)
       |> assign_new(:submitting, fn -> nil end)
-      |> assign(:applied?, applied_result?(Map.get(assigns, :last_result)))
-      |> assign(:disabled?, disabled_action?(action))
+      |> assign(:applied?, applied?)
+      |> assign(:disabled?, disabled?)
+      |> assign(:controls_disabled?, controls_disabled?)
       |> assign(:disabled_reason, disabled_reason(action))
+      |> assign(:action_status, action_status(disabled?, applied?))
       |> assign(:result_summary, result_summary(Map.get(assigns, :last_result)))
 
     ~H"""
-    <div data-selecto-action-form-modal class="space-y-4">
+    <div
+      data-selecto-action-form-modal
+      data-action-id={Map.get(@action, :id) || Map.get(@action, "id")}
+      data-action-capability={Map.get(@action, :capability) || Map.get(@action, "capability")}
+      data-action-operation={Map.get(@action, :operation) || Map.get(@action, "operation")}
+      data-action-scope={Map.get(@action, :scope) || Map.get(@action, "scope")}
+      data-action-status={@action_status}
+      class="space-y-4"
+    >
       <div class="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-semibold text-slate-900">{Map.get(@action, :id) || Map.get(@action, "id")}</span>
@@ -111,9 +125,11 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             </span>
             <select
               :if={select_input?(input)}
+              data-selecto-action-form-input={Map.get(input, "id")}
               name={"inputs[#{Map.get(input, "id")}]"}
               required={required_html_input?(input)}
               aria-required={input_required?(input)}
+              disabled={@controls_disabled?}
               class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             >
               <option :for={option <- input_options(input)} value={option_value(option)} selected={option_selected?(option, input, @form_inputs)}>
@@ -122,27 +138,38 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             </select>
             <textarea
               :if={textarea_input?(input)}
+              data-selecto-action-form-input={Map.get(input, "id")}
               name={"inputs[#{Map.get(input, "id")}]"}
               rows={input_rows(input)}
               required={required_html_input?(input)}
               aria-required={input_required?(input)}
+              disabled={@controls_disabled?}
               class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             ><%= Map.get(@form_inputs, Map.get(input, "id"), "") %></textarea>
             <input
               :if={!select_input?(input) && !textarea_input?(input)}
+              data-selecto-action-form-input={Map.get(input, "id")}
               name={"inputs[#{Map.get(input, "id")}]"}
               value={Map.get(@form_inputs, Map.get(input, "id"), "")}
               type={input_type(input)}
               checked={input_checked?(input, @form_inputs)}
               required={required_html_input?(input)}
               aria-required={input_required?(input)}
+              disabled={@controls_disabled?}
               class={input_class(input)}
             />
           </label>
         </div>
 
         <label :if={truthy?(Map.get(@confirmation, "required"))} class="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <input type="checkbox" name="confirmed" value="true" checked={@confirmed} class="mt-0.5" />
+          <input
+            type="checkbox"
+            name="confirmed"
+            value="true"
+            checked={@confirmed}
+            disabled={@controls_disabled?}
+            class="mt-0.5"
+          />
           <span>{Map.get(@confirmation, "message") || "Confirm this action before applying."}</span>
         </label>
 
@@ -179,6 +206,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             type="submit"
             name="intent"
             value="preview"
+            data-selecto-action-form-submit="preview"
             class="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={@disabled? || @applied? || @submitting == "preview"}
           >
@@ -188,6 +216,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             type="submit"
             name="intent"
             value="apply"
+            data-selecto-action-form-submit="apply"
             class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={apply_disabled?(@confirmation, @confirmed, @submitting, @applied?, @disabled?)}
           >
@@ -464,6 +493,10 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp disabled_action?(action) do
     Map.get(action, "disabled?") == true or Map.get(action, "status") == "disabled"
   end
+
+  defp action_status(_disabled?, true), do: "applied"
+  defp action_status(true, _applied?), do: "disabled"
+  defp action_status(_disabled?, _applied?), do: "enabled"
 
   defp disabled_reason(action) do
     Map.get(action, "reason") || Map.get(action, "disabled_reason")
