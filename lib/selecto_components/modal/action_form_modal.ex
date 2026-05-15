@@ -63,6 +63,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign_new(:last_error, fn -> nil end)
       |> assign_new(:submitting, fn -> nil end)
       |> assign(:applied?, applied_result?(Map.get(assigns, :last_result)))
+      |> assign(:disabled?, disabled_action?(action))
+      |> assign(:disabled_reason, disabled_reason(action))
 
     ~H"""
     <div data-selecto-action-form-modal class="space-y-4">
@@ -130,6 +132,10 @@ defmodule SelectoComponents.Modal.ActionFormModal do
           {@last_error}
         </div>
 
+        <div :if={@disabled?} data-selecto-action-form-disabled class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {@disabled_reason || "This action is not available for the selected target."}
+        </div>
+
         <div :if={@last_result} data-selecto-action-form-result class="rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
           <div class="mb-1 font-semibold">{result_title(@last_result)}</div>
           <pre class="max-h-56 overflow-auto"><%= Jason.encode!(@last_result, pretty: true) %></pre>
@@ -145,7 +151,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             name="intent"
             value="preview"
             class="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={@applied? || @submitting == "preview"}
+            disabled={@disabled? || @applied? || @submitting == "preview"}
           >
             Preview
           </button>
@@ -154,7 +160,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             name="intent"
             value="apply"
             class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={apply_disabled?(@confirmation, @confirmed, @submitting, @applied?)}
+            disabled={apply_disabled?(@confirmation, @confirmed, @submitting, @applied?, @disabled?)}
           >
             Apply
           </button>
@@ -299,9 +305,17 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
   defp truthy?(_value), do: false
 
-  defp apply_disabled?(confirmation, confirmed, submitting, applied?) do
-    applied? or submitting == "apply" or
+  defp apply_disabled?(confirmation, confirmed, submitting, applied?, disabled?) do
+    disabled? or applied? or submitting == "apply" or
       (truthy?(Map.get(confirmation, "required")) and not confirmed)
+  end
+
+  defp disabled_action?(action) do
+    Map.get(action, "disabled?") == true or Map.get(action, "status") == "disabled"
+  end
+
+  defp disabled_reason(action) do
+    Map.get(action, "reason") || Map.get(action, "disabled_reason")
   end
 
   defp applied_result?(%{"intent" => "apply"}), do: true

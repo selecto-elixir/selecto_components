@@ -63,6 +63,27 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~r/value="apply"[\s\S]*disabled/
   end
 
+  test "render disables unavailable action forms with the host reason" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.merge(action(), %{
+            "status" => "disabled",
+            "disabled?" => true,
+            "reason" => "Action precondition failed for state."
+          }),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        confirmed: true
+      })
+
+    assert html =~ ~s(data-selecto-action-form-disabled)
+    assert html =~ "Action precondition failed for state."
+    assert html =~ ~r/value="preview"[\s\S]*disabled/
+    assert html =~ ~r/value="apply"[\s\S]*disabled/
+  end
+
   defp socket(action, target) do
     %Phoenix.LiveView.Socket{
       assigns: %{
