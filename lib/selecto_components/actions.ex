@@ -181,6 +181,101 @@ defmodule SelectoComponents.Actions do
     |> maybe_put("confirmed", Keyword.get(opts, :confirmed))
   end
 
+  @doc """
+  Normalizes one domain action for use by `ActionFormModal`.
+
+  This is the bridge for host apps that already have a domain action contract
+  and only need a Selecto Components form shell. `:endpoint_base` can be passed
+  to derive standard preview/apply endpoints from the action id.
+  """
+  @spec form_action(map(), keyword()) :: action_item() | nil
+  def form_action(action, opts \\ [])
+
+  def form_action(action, opts) when is_map(action) do
+    action =
+      action
+      |> map_or_empty()
+      |> maybe_put_new_id(Keyword.get(opts, :id))
+      |> put_endpoint_base(Keyword.get(opts, :endpoint_base))
+      |> put_links(Keyword.get(opts, :links))
+
+    decisions =
+      case Keyword.get(opts, :decision) do
+        nil -> %{}
+        decision -> %{(action |> map_value(:id) |> normalize_id()) => decision}
+      end
+
+    %{"actions" => [action]}
+    |> available(
+      decisions: Keyword.get(opts, :decisions, decisions),
+      default_status: Keyword.get(opts, :default_status, "enabled")
+    )
+    |> List.first()
+  end
+
+  def form_action(_action, _opts), do: nil
+
+  @doc """
+  Builds assign data for `SelectoComponents.Modal.ActionFormModal`.
+  """
+  @spec form_assigns(map(), keyword()) :: map()
+  def form_assigns(action, opts \\ []) when is_map(action) do
+    %{
+      target: Keyword.get(opts, :target, %{id: {:field, "id"}}),
+      action: form_action(action, opts)
+    }
+  end
+
+  @doc """
+  Builds a detail-action config that opens a domain action as an action form.
+  """
+  @spec detail_action(map(), keyword()) :: map()
+  def detail_action(action, opts \\ []) when is_map(action) do
+    form_action = form_action(action, opts) || %{}
+    label = map_value(form_action, :label, "Action")
+
+    %{
+      name: Keyword.get(opts, :name, map_value(form_action, :label)),
+      description:
+        Keyword.get(
+          opts,
+          :description,
+          "Open #{map_value(form_action, :label, "this action")} as a Selecto Components form."
+        ),
+      type: :live_component,
+      required_fields: Keyword.get(opts, :required_fields, [:id]),
+      payload: %{
+        title: Keyword.get(opts, :title, label <> " #" <> "{{id}}"),
+        module: Keyword.get(opts, :module, SelectoComponents.Modal.ActionFormModal),
+        size: Keyword.get(opts, :size, :lg),
+        navigation_enabled: Keyword.get(opts, :navigation_enabled, true),
+        assigns: %{
+          target: Keyword.get(opts, :target, %{id: {:field, "id"}}),
+          action: form_action
+        }
+      }
+    }
+  end
+
+  @doc """
+  Builds a map of generated detail-action configs for all visible actions.
+  """
+  @spec detail_actions(term(), keyword()) :: map()
+  def detail_actions(contract, opts \\ []) do
+    prefix = opts |> Keyword.get(:id_prefix, "action_form_") |> normalize_id()
+
+    contract
+    |> action_entries()
+    |> Enum.flat_map(fn action ->
+      case form_action(action, opts) do
+        nil -> []
+        form_action -> [{prefix <> form_action.id, detail_action(form_action.contract, opts)}]
+      end
+    end)
+    |> Enum.reject(fn {_id, config} -> is_nil(get_in(config, [:payload, :assigns, :action])) end)
+    |> Map.new()
+  end
+
   defp action_entries(contract) when is_map(contract) do
     case map_value(contract, :actions) do
       actions when is_list(actions) -> actions
@@ -199,6 +294,42 @@ defmodule SelectoComponents.Actions do
       |> Map.put_new(:id, id)
     end)
   end
+
+  defp maybe_put_new_id(action, nil), do: action
+  defp maybe_put_new_id(action, id), do: Map.put_new(action, "id", normalize_id(id))
+
+  defp put_endpoint_base(action, nil), do: action
+
+  defp put_endpoint_base(action, endpoint_base) do
+    action_id = action |> map_value(:id) |> normalize_id()
+    endpoint_base = endpoint_base |> normalize_id() |> String.trim_trailing("/")
+
+    generated_links =
+      if action_id == "" or endpoint_base == "" do
+        %{}
+      else
+        %{
+          "preview" => "#{endpoint_base}/#{action_id}/preview",
+          "apply" => "#{endpoint_base}/#{action_id}/apply"
+        }
+      end
+
+    put_links(action, generated_links)
+  end
+
+  defp put_links(action, nil), do: action
+
+  defp put_links(action, links) when is_map(links) do
+    current_links =
+      action
+      |> map_value(:links, %{})
+      |> map_or_empty()
+      |> stringify_map_keys()
+
+    Map.put(action, "links", Map.merge(links, current_links))
+  end
+
+  defp put_links(action, _links), do: action
 
   defp action_item(action, decisions, default_status) do
     action = SelectoComponents.QueryContract.json_safe(map_or_empty(action))
@@ -500,6 +631,10 @@ defmodule SelectoComponents.Actions do
 
   defp map_or_empty(map) when is_map(map), do: map
   defp map_or_empty(_value), do: %{}
+
+  defp stringify_map_keys(map) when is_map(map) do
+    Map.new(map, fn {key, value} -> {normalize_id(key), value} end)
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

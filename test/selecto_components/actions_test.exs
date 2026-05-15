@@ -200,6 +200,61 @@ defmodule SelectoComponents.ActionsTest do
            }
   end
 
+  test "normalizes a domain action for action form modals" do
+    action =
+      Actions.form_action(
+        %{
+          id: :approve_order,
+          label: "Approve order",
+          scope: :row,
+          capability: "orders.approve",
+          inputs: %{note: %{type: :textarea, required: true}},
+          confirmation: %{required: true, message: "Approve this order?"},
+          execution: %{operation: :update}
+        },
+        endpoint_base: "/orders/actions"
+      )
+
+    assert action.id == "approve_order"
+    assert action.operation == "update"
+    assert action.inputs == [%{"id" => "note", "required" => true, "type" => "textarea"}]
+
+    assert action.endpoints["preview"] == %{
+             "href" => "/orders/actions/approve_order/preview",
+             "method" => "POST",
+             "rel" => "preview"
+           }
+
+    assert action.endpoints["apply"]["href"] == "/orders/actions/approve_order/apply"
+  end
+
+  test "builds detail action configs for action form modals" do
+    detail_action =
+      Actions.detail_action(
+        %{
+          id: :approve_order,
+          label: "Approve order",
+          scope: :row,
+          capability: "orders.approve",
+          execution: %{operation: :update}
+        },
+        endpoint_base: "/orders/actions",
+        required_fields: [:id, :state],
+        target: %{id: {:field, "id"}},
+        title: ~S(Approve order #{{id}})
+      )
+
+    assert detail_action.type == :live_component
+    assert detail_action.required_fields == [:id, :state]
+    assert detail_action.payload.module == SelectoComponents.Modal.ActionFormModal
+    assert detail_action.payload.title == ~S(Approve order #{{id}})
+    assert detail_action.payload.assigns.target == %{id: {:field, "id"}}
+    assert detail_action.payload.assigns.action.id == "approve_order"
+
+    assert detail_action.payload.assigns.action.endpoints["preview"]["href"] ==
+             "/orders/actions/approve_order/preview"
+  end
+
   test "normalizes rich link maps into endpoint metadata" do
     contract =
       write_contract(%{
