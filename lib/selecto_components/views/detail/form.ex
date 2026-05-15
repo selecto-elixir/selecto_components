@@ -224,13 +224,25 @@ defmodule SelectoComponents.Views.Detail.Form do
             <span class="font-medium" style="color: var(--sc-text-primary);">Type:</span>
             {row_action_type_label(@selected_row_action.type)}
           </div>
+          <div :if={row_action_source_label(@selected_row_action)}>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Source:</span>
+            {row_action_source_label(@selected_row_action)}
+          </div>
           <div :if={@selected_row_action.description}>
             <span class="font-medium" style="color: var(--sc-text-primary);">Description:</span>
             {@selected_row_action.description}
           </div>
+          <div :if={action_form_capability(@selected_row_action)}>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Capability:</span>
+            {action_form_capability(@selected_row_action)}
+          </div>
           <div>
             <span class="font-medium" style="color: var(--sc-text-primary);">Required fields:</span>
             {required_fields_label(@selected_row_action.required_fields)}
+          </div>
+          <div :if={action_form_endpoints_label(@selected_row_action)}>
+            <span class="font-medium" style="color: var(--sc-text-primary);">Endpoints:</span>
+            {action_form_endpoints_label(@selected_row_action)}
           </div>
         </div>
       </div>
@@ -356,8 +368,61 @@ defmodule SelectoComponents.Views.Detail.Form do
   defp row_action_type_label(:live_component), do: "Live component"
   defp row_action_type_label(_type), do: "Unknown"
 
+  defp row_action_source_label(%{source: :generated_action_form}),
+    do: "Generated from domain action"
+
+  defp row_action_source_label(_action), do: nil
+
+  defp action_form_capability(%{type: :live_component, payload: payload}) when is_map(payload) do
+    payload
+    |> get_in([:assigns, :action, :capability])
+    |> normalize_optional_string()
+  end
+
+  defp action_form_capability(_action), do: nil
+
+  defp action_form_endpoints_label(%{type: :live_component, payload: payload})
+       when is_map(payload) do
+    endpoints = get_in(payload, [:assigns, :action, :endpoints])
+    preview = endpoint_href(endpoints, :preview)
+    apply = endpoint_href(endpoints, :apply)
+
+    [preview && "preview: #{preview}", apply && "apply: #{apply}"]
+    |> Enum.reject(&is_nil/1)
+    |> case do
+      [] -> nil
+      parts -> Enum.join(parts, " | ")
+    end
+  end
+
+  defp action_form_endpoints_label(_action), do: nil
+
+  defp endpoint_href(endpoints, rel) when is_map(endpoints) do
+    endpoints
+    |> Map.get(rel, Map.get(endpoints, Atom.to_string(rel), %{}))
+    |> case do
+      endpoint when is_map(endpoint) -> Map.get(endpoint, :href, Map.get(endpoint, "href"))
+      _ -> nil
+    end
+    |> normalize_optional_string()
+  end
+
+  defp endpoint_href(_endpoints, _rel), do: nil
+
   defp required_fields_label([]), do: "None"
   defp required_fields_label(fields), do: Enum.join(fields, ", ")
+
+  defp normalize_optional_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_optional_string(nil), do: nil
+
+  defp normalize_optional_string(value) when is_atom(value),
+    do: value |> Atom.to_string() |> normalize_optional_string()
+
+  defp normalize_optional_string(value), do: value |> to_string() |> normalize_optional_string()
 
   defp current_row_click_action(_assigns, detail_config) do
     detail_config

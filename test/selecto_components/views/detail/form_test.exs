@@ -112,6 +112,10 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ ~s(id="detail-row-click-action-domain_action_form_archive")
     assert html =~ ~s(<option value="domain_action_form_archive" selected>)
     assert html =~ "Archive"
+    assert html =~ "Generated from domain action"
+    assert html =~ "work_items.archive"
+    assert html =~ "preview: /work-items/actions/archive/preview"
+    assert html =~ "apply: /work-items/actions/archive/apply"
   end
 
   test "uses detail config as the only row click action source while editing" do

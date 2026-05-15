@@ -33,7 +33,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
         |> Enum.find(fn action -> action.id == action_id end)
         |> case do
           nil -> nil
-          action -> Map.put(action, :source, :configured)
+          action -> Map.put_new(action, :source, :configured)
         end
     end
   end
@@ -192,6 +192,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
       required_fields: [:id],
       target: %{id: {:field, "id"}}
     )
+    |> Enum.map(fn {id, config} -> {id, Map.put(config, :source, :generated_action_form)} end)
     |> Enum.filter(fn {_id, config} ->
       action_scope =
         config
@@ -213,6 +214,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
       %{
         id: to_string(action_id),
         source_id: action_id,
+        source: normalize_action_source(map_get(action_config, :source)),
         name: normalize_optional_string(map_get(action_config, :name)) || humanize_id(action_id),
         description: normalize_optional_string(map_get(action_config, :description)),
         type: type,
@@ -283,6 +285,12 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   end
 
   defp normalize_action_type(_value), do: nil
+
+  defp normalize_action_source(:generated_action_form), do: :generated_action_form
+  defp normalize_action_source("generated_action_form"), do: :generated_action_form
+  defp normalize_action_source(:configured), do: :configured
+  defp normalize_action_source("configured"), do: :configured
+  defp normalize_action_source(_source), do: nil
 
   defp normalize_modal_size(size) when size in @modal_sizes, do: size
 

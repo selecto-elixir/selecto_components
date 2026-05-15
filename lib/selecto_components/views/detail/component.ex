@@ -427,6 +427,9 @@ defmodule SelectoComponents.Views.Detail.Component do
                 data-selecto-result-row
                 data-result-row-index={display_idx}
                 data-row-action-type={row_action_type}
+                data-row-action-id={@row_action && @row_action.id}
+                data-row-action-name={@row_action && @row_action.name}
+                data-row-action-source={@row_action && @row_action.source}
                 data-row-link={resolved_row_link && resolved_row_link.url}
                 data-row-link-target={resolved_row_link && resolved_row_link.target}
                 phx-click={if row_action_type == "modal", do: "show_row_details"}

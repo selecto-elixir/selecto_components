@@ -660,6 +660,7 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
 
     assert_receive {:show_detail_modal, detail_data}
     assert detail_data.action_type == :live_component
+    assert detail_data.action_source == :generated_action_form
     assert detail_data.component_module == SelectoComponents.Modal.ActionFormModal
     assert detail_data.component_assigns.target.id == 42
     assert detail_data.component_assigns.action.id == "archive"
