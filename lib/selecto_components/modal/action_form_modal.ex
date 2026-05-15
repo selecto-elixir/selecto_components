@@ -111,6 +111,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             <select
               :if={select_input?(input)}
               name={"inputs[#{Map.get(input, "id")}]"}
+              required={required_html_input?(input)}
+              aria-required={input_required?(input)}
               class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             >
               <option :for={option <- input_options(input)} value={option_value(option)} selected={option_selected?(option, input, @form_inputs)}>
@@ -121,6 +123,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               :if={textarea_input?(input)}
               name={"inputs[#{Map.get(input, "id")}]"}
               rows={input_rows(input)}
+              required={required_html_input?(input)}
+              aria-required={input_required?(input)}
               class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             ><%= Map.get(@form_inputs, Map.get(input, "id"), "") %></textarea>
             <input
@@ -129,6 +133,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               value={Map.get(@form_inputs, Map.get(input, "id"), "")}
               type={input_type(input)}
               checked={input_checked?(input, @form_inputs)}
+              required={required_html_input?(input)}
+              aria-required={input_required?(input)}
               class={input_class(input)}
             />
           </label>
@@ -191,7 +197,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     {:noreply,
      assign(socket,
        form_inputs: Map.get(params, "inputs", %{}),
-       confirmed: truthy?(Map.get(params, "confirmed"))
+       confirmed: truthy?(Map.get(params, "confirmed")),
+       last_error: nil
      )}
   end
 
@@ -205,6 +212,22 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
     confirmed = truthy?(Map.get(params, "confirmed"))
 
+    case validate_required_inputs(inputs, Map.get(socket.assigns, :inputs, [])) do
+      :ok ->
+        submit_action_request(socket, action, target, intent, inputs, confirmed)
+
+      {:error, message} ->
+        {:noreply,
+         assign(socket,
+           form_inputs: inputs,
+           confirmed: confirmed,
+           submitting: nil,
+           last_error: message
+         )}
+    end
+  end
+
+  defp submit_action_request(socket, action, target, intent, inputs, confirmed) do
     request =
       Actions.request_template(action,
         target: target,
@@ -323,6 +346,10 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp input_class(_input),
     do: "mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
 
+  defp required_html_input?(input), do: input_required?(input) and input_type(input) != "checkbox"
+
+  defp input_required?(input), do: truthy?(Map.get(input, "required"))
+
   defp select_input?(input), do: input_options(input) != []
 
   defp textarea_input?(input) do
@@ -384,6 +411,31 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   end
 
   defp input_checked?(_input, _form_inputs), do: false
+
+  defp validate_required_inputs(inputs, input_defs) do
+    missing =
+      input_defs
+      |> List.wrap()
+      |> Enum.filter(&input_required?/1)
+      |> Enum.filter(fn input ->
+        inputs
+        |> Map.get(Map.get(input, "id"))
+        |> blank_input_value?()
+      end)
+      |> Enum.map(&input_label/1)
+
+    case missing do
+      [] -> :ok
+      labels -> {:error, "Required inputs missing: #{Enum.join(labels, ", ")}."}
+    end
+  end
+
+  defp blank_input_value?(value) when value in [nil, ""], do: true
+  defp blank_input_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_input_value?(value) when is_list(value), do: value == []
+  defp blank_input_value?(_value), do: false
+
+  defp input_label(input), do: Map.get(input, "label") || humanize(Map.get(input, "id"))
 
   defp humanize(nil), do: "Input"
 

@@ -176,6 +176,61 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
            }
   end
 
+  test "submit_action_form blocks missing required inputs before notifying host" do
+    action =
+      Map.put(action(), "inputs", [
+        %{
+          "id" => "archive_reason",
+          "type" => "textarea",
+          "label" => "Archive reason",
+          "required" => true
+        },
+        %{"id" => "notify_customer", "type" => "boolean", "required" => true}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{"archive_reason" => "   ", "notify_customer" => "false"}
+               },
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.submitting == nil
+    assert updated_socket.assigns.last_error == "Required inputs missing: Archive reason."
+    refute_received {:selecto_action_form_submit, _payload}
+  end
+
+  test "render marks non-boolean required inputs for browser validation" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.put(action(), "inputs", [
+            %{
+              "id" => "archive_reason",
+              "type" => "textarea",
+              "label" => "Archive reason",
+              "required" => true
+            },
+            %{
+              "id" => "notify_customer",
+              "type" => "boolean",
+              "label" => "Notify",
+              "required" => true
+            }
+          ]),
+        target: %{id: 42},
+        record: %{"id" => 42}
+      })
+
+    assert html =~ ~r/<textarea[^>]+name="inputs\[archive_reason\]"[^>]+required/
+    assert html =~ ~r/<input[^>]+name="inputs\[notify_customer\]"[^>]+type="checkbox"/
+    refute html =~ ~r/<input[^>]+name="inputs\[notify_customer\]"[^>]+\srequired(?:\s|>)/
+  end
+
   defp socket(action, target) do
     %Phoenix.LiveView.Socket{
       assigns: %{
