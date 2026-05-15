@@ -608,6 +608,68 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert detail_data.title == "Archive #42"
   end
 
+  test "show_row_details can open generated domain action form live components" do
+    domain = %{
+      name: "GeneratedDetailActionFormTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, title: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{},
+      actions: %{
+        archive: %{
+          id: :archive,
+          label: "Archive",
+          scope: :row,
+          capability: "work_items.archive",
+          execution: %{operation: :update},
+          links: %{
+            preview: "/work-items/actions/archive/preview",
+            apply: "/work-items/actions/archive/apply"
+          },
+          inputs: [%{id: :reason, type: :textarea, required: true}]
+        }
+      }
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        selecto:
+          Selecto.configure(domain, nil)
+          |> Map.put(:set, %{
+            columns: [
+              %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+              %{"field" => "title", "alias" => "title", "uuid" => "title-col"}
+            ]
+          }),
+        enable_modal_detail: false,
+        view_meta: %{row_click_action: "domain_action_form_archive"},
+        processed_results: {[[42, "Ship archive forms"]], ["id", "title"]},
+        query_results: {[[42, "Ship archive forms"]], ["id", "title"], ["id", "title"]}
+      }
+    }
+
+    assert {:noreply, _socket} =
+             Component.handle_event("show_row_details", %{"row-index" => "0"}, socket)
+
+    assert_receive {:show_detail_modal, detail_data}
+    assert detail_data.action_type == :live_component
+    assert detail_data.component_module == SelectoComponents.Modal.ActionFormModal
+    assert detail_data.component_assigns.target.id == 42
+    assert detail_data.component_assigns.action.id == "archive"
+
+    assert detail_data.component_assigns.action.endpoints.preview.href ==
+             "/work-items/actions/archive/preview"
+
+    assert detail_data.title == "Archive #42"
+  end
+
   test "renders external link row action data attributes" do
     domain = %{
       name: "DetailExternalLinkTest",
