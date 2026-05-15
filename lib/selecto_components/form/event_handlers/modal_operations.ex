@@ -91,7 +91,11 @@ defmodule SelectoComponents.Form.EventHandlers.ModalOperations do
 
       defp detail_modal_enabled?(assigns, detail_data) do
         Map.get(assigns, :enable_modal_detail, false) ||
-          Map.get(detail_data || %{}, :action_source) in [:configured, :generated_action_form]
+          Map.get(detail_data || %{}, :action_source) in [
+            :configured,
+            :generated_action_form,
+            :generated_bulk_action_form
+          ]
       end
 
       defp prepare_detail_modal_data(detail_data, socket) do

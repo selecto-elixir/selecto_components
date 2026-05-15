@@ -299,7 +299,8 @@ defmodule SelectoComponents.Actions do
     |> Enum.flat_map(fn action ->
       case form_action(action, opts) do
         %{scope: "bulk"} = form_action ->
-          [{prefix <> form_action.id, detail_action(form_action.contract, opts)}]
+          config_opts = Keyword.put_new(opts, :title, form_action.label)
+          [{prefix <> form_action.id, detail_action(form_action.contract, config_opts)}]
 
         _other ->
           []

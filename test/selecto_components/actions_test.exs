@@ -279,6 +279,7 @@ defmodule SelectoComponents.ActionsTest do
     assert bulk_action.type == :live_component
     assert bulk_action.required_fields == []
     assert bulk_action.payload.module == SelectoComponents.Modal.ActionFormModal
+    assert bulk_action.payload.title == "Archive selected"
     assert bulk_action.payload.assigns.target == %{ids: {:selection, "ids"}}
     assert bulk_action.payload.assigns.action.id == "bulk_archive"
     assert bulk_action.payload.assigns.action.scope == "bulk"

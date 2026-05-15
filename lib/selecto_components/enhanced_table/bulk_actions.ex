@@ -4,6 +4,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   """
 
   use Phoenix.LiveComponent
+  alias SelectoComponents.Actions
   alias SelectoComponents.EnhancedTable.RowSelection
   alias Phoenix.LiveView.JS
 
@@ -31,7 +32,11 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   @impl true
   def update(assigns, socket) do
-    actions = assigns[:actions] || default_actions()
+    actions =
+      (assigns[:actions] || default_actions())
+      |> Kernel.++(generated_action_forms(assigns))
+      |> Enum.map(&normalize_action_item/1)
+      |> Enum.reject(&is_nil/1)
 
     socket =
       socket
@@ -324,6 +329,9 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         phx-click="execute_action"
         phx-value-action={@action.id}
         phx-target={@myself}
+        data-bulk-action-id={@action.id}
+        data-bulk-action-source={Map.get(@action, :source)}
+        data-bulk-action-scope={Map.get(@action, :scope)}
       >
         <%= if icon = safe_icon(@action.icon) do %>
           <span class={@action.icon_class || "text-gray-500"}>
@@ -350,17 +358,22 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   def handle_event("execute_action", %{"action" => action_id}, socket) do
     action = Enum.find(socket.assigns.actions, &(&1.id == action_id))
 
-    if action && action.requires_confirmation do
-      {:noreply,
-       socket
-       |> assign(
-         show_confirmation: true,
-         confirmation_message:
-           action.confirmation_message || "Are you sure you want to perform this action?",
-         bulk_action: action
-       )}
-    else
-      {:noreply, execute_bulk_action(socket, action)}
+    cond do
+      generated_action_form?(action) ->
+        {:noreply, open_generated_action_form(socket, action)}
+
+      action && action.requires_confirmation ->
+        {:noreply,
+         socket
+         |> assign(
+           show_confirmation: true,
+           confirmation_message:
+             action.confirmation_message || "Are you sure you want to perform this action?",
+           bulk_action: action
+         )}
+
+      true ->
+        {:noreply, execute_bulk_action(socket, action)}
     end
   end
 
@@ -410,6 +423,81 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     all_ids = get_all_row_ids(socket)
     {:noreply, RowSelection.select_range(socket, from_id, to_id, all_ids)}
   end
+
+  defp open_generated_action_form(socket, action) do
+    selected_ids = RowSelection.get_selected_ids(socket)
+
+    if selected_ids == [] do
+      socket
+    else
+      payload = Map.get(action, :payload, %{})
+      component_assigns_template = Map.get(payload, :assigns, %{})
+      selection_context = %{"ids" => selected_ids, "count" => length(selected_ids)}
+      component_assigns = resolve_selection_assigns(component_assigns_template, selection_context)
+
+      send(
+        self(),
+        {:show_detail_modal,
+         %{
+           action_id: action.id,
+           action_source: :generated_bulk_action_form,
+           action_type: :live_component,
+           record: selection_context,
+           current_index: 0,
+           total_records: length(selected_ids),
+           records: [selection_context],
+           fields: ["ids", "count"],
+           related_data: %{},
+           title: Map.get(payload, :title, action.label),
+           title_template: Map.get(payload, :title),
+           size: Map.get(payload, :size, :lg),
+           navigation_enabled: false,
+           edit_enabled: false,
+           component_module: Map.get(payload, :module),
+           component_assigns_template: component_assigns_template,
+           component_assigns: component_assigns
+         }}
+      )
+
+      assign(socket, bulk_action: action)
+    end
+  end
+
+  defp generated_action_form?(%{source: :generated_bulk_action_form}), do: true
+  defp generated_action_form?(_action), do: false
+
+  defp resolve_selection_assigns(assigns_template, selection_context)
+       when is_map(assigns_template) do
+    Map.new(assigns_template, fn {key, value} ->
+      {key, resolve_selection_value(value, selection_context)}
+    end)
+  end
+
+  defp resolve_selection_assigns(_assigns_template, _selection_context), do: %{}
+
+  defp resolve_selection_value({:selection, key}, selection_context) do
+    Map.get(selection_context, to_string(key))
+  end
+
+  defp resolve_selection_value(%{selection: key}, selection_context) do
+    resolve_selection_value({:selection, key}, selection_context)
+  end
+
+  defp resolve_selection_value(%{"selection" => key}, selection_context) do
+    resolve_selection_value({:selection, key}, selection_context)
+  end
+
+  defp resolve_selection_value(value, selection_context) when is_list(value) do
+    Enum.map(value, &resolve_selection_value(&1, selection_context))
+  end
+
+  defp resolve_selection_value(value, selection_context) when is_map(value) do
+    Map.new(value, fn {key, nested_value} ->
+      {key, resolve_selection_value(nested_value, selection_context)}
+    end)
+  end
+
+  defp resolve_selection_value(value, _selection_context), do: value
 
   # Bulk action execution
 
@@ -623,6 +711,81 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   end
 
   defp safe_icon(_icon), do: nil
+
+  defp generated_action_forms(assigns) do
+    assigns
+    |> generated_action_contract()
+    |> Actions.bulk_actions(id_prefix: "domain_bulk_action_form_")
+    |> Enum.map(fn {id, config} -> generated_action_form_menu_item(id, config) end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp generated_action_contract(assigns) do
+    assigns[:action_contract] ||
+      assigns[:write_contract] ||
+      assigns[:domain] ||
+      case assigns[:selecto] do
+        nil -> %{}
+        selecto -> Selecto.domain(selecto)
+      end
+  end
+
+  defp generated_action_form_menu_item(id, config) when is_map(config) do
+    payload = Map.get(config, :payload, %{})
+    action = get_in(payload, [:assigns, :action]) || %{}
+
+    %{
+      id: id,
+      label: Map.get(config, :name) || map_value(action, :label) || id,
+      description: Map.get(config, :description),
+      source: :generated_bulk_action_form,
+      scope: "bulk",
+      type: :live_component,
+      payload: payload,
+      quick_action: false,
+      requires_confirmation: false,
+      confirmation_message: map_value(action, :confirmation_message)
+    }
+  end
+
+  defp generated_action_form_menu_item(_id, _config), do: nil
+
+  defp normalize_action_item(action) when is_map(action) do
+    %{
+      id: map_value(action, :id),
+      label: map_value(action, :label),
+      description: map_value(action, :description),
+      icon: map_value(action, :icon),
+      icon_class: map_value(action, :icon_class),
+      text_class: map_value(action, :text_class),
+      badge: map_value(action, :badge),
+      divider: truthy?(map_value(action, :divider)),
+      quick_action: truthy?(map_value(action, :quick_action)),
+      requires_confirmation: truthy?(map_value(action, :requires_confirmation)),
+      confirmation_message: map_value(action, :confirmation_message),
+      source: map_value(action, :source),
+      scope: map_value(action, :scope),
+      type: map_value(action, :type),
+      payload: map_value(action, :payload, %{}),
+      batch_size: map_value(action, :batch_size),
+      handler: map_value(action, :handler)
+    }
+  end
+
+  defp normalize_action_item(_action), do: nil
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map) and is_atom(key),
+    do: Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+
+  defp map_value(map, key, default) when is_map(map) and is_binary(key),
+    do: Map.get(map, key, default)
+
+  defp map_value(_map, _key, default), do: default
+
+  defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
+  defp truthy?(_value), do: false
 
   defp default_actions do
     [

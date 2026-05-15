@@ -208,6 +208,12 @@ Bulk-scoped domain actions can be projected separately with
 live-component payload shape as generated row action forms, but defaults the
 target template to selected row ids.
 
+`SelectoComponents.EnhancedTable.BulkActions` can receive `:action_contract`,
+`:write_contract`, `:domain`, or `:selecto` assigns. Bulk-scoped domain actions
+from that contract are added to the bulk menu as generated action forms; opening
+one sends the same detail-modal event with `target.ids` set to the current
+selection.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.
