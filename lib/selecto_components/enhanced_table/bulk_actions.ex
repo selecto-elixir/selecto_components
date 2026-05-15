@@ -48,6 +48,8 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, menu_id: "#{assigns.id}-menu")
+
     ~H"""
     <div id={@id} class="bulk-actions-container" phx-hook=".BulkActions" data-selected-count={@selection_count}>
       <%!-- Bulk Actions Toolbar --%>
@@ -63,7 +65,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
                 type="button"
                 class="text-sm text-blue-600 hover:text-blue-800"
                 phx-click="clear_selection"
-                phx-target={@myself}
+                phx-target={assigns[:selection_target] || @myself}
               >
                 Clear
               </button>
@@ -76,7 +78,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
               type="button"
               class={"px-4 py-2 bg-white border rounded-lg flex items-center space-x-2 #{if @selection_count == 0, do: "opacity-50 cursor-not-allowed", else: "hover:bg-gray-50"}"}
               disabled={@selection_count == 0}
-              phx-click={toggle_actions_menu()}
+              phx-click={toggle_actions_menu(@menu_id)}
             >
               <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -98,11 +100,17 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
             </button>
 
             <div
-              id="bulk-actions-menu"
+              id={@menu_id}
               class="hidden absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20"
             >
-              <%= for action <- @actions do %>
-                {render_action_item(assigns, action)}
+              <%= if @actions == [] do %>
+                <div class="px-4 py-3 text-sm text-gray-500" data-bulk-actions-empty>
+                  No bulk actions available
+                </div>
+              <% else %>
+                <%= for action <- @actions do %>
+                  {render_action_item(assigns, action)}
+                <% end %>
               <% end %>
             </div>
           </div>
@@ -326,9 +334,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       <button
         type="button"
         class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
-        phx-click="execute_action"
-        phx-value-action={@action.id}
-        phx-target={@myself}
+        phx-click={execute_action_click(@menu_id, @action.id, @myself)}
         data-bulk-action-id={@action.id}
         data-bulk-action-source={Map.get(@action, :source)}
         data-bulk-action-scope={Map.get(@action, :scope)}
@@ -854,11 +860,16 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     round(processed / total * 100)
   end
 
-  defp toggle_actions_menu do
+  defp toggle_actions_menu(menu_id) do
     JS.toggle(
-      to: "#bulk-actions-menu",
+      to: "##{menu_id}",
       in: {"ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100"},
       out: {"ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
+  end
+
+  defp execute_action_click(menu_id, action_id, target) do
+    JS.hide(to: "##{menu_id}")
+    |> JS.push("execute_action", value: %{action: action_id}, target: target)
   end
 end

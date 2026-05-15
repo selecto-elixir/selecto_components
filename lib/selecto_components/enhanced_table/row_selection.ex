@@ -332,7 +332,10 @@ defmodule SelectoComponents.EnhancedTable.RowSelection do
   # Private functions
 
   defp broadcast_selection_change(socket) do
-    send(self(), {:selection_changed, socket.assigns.selected_rows})
+    if Map.get(socket.assigns, :notify_selection_change, false) do
+      send(self(), {:selection_changed, socket.assigns.selected_rows})
+    end
+
     socket
   end
 

@@ -6,6 +6,8 @@ defmodule SelectoComponents.Views.Detail.Component do
   import SelectoComponents.Components.SqlDebug
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.EnhancedTable.BulkActions
+  alias SelectoComponents.EnhancedTable.RowSelection
   alias SelectoComponents.EnhancedTable.Sorting
   alias SelectoComponents.Presentation
   alias SelectoComponents.Theme
@@ -19,6 +21,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
     socket =
       socket
+      |> RowSelection.init_selection()
       |> assign(:columns_config, init_columns_config(columns))
 
     {:ok, socket}
@@ -153,6 +156,39 @@ defmodule SelectoComponents.Views.Detail.Component do
       end
 
     total_pages = if total_rows > 0, do: max_page + 1, else: 0
+    {_query_results, columns_from_query, aliases_from_query} = assigns.query_results
+
+    row_action_query_columns =
+      Map.get(
+        assigns.selecto.set,
+        :row_action_query_columns,
+        Map.get(assigns.selecto.set, :columns, [])
+      )
+
+    visible_row_ids =
+      normalized_results
+      |> Enum.with_index(row_offset)
+      |> Enum.map(fn {row, absolute_idx} ->
+        row_values = normalize_row_values(row, columns_from_query, aliases_from_query)
+
+        row
+        |> build_row_action_context(
+          row_values,
+          row_action_query_columns,
+          columns_from_query,
+          aliases_from_query
+        )
+        |> row_selection_id(absolute_idx)
+      end)
+
+    visible_row_id_set = MapSet.new(visible_row_ids)
+
+    selected_rows =
+      assigns
+      |> Map.get(:selected_rows, MapSet.new())
+      |> MapSet.intersection(visible_row_id_set)
+
+    selection_count = MapSet.size(selected_rows)
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
@@ -168,12 +204,16 @@ defmodule SelectoComponents.Views.Detail.Component do
         page_end: page_end,
         total_pages: total_pages,
         columns: Map.get(assigns.selecto.set, :columns, []),
-        row_action_query_columns:
-          Map.get(
-            assigns.selecto.set,
-            :row_action_query_columns,
-            Map.get(assigns.selecto.set, :columns, [])
-          ),
+        row_action_query_columns: row_action_query_columns,
+        query_columns: columns_from_query,
+        query_aliases: aliases_from_query,
+        visible_row_ids: visible_row_ids,
+        selected_rows: selected_rows,
+        selection_count: selection_count,
+        select_all: selection_count > 0 and selection_count == length(visible_row_ids),
+        visible_selection_count: selection_count,
+        bulk_actions_component_id:
+          "detail-bulk-actions-#{Map.get(assigns, :id, "detail-component")}",
         column_uuids:
           Map.get(assigns.selecto.set, :columns, []) |> Enum.map(fn c -> c["uuid"] end),
         max_page: max_page
@@ -322,6 +362,18 @@ defmodule SelectoComponents.Views.Detail.Component do
         </div>
       </div>
 
+      <.live_component
+        module={BulkActions}
+        id={@bulk_actions_component_id}
+        selecto={@selecto}
+        actions={[]}
+        selected_rows={@selected_rows}
+        selection_count={@selection_count}
+        selection_target={@myself}
+        total_rows={length(@visible_row_ids)}
+        all_row_ids={@visible_row_ids}
+      />
+
       <div
         class={Theme.slot(@theme, :panel) <> " responsive-table-wrapper overflow-x-auto"}
         id={"detail-table-wrapper-#{@myself}"}
@@ -330,6 +382,12 @@ defmodule SelectoComponents.Views.Detail.Component do
         <table class="min-w-full table-auto">
           <thead style="background: var(--sc-surface-bg-alt);">
             <tr>
+              <RowSelection.selection_header
+                target={@myself}
+                select_all={@select_all}
+                selection_count={@visible_selection_count}
+                total_rows={length(@visible_row_ids)}
+              />
               <th class="w-12 max-w-12 min-w-12 px-2 py-3 text-center text-xs font-medium uppercase tracking-wider" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);">
                 #
               </th>
@@ -372,12 +430,10 @@ defmodule SelectoComponents.Views.Detail.Component do
                     # If it's already a map, extract values in column order.
                     # Fall back to alias at the same position to avoid collisions
                     # from duplicate DB column names.
-                    {_results, columns_from_query, aliases_from_query} = @query_results
-
-                    columns_from_query
+                    @query_columns
                     |> Enum.with_index()
                     |> Enum.map(fn {col, idx} ->
-                      map_get_flexible(resrow, Enum.at(aliases_from_query, idx)) ||
+                      map_get_flexible(resrow, Enum.at(@query_aliases, idx)) ||
                         map_get_flexible(resrow, col)
                     end)
 
@@ -386,17 +442,17 @@ defmodule SelectoComponents.Views.Detail.Component do
                 end %>
               <% row_data_by_uuid = Enum.zip(@column_uuids, resrow_list) |> Enum.into(%{}) %>
               <% # Also create a map by column name for subselects %>
-              <% {_results, columns_from_query, aliases_from_query} = @query_results %>
-              <% row_data_by_column = Enum.zip(columns_from_query, resrow_list) |> Map.new() %>
+              <% row_data_by_column = Enum.zip(@query_columns, resrow_list) |> Map.new() %>
               <% absolute_idx = @row_offset + display_idx %>
               <% row_action_context =
                 build_row_action_context(
                   resrow,
                   resrow_list,
                   @row_action_query_columns,
-                  columns_from_query,
-                  aliases_from_query
+                  @query_columns,
+                  @query_aliases
                 ) %>
+              <% row_selection_id = row_selection_id(row_action_context, absolute_idx) %>
               <% resolved_row_link =
                 if @row_action && @row_action.type == :external_link && @row_action_missing_fields == [] do
                   @row_action
@@ -436,6 +492,11 @@ defmodule SelectoComponents.Views.Detail.Component do
                 phx-value-row-index={if row_action_type == "modal", do: display_idx}
                 phx-target={if row_action_type == "modal", do: @myself}
               >
+                <RowSelection.row_checkbox
+                  target={@myself}
+                  row_id={row_selection_id}
+                  selected_rows={@selected_rows}
+                />
                 <td
                   class="w-12 max-w-12 min-w-12 px-2 py-1 text-center"
                   style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
@@ -611,6 +672,58 @@ defmodule SelectoComponents.Views.Detail.Component do
     send(self(), {:update_detail_page, new_page})
 
     {:noreply, socket}
+  end
+
+  def handle_event("toggle_row_selection", %{"id" => row_id}, socket) do
+    {:noreply, RowSelection.toggle_row_selection(socket, row_id)}
+  end
+
+  def handle_event("toggle_select_all", _params, socket) do
+    visible_row_ids = Map.get(socket.assigns, :visible_row_ids, [])
+    selected_rows = Map.get(socket.assigns, :selected_rows, MapSet.new())
+    visible_selection_count = Enum.count(visible_row_ids, &MapSet.member?(selected_rows, &1))
+
+    socket =
+      if visible_row_ids != [] and visible_selection_count == length(visible_row_ids) do
+        RowSelection.clear_selection(socket)
+      else
+        RowSelection.select_all_rows(socket, visible_row_ids)
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_all", _params, socket) do
+    {:noreply,
+     RowSelection.select_all_rows(socket, Map.get(socket.assigns, :visible_row_ids, []))}
+  end
+
+  def handle_event("select_visible", _params, socket) do
+    {:noreply,
+     RowSelection.select_all_rows(socket, Map.get(socket.assigns, :visible_row_ids, []))}
+  end
+
+  def handle_event("select_none", _params, socket) do
+    {:noreply, RowSelection.clear_selection(socket)}
+  end
+
+  def handle_event("clear_selection", _params, socket) do
+    {:noreply, RowSelection.clear_selection(socket)}
+  end
+
+  def handle_event("invert_selection", _params, socket) do
+    {:noreply,
+     RowSelection.invert_selection(socket, Map.get(socket.assigns, :visible_row_ids, []))}
+  end
+
+  def handle_event("select_range", %{"from" => from_id, "to" => to_id}, socket) do
+    {:noreply,
+     RowSelection.select_range(
+       socket,
+       from_id,
+       to_id,
+       Map.get(socket.assigns, :visible_row_ids, [])
+     )}
   end
 
   def handle_event("resize_column", %{"column_id" => _column_id, "width" => _width}, socket) do
@@ -962,6 +1075,14 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   defp resolve_field_value(_row, row_values, idx, _field, _column_name, _alias_name) do
     Enum.at(row_values, idx)
+  end
+
+  defp row_selection_id(%{field_values: field_values, display_record: display_record}, fallback) do
+    field_values
+    |> map_get_flexible("id")
+    |> Kernel.||(map_get_flexible(display_record, "id"))
+    |> Kernel.||(fallback)
+    |> to_string()
   end
 
   defp sanitize_row_link(nil), do: nil

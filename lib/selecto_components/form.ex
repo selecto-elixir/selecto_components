@@ -1989,7 +1989,8 @@ defmodule SelectoComponents.Form do
       (Map.get(assigns, :enable_modal_detail, false) ||
          Map.get(Map.get(assigns, :modal_detail_data, %{}), :action_source) in [
            :configured,
-           :generated_action_form
+           :generated_action_form,
+           :generated_bulk_action_form
          ])
   end
 

@@ -18,6 +18,21 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
     assert html =~ ~s(data-bulk-action-source="generated_bulk_action_form")
     assert html =~ ~s(data-bulk-action-scope="bulk")
     assert html =~ "Archive selected"
+    assert html =~ ~s(id="bulk-actions-menu")
+  end
+
+  test "renders a visible empty state when no bulk actions are available" do
+    html =
+      render_component(BulkActions, %{
+        id: "bulk-actions-empty",
+        actions: [],
+        selected_rows: MapSet.new(["42"]),
+        selection_count: 1
+      })
+
+    assert html =~ ~s(id="bulk-actions-empty-menu")
+    assert html =~ ~s(data-bulk-actions-empty)
+    assert html =~ "No bulk actions available"
   end
 
   test "opens a generated bulk action form with selected ids as the target" do
