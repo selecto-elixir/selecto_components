@@ -65,6 +65,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign(:applied?, applied_result?(Map.get(assigns, :last_result)))
       |> assign(:disabled?, disabled_action?(action))
       |> assign(:disabled_reason, disabled_reason(action))
+      |> assign(:result_summary, result_summary(Map.get(assigns, :last_result)))
 
     ~H"""
     <div data-selecto-action-form-modal class="space-y-4">
@@ -160,6 +161,12 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
         <div :if={@last_result} data-selecto-action-form-result class="rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
           <div class="mb-1 font-semibold">{result_title(@last_result)}</div>
+          <dl :if={@result_summary != []} data-selecto-action-form-result-summary class="mb-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div :for={item <- @result_summary} data-selecto-action-form-result-summary-item={item.key} class="rounded bg-white/70 p-2 ring-1 ring-emerald-100">
+              <dt class="text-[11px] font-semibold uppercase text-emerald-700">{item.label}</dt>
+              <dd class="mt-1 font-mono text-xs text-emerald-950">{item.value}</dd>
+            </div>
+          </dl>
           <pre class="max-h-56 overflow-auto"><%= Jason.encode!(@last_result, pretty: true) %></pre>
         </div>
 
@@ -469,4 +476,65 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp result_title(%{"intent" => "apply"}), do: "Apply result"
   defp result_title(%{intent: "apply"}), do: "Apply result"
   defp result_title(_result), do: "Preview result"
+
+  defp result_summary(nil), do: []
+
+  defp result_summary(result) do
+    payload = result_payload(result)
+
+    [
+      summary_item(
+        "action",
+        "Action",
+        first_present([map_value(payload, "action"), get_in(payload, ["preview", "action"])])
+      ),
+      summary_item(
+        "mode",
+        "Mode",
+        first_present([get_in(payload, ["result", "mode"]), map_value(payload, "mode")])
+      ),
+      summary_item(
+        "changes",
+        "Changes",
+        first_present([map_value(payload, "changes"), get_in(payload, ["preview", "changes"])])
+      ),
+      summary_item(
+        "record",
+        "Record",
+        first_present([get_in(payload, ["result", "record"]), map_value(payload, "record")])
+      )
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp result_payload(result) when is_map(result) do
+    map_value(result, "payload", result)
+  end
+
+  defp result_payload(_result), do: %{}
+
+  defp summary_item(_key, _label, nil), do: nil
+
+  defp summary_item(key, label, value) do
+    %{key: key, label: label, value: summary_value(value)}
+  end
+
+  defp summary_value(value) when is_map(value) or is_list(value), do: Jason.encode!(value)
+  defp summary_value(value), do: to_string(value)
+
+  defp first_present(values), do: Enum.find(values, &(not is_nil(&1)))
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map) and is_binary(key),
+    do: Map.get(map, key, Map.get(map, safe_existing_atom(key), default))
+
+  defp map_value(map, key, default) when is_map(map), do: Map.get(map, key, default)
+  defp map_value(_map, _key, default), do: default
+
+  defp safe_existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
 end

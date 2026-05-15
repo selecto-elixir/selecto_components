@@ -63,6 +63,44 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~r/value="apply"[\s\S]*disabled/
   end
 
+  test "render summarizes preview and apply results" do
+    preview_html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        last_result: %{
+          "intent" => "preview",
+          "payload" => %{"action" => "archive", "changes" => %{"state" => "archived"}}
+        }
+      })
+
+    assert preview_html =~ ~s(data-selecto-action-form-result-summary)
+    assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="action")
+    assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="changes")
+    assert preview_html =~ ~s({&quot;state&quot;:&quot;archived&quot;})
+
+    apply_html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        last_result: %{
+          "intent" => "apply",
+          "payload" => %{
+            "preview" => %{"action" => "archive", "changes" => %{"state" => "archived"}},
+            "result" => %{"mode" => "execute", "record" => %{"id" => 42, "state" => "archived"}}
+          }
+        }
+      })
+
+    assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="mode")
+    assert apply_html =~ ~s(execute)
+    assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="record")
+  end
+
   test "render disables unavailable action forms with the host reason" do
     html =
       render_component(ActionFormModal, %{
