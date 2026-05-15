@@ -108,12 +108,28 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               {Map.get(input, "label") || humanize(Map.get(input, "id"))}
               <span :if={truthy?(Map.get(input, "required"))} class="text-rose-600">*</span>
             </span>
+            <select
+              :if={select_input?(input)}
+              name={"inputs[#{Map.get(input, "id")}]"}
+              class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option :for={option <- input_options(input)} value={option_value(option)} selected={option_selected?(option, input, @form_inputs)}>
+                {option_label(option)}
+              </option>
+            </select>
+            <textarea
+              :if={textarea_input?(input)}
+              name={"inputs[#{Map.get(input, "id")}]"}
+              rows={input_rows(input)}
+              class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            ><%= Map.get(@form_inputs, Map.get(input, "id"), "") %></textarea>
             <input
+              :if={!select_input?(input) && !textarea_input?(input)}
               name={"inputs[#{Map.get(input, "id")}]"}
               value={Map.get(@form_inputs, Map.get(input, "id"), "")}
               type={input_type(input)}
               checked={input_checked?(input, @form_inputs)}
-              class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              class={input_class(input)}
             />
           </label>
         </div>
@@ -252,13 +268,23 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   end
 
   defp normalize_inputs(inputs, input_defs) when is_map(inputs) do
-    input_defs
-    |> List.wrap()
-    |> Map.new(fn input ->
-      id = Map.get(input, "id")
-      {id, normalize_input_value(Map.get(inputs, id), input)}
-    end)
-    |> Map.merge(Map.drop(inputs, [nil]))
+    input_defs = List.wrap(input_defs)
+
+    normalized_defined =
+      Map.new(input_defs, fn input ->
+        id = Map.get(input, "id")
+        {id, normalize_input_value(Map.get(inputs, id), input)}
+      end)
+
+    defined_ids =
+      input_defs
+      |> Enum.map(&Map.get(&1, "id"))
+      |> MapSet.new()
+
+    inputs
+    |> Enum.reject(fn {key, _value} -> is_nil(key) or MapSet.member?(defined_ids, key) end)
+    |> Map.new()
+    |> Map.merge(normalized_defined)
     |> Enum.reject(fn {key, _value} -> is_nil(key) end)
     |> Map.new()
   end
@@ -283,7 +309,73 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp input_type(%{"type" => type}) when type in ["integer", "number", "float", "decimal"],
     do: "number"
 
+  defp input_type(%{"type" => type}) when type in ["email", "url", "date", "time"],
+    do: type
+
+  defp input_type(%{"type" => type}) when type in ["datetime", "datetime-local"],
+    do: "datetime-local"
+
   defp input_type(_input), do: "text"
+
+  defp input_class(%{"type" => "boolean"}),
+    do: "mt-1 rounded border border-slate-300 text-sm"
+
+  defp input_class(_input),
+    do: "mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+
+  defp select_input?(input), do: input_options(input) != []
+
+  defp textarea_input?(input) do
+    input
+    |> Map.get("type")
+    |> to_string()
+    |> Kernel.in(["text", "textarea", "long_text"])
+  end
+
+  defp input_options(input) do
+    input
+    |> input_option_source()
+    |> List.wrap()
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp input_option_source(input) do
+    Map.get(input, "options") ||
+      Map.get(input, "choices") ||
+      Map.get(input, "values") ||
+      input
+      |> Map.get("raw", %{})
+      |> then(fn raw ->
+        Map.get(raw, "options") || Map.get(raw, "choices") || Map.get(raw, "values") || []
+      end)
+  end
+
+  defp input_rows(input) do
+    Map.get(input, "rows") || get_in(input, ["raw", "rows"]) || 4
+  end
+
+  defp option_selected?(option, input, form_inputs) do
+    current_value =
+      form_inputs
+      |> Map.get(Map.get(input, "id"), Map.get(input, "default", ""))
+      |> to_string()
+
+    option_value(option) == current_value
+  end
+
+  defp option_value(%{"value" => value}), do: to_string(value)
+  defp option_value(%{value: value}), do: to_string(value)
+  defp option_value(%{"id" => value}), do: to_string(value)
+  defp option_value(%{id: value}), do: to_string(value)
+  defp option_value({value, _label}), do: to_string(value)
+  defp option_value(value), do: to_string(value)
+
+  defp option_label(%{"label" => label}), do: label
+  defp option_label(%{label: label}), do: label
+  defp option_label(%{"name" => label}), do: label
+  defp option_label(%{name: label}), do: label
+  defp option_label({_value, label}), do: label
+  defp option_label(value), do: humanize(value)
 
   defp input_checked?(%{"type" => "boolean"} = input, form_inputs) do
     form_inputs

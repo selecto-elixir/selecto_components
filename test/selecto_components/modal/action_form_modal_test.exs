@@ -84,6 +84,98 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~r/value="apply"[\s\S]*disabled/
   end
 
+  test "render supports textarea and select action inputs" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.put(action(), "inputs", [
+            %{"id" => "archive_reason", "type" => "textarea", "label" => "Archive reason"},
+            %{
+              "id" => "archive_disposition",
+              "type" => "string",
+              "label" => "Disposition",
+              "default" => "obsolete",
+              "options" => [
+                %{"value" => "obsolete", "label" => "Obsolete"},
+                %{"value" => "duplicate", "label" => "Duplicate"}
+              ]
+            }
+          ]),
+        target: %{id: 42},
+        record: %{"id" => 42}
+      })
+
+    assert html =~ ~s(<textarea)
+    assert html =~ ~s(name="inputs[archive_reason]")
+    assert html =~ ~s(<select name="inputs[archive_disposition]")
+    assert html =~ ~s(<option value="obsolete" selected)
+    assert html =~ "Duplicate"
+  end
+
+  test "render supports normalized contract inputs with raw option metadata" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.put(action(), "inputs", [
+            %{
+              "id" => "archive_disposition",
+              "type" => "string",
+              "label" => "Disposition",
+              "default" => "completed",
+              "raw" => %{
+                "options" => [
+                  %{"value" => "completed", "label" => "Completed"},
+                  %{"value" => "obsolete", "label" => "Obsolete"}
+                ]
+              }
+            },
+            %{
+              "id" => "archive_reason",
+              "type" => "textarea",
+              "label" => "Archive reason",
+              "raw" => %{"rows" => 3}
+            }
+          ]),
+        target: %{id: 42},
+        record: %{"id" => 42}
+      })
+
+    assert html =~ ~s(<select name="inputs[archive_disposition]")
+    assert html =~ ~s(<option value="completed" selected)
+    assert html =~ ~s(<textarea name="inputs[archive_reason]" rows="3")
+  end
+
+  test "submit_action_form normalizes declared boolean inputs while preserving extras" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "note", "type" => "string"},
+        %{"id" => "notify_customer", "type" => "boolean"}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{"intent" => "preview", "inputs" => %{"note" => "Ready", "unexpected" => "kept"}},
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "note" => "Ready",
+             "notify_customer" => false,
+             "unexpected" => "kept"
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+
+    assert payload.request["inputs"] == %{
+             "note" => "Ready",
+             "notify_customer" => false,
+             "unexpected" => "kept"
+           }
+  end
+
   defp socket(action, target) do
     %Phoenix.LiveView.Socket{
       assigns: %{
