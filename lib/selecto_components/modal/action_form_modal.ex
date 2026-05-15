@@ -62,6 +62,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign_new(:last_result, fn -> nil end)
       |> assign_new(:last_error, fn -> nil end)
       |> assign_new(:submitting, fn -> nil end)
+      |> assign(:applied?, applied_result?(Map.get(assigns, :last_result)))
 
     ~H"""
     <div data-selecto-action-form-modal class="space-y-4">
@@ -134,13 +135,17 @@ defmodule SelectoComponents.Modal.ActionFormModal do
           <pre class="max-h-56 overflow-auto"><%= Jason.encode!(@last_result, pretty: true) %></pre>
         </div>
 
+        <div :if={@applied?} data-selecto-action-form-applied class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          This action has been applied. Reopen the row to run another action request.
+        </div>
+
         <div class="flex justify-end gap-2">
           <button
             type="submit"
             name="intent"
             value="preview"
             class="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={@submitting == "preview"}
+            disabled={@applied? || @submitting == "preview"}
           >
             Preview
           </button>
@@ -149,7 +154,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             name="intent"
             value="apply"
             class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={apply_disabled?(@confirmation, @confirmed, @submitting)}
+            disabled={apply_disabled?(@confirmation, @confirmed, @submitting, @applied?)}
           >
             Apply
           </button>
@@ -294,9 +299,14 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
   defp truthy?(_value), do: false
 
-  defp apply_disabled?(confirmation, confirmed, submitting) do
-    submitting == "apply" or (truthy?(Map.get(confirmation, "required")) and not confirmed)
+  defp apply_disabled?(confirmation, confirmed, submitting, applied?) do
+    applied? or submitting == "apply" or
+      (truthy?(Map.get(confirmation, "required")) and not confirmed)
   end
+
+  defp applied_result?(%{"intent" => "apply"}), do: true
+  defp applied_result?(%{intent: "apply"}), do: true
+  defp applied_result?(_result), do: false
 
   defp result_title(%{"intent" => "apply"}), do: "Apply result"
   defp result_title(%{intent: "apply"}), do: "Apply result"

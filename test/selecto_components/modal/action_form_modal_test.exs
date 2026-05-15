@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Modal.ActionFormModalTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias SelectoComponents.Modal.ActionFormModal
 
   test "submit_action_form emits a preview request payload" do
@@ -43,6 +45,22 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert payload.endpoint == %{"href" => "/actions/archive/apply", "method" => "POST"}
     assert payload.request["confirmed"] == true
     assert payload.request["dry_run"] == false
+  end
+
+  test "render disables further submissions after apply succeeds" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        confirmed: true,
+        last_result: %{"intent" => "apply", "payload" => %{"action" => "archive"}}
+      })
+
+    assert html =~ ~s(data-selecto-action-form-applied)
+    assert html =~ ~r/value="preview"[\s\S]*disabled/
+    assert html =~ ~r/value="apply"[\s\S]*disabled/
   end
 
   defp socket(action, target) do
