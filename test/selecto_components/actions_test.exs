@@ -255,6 +255,35 @@ defmodule SelectoComponents.ActionsTest do
              "/orders/actions/approve_order/preview"
   end
 
+  test "builds bulk action form configs from bulk-scoped domain actions" do
+    actions =
+      write_contract(%{
+        "bulk_archive" => %{
+          "id" => "bulk_archive",
+          "label" => "Archive selected",
+          "scope" => "bulk",
+          "capability" => "orders.archive",
+          "execution" => %{"operation" => "update"},
+          "links" => %{
+            "preview" => "/orders/actions/bulk_archive/preview",
+            "apply" => "/orders/actions/bulk_archive/apply"
+          }
+        }
+      })
+      |> Actions.bulk_actions()
+
+    assert Map.keys(actions) == ["bulk_action_form_bulk_archive"]
+
+    bulk_action = actions["bulk_action_form_bulk_archive"]
+
+    assert bulk_action.type == :live_component
+    assert bulk_action.required_fields == []
+    assert bulk_action.payload.module == SelectoComponents.Modal.ActionFormModal
+    assert bulk_action.payload.assigns.target == %{ids: {:selection, "ids"}}
+    assert bulk_action.payload.assigns.action.id == "bulk_archive"
+    assert bulk_action.payload.assigns.action.scope == "bulk"
+  end
+
   test "normalizes rich link maps into endpoint metadata" do
     contract =
       write_contract(%{

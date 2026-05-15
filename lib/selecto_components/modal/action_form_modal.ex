@@ -81,6 +81,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       data-action-operation={Map.get(@action, :operation) || Map.get(@action, "operation")}
       data-action-scope={Map.get(@action, :scope) || Map.get(@action, "scope")}
       data-action-status={@action_status}
+      data-action-submitting={@submitting}
+      aria-busy={not is_nil(@submitting)}
       class="space-y-4"
     >
       <div class="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
@@ -203,6 +205,16 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
         <div class="flex justify-end gap-2">
           <button
+            :if={(@last_result || @last_error) && !@applied?}
+            type="button"
+            phx-click="reset_action_form"
+            phx-target={@myself}
+            data-selecto-action-form-reset
+            class="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Clear result
+          </button>
+          <button
             type="submit"
             name="intent"
             value="preview"
@@ -236,6 +248,20 @@ defmodule SelectoComponents.Modal.ActionFormModal do
        confirmed: truthy?(Map.get(params, "confirmed")),
        last_error: nil
      )}
+  end
+
+  def handle_event("reset_action_form", _params, socket) do
+    if applied_result?(Map.get(socket.assigns, :last_result)) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       assign(socket,
+         submitting: nil,
+         last_request: nil,
+         last_result: nil,
+         last_error: nil
+       )}
+    end
   end
 
   def handle_event("submit_action_form", params, socket) do

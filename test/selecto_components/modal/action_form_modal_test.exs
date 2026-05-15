@@ -90,6 +90,41 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~s(data-selecto-action-form-submit="apply")
   end
 
+  test "reset_action_form clears non-applied result state" do
+    socket =
+      socket(action(), %{id: 42})
+      |> Phoenix.Component.assign(
+        submitting: "preview",
+        last_request: %{"action" => "archive"},
+        last_result: %{"intent" => "preview", "payload" => %{"action" => "archive"}},
+        last_error: "Preview failed"
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event("reset_action_form", %{}, socket)
+
+    assert updated_socket.assigns.submitting == nil
+    assert updated_socket.assigns.last_request == nil
+    assert updated_socket.assigns.last_result == nil
+    assert updated_socket.assigns.last_error == nil
+  end
+
+  test "reset_action_form preserves applied result lock" do
+    socket =
+      socket(action(), %{id: 42})
+      |> Phoenix.Component.assign(
+        last_result: %{"intent" => "apply", "payload" => %{"action" => "archive"}}
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event("reset_action_form", %{}, socket)
+
+    assert updated_socket.assigns.last_result == %{
+             "intent" => "apply",
+             "payload" => %{"action" => "archive"}
+           }
+  end
+
   test "render summarizes preview and apply results" do
     preview_html =
       render_component(ActionFormModal, %{
@@ -106,6 +141,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert preview_html =~ ~s(data-selecto-action-form-result-summary)
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="action")
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="changes")
+    assert preview_html =~ ~s(data-selecto-action-form-reset)
     assert preview_html =~ ~s({&quot;state&quot;:&quot;archived&quot;})
 
     apply_html =

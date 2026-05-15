@@ -188,6 +188,26 @@ forward "/selecto/orders/query-contract.json",
         domain: MyApp.SelectoDomains.Orders.domain()
 ```
 
+## Generated Domain Action Forms
+
+Domains can expose write-contract actions under `:actions`. Selecto Components
+projects those actions into the existing row-action modal path with generated
+ids like `domain_action_form_archive`. A detail view can select one of those ids
+as `row_click_action`; clicking a row opens `SelectoComponents.Modal.ActionFormModal`
+with the normalized action metadata, target row, inputs, confirmation state, and
+preview/apply request template.
+
+The modal does not execute writes directly. The host LiveView handles
+`{:selecto_action_form_submit, payload}` and calls its own preview/apply
+adapter, usually through `SelectoComponents.ActionFormHost.handle_submit/3`.
+After a successful apply, the host should refresh the active Selecto query so
+the row state reflects the write result.
+
+Bulk-scoped domain actions can be projected separately with
+`SelectoComponents.Actions.bulk_actions/2`. That helper returns the same
+live-component payload shape as generated row action forms, but defaults the
+target template to selected row ids.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.

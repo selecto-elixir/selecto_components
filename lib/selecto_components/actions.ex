@@ -276,6 +276,39 @@ defmodule SelectoComponents.Actions do
     |> Map.new()
   end
 
+  @doc """
+  Builds generated action-form configs for bulk action surfaces.
+
+  This mirrors `detail_actions/2`, but filters to domain actions whose
+  normalized scope is `"bulk"` and defaults the target template to selected row
+  ids. The returned configs intentionally use the same modal payload shape so
+  hosts can route bulk preview/apply through `ActionFormHost`.
+  """
+  @spec bulk_actions(term(), keyword()) :: map()
+  def bulk_actions(contract, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:id_prefix, "bulk_action_form_")
+      |> Keyword.put_new(:required_fields, [])
+      |> Keyword.put_new(:target, %{ids: {:selection, "ids"}})
+
+    prefix = opts |> Keyword.fetch!(:id_prefix) |> normalize_id()
+
+    contract
+    |> action_entries()
+    |> Enum.flat_map(fn action ->
+      case form_action(action, opts) do
+        %{scope: "bulk"} = form_action ->
+          [{prefix <> form_action.id, detail_action(form_action.contract, opts)}]
+
+        _other ->
+          []
+      end
+    end)
+    |> Enum.reject(fn {_id, config} -> is_nil(get_in(config, [:payload, :assigns, :action])) end)
+    |> Map.new()
+  end
+
   defp action_entries(contract) when is_map(contract) do
     case map_value(contract, :actions) do
       actions when is_list(actions) -> actions
