@@ -509,6 +509,40 @@ defmodule SelectoComponents.FormTest do
     assert partial_in_values_id == full_in_values_id
   end
 
+  test "renders generated action form modals without the legacy modal flag" do
+    html =
+      render_component(
+        Form,
+        base_assigns(%{
+          show_detail_modal: true,
+          enable_modal_detail: false,
+          modal_detail_data: %{
+            action_source: :generated_action_form,
+            action_type: :live_component,
+            record: %{"id" => 42, "title" => "Launch"},
+            records: [%{"id" => 42, "title" => "Launch"}],
+            current_index: 0,
+            total_records: 1,
+            component_module: SelectoComponents.Modal.ActionFormModal,
+            component_assigns: %{
+              action: %{
+                "id" => "archive",
+                "label" => "Archive",
+                "description" => "Move to archive",
+                "operation" => "update",
+                "scope" => "row",
+                "confirmation" => %{"required" => true, "message" => "Archive this row?"}
+              },
+              target: %{"id" => 42}
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(data-selecto-action-form-modal)
+    assert html =~ "Archive"
+  end
+
   test "string IS NULL filters keep the standard operator list instead of switching to datetime controls" do
     html =
       render_component(
