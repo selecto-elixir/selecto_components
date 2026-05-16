@@ -66,6 +66,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign_new(:last_result, fn -> nil end)
       |> assign_new(:last_error, fn -> nil end)
       |> assign_new(:submitting, fn -> nil end)
+      |> assign_new(:show_debug_json?, fn -> false end)
       |> assign(:applied?, applied?)
       |> assign(:disabled?, disabled?)
       |> assign(:controls_disabled?, controls_disabled?)
@@ -175,7 +176,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
           <span>{Map.get(@confirmation, "message") || "Confirm this action before applying."}</span>
         </label>
 
-        <details class="text-xs text-slate-600">
+        <details :if={@show_debug_json?} class="text-xs text-slate-600">
           <summary class="cursor-pointer font-medium text-slate-700">Request template</summary>
           <pre class="mt-2 max-h-48 overflow-auto rounded bg-slate-950 p-3 text-slate-100"><%= Jason.encode!(@request_template, pretty: true) %></pre>
         </details>
@@ -196,7 +197,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               <dd class="mt-1 font-mono text-xs text-emerald-950">{item.value}</dd>
             </div>
           </dl>
-          <details data-selecto-action-form-result-details class="mt-2">
+          <details :if={@show_debug_json?} data-selecto-action-form-result-details class="mt-2">
             <summary class="cursor-pointer font-medium text-emerald-800">Response details</summary>
             <pre class="mt-2 max-h-56 overflow-auto rounded bg-white/70 p-2 text-emerald-950 ring-1 ring-emerald-100"><%= Jason.encode!(@last_result, pretty: true) %></pre>
           </details>
@@ -304,10 +305,6 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     payload = %{
       intent: intent,
       action_id: Map.get(action, "id"),
-      action: action,
-      target: target,
-      record: socket.assigns.record,
-      endpoint: endpoint_for(action, intent),
       request: request
     }
 
@@ -385,12 +382,6 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp normalize_input_value(value, %{"type" => "boolean"}), do: truthy?(value)
   defp normalize_input_value(nil, input), do: Map.get(input, "default", "")
   defp normalize_input_value(value, _input), do: value
-
-  defp endpoint_for(action, intent) do
-    action
-    |> Map.get("endpoints", %{})
-    |> Map.get(intent, %{})
-  end
 
   defp input_type(%{"type" => "boolean"}), do: "checkbox"
 

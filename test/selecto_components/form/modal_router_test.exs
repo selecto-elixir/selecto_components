@@ -79,6 +79,8 @@ defmodule SelectoComponents.Form.ModalRouterTest do
     assert html =~ ~s(data-selecto-action-form-modal)
     assert html =~ "Archive"
     assert html =~ "Archive this row?"
-    assert html =~ ~s(&quot;action&quot;: &quot;archive&quot;)
+    assert html =~ ~s(data-action-id="archive")
+    assert html =~ ~s(data-action-operation="update")
+    refute html =~ "Request template"
   end
 end

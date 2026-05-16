@@ -46,6 +46,23 @@ defmodule SelectoComponents.ActionFormHostTest do
              "apply"
   end
 
+  test "handle_submit accepts atom intents for compatibility" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(
+               socket(),
+               %{intent: :apply, action_id: "archive", request: %{"action" => "archive"}},
+               preview: fn _, _, _ -> flunk("preview callback should not run") end,
+               apply: fn action_id, request, _socket ->
+                 assert action_id == "archive"
+                 assert request == %{"action" => "archive"}
+                 {:ok, %{"result" => %{"mode" => "execute"}}}
+               end
+             )
+
+    assert updated_socket.assigns.modal_detail_data.component_assigns.last_result["intent"] ==
+             "apply"
+  end
+
   test "handle_submit stores formatted errors" do
     assert {:noreply, updated_socket} =
              ActionFormHost.handle_submit(

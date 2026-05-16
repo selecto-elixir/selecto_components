@@ -21,7 +21,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert_receive {:selecto_action_form_submit, payload}
     assert payload.intent == "preview"
     assert payload.action_id == "archive"
-    assert payload.endpoint == %{"href" => "/actions/archive/preview", "method" => "POST"}
+    assert Map.keys(payload) |> Enum.sort() == [:action_id, :intent, :request]
 
     assert payload.request == %{
              "action" => "archive",
@@ -42,7 +42,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
 
     assert_receive {:selecto_action_form_submit, payload}
     assert payload.intent == "apply"
-    assert payload.endpoint == %{"href" => "/actions/archive/apply", "method" => "POST"}
+    assert Map.keys(payload) |> Enum.sort() == [:action_id, :intent, :request]
     assert payload.request["confirmed"] == true
     assert payload.request["dry_run"] == false
   end
@@ -141,9 +141,9 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert preview_html =~ ~s(data-selecto-action-form-result-summary)
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="action")
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="changes")
-    assert preview_html =~ ~s(data-selecto-action-form-result-details)
     assert preview_html =~ ~s(data-selecto-action-form-reset)
     assert preview_html =~ ~s({&quot;state&quot;:&quot;archived&quot;})
+    refute preview_html =~ ~s(data-selecto-action-form-result-details)
 
     apply_html =
       render_component(ActionFormModal, %{
@@ -163,8 +163,36 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="mode")
     assert apply_html =~ ~s(execute)
     assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="record")
-    assert apply_html =~ ~s(data-selecto-action-form-result-details)
-    assert apply_html =~ ~s(Response details)
+    refute apply_html =~ ~s(data-selecto-action-form-result-details)
+    refute apply_html =~ ~s(Response details)
+  end
+
+  test "render keeps raw request and response JSON behind an explicit debug flag" do
+    default_html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        last_result: %{"intent" => "preview", "payload" => %{"action" => "archive"}}
+      })
+
+    refute default_html =~ "Request template"
+    refute default_html =~ "Response details"
+
+    debug_html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        show_debug_json?: true,
+        last_result: %{"intent" => "preview", "payload" => %{"action" => "archive"}}
+      })
+
+    assert debug_html =~ "Request template"
+    assert debug_html =~ "Response details"
+    assert debug_html =~ ~s(data-selecto-action-form-result-details)
   end
 
   test "render summarizes bulk apply results without expanding every record in the summary" do
@@ -193,7 +221,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~s(data-selecto-action-form-result-summary-item="records")
     assert html =~ "3 records"
     refute html =~ ~s(data-selecto-action-form-result-summary-item="record")
-    assert html =~ ~s(data-selecto-action-form-result-details)
+    refute html =~ ~s(data-selecto-action-form-result-details)
   end
 
   test "render disables unavailable action forms with the host reason" do
