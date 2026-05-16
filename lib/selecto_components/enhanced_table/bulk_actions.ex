@@ -1,6 +1,11 @@
 defmodule SelectoComponents.EnhancedTable.BulkActions do
   @moduledoc """
   Bulk actions interface for performing operations on multiple selected records.
+
+  Bulk actions should come from domain action contracts and render as generated
+  `ActionFormModal` entries. Passing explicit `:actions` is a deprecated
+  pre-1.0 compatibility path kept only while the remaining callers move to
+  domain actions; do not add new behavior there.
   """
 
   use Phoenix.LiveComponent
@@ -33,7 +38,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   @impl true
   def update(assigns, socket) do
     actions =
-      (assigns[:actions] || default_actions())
+      (assigns[:actions] || [])
       |> Kernel.++(generated_action_forms(assigns))
       |> Enum.map(&normalize_action_item/1)
       |> Enum.reject(&is_nil/1)
@@ -504,7 +509,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   defp resolve_selection_value(value, _selection_context), do: value
 
-  # Bulk action execution
+  # Deprecated explicit-action execution path.
+  #
+  # Domain actions should render generated action-form menu items and run through
+  # `ActionFormModal` + `ActionFormHost`. Keep this small and removable; it is
+  # only present to keep explicit `actions:` assigns parent-safe until it is
+  # deleted before 1.0.
 
   defp execute_bulk_action(socket, nil), do: socket
 
@@ -737,7 +747,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       quick_action: truthy?(map_value(action, :quick_action)),
       requires_confirmation: truthy?(map_value(action, :requires_confirmation)),
       confirmation_message: map_value(action, :confirmation_message),
-      source: map_value(action, :source),
+      source: map_value(action, :source) || :deprecated_explicit_bulk_action,
       scope: map_value(action, :scope),
       type: map_value(action, :type),
       payload: map_value(action, :payload, %{}),
@@ -760,47 +770,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
   defp truthy?(_value), do: false
-
-  defp default_actions do
-    [
-      %{
-        id: "export",
-        label: "Export",
-        icon: @export_icon_svg,
-        quick_action: true,
-        requires_confirmation: false
-      },
-      %{
-        id: "delete",
-        label: "Delete",
-        icon: @delete_icon_svg,
-        icon_class: "text-red-500",
-        text_class: "text-red-700",
-        quick_action: true,
-        requires_confirmation: true,
-        confirmation_message:
-          "This will permanently delete the selected items. This action cannot be undone."
-      },
-      %{
-        divider: true,
-        id: "archive",
-        label: "Archive",
-        description: "Move to archive",
-        requires_confirmation: true
-      },
-      %{
-        id: "duplicate",
-        label: "Duplicate",
-        requires_confirmation: false
-      },
-      %{
-        id: "merge",
-        label: "Merge",
-        badge: "Beta",
-        requires_confirmation: true
-      }
-    ]
-  end
 
   defp action_button_class(action, selection_count) do
     base = "transition-colors"
