@@ -1987,7 +1987,11 @@ defmodule SelectoComponents.Form do
   defp detail_modal_visible?(assigns) do
     Map.get(assigns, :show_detail_modal) &&
       (Map.get(assigns, :enable_modal_detail, false) ||
-         Map.get(Map.get(assigns, :modal_detail_data, %{}), :action_source) == :configured)
+         Map.get(Map.get(assigns, :modal_detail_data, %{}), :action_source) in [
+           :configured,
+           :generated_action_form,
+           :generated_bulk_action_form
+         ])
   end
 
   defp scheduled_export_context(assigns) do

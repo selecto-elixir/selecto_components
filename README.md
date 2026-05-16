@@ -188,6 +188,89 @@ forward "/selecto/orders/query-contract.json",
         domain: MyApp.SelectoDomains.Orders.domain()
 ```
 
+## Generated Domain Action Forms
+
+Domains can expose write-contract actions under `:actions`. Selecto Components
+projects those actions into the existing row-action modal path with generated
+ids like `domain_action_form_archive`. A detail view can select one of those ids
+as `row_click_action`; clicking a row opens `SelectoComponents.Modal.ActionFormModal`
+with the normalized action metadata, target row, inputs, confirmation state, and
+preview/apply request template.
+
+The modal does not execute writes directly. The host LiveView handles
+`{:selecto_action_form_submit, payload}` and calls its own preview/apply
+adapter, usually through `SelectoComponents.ActionFormHost.handle_submit/3`.
+After a successful apply, the host should refresh the active Selecto query so
+the row state reflects the write result.
+
+Bulk-scoped domain actions can be projected separately with
+`SelectoComponents.Actions.bulk_actions/2`. That helper returns the same
+live-component payload shape as generated row action forms, but defaults the
+target template to selected row ids.
+
+`SelectoComponents.EnhancedTable.BulkActions` can receive `:action_contract`,
+`:write_contract`, `:domain`, or `:selecto` assigns. Bulk-scoped domain actions
+from that contract are added to the bulk menu as generated action forms; opening
+one sends the same detail-modal event with `target.ids` set to the current
+selection.
+
+The older explicit `actions:` bulk-action API has been removed before 1.0. New
+bulk actions should be expressed in the domain action contract.
+
+### Action DSL Shape
+
+An action is host-owned metadata in the Selecto domain. The execution contract
+can use static values, or reference normalized form inputs with `{:input, id}`:
+
+```elixir
+defaction(:set_estimate, %{
+  id: :set_estimate,
+  label: "Set estimate",
+  type: :update,
+  scope: :row,
+  target: :work_item,
+  capability: "work_items.estimation",
+  inputs: %{
+    estimate_hours: %{type: :integer, label: "Estimate hours", required: true, min: 0}
+  },
+  confirmation: %{required: false, destructive: false},
+  execution: %{
+    kind: :updato,
+    operation: :update,
+    set: %{estimate_hours: {:input, :estimate_hours}}
+  },
+  links: %{
+    preview: "/api/v1/updato/work-items/actions/set_estimate/preview",
+    apply: "/api/v1/updato/work-items/actions/set_estimate/apply"
+  }
+})
+```
+
+The generated modal builds this request shape and sends it to the parent
+LiveView:
+
+```elixir
+%{
+  intent: "apply",
+  action_id: "set_estimate",
+  request: %{
+    "action" => "set_estimate",
+    "target" => %{"id" => 42},
+    "inputs" => %{"estimate_hours" => "8"},
+    "confirmed" => false
+  }
+}
+```
+
+The host should treat this as an intent, not as permission to write directly.
+Typical host responsibilities are:
+
+- Re-check target-aware action availability before showing the modal.
+- Preview/apply through a server-owned adapter.
+- Normalize and whitelist writable fields in that adapter.
+- Refresh the active Selecto query and close or reset the modal after apply.
+- Use flash/error messages for the result surface the host wants.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.

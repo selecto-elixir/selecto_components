@@ -60,6 +60,64 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ ~s(<option value="work_item_api_json" selected>)
   end
 
+  test "renders generated row action form choices from domain actions" do
+    domain = %{
+      name: "DetailFormGeneratedActionsTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          title: %{type: :string, name: "Title", colid: :title}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{},
+      actions: %{
+        archive: %{
+          id: :archive,
+          label: "Archive",
+          scope: :row,
+          capability: "work_items.archive",
+          execution: %{operation: :update},
+          links: %{
+            preview: "/work-items/actions/archive/preview",
+            apply: "/work-items/actions/archive/apply"
+          }
+        }
+      }
+    }
+
+    html =
+      render_component(Form, %{
+        id: "detail-form-generated-actions-test",
+        columns: [{:id, "ID", :integer}, {:title, "Title", :string}],
+        view: {:detail, SelectoComponents.Views.Detail, "Detail", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              row_click_action: "domain_action_form_archive"
+            }
+          }
+        }
+      })
+
+    assert html =~ ~s(id="detail-row-click-action-domain_action_form_archive")
+    assert html =~ ~s(<option value="domain_action_form_archive" selected>)
+    assert html =~ "Archive"
+    assert html =~ "Generated from domain action"
+    assert html =~ "work_items.archive"
+    assert html =~ "preview: /work-items/actions/archive/preview"
+    assert html =~ "apply: /work-items/actions/archive/apply"
+  end
+
   test "uses detail config as the only row click action source while editing" do
     domain = %{
       name: "DetailFormParamsTest",

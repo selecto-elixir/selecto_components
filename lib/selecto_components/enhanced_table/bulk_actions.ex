@@ -1,37 +1,28 @@
 defmodule SelectoComponents.EnhancedTable.BulkActions do
   @moduledoc """
   Bulk actions interface for performing operations on multiple selected records.
+
+  Bulk actions should come from domain action contracts and render as generated
+  `ActionFormModal` entries.
   """
 
   use Phoenix.LiveComponent
+  alias SelectoComponents.Actions
   alias SelectoComponents.EnhancedTable.RowSelection
   alias Phoenix.LiveView.JS
 
-  @export_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>)
-
-  @delete_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>)
-
-  @trusted_icons MapSet.new([@export_icon_svg, @delete_icon_svg])
-
   @impl true
   def mount(socket) do
-    {:ok,
-     socket
-     |> RowSelection.init_selection()
-     |> assign(
-       bulk_action: nil,
-       processing: false,
-       processed_count: 0,
-       total_to_process: 0,
-       errors: [],
-       show_confirmation: false,
-       confirmation_message: nil
-     )}
+    {:ok, RowSelection.init_selection(socket)}
   end
 
   @impl true
   def update(assigns, socket) do
-    actions = assigns[:actions] || default_actions()
+    actions =
+      assigns
+      |> generated_action_forms()
+      |> Enum.map(&normalize_action_item/1)
+      |> Enum.reject(&is_nil/1)
 
     socket =
       socket
@@ -43,10 +34,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, menu_id: "#{assigns.id}-menu")
+
     ~H"""
-    <div id={@id} class="bulk-actions-container" phx-hook=".BulkActions" data-selected-count={@selection_count}>
+    <div id={@id} class="bulk-actions-container" data-selected-count={@selection_count}>
       <%!-- Bulk Actions Toolbar --%>
-      <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
+      <div class="flex items-center px-4 py-2 bg-gray-50 border-b">
         <div class="flex items-center space-x-4">
           <%!-- Selection Info --%>
           <%= if @selection_count > 0 do %>
@@ -58,7 +51,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
                 type="button"
                 class="text-sm text-blue-600 hover:text-blue-800"
                 phx-click="clear_selection"
-                phx-target={@myself}
+                phx-target={assigns[:selection_target] || @myself}
               >
                 Clear
               </button>
@@ -71,7 +64,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
               type="button"
               class={"px-4 py-2 bg-white border rounded-lg flex items-center space-x-2 #{if @selection_count == 0, do: "opacity-50 cursor-not-allowed", else: "hover:bg-gray-50"}"}
               disabled={@selection_count == 0}
-              phx-click={toggle_actions_menu()}
+              phx-click={toggle_actions_menu(@menu_id)}
             >
               <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -93,222 +86,23 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
             </button>
 
             <div
-              id="bulk-actions-menu"
+              id={@menu_id}
               class="hidden absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20"
             >
-              <%= for action <- @actions do %>
-                {render_action_item(assigns, action)}
-              <% end %>
-            </div>
-          </div>
-        </div>
-
-        <%!-- Quick Actions --%>
-        <div class="flex items-center space-x-2">
-          <%= for action <- Enum.filter(@actions, & &1.quick_action) do %>
-            <button
-              type="button"
-              class={"px-3 py-1.5 text-sm rounded-lg flex items-center space-x-1 #{action_button_class(action, @selection_count)}"}
-              disabled={@selection_count == 0 || @processing}
-              phx-click="execute_action"
-              phx-value-action={action.id}
-              phx-target={@myself}
-            >
-              <%= if icon = safe_icon(action.icon) do %>
-                {icon}
-              <% end %>
-              <span>{action.label}</span>
-            </button>
-          <% end %>
-        </div>
-      </div>
-
-      <%!-- Progress Bar --%>
-      <%= if @processing do %>
-        <div class="px-4 py-2 bg-blue-50 border-b border-blue-200">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-blue-900">
-              Processing {@processed_count} of {@total_to_process} items...
-            </span>
-            <button
-              type="button"
-              class="text-sm text-blue-600 hover:text-blue-800"
-              phx-click="cancel_processing"
-              phx-target={@myself}
-            >
-              Cancel
-            </button>
-          </div>
-          <div class="w-full bg-blue-200 rounded-full h-2">
-            <div
-              class="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={"width: #{progress_percentage(@processed_count, @total_to_process)}%"}
-            >
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <%!-- Error Display --%>
-      <%= if length(@errors) > 0 do %>
-        <div class="px-4 py-2 bg-red-50 border-b border-red-200">
-          <div class="flex items-start">
-            <svg
-              class="w-5 h-5 text-red-600 mr-2 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <div class="flex-1">
-              <p class="text-sm font-medium text-red-900">
-                {length(@errors)} {if length(@errors) == 1, do: "error", else: "errors"} occurred
-              </p>
-              <ul class="mt-1 text-sm text-red-700">
-                <%= for error <- Enum.take(@errors, 3) do %>
-                  <li>• {error}</li>
-                <% end %>
-                <%= if length(@errors) > 3 do %>
-                  <li class="text-red-600">...and {length(@errors) - 3} more</li>
-                <% end %>
-              </ul>
-            </div>
-            <button
-              type="button"
-              class="text-red-600 hover:text-red-800"
-              phx-click="dismiss_errors"
-              phx-target={@myself}
-            >
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fill-rule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      <% end %>
-
-      <%!-- Confirmation Dialog --%>
-      <%= if @show_confirmation do %>
-        <div
-          id="confirmation-dialog"
-          class="fixed inset-0 z-50 overflow-y-auto"
-          phx-hook=".ConfirmationDialog"
-        >
-          <div class="flex items-center justify-center min-h-screen px-4">
-            <div
-              class="fixed inset-0 bg-gray-500 bg-opacity-75"
-              phx-click="cancel_action"
-              phx-target={@myself}
-            >
-            </div>
-
-            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div class="px-6 py-4">
-                <div class="flex items-start">
-                  <div class="flex-shrink-0">
-                    <svg
-                      class="w-6 h-6 text-yellow-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                  </div>
-                  <div class="ml-3 flex-1">
-                    <h3 class="text-lg font-medium text-gray-900">Confirm Bulk Action</h3>
-                    <p class="mt-2 text-sm text-gray-500">
-                      {@confirmation_message}
-                    </p>
-                    <p class="mt-2 text-sm font-medium text-gray-700">
-                      This will affect {@selection_count} {if @selection_count == 1,
-                        do: "item",
-                        else: "items"}.
-                    </p>
-                  </div>
+              <%= if @actions == [] do %>
+                <div class="px-4 py-3 text-sm text-gray-500" data-bulk-actions-empty>
+                  No bulk actions available
                 </div>
-              </div>
-
-              <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  phx-click="cancel_action"
-                  phx-target={@myself}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
-                  phx-click="confirm_action"
-                  phx-target={@myself}
-                >
-                  Confirm
-                </button>
-              </div>
+              <% else %>
+                <%= for action <- @actions do %>
+                  {render_action_item(assigns, action)}
+                <% end %>
+              <% end %>
             </div>
           </div>
         </div>
-      <% end %>
 
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".BulkActions">
-        export default {
-          mounted() {
-            this.handleKeydown = (event) => {
-              if (event.key === 'Delete' && !event.target.matches('input, textarea')) {
-                const selectedCount = parseInt(this.el.dataset.selectedCount || '0', 10);
-                if (selectedCount > 0) {
-                  event.preventDefault();
-                  this.pushEventTo(this.el, 'execute_action', {action: 'delete'});
-                }
-              }
-            };
-
-            document.addEventListener('keydown', this.handleKeydown);
-          },
-
-          destroyed() {
-            document.removeEventListener('keydown', this.handleKeydown);
-          }
-        };
-      </script>
-
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".ConfirmationDialog">
-        export default {
-          mounted() {
-            const confirmBtn = this.el.querySelector('button[phx-click="confirm_action"]');
-            if (confirmBtn) {
-              confirmBtn.focus();
-            }
-
-            this.handleKeydown = (event) => {
-              if (event.key === 'Escape') {
-                this.pushEventTo(this.el, 'cancel_action', {});
-              }
-            };
-
-            document.addEventListener('keydown', this.handleKeydown);
-          },
-
-          destroyed() {
-            document.removeEventListener('keydown', this.handleKeydown);
-          }
-        };
-      </script>
+      </div>
     </div>
     """
   end
@@ -321,21 +115,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       <button
         type="button"
         class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
-        phx-click="execute_action"
-        phx-value-action={@action.id}
-        phx-target={@myself}
+        phx-click={execute_action_click(@menu_id, @action.id, @myself)}
+        data-bulk-action-id={@action.id}
+        data-bulk-action-source={Map.get(@action, :source)}
+        data-bulk-action-scope={Map.get(@action, :scope)}
       >
-        <%= if icon = safe_icon(@action.icon) do %>
-          <span class={@action.icon_class || "text-gray-500"}>
-            {icon}
-          </span>
-        <% end %>
-        <span class={@action.text_class || "text-gray-700"}>{@action.label}</span>
-        <%= if @action.badge do %>
-          <span class="ml-auto px-2 py-0.5 text-xs bg-gray-200 rounded-full">
-            {@action.badge}
-          </span>
-        <% end %>
+        <span class="text-gray-700">{@action.label}</span>
       </button>
       <%= if @action.description do %>
         <p class="px-4 pb-2 text-xs text-gray-500">{@action.description}</p>
@@ -350,38 +135,11 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   def handle_event("execute_action", %{"action" => action_id}, socket) do
     action = Enum.find(socket.assigns.actions, &(&1.id == action_id))
 
-    if action && action.requires_confirmation do
-      {:noreply,
-       socket
-       |> assign(
-         show_confirmation: true,
-         confirmation_message:
-           action.confirmation_message || "Are you sure you want to perform this action?",
-         bulk_action: action
-       )}
+    if generated_action_form?(action) do
+      {:noreply, open_generated_action_form(socket, action)}
     else
-      {:noreply, execute_bulk_action(socket, action)}
+      {:noreply, socket}
     end
-  end
-
-  def handle_event("confirm_action", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(show_confirmation: false)
-     |> execute_bulk_action(socket.assigns.bulk_action)}
-  end
-
-  def handle_event("cancel_action", _params, socket) do
-    {:noreply, assign(socket, show_confirmation: false, bulk_action: nil)}
-  end
-
-  def handle_event("cancel_processing", _params, socket) do
-    send(self(), :cancel_bulk_processing)
-    {:noreply, assign(socket, processing: false)}
-  end
-
-  def handle_event("dismiss_errors", _params, socket) do
-    {:noreply, assign(socket, errors: [])}
   end
 
   def handle_event("toggle_row_selection", %{"id" => row_id}, socket) do
@@ -411,105 +169,80 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     {:noreply, RowSelection.select_range(socket, from_id, to_id, all_ids)}
   end
 
-  # Bulk action execution
-
-  defp execute_bulk_action(socket, nil), do: socket
-
-  defp execute_bulk_action(socket, action) do
+  defp open_generated_action_form(socket, action) do
     selected_ids = RowSelection.get_selected_ids(socket)
 
-    if length(selected_ids) > 0 do
+    if selected_ids == [] do
       socket
-      |> assign(
-        processing: true,
-        processed_count: 0,
-        total_to_process: length(selected_ids),
-        errors: []
+    else
+      payload = Map.get(action, :payload, %{})
+      component_assigns_template = Map.get(payload, :assigns, %{})
+      selection_context = %{"ids" => selected_ids, "count" => length(selected_ids)}
+      component_assigns = resolve_selection_assigns(component_assigns_template, selection_context)
+
+      send(
+        self(),
+        {:show_detail_modal,
+         %{
+           action_id: action.id,
+           action_source: :generated_bulk_action_form,
+           action_type: :live_component,
+           record: selection_context,
+           current_index: 0,
+           total_records: length(selected_ids),
+           records: [selection_context],
+           fields: ["ids", "count"],
+           related_data: %{},
+           title: Map.get(payload, :title, action.label),
+           title_template: Map.get(payload, :title),
+           size: Map.get(payload, :size, :lg),
+           navigation_enabled: false,
+           edit_enabled: false,
+           component_module: Map.get(payload, :module),
+           component_assigns_template: component_assigns_template,
+           component_assigns: component_assigns
+         }}
       )
-      |> start_batch_processing(action, selected_ids)
-    else
-      socket
+
+      assign(socket, bulk_action: action)
     end
   end
 
-  defp start_batch_processing(socket, action, selected_ids) do
-    batch_size = action[:batch_size] || 10
-    batches = Enum.chunk_every(selected_ids, batch_size)
+  defp generated_action_form?(%{source: :generated_bulk_action_form}), do: true
+  defp generated_action_form?(_action), do: false
 
-    # Send first batch for processing
-    send(self(), {:process_batch, action, batches, 0})
-
-    socket
+  defp resolve_selection_assigns(assigns_template, selection_context)
+       when is_map(assigns_template) do
+    Map.new(assigns_template, fn {key, value} ->
+      {key, resolve_selection_value(value, selection_context)}
+    end)
   end
 
-  def handle_info({:process_batch, action, batches, index}, socket) do
-    if index < length(batches) do
-      batch = Enum.at(batches, index)
+  defp resolve_selection_assigns(_assigns_template, _selection_context), do: %{}
 
-      # Process batch
-      case process_batch(action, batch) do
-        {:ok, _results} ->
-          new_count = socket.assigns.processed_count + length(batch)
-
-          socket = assign(socket, processed_count: new_count)
-
-          # Schedule next batch
-          if index + 1 < length(batches) do
-            Process.send_after(self(), {:process_batch, action, batches, index + 1}, 100)
-          else
-            # All done
-            send(self(), :bulk_processing_complete)
-          end
-
-          {:noreply, socket}
-
-        {:error, errors} ->
-          {:noreply,
-           socket
-           |> assign(errors: socket.assigns.errors ++ errors)
-           |> assign(processing: false)}
-      end
-    else
-      {:noreply, socket}
-    end
+  defp resolve_selection_value({:selection, key}, selection_context) do
+    Map.get(selection_context, to_string(key))
   end
 
-  def handle_info(:bulk_processing_complete, socket) do
-    send(self(), {:bulk_action_complete, socket.assigns.bulk_action})
-
-    {:noreply,
-     socket
-     |> assign(processing: false)
-     |> RowSelection.clear_selection()}
+  defp resolve_selection_value(%{selection: key}, selection_context) do
+    resolve_selection_value({:selection, key}, selection_context)
   end
 
-  def handle_info(:cancel_bulk_processing, socket) do
-    {:noreply, assign(socket, processing: false)}
+  defp resolve_selection_value(%{"selection" => key}, selection_context) do
+    resolve_selection_value({:selection, key}, selection_context)
   end
 
-  # Helper functions
-
-  defp process_batch(action, batch_ids) do
-    # Call the configured action handler if available, otherwise return success
-    case action do
-      %{handler: handler} when is_function(handler, 1) ->
-        # Call custom handler function
-        handler.(batch_ids)
-
-      %{handler: {module, function}} when is_atom(module) and is_atom(function) ->
-        # Call module function
-        apply(module, function, [batch_ids])
-
-      %{id: action_id} ->
-        # Send to parent process for handling
-        send(self(), {:bulk_action_process_batch, action_id, batch_ids})
-        # Return success - actual processing happens in parent
-        {:ok, batch_ids}
-
-      _ ->
-        {:ok, batch_ids}
-    end
+  defp resolve_selection_value(value, selection_context) when is_list(value) do
+    Enum.map(value, &resolve_selection_value(&1, selection_context))
   end
+
+  defp resolve_selection_value(value, selection_context) when is_map(value) do
+    Map.new(value, fn {key, nested_value} ->
+      {key, resolve_selection_value(nested_value, selection_context)}
+    end)
+  end
+
+  defp resolve_selection_value(value, _selection_context), do: value
 
   defp get_all_row_ids(socket) do
     # Get row IDs from various possible sources
@@ -614,88 +347,81 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     Phoenix.LiveView.send_update(__MODULE__, id: component_id, all_row_ids: row_ids)
   end
 
-  defp safe_icon(icon) when is_binary(icon) do
-    if MapSet.member?(@trusted_icons, icon) do
-      Phoenix.HTML.raw(icon)
-    else
-      nil
-    end
+  defp generated_action_forms(assigns) do
+    assigns
+    |> generated_action_contract()
+    |> Actions.bulk_actions(id_prefix: "domain_bulk_action_form_")
+    |> Enum.map(fn {id, config} -> generated_action_form_menu_item(id, config) end)
+    |> Enum.reject(&is_nil/1)
   end
 
-  defp safe_icon(_icon), do: nil
-
-  defp default_actions do
-    [
-      %{
-        id: "export",
-        label: "Export",
-        icon: @export_icon_svg,
-        quick_action: true,
-        requires_confirmation: false
-      },
-      %{
-        id: "delete",
-        label: "Delete",
-        icon: @delete_icon_svg,
-        icon_class: "text-red-500",
-        text_class: "text-red-700",
-        quick_action: true,
-        requires_confirmation: true,
-        confirmation_message:
-          "This will permanently delete the selected items. This action cannot be undone."
-      },
-      %{
-        divider: true,
-        id: "archive",
-        label: "Archive",
-        description: "Move to archive",
-        requires_confirmation: true
-      },
-      %{
-        id: "duplicate",
-        label: "Duplicate",
-        requires_confirmation: false
-      },
-      %{
-        id: "merge",
-        label: "Merge",
-        badge: "Beta",
-        requires_confirmation: true
-      }
-    ]
-  end
-
-  defp action_button_class(action, selection_count) do
-    base = "transition-colors"
-
-    disabled =
-      if selection_count == 0 do
-        "opacity-50 cursor-not-allowed"
-      else
-        ""
+  defp generated_action_contract(assigns) do
+    assigns[:action_contract] ||
+      assigns[:write_contract] ||
+      assigns[:domain] ||
+      case assigns[:selecto] do
+        nil -> %{}
+        selecto -> Selecto.domain(selecto)
       end
-
-    color =
-      case action.id do
-        "delete" -> "bg-red-100 text-red-700 hover:bg-red-200"
-        "export" -> "bg-green-100 text-green-700 hover:bg-green-200"
-        _ -> "bg-gray-100 text-gray-700 hover:bg-gray-200"
-      end
-
-    "#{base} #{color} #{disabled}"
   end
 
-  defp progress_percentage(0, 0), do: 0
+  defp generated_action_form_menu_item(id, config) when is_map(config) do
+    payload = Map.get(config, :payload, %{})
+    action = get_in(payload, [:assigns, :action]) || %{}
 
-  defp progress_percentage(processed, total) do
-    round(processed / total * 100)
+    %{
+      id: id,
+      label: Map.get(config, :name) || map_value(action, :label) || id,
+      description: Map.get(config, :description),
+      source: :generated_bulk_action_form,
+      scope: "bulk",
+      type: :live_component,
+      payload: payload,
+      confirmation_message: map_value(action, :confirmation_message)
+    }
   end
 
-  defp toggle_actions_menu do
+  defp generated_action_form_menu_item(_id, _config), do: nil
+
+  defp normalize_action_item(action) when is_map(action) do
+    %{
+      id: map_value(action, :id),
+      label: map_value(action, :label),
+      description: map_value(action, :description),
+      divider: truthy?(map_value(action, :divider)),
+      confirmation_message: map_value(action, :confirmation_message),
+      source: map_value(action, :source),
+      scope: map_value(action, :scope),
+      type: map_value(action, :type),
+      payload: map_value(action, :payload, %{})
+    }
+  end
+
+  defp normalize_action_item(_action), do: nil
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map) and is_atom(key),
+    do: Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+
+  defp map_value(map, key, default) when is_map(map) and is_binary(key),
+    do: Map.get(map, key, default)
+
+  defp map_value(_map, _key, default), do: default
+
+  defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
+  defp truthy?(_value), do: false
+
+  defp toggle_actions_menu(menu_id) do
     JS.toggle(
-      to: "#bulk-actions-menu",
+      to: "##{menu_id}",
       in: {"ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100"},
       out: {"ease-in duration-75", "opacity-100 scale-100", "opacity-0 scale-95"}
     )
+  end
+
+  defp execute_action_click(menu_id, action_id, target) do
+    JS.hide(to: "##{menu_id}")
+    |> JS.push("execute_action", value: %{action: action_id}, target: target)
   end
 end

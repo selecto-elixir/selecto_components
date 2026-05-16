@@ -47,6 +47,8 @@ defmodule SelectoComponents.Form.EventHandlers.ModalOperations do
       """
       @impl true
       def handle_info({:show_detail_modal, detail_data}, socket) do
+        detail_data = prepare_detail_modal_data(detail_data, socket)
+
         # Check if modal detail view is enabled (opt-in feature)
         if detail_modal_enabled?(socket.assigns, detail_data) do
           # Set modal data in assigns to trigger rendering
@@ -89,7 +91,19 @@ defmodule SelectoComponents.Form.EventHandlers.ModalOperations do
 
       defp detail_modal_enabled?(assigns, detail_data) do
         Map.get(assigns, :enable_modal_detail, false) ||
-          Map.get(detail_data || %{}, :action_source) == :configured
+          Map.get(detail_data || %{}, :action_source) in [
+            :configured,
+            :generated_action_form,
+            :generated_bulk_action_form
+          ]
+      end
+
+      defp prepare_detail_modal_data(detail_data, socket) do
+        if function_exported?(__MODULE__, :prepare_selecto_detail_modal_data, 2) do
+          apply(__MODULE__, :prepare_selecto_detail_modal_data, [detail_data, socket])
+        else
+          detail_data
+        end
       end
     end
   end

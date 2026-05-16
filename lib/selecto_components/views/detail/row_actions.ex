@@ -1,10 +1,14 @@
 defmodule SelectoComponents.Views.Detail.RowActions do
   @moduledoc false
 
+  alias SelectoComponents.Actions
+
   @default_modal_action_id "__default_modal__"
+  @generated_action_form_prefix "domain_action_form_"
   @modal_sizes [:sm, :md, :lg, :xl, :full, :third, :fullscreen]
 
   def default_modal_action_id, do: @default_modal_action_id
+  def generated_action_form_prefix, do: @generated_action_form_prefix
 
   def available_actions(selecto) do
     [default_modal_action() | registered_actions(selecto)]
@@ -29,7 +33,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
         |> Enum.find(fn action -> action.id == action_id end)
         |> case do
           nil -> nil
-          action -> Map.put(action, :source, :configured)
+          action -> Map.put_new(action, :source, :configured)
         end
     end
   end
@@ -163,13 +167,43 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   def resolve_component_assigns(_assigns_template, _source), do: %{}
 
   defp registered_actions(selecto) do
-    selecto
-    |> Selecto.domain()
-    |> Map.get(:detail_actions, %{})
+    domain = Selecto.domain(selecto)
+
+    domain
+    |> registered_detail_actions()
+    |> Kernel.++(generated_action_forms(domain))
     |> Enum.map(&normalize_action/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.sort_by(&String.downcase(&1.name))
   end
+
+  defp registered_detail_actions(domain) when is_map(domain) do
+    domain
+    |> Map.get(:detail_actions, %{})
+    |> Enum.to_list()
+  end
+
+  defp registered_detail_actions(_domain), do: %{}
+
+  defp generated_action_forms(domain) when is_map(domain) do
+    domain
+    |> Actions.detail_actions(
+      id_prefix: @generated_action_form_prefix,
+      required_fields: [:id],
+      target: %{id: {:field, "id"}}
+    )
+    |> Enum.map(fn {id, config} -> {id, Map.put(config, :source, :generated_action_form)} end)
+    |> Enum.filter(fn {_id, config} ->
+      action_scope =
+        config
+        |> get_in([:payload, :assigns, :action, :scope])
+        |> normalize_optional_string()
+
+      action_scope in [nil, "row"]
+    end)
+  end
+
+  defp generated_action_forms(_domain), do: []
 
   defp normalize_action({action_id, action_config}) when is_map(action_config) do
     type = normalize_action_type(map_get(action_config, :type))
@@ -180,6 +214,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
       %{
         id: to_string(action_id),
         source_id: action_id,
+        source: normalize_action_source(map_get(action_config, :source)),
         name: normalize_optional_string(map_get(action_config, :name)) || humanize_id(action_id),
         description: normalize_optional_string(map_get(action_config, :description)),
         type: type,
@@ -250,6 +285,12 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   end
 
   defp normalize_action_type(_value), do: nil
+
+  defp normalize_action_source(:generated_action_form), do: :generated_action_form
+  defp normalize_action_source("generated_action_form"), do: :generated_action_form
+  defp normalize_action_source(:configured), do: :configured
+  defp normalize_action_source("configured"), do: :configured
+  defp normalize_action_source(_source), do: nil
 
   defp normalize_modal_size(size) when size in @modal_sizes, do: size
 
