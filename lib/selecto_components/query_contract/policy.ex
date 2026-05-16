@@ -209,25 +209,40 @@ defmodule SelectoComponents.QueryContract.Policy do
   end
 
   defp put_decision(entry, decision_entry) do
-    Map.put(entry, :capability_decision, decision_entry)
+    put_entry_value(entry, :capability_decision, decision_entry)
   end
 
   defp disable_entry(entry, :field, decision_entry) do
     entry
     |> put_decision(decision_entry)
-    |> Map.put(:disabled, true)
-    |> Map.put(:comparators, [])
-    |> Map.put(:aggregate_functions, [])
+    |> put_entry_value(:disabled, true)
+    |> put_entry_value(:comparators, [])
+    |> put_entry_value(:aggregate_functions, [])
     |> then(fn entry ->
-      Enum.reduce(@field_surface_keys, entry, &Map.put(&2, String.to_atom(&1), false))
+      Enum.reduce(@field_surface_keys, entry, &put_entry_value(&2, String.to_atom(&1), false))
     end)
   end
 
   defp disable_entry(entry, :filter, decision_entry) do
     entry
     |> put_decision(decision_entry)
-    |> Map.put(:disabled, true)
-    |> Map.put(:comparators, [])
+    |> put_entry_value(:disabled, true)
+    |> put_entry_value(:comparators, [])
+  end
+
+  defp put_entry_value(entry, key, value) when is_atom(key) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(entry, key) -> Map.put(entry, key, value)
+      Map.has_key?(entry, string_key) -> Map.put(entry, string_key, value)
+      string_keyed_entry?(entry) -> Map.put(entry, string_key, value)
+      true -> Map.put(entry, key, value)
+    end
+  end
+
+  defp string_keyed_entry?(entry) do
+    Enum.any?(entry, fn {key, _value} -> is_binary(key) end)
   end
 
   defp prune_field_choice_bindings(contract, hidden_field_ids) do

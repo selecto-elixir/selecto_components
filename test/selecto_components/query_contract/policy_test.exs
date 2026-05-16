@@ -47,6 +47,33 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
+  test "disables string-keyed field and filter surfaces" do
+    projected =
+      Policy.apply(string_keyed_contract(),
+        capability_resolver: fn _request ->
+          Selecto.Capabilities.deny(:blocked, user_message: "Blocked")
+        end
+      )
+
+    assert %{
+             "detail_selectable" => false,
+             "filterable" => false,
+             "sortable" => false,
+             "groupable" => false,
+             "aggregatable" => false,
+             "comparators" => [],
+             "aggregate_functions" => [],
+             "disabled" => true,
+             "capability_decision" => %{"status" => "disabled"}
+           } = field(projected, "private_metric")
+
+    assert %{
+             "comparators" => [],
+             "disabled" => true,
+             "capability_decision" => %{"status" => "disabled"}
+           } = Enum.find(projected.filters, &(&1["id"] == "private_filter"))
+  end
+
   test "removes hidden fields, filters, bindings, and defaults" do
     contract = contract()
 
@@ -74,7 +101,8 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
-  defp field(contract, id), do: Enum.find(contract.fields, &(&1.id == id))
+  defp field(contract, id),
+    do: Enum.find(contract.fields, &(Map.get(&1, :id, Map.get(&1, "id")) == id))
 
   defp contract do
     %{
@@ -121,6 +149,32 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
         required_order_by: [%{field: "private_metric", dir: "asc"}],
         required_filters: ["private_filter"]
       }
+    }
+  end
+
+  defp string_keyed_contract do
+    %{
+      fields: [
+        %{
+          "id" => "private_metric",
+          "capability" => "items.private_metric",
+          "detail_selectable" => true,
+          "filterable" => true,
+          "sortable" => true,
+          "groupable" => true,
+          "aggregatable" => true,
+          "comparators" => ["eq", "gt"],
+          "aggregate_functions" => ["sum"]
+        }
+      ],
+      filters: [
+        %{
+          "id" => "private_filter",
+          "field" => "private_metric",
+          "capability" => "items.private_filter",
+          "comparators" => ["eq"]
+        }
+      ]
     }
   end
 end
