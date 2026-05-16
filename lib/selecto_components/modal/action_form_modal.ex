@@ -156,6 +156,9 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               value={Map.get(@form_inputs, Map.get(input, "id"), "")}
               type={input_type(input)}
               checked={input_checked?(input, @form_inputs)}
+              min={input_attr(input, "min")}
+              max={input_attr(input, "max")}
+              step={input_attr(input, "step")}
               required={required_html_input?(input)}
               aria-required={input_required?(input)}
               disabled={@controls_disabled?}
@@ -401,6 +404,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
   defp input_class(_input),
     do: "mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+
+  defp input_attr(input, key), do: Map.get(input, key) || get_in(input, ["raw", key])
 
   defp required_html_input?(input), do: input_required?(input) and input_type(input) != "checkbox"
 

@@ -217,6 +217,60 @@ selection.
 The older explicit `actions:` bulk-action API has been removed before 1.0. New
 bulk actions should be expressed in the domain action contract.
 
+### Action DSL Shape
+
+An action is host-owned metadata in the Selecto domain. The execution contract
+can use static values, or reference normalized form inputs with `{:input, id}`:
+
+```elixir
+defaction(:set_estimate, %{
+  id: :set_estimate,
+  label: "Set estimate",
+  type: :update,
+  scope: :row,
+  target: :work_item,
+  capability: "work_items.estimation",
+  inputs: %{
+    estimate_hours: %{type: :integer, label: "Estimate hours", required: true, min: 0}
+  },
+  confirmation: %{required: false, destructive: false},
+  execution: %{
+    kind: :updato,
+    operation: :update,
+    set: %{estimate_hours: {:input, :estimate_hours}}
+  },
+  links: %{
+    preview: "/api/v1/updato/work-items/actions/set_estimate/preview",
+    apply: "/api/v1/updato/work-items/actions/set_estimate/apply"
+  }
+})
+```
+
+The generated modal builds this request shape and sends it to the parent
+LiveView:
+
+```elixir
+%{
+  intent: "apply",
+  action_id: "set_estimate",
+  request: %{
+    "action" => "set_estimate",
+    "target" => %{"id" => 42},
+    "inputs" => %{"estimate_hours" => "8"},
+    "confirmed" => false
+  }
+}
+```
+
+The host should treat this as an intent, not as permission to write directly.
+Typical host responsibilities are:
+
+- Re-check target-aware action availability before showing the modal.
+- Preview/apply through a server-owned adapter.
+- Normalize and whitelist writable fields in that adapter.
+- Refresh the active Selecto query and close or reset the modal after apply.
+- Use flash/error messages for the result surface the host wants.
+
 ## Custom View Systems
 
 `selecto_components` supports external view packages through `SelectoComponents.Views.System`.

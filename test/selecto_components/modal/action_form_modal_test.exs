@@ -90,6 +90,34 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~s(data-selecto-action-form-submit="apply")
   end
 
+  test "render carries numeric input constraints from action metadata" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: %{
+          action()
+          | "inputs" => [
+              %{
+                "id" => "estimate_hours",
+                "type" => "integer",
+                "required" => true,
+                "default" => 4,
+                "min" => 0,
+                "max" => 40,
+                "step" => 1
+              }
+            ]
+        },
+        target: %{id: 42},
+        record: %{"id" => 42}
+      })
+
+    assert html =~ ~r/data-selecto-action-form-input="estimate_hours"[\s\S]*type="number"/
+    assert html =~ ~r/data-selecto-action-form-input="estimate_hours"[\s\S]*min="0"/
+    assert html =~ ~r/data-selecto-action-form-input="estimate_hours"[\s\S]*max="40"/
+    assert html =~ ~r/data-selecto-action-form-input="estimate_hours"[\s\S]*step="1"/
+  end
+
   test "reset_action_form clears non-applied result state" do
     socket =
       socket(action(), %{id: 42})

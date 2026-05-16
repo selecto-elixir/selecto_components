@@ -46,6 +46,27 @@ defmodule SelectoComponents.ActionFormHostTest do
              "apply"
   end
 
+  test "handle_submit allows after_apply to close the modal before result assignment" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(
+               socket(),
+               %{intent: "apply", action_id: "archive", request: %{"action" => "archive"}},
+               preview: fn _, _, _ -> flunk("preview callback should not run") end,
+               apply: fn _action_id, _request, _socket ->
+                 {:ok, %{"result" => %{"mode" => "execute"}}}
+               end,
+               after_apply: fn socket, _result ->
+                 Phoenix.Component.assign(socket,
+                   show_detail_modal: false,
+                   modal_detail_data: nil
+                 )
+               end
+             )
+
+    assert updated_socket.assigns.show_detail_modal == false
+    assert updated_socket.assigns.modal_detail_data == nil
+  end
+
   test "handle_submit accepts atom intents for compatibility" do
     assert {:noreply, updated_socket} =
              ActionFormHost.handle_submit(

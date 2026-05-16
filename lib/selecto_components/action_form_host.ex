@@ -62,17 +62,22 @@ defmodule SelectoComponents.ActionFormHost do
   end
 
   def update_component_assigns(socket, updates) when is_map(updates) do
-    modal_detail_data = Map.get(socket.assigns, :modal_detail_data, %{})
-    component_assigns = Map.get(modal_detail_data, :component_assigns, %{})
+    case Map.get(socket.assigns, :modal_detail_data) do
+      nil ->
+        socket
 
-    assign(socket,
-      modal_detail_data:
-        Map.put(
-          modal_detail_data,
-          :component_assigns,
-          Map.merge(component_assigns, updates)
+      modal_detail_data ->
+        component_assigns = Map.get(modal_detail_data, :component_assigns, %{})
+
+        assign(socket,
+          modal_detail_data:
+            Map.put(
+              modal_detail_data,
+              :component_assigns,
+              Map.merge(component_assigns, updates)
+            )
         )
-    )
+    end
   end
 
   defp call_action(callback, action_id, request, socket) when is_function(callback, 3),
