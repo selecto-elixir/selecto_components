@@ -39,7 +39,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     ~H"""
     <div id={@id} class="bulk-actions-container" data-selected-count={@selection_count}>
       <%!-- Bulk Actions Toolbar --%>
-      <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
+      <div class="flex items-center px-4 py-2 bg-gray-50 border-b">
         <div class="flex items-center space-x-4">
           <%!-- Selection Info --%>
           <%= if @selection_count > 0 do %>
@@ -102,7 +102,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
           </div>
         </div>
 
-        <div></div>
       </div>
     </div>
     """
