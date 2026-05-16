@@ -196,7 +196,10 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               <dd class="mt-1 font-mono text-xs text-emerald-950">{item.value}</dd>
             </div>
           </dl>
-          <pre class="max-h-56 overflow-auto"><%= Jason.encode!(@last_result, pretty: true) %></pre>
+          <details data-selecto-action-form-result-details class="mt-2">
+            <summary class="cursor-pointer font-medium text-emerald-800">Response details</summary>
+            <pre class="mt-2 max-h-56 overflow-auto rounded bg-white/70 p-2 text-emerald-950 ring-1 ring-emerald-100"><%= Jason.encode!(@last_result, pretty: true) %></pre>
+          </details>
         </div>
 
         <div :if={@applied?} data-selecto-action-form-applied class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
@@ -557,14 +560,20 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         "Changes",
         first_present([map_value(payload, "changes"), get_in(payload, ["preview", "changes"])])
       ),
-      summary_item(
-        "record",
-        "Record",
+      record_summary_item(
         first_present([get_in(payload, ["result", "record"]), map_value(payload, "record")])
       )
     ]
     |> Enum.reject(&is_nil/1)
   end
+
+  defp record_summary_item(nil), do: nil
+
+  defp record_summary_item(records) when is_list(records) do
+    summary_item("records", "Records", "#{length(records)} records")
+  end
+
+  defp record_summary_item(record), do: summary_item("record", "Record", record)
 
   defp result_payload(result) when is_map(result) do
     map_value(result, "payload", result)

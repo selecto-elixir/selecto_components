@@ -141,6 +141,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert preview_html =~ ~s(data-selecto-action-form-result-summary)
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="action")
     assert preview_html =~ ~s(data-selecto-action-form-result-summary-item="changes")
+    assert preview_html =~ ~s(data-selecto-action-form-result-details)
     assert preview_html =~ ~s(data-selecto-action-form-reset)
     assert preview_html =~ ~s({&quot;state&quot;:&quot;archived&quot;})
 
@@ -162,6 +163,37 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="mode")
     assert apply_html =~ ~s(execute)
     assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="record")
+    assert apply_html =~ ~s(data-selecto-action-form-result-details)
+    assert apply_html =~ ~s(Response details)
+  end
+
+  test "render summarizes bulk apply results without expanding every record in the summary" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{"ids" => ["1541", "1542", "1543"]},
+        record: %{},
+        last_result: %{
+          "intent" => "apply",
+          "payload" => %{
+            "preview" => %{"action" => "bulk_archive"},
+            "result" => %{
+              "mode" => "execute",
+              "record" => [
+                %{"id" => 1541, "state" => "archived"},
+                %{"id" => 1542, "state" => "archived"},
+                %{"id" => 1543, "state" => "archived"}
+              ]
+            }
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="records")
+    assert html =~ "3 records"
+    refute html =~ ~s(data-selecto-action-form-result-summary-item="record")
+    assert html =~ ~s(data-selecto-action-form-result-details)
   end
 
   test "render disables unavailable action forms with the host reason" do
