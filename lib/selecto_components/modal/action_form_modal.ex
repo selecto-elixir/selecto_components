@@ -226,7 +226,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             name="intent"
             value="preview"
             data-selecto-action-form-submit="preview"
-            class="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class={action_submit_class(:preview, @disabled? || @applied? || @submitting == "preview")}
             disabled={@disabled? || @applied? || @submitting == "preview"}
           >
             Preview
@@ -236,7 +236,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
             name="intent"
             value="apply"
             data-selecto-action-form-submit="apply"
-            class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class={action_submit_class(:apply, apply_disabled?(@confirmation, @confirmed, @submitting, @applied?, @disabled?))}
             disabled={apply_disabled?(@confirmation, @confirmed, @submitting, @applied?, @disabled?)}
           >
             Apply
@@ -513,6 +513,18 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp apply_disabled?(confirmation, confirmed, submitting, applied?, disabled?) do
     disabled? or applied? or submitting == "apply" or
       (truthy?(Map.get(confirmation, "required")) and not confirmed)
+  end
+
+  defp action_submit_class(_intent, true) do
+    "rounded border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-400 opacity-80 cursor-not-allowed"
+  end
+
+  defp action_submit_class(:preview, false) do
+    "rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+  end
+
+  defp action_submit_class(:apply, false) do
+    "rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
   end
 
   defp disabled_action?(action) do

@@ -90,6 +90,56 @@ defmodule SelectoComponents.ActionsTest do
     assert action.reason == "Approval window is closed"
   end
 
+  test "uses host capability resolver decisions for action availability" do
+    resolver = fn request ->
+      assert %Selecto.Capabilities.Request{} = request
+      assert request.capability == "orders.approve"
+      assert request.operation == "update"
+      assert request.context.surface == :components
+      assert request.context.action_id == "approve_order"
+
+      Selecto.Capabilities.deny(:missing_role, user_message: "Managers only")
+    end
+
+    assert [action] =
+             Actions.available(write_contract(),
+               actor: %{id: 1, role: :analyst},
+               domain: :orders,
+               capability_resolver: resolver
+             )
+
+    assert action.id == "approve_order"
+    assert action.status == "disabled"
+    assert action.disabled? == true
+    assert action.reason == "Managers only"
+  end
+
+  test "filters resolver-hidden actions" do
+    actions =
+      Actions.available(write_contract(),
+        capability_resolver: fn _request ->
+          Selecto.Capabilities.hidden(:not_visible, user_message: "Not visible here")
+        end
+      )
+
+    assert actions == []
+  end
+
+  test "keeps target disabled decisions when host policy allows the action" do
+    assert [action] =
+             Actions.available(write_contract(),
+               decisions: %{
+                 "approve_order" => %{status: :disabled, reason: "Target is already closed"}
+               },
+               capability_resolver: fn _request ->
+                 Selecto.Capabilities.allow(:role_allowed, user_message: "Allowed by role")
+               end
+             )
+
+    assert action.status == "disabled"
+    assert action.reason == "Target is already closed"
+  end
+
   test "filters hidden actions and can scope visible actions" do
     contract =
       write_contract(%{
