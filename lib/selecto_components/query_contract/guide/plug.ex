@@ -27,8 +27,8 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
   @impl Plug
   def call(conn, opts) do
     case contract_input(conn, opts) do
-      {:ok, input} ->
-        send_guide(conn, input, opts)
+      {:ok, input, resolved_opts} ->
+        send_guide(conn, input, Keyword.merge(opts, resolved_opts))
 
       {:error, status, code, message} ->
         send_error(conn, status, code, message)
@@ -38,7 +38,7 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
   defp contract_input(conn, opts) do
     case Keyword.fetch(opts, :domain) do
       {:ok, domain} ->
-        {:ok, domain}
+        {:ok, domain, []}
 
       :error ->
         opts
@@ -66,7 +66,8 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
       {:error, 500, :resolver_failed, Exception.message(exception)}
   end
 
-  defp normalize_resolver_result({:ok, input}), do: {:ok, input}
+  defp normalize_resolver_result({:ok, input}), do: {:ok, input, []}
+  defp normalize_resolver_result({:ok, input, opts}) when is_list(opts), do: {:ok, input, opts}
 
   defp normalize_resolver_result({:error, :invalid_resolver}) do
     {:error, 500, :invalid_resolver, "query guide resolver must be a one- or two-arity function"}
@@ -80,7 +81,8 @@ defmodule SelectoComponents.QueryContract.Guide.Plug do
     {:error, 404, :not_found, "query guide domain not found"}
   end
 
-  defp normalize_resolver_result(input), do: {:ok, input}
+  defp normalize_resolver_result({input, opts}) when is_list(opts), do: {:ok, input, opts}
+  defp normalize_resolver_result(input), do: {:ok, input, []}
 
   defp send_guide(conn, input, opts) do
     opts = Links.with_request_defaults(conn, opts, :query_guide)

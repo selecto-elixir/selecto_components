@@ -11,6 +11,7 @@ defmodule SelectoComponents.QueryContract do
   alias SelectoComponents.Form.ChoiceSourceMetadata
   alias SelectoComponents.QueryContract.IntentValidator
   alias SelectoComponents.QueryContract.Links
+  alias SelectoComponents.QueryContract.Policy
 
   @query_contract_version 1
   @default_context %{
@@ -89,6 +90,7 @@ defmodule SelectoComponents.QueryContract do
         |> Map.put(:query_contract_version, @query_contract_version)
         |> put_contract_envelope(opts)
         |> maybe_put_form_metadata(opts)
+        |> Policy.apply(opts)
         |> json_safe()
 
       {:ok, document, diagnostics}
