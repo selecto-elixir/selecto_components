@@ -57,7 +57,11 @@ defmodule SelectoComponents.Views.Detail.Form do
       )
       |> normalize_checkbox_value()
 
-    row_action_options = RowActions.available_actions(assigns.selecto)
+    row_action_options =
+      RowActions.available_actions(
+        assigns.selecto,
+        Map.get(assigns, :row_action_availability_opts, [])
+      )
 
     selected_row_action =
       Enum.find(row_action_options, fn action -> action.id == row_click_action end)

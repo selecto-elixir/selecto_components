@@ -44,6 +44,9 @@ defmodule SelectoComponents.Actions do
 
   - `:scope` filters actions to a scope such as `:row` or `"bulk"`
   - `:decisions` supplies `%{"action_id" => decision}` or `%{"capability" => decision}`
+  - `:capability_resolver` supplies a host-owned resolver function invoked with a
+    `%Selecto.Capabilities.Request{}` for actions that declare a capability
+  - `:actor`, `:tenant`, `:domain`, and `:context` are copied into resolver requests
   - `:default_status` defaults to `"enabled"`
   """
   @spec available(term(), keyword()) :: [action_item()]
@@ -54,7 +57,7 @@ defmodule SelectoComponents.Actions do
 
     contract
     |> action_entries()
-    |> Enum.map(&action_item(&1, decisions, default_status))
+    |> Enum.map(&action_item(&1, decisions, default_status, opts))
     |> Enum.reject(& &1.hidden?)
     |> Enum.filter(fn item -> is_nil(scope) or item.scope == scope end)
   end
@@ -205,11 +208,13 @@ defmodule SelectoComponents.Actions do
         decision -> %{(action |> map_value(:id) |> normalize_id()) => decision}
       end
 
+    available_opts =
+      opts
+      |> Keyword.put(:decisions, Keyword.get(opts, :decisions, decisions))
+      |> Keyword.put(:default_status, Keyword.get(opts, :default_status, "enabled"))
+
     %{"actions" => [action]}
-    |> available(
-      decisions: Keyword.get(opts, :decisions, decisions),
-      default_status: Keyword.get(opts, :default_status, "enabled")
-    )
+    |> available(available_opts)
     |> List.first()
   end
 
@@ -365,9 +370,9 @@ defmodule SelectoComponents.Actions do
 
   defp put_links(action, _links), do: action
 
-  defp action_item(action, decisions, default_status) do
+  defp action_item(action, decisions, default_status, opts) do
     action = SelectoComponents.QueryContract.json_safe(map_or_empty(action))
-    decision = decision_for(action, decisions, default_status)
+    decision = availability_decision(action, decisions, default_status, opts)
     status = normalize_status(map_value(decision, :status))
 
     %{
@@ -397,6 +402,101 @@ defmodule SelectoComponents.Actions do
       attrs: action_attrs(action, status),
       contract: action
     }
+  end
+
+  defp availability_decision(action, decisions, default_status, opts) do
+    explicit_decision = explicit_decision_for(action, decisions)
+    resolver_decision = resolver_decision_for(action, opts)
+
+    explicit_decision
+    |> merge_resolver_decision(resolver_decision)
+    |> normalize_decision(default_status)
+  end
+
+  defp explicit_decision_for(action, decisions) do
+    action_id = action |> map_value(:id) |> normalize_id()
+    capability = action |> map_value(:capability) |> normalize_optional_id()
+
+    map_lookup(decisions, action_id) ||
+      map_lookup(decisions, capability) ||
+      map_value(action, :capability_decision)
+  end
+
+  defp resolver_decision_for(action, opts) do
+    capability = action |> map_value(:capability) |> normalize_optional_id()
+    resolver = Keyword.get(opts, :capability_resolver)
+
+    cond do
+      is_nil(capability) ->
+        nil
+
+      is_function(resolver, 1) ->
+        action
+        |> capability_request(opts)
+        |> resolver.()
+        |> unwrap_resolver_decision()
+
+      is_function(resolver, 2) ->
+        request = capability_request(action, opts)
+        resolver_context = Keyword.get(opts, :resolver_context, %{})
+
+        request
+        |> resolver.(resolver_context)
+        |> unwrap_resolver_decision()
+
+      true ->
+        nil
+    end
+  end
+
+  defp capability_request(action, opts) do
+    capability = action |> map_value(:capability) |> normalize_id()
+
+    Selecto.Capabilities.request(
+      actor: Keyword.get(opts, :actor),
+      tenant: Keyword.get(opts, :tenant),
+      domain: Keyword.get(opts, :domain),
+      capability: capability,
+      operation:
+        Keyword.get(opts, :operation) ||
+          action_operation(action) ||
+          :execute_action,
+      target: Keyword.get(opts, :target, %{}),
+      context:
+        opts
+        |> Keyword.get(:context, %{})
+        |> map_or_empty()
+        |> Map.merge(%{
+          action_id: action |> map_value(:id) |> normalize_id(),
+          action_scope: action |> map_value(:scope) |> normalize_optional_id(),
+          surface: Keyword.get(opts, :surface, :components)
+        }),
+      metadata:
+        opts
+        |> Keyword.get(:metadata, %{})
+        |> map_or_empty()
+    )
+  end
+
+  defp unwrap_resolver_decision({:ok, decision}), do: decision
+
+  defp unwrap_resolver_decision({:error, reason}),
+    do: %{status: :disabled, reason: inspect(reason)}
+
+  defp unwrap_resolver_decision(decision), do: decision
+
+  defp merge_resolver_decision(nil, nil), do: nil
+  defp merge_resolver_decision(explicit_decision, nil), do: explicit_decision
+  defp merge_resolver_decision(nil, resolver_decision), do: resolver_decision
+
+  defp merge_resolver_decision(explicit_decision, resolver_decision) do
+    explicit = normalize_decision(explicit_decision, "enabled")
+    resolver = normalize_decision(resolver_decision, "enabled")
+
+    case normalize_status(map_value(resolver, :status)) do
+      "enabled" -> explicit
+      _status -> Map.merge(explicit, resolver)
+    end
   end
 
   defp action_label(action) do
@@ -610,9 +710,23 @@ defmodule SelectoComponents.Actions do
     %{"status" => normalize_status(status)}
   end
 
+  defp normalize_decision(%Selecto.Capabilities.Decision{} = decision, _default_status) do
+    %{
+      "status" => decision_status(decision),
+      "reason" => decision.user_message || decision.audit_reason,
+      "code" => decision.reason_code,
+      "effects" => decision.effects,
+      "obligations" => decision.obligations,
+      "metadata" => decision.metadata
+    }
+    |> compact_decision()
+    |> SelectoComponents.QueryContract.json_safe()
+  end
+
   defp normalize_decision(decision, default_status) when is_map(decision) do
     decision
     |> SelectoComponents.QueryContract.json_safe()
+    |> normalize_capability_decision_map(default_status)
     |> Map.put_new("status", normalize_status(default_status))
   end
 
@@ -635,9 +749,36 @@ defmodule SelectoComponents.Actions do
   end
 
   defp normalize_status(status) when status in [:enabled, "enabled"], do: "enabled"
+  defp normalize_status(status) when status in [:allow, "allow"], do: "enabled"
   defp normalize_status(status) when status in [:disabled, "disabled"], do: "disabled"
+  defp normalize_status(status) when status in [:deny, "deny"], do: "disabled"
+  defp normalize_status(status) when status in [:conditional, "conditional"], do: "disabled"
+  defp normalize_status(status) when status in [:preview_only, "preview_only"], do: "disabled"
   defp normalize_status(status) when status in [:hidden, "hidden"], do: "hidden"
+  defp normalize_status(status) when status in [:not_applicable, "not_applicable"], do: "hidden"
   defp normalize_status(_status), do: "enabled"
+
+  defp decision_status(%Selecto.Capabilities.Decision{visibility: :hidden}), do: "hidden"
+  defp decision_status(%Selecto.Capabilities.Decision{visibility: :disabled}), do: "disabled"
+  defp decision_status(%Selecto.Capabilities.Decision{visibility: :preview_only}), do: "disabled"
+
+  defp decision_status(%Selecto.Capabilities.Decision{status: status}),
+    do: normalize_status(status)
+
+  defp normalize_capability_decision_map(decision, default_status) do
+    decision
+    |> Map.update("status", normalize_status(default_status), &normalize_status/1)
+    |> put_reason_from_capability_message()
+  end
+
+  defp put_reason_from_capability_message(decision) do
+    reason =
+      map_value(decision, :reason) ||
+        map_value(decision, :user_message) ||
+        map_value(decision, :audit_reason)
+
+    maybe_put(decision, "reason", reason)
+  end
 
   defp normalize_id(nil), do: ""
   defp normalize_id(value) when is_atom(value), do: Atom.to_string(value)

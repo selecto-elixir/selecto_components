@@ -10,8 +10,8 @@ defmodule SelectoComponents.Views.Detail.RowActions do
   def default_modal_action_id, do: @default_modal_action_id
   def generated_action_form_prefix, do: @generated_action_form_prefix
 
-  def available_actions(selecto) do
-    [default_modal_action() | registered_actions(selecto)]
+  def available_actions(selecto, opts \\ []) do
+    [default_modal_action() | registered_actions(selecto, opts)]
   end
 
   def current_action(selecto, row_click_action, opts \\ []) do
@@ -29,7 +29,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
         Map.put(default_modal_action(), :source, :configured)
 
       true ->
-        registered_actions(selecto)
+        registered_actions(selecto, opts)
         |> Enum.find(fn action -> action.id == action_id end)
         |> case do
           nil -> nil
@@ -166,12 +166,12 @@ defmodule SelectoComponents.Views.Detail.RowActions do
 
   def resolve_component_assigns(_assigns_template, _source), do: %{}
 
-  defp registered_actions(selecto) do
+  defp registered_actions(selecto, opts) do
     domain = Selecto.domain(selecto)
 
     domain
     |> registered_detail_actions()
-    |> Kernel.++(generated_action_forms(domain))
+    |> Kernel.++(generated_action_forms(domain, opts))
     |> Enum.map(&normalize_action/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.sort_by(&String.downcase(&1.name))
@@ -185,12 +185,17 @@ defmodule SelectoComponents.Views.Detail.RowActions do
 
   defp registered_detail_actions(_domain), do: %{}
 
-  defp generated_action_forms(domain) when is_map(domain) do
+  defp generated_action_forms(domain, opts) when is_map(domain) do
     domain
     |> Actions.detail_actions(
-      id_prefix: @generated_action_form_prefix,
-      required_fields: [:id],
-      target: %{id: {:field, "id"}}
+      Keyword.merge(
+        [
+          id_prefix: @generated_action_form_prefix,
+          required_fields: [:id],
+          target: %{id: {:field, "id"}}
+        ],
+        opts
+      )
     )
     |> Enum.map(fn {id, config} -> {id, Map.put(config, :source, :generated_action_form)} end)
     |> Enum.filter(fn {_id, config} ->
@@ -203,7 +208,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     end)
   end
 
-  defp generated_action_forms(_domain), do: []
+  defp generated_action_forms(_domain, _opts), do: []
 
   defp normalize_action({action_id, action_config}) when is_map(action_config) do
     type = normalize_action_type(map_get(action_config, :type))

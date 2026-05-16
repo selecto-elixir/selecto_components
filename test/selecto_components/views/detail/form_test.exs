@@ -118,6 +118,72 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ "apply: /work-items/actions/archive/apply"
   end
 
+  test "filters generated row action form choices through capability resolver" do
+    domain = %{
+      name: "DetailFormPolicyActionsTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id},
+          title: %{type: :string, name: "Title", colid: :title}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      detail_actions: %{},
+      actions: %{
+        archive: %{
+          id: :archive,
+          label: "Archive",
+          scope: :row,
+          capability: "work_items.archive",
+          execution: %{operation: :update}
+        },
+        set_estimate: %{
+          id: :set_estimate,
+          label: "Set estimate",
+          scope: :row,
+          capability: "work_items.estimation",
+          execution: %{operation: :update}
+        }
+      }
+    }
+
+    html =
+      render_component(Form, %{
+        id: "detail-form-policy-actions-test",
+        columns: [{:id, "ID", :integer}, {:title, "Title", :string}],
+        view: {:detail, SelectoComponents.Views.Detail, "Detail", %{}},
+        selecto: Selecto.configure(domain, nil),
+        row_action_availability_opts: [
+          capability_resolver: fn
+            %{capability: "work_items.archive"} ->
+              Selecto.Capabilities.hidden(:not_visible)
+
+            _request ->
+              Selecto.Capabilities.allow(:allowed)
+          end
+        ],
+        view_config: %{
+          views: %{
+            detail: %{
+              selected: [],
+              order_by: [],
+              row_click_action: ""
+            }
+          }
+        }
+      })
+
+    refute html =~ ~s(value="domain_action_form_archive")
+    assert html =~ ~s(value="domain_action_form_set_estimate")
+    assert html =~ "Set estimate"
+  end
+
   test "uses detail config as the only row click action source while editing" do
     domain = %{
       name: "DetailFormParamsTest",

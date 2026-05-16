@@ -67,6 +67,8 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~r/name="confirmed"[\s\S]*disabled/
     assert html =~ ~r/value="preview"[\s\S]*disabled/
     assert html =~ ~r/value="apply"[\s\S]*disabled/
+    assert html =~ ~r/value="preview"[\s\S]*bg-slate-100[\s\S]*disabled/
+    assert html =~ ~r/value="apply"[\s\S]*bg-slate-100[\s\S]*disabled/
   end
 
   test "render exposes stable action metadata and submit hooks" do
