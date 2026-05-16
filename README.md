@@ -214,10 +214,8 @@ from that contract are added to the bulk menu as generated action forms; opening
 one sends the same detail-modal event with `target.ids` set to the current
 selection.
 
-The older explicit `actions:` bulk-action API is deprecated before 1.0. New bulk
-actions should be expressed in the domain action contract; deprecated explicit
-actions are marked in rendered markup as `deprecated_explicit_bulk_action` and
-will be removed instead of carried as compatibility surface.
+The older explicit `actions:` bulk-action API has been removed before 1.0. New
+bulk actions should be expressed in the domain action contract.
 
 ## Custom View Systems
 

@@ -3,9 +3,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   Bulk actions interface for performing operations on multiple selected records.
 
   Bulk actions should come from domain action contracts and render as generated
-  `ActionFormModal` entries. Passing explicit `:actions` is a deprecated
-  pre-1.0 compatibility path kept only while the remaining callers move to
-  domain actions; do not add new behavior there.
+  `ActionFormModal` entries.
   """
 
   use Phoenix.LiveComponent
@@ -13,33 +11,16 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   alias SelectoComponents.EnhancedTable.RowSelection
   alias Phoenix.LiveView.JS
 
-  @export_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>)
-
-  @delete_icon_svg ~s(<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>)
-
-  @trusted_icons MapSet.new([@export_icon_svg, @delete_icon_svg])
-
   @impl true
   def mount(socket) do
-    {:ok,
-     socket
-     |> RowSelection.init_selection()
-     |> assign(
-       bulk_action: nil,
-       processing: false,
-       processed_count: 0,
-       total_to_process: 0,
-       errors: [],
-       show_confirmation: false,
-       confirmation_message: nil
-     )}
+    {:ok, RowSelection.init_selection(socket)}
   end
 
   @impl true
   def update(assigns, socket) do
     actions =
-      (assigns[:actions] || [])
-      |> Kernel.++(generated_action_forms(assigns))
+      assigns
+      |> generated_action_forms()
       |> Enum.map(&normalize_action_item/1)
       |> Enum.reject(&is_nil/1)
 
@@ -56,7 +37,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     assigns = assign(assigns, menu_id: "#{assigns.id}-menu")
 
     ~H"""
-    <div id={@id} class="bulk-actions-container" phx-hook=".BulkActions" data-selected-count={@selection_count}>
+    <div id={@id} class="bulk-actions-container" data-selected-count={@selection_count}>
       <%!-- Bulk Actions Toolbar --%>
       <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
         <div class="flex items-center space-x-4">
@@ -121,212 +102,8 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
           </div>
         </div>
 
-        <%!-- Quick Actions --%>
-        <div class="flex items-center space-x-2">
-          <%= for action <- Enum.filter(@actions, & &1.quick_action) do %>
-            <button
-              type="button"
-              class={"px-3 py-1.5 text-sm rounded-lg flex items-center space-x-1 #{action_button_class(action, @selection_count)}"}
-              disabled={@selection_count == 0 || @processing}
-              phx-click="execute_action"
-              phx-value-action={action.id}
-              phx-target={@myself}
-            >
-              <%= if icon = safe_icon(action.icon) do %>
-                {icon}
-              <% end %>
-              <span>{action.label}</span>
-            </button>
-          <% end %>
-        </div>
+        <div></div>
       </div>
-
-      <%!-- Progress Bar --%>
-      <%= if @processing do %>
-        <div class="px-4 py-2 bg-blue-50 border-b border-blue-200">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-blue-900">
-              Processing {@processed_count} of {@total_to_process} items...
-            </span>
-            <button
-              type="button"
-              class="text-sm text-blue-600 hover:text-blue-800"
-              phx-click="cancel_processing"
-              phx-target={@myself}
-            >
-              Cancel
-            </button>
-          </div>
-          <div class="w-full bg-blue-200 rounded-full h-2">
-            <div
-              class="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={"width: #{progress_percentage(@processed_count, @total_to_process)}%"}
-            >
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <%!-- Error Display --%>
-      <%= if length(@errors) > 0 do %>
-        <div class="px-4 py-2 bg-red-50 border-b border-red-200">
-          <div class="flex items-start">
-            <svg
-              class="w-5 h-5 text-red-600 mr-2 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <div class="flex-1">
-              <p class="text-sm font-medium text-red-900">
-                {length(@errors)} {if length(@errors) == 1, do: "error", else: "errors"} occurred
-              </p>
-              <ul class="mt-1 text-sm text-red-700">
-                <%= for error <- Enum.take(@errors, 3) do %>
-                  <li>• {error}</li>
-                <% end %>
-                <%= if length(@errors) > 3 do %>
-                  <li class="text-red-600">...and {length(@errors) - 3} more</li>
-                <% end %>
-              </ul>
-            </div>
-            <button
-              type="button"
-              class="text-red-600 hover:text-red-800"
-              phx-click="dismiss_errors"
-              phx-target={@myself}
-            >
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fill-rule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      <% end %>
-
-      <%!-- Confirmation Dialog --%>
-      <%= if @show_confirmation do %>
-        <div
-          id="confirmation-dialog"
-          class="fixed inset-0 z-50 overflow-y-auto"
-          phx-hook=".ConfirmationDialog"
-        >
-          <div class="flex items-center justify-center min-h-screen px-4">
-            <div
-              class="fixed inset-0 bg-gray-500 bg-opacity-75"
-              phx-click="cancel_action"
-              phx-target={@myself}
-            >
-            </div>
-
-            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div class="px-6 py-4">
-                <div class="flex items-start">
-                  <div class="flex-shrink-0">
-                    <svg
-                      class="w-6 h-6 text-yellow-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                  </div>
-                  <div class="ml-3 flex-1">
-                    <h3 class="text-lg font-medium text-gray-900">Confirm Bulk Action</h3>
-                    <p class="mt-2 text-sm text-gray-500">
-                      {@confirmation_message}
-                    </p>
-                    <p class="mt-2 text-sm font-medium text-gray-700">
-                      This will affect {@selection_count} {if @selection_count == 1,
-                        do: "item",
-                        else: "items"}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  phx-click="cancel_action"
-                  phx-target={@myself}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
-                  phx-click="confirm_action"
-                  phx-target={@myself}
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".BulkActions">
-        export default {
-          mounted() {
-            this.handleKeydown = (event) => {
-              if (event.key === 'Delete' && !event.target.matches('input, textarea')) {
-                const selectedCount = parseInt(this.el.dataset.selectedCount || '0', 10);
-                if (selectedCount > 0) {
-                  event.preventDefault();
-                  this.pushEventTo(this.el, 'execute_action', {action: 'delete'});
-                }
-              }
-            };
-
-            document.addEventListener('keydown', this.handleKeydown);
-          },
-
-          destroyed() {
-            document.removeEventListener('keydown', this.handleKeydown);
-          }
-        };
-      </script>
-
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".ConfirmationDialog">
-        export default {
-          mounted() {
-            const confirmBtn = this.el.querySelector('button[phx-click="confirm_action"]');
-            if (confirmBtn) {
-              confirmBtn.focus();
-            }
-
-            this.handleKeydown = (event) => {
-              if (event.key === 'Escape') {
-                this.pushEventTo(this.el, 'cancel_action', {});
-              }
-            };
-
-            document.addEventListener('keydown', this.handleKeydown);
-          },
-
-          destroyed() {
-            document.removeEventListener('keydown', this.handleKeydown);
-          }
-        };
-      </script>
     </div>
     """
   end
@@ -344,17 +121,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         data-bulk-action-source={Map.get(@action, :source)}
         data-bulk-action-scope={Map.get(@action, :scope)}
       >
-        <%= if icon = safe_icon(@action.icon) do %>
-          <span class={@action.icon_class || "text-gray-500"}>
-            {icon}
-          </span>
-        <% end %>
-        <span class={@action.text_class || "text-gray-700"}>{@action.label}</span>
-        <%= if @action.badge do %>
-          <span class="ml-auto px-2 py-0.5 text-xs bg-gray-200 rounded-full">
-            {@action.badge}
-          </span>
-        <% end %>
+        <span class="text-gray-700">{@action.label}</span>
       </button>
       <%= if @action.description do %>
         <p class="px-4 pb-2 text-xs text-gray-500">{@action.description}</p>
@@ -369,42 +136,11 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   def handle_event("execute_action", %{"action" => action_id}, socket) do
     action = Enum.find(socket.assigns.actions, &(&1.id == action_id))
 
-    cond do
-      generated_action_form?(action) ->
-        {:noreply, open_generated_action_form(socket, action)}
-
-      action && action.requires_confirmation ->
-        {:noreply,
-         socket
-         |> assign(
-           show_confirmation: true,
-           confirmation_message:
-             action.confirmation_message || "Are you sure you want to perform this action?",
-           bulk_action: action
-         )}
-
-      true ->
-        {:noreply, execute_bulk_action(socket, action)}
+    if generated_action_form?(action) do
+      {:noreply, open_generated_action_form(socket, action)}
+    else
+      {:noreply, socket}
     end
-  end
-
-  def handle_event("confirm_action", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(show_confirmation: false)
-     |> execute_bulk_action(socket.assigns.bulk_action)}
-  end
-
-  def handle_event("cancel_action", _params, socket) do
-    {:noreply, assign(socket, show_confirmation: false, bulk_action: nil)}
-  end
-
-  def handle_event("cancel_processing", _params, socket) do
-    {:noreply, assign(socket, processing: false)}
-  end
-
-  def handle_event("dismiss_errors", _params, socket) do
-    {:noreply, assign(socket, errors: [])}
   end
 
   def handle_event("toggle_row_selection", %{"id" => row_id}, socket) do
@@ -509,80 +245,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   defp resolve_selection_value(value, _selection_context), do: value
 
-  # Deprecated explicit-action execution path.
-  #
-  # Domain actions should render generated action-form menu items and run through
-  # `ActionFormModal` + `ActionFormHost`. Keep this small and removable; it is
-  # only present to keep explicit `actions:` assigns parent-safe until it is
-  # deleted before 1.0.
-
-  defp execute_bulk_action(socket, nil), do: socket
-
-  defp execute_bulk_action(socket, action) do
-    selected_ids = RowSelection.get_selected_ids(socket)
-
-    if length(selected_ids) > 0 do
-      socket
-      |> assign(
-        processing: true,
-        processed_count: 0,
-        total_to_process: length(selected_ids),
-        errors: []
-      )
-      |> process_selected_batches(action, selected_ids)
-    else
-      socket
-    end
-  end
-
-  defp process_selected_batches(socket, action, selected_ids) do
-    batch_size = action[:batch_size] || 10
-    batches = Enum.chunk_every(selected_ids, batch_size)
-
-    Enum.reduce_while(batches, socket, fn batch, batch_socket ->
-      case process_batch(action, batch) do
-        {:ok, _results} ->
-          {:cont,
-           assign(batch_socket,
-             processed_count: batch_socket.assigns.processed_count + length(batch)
-           )}
-
-        {:error, errors} ->
-          {:halt,
-           batch_socket
-           |> assign(errors: batch_socket.assigns.errors ++ List.wrap(errors))
-           |> assign(processing: false)}
-      end
-    end)
-    |> finish_batch_processing()
-  end
-
-  # Helper functions
-
-  defp finish_batch_processing(%{assigns: %{processing: false}} = socket), do: socket
-
-  defp finish_batch_processing(socket) do
-    socket
-    |> assign(processing: false)
-    |> RowSelection.clear_selection()
-  end
-
-  defp process_batch(action, batch_ids) do
-    case action do
-      %{handler: handler} when is_function(handler, 1) ->
-        handler.(batch_ids)
-
-      %{handler: {module, function}} when is_atom(module) and is_atom(function) ->
-        apply(module, function, [batch_ids])
-
-      %{id: action_id} ->
-        {:error, ["No handler configured for bulk action #{action_id}."]}
-
-      _ ->
-        {:error, ["No handler configured for this bulk action."]}
-    end
-  end
-
   defp get_all_row_ids(socket) do
     # Get row IDs from various possible sources
     cond do
@@ -686,16 +348,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     Phoenix.LiveView.send_update(__MODULE__, id: component_id, all_row_ids: row_ids)
   end
 
-  defp safe_icon(icon) when is_binary(icon) do
-    if MapSet.member?(@trusted_icons, icon) do
-      Phoenix.HTML.raw(icon)
-    else
-      nil
-    end
-  end
-
-  defp safe_icon(_icon), do: nil
-
   defp generated_action_forms(assigns) do
     assigns
     |> generated_action_contract()
@@ -726,8 +378,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       scope: "bulk",
       type: :live_component,
       payload: payload,
-      quick_action: false,
-      requires_confirmation: false,
       confirmation_message: map_value(action, :confirmation_message)
     }
   end
@@ -739,20 +389,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       id: map_value(action, :id),
       label: map_value(action, :label),
       description: map_value(action, :description),
-      icon: map_value(action, :icon),
-      icon_class: map_value(action, :icon_class),
-      text_class: map_value(action, :text_class),
-      badge: map_value(action, :badge),
       divider: truthy?(map_value(action, :divider)),
-      quick_action: truthy?(map_value(action, :quick_action)),
-      requires_confirmation: truthy?(map_value(action, :requires_confirmation)),
       confirmation_message: map_value(action, :confirmation_message),
-      source: map_value(action, :source) || :deprecated_explicit_bulk_action,
+      source: map_value(action, :source),
       scope: map_value(action, :scope),
       type: map_value(action, :type),
-      payload: map_value(action, :payload, %{}),
-      batch_size: map_value(action, :batch_size),
-      handler: map_value(action, :handler)
+      payload: map_value(action, :payload, %{})
     }
   end
 
@@ -770,32 +412,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
   defp truthy?(_value), do: false
-
-  defp action_button_class(action, selection_count) do
-    base = "transition-colors"
-
-    disabled =
-      if selection_count == 0 do
-        "opacity-50 cursor-not-allowed"
-      else
-        ""
-      end
-
-    color =
-      case action.id do
-        "delete" -> "bg-red-100 text-red-700 hover:bg-red-200"
-        "export" -> "bg-green-100 text-green-700 hover:bg-green-200"
-        _ -> "bg-gray-100 text-gray-700 hover:bg-gray-200"
-      end
-
-    "#{base} #{color} #{disabled}"
-  end
-
-  defp progress_percentage(0, 0), do: 0
-
-  defp progress_percentage(processed, total) do
-    round(processed / total * 100)
-  end
 
   defp toggle_actions_menu(menu_id) do
     JS.toggle(

@@ -73,111 +73,22 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
     assert detail_data.navigation_enabled == false
   end
 
-  test "marks deprecated explicit handler bulk actions and avoids parent process messages" do
-    test_pid = self()
-
+  test "ignores explicit actions now that bulk actions come from domain contracts" do
     html =
       render_component(BulkActions, %{
         id: "bulk-actions",
         actions: [
           %{
             id: "legacy_archive",
-            label: "Archive",
-            batch_size: 1,
-            handler: fn ids ->
-              send(test_pid, {:handled_batch, ids})
-              {:ok, ids}
-            end
+            label: "Archive"
           }
         ],
         selected_rows: MapSet.new(["42", "43"]),
         selection_count: 2
       })
 
-    assert html =~ ~s(data-bulk-action-id="legacy_archive")
-    assert html =~ ~s(data-bulk-action-source="deprecated_explicit_bulk_action")
-
-    {:ok, socket} =
-      BulkActions.mount(%Phoenix.LiveView.Socket{
-        assigns: %{__changed__: %{}}
-      })
-
-    {:ok, socket} =
-      BulkActions.update(
-        %{
-          id: "bulk-actions",
-          actions: [
-            %{
-              id: "legacy_archive",
-              label: "Archive",
-              batch_size: 1,
-              handler: fn ids ->
-                send(test_pid, {:handled_batch, ids})
-                {:ok, ids}
-              end
-            }
-          ],
-          selected_rows: MapSet.new(["42", "43"]),
-          selection_count: 2
-        },
-        socket
-      )
-
-    assert {:noreply, updated_socket} =
-             BulkActions.handle_event(
-               "execute_action",
-               %{"action" => "legacy_archive"},
-               socket
-             )
-
-    assert_receive {:handled_batch, ["42"]}
-    assert_receive {:handled_batch, ["43"]}
-    refute_receive {:process_batch, _, _, _}
-    refute_receive {:bulk_action_process_batch, _, _}
-
-    assert updated_socket.assigns.processing == false
-    assert updated_socket.assigns.processed_count == 2
-    assert updated_socket.assigns.errors == []
-    assert updated_socket.assigns.selected_rows == MapSet.new()
-    assert updated_socket.assigns.selection_count == 0
-  end
-
-  test "reports legacy bulk actions without handlers instead of sending orphan batches" do
-    {:ok, socket} =
-      BulkActions.mount(%Phoenix.LiveView.Socket{
-        assigns: %{__changed__: %{}}
-      })
-
-    {:ok, socket} =
-      BulkActions.update(
-        %{
-          id: "bulk-actions",
-          actions: [%{id: "legacy_archive", label: "Archive"}],
-          selected_rows: MapSet.new(["42", "43"]),
-          selection_count: 2
-        },
-        socket
-      )
-
-    assert {:noreply, updated_socket} =
-             BulkActions.handle_event(
-               "execute_action",
-               %{"action" => "legacy_archive"},
-               socket
-             )
-
-    refute_receive {:process_batch, _, _, _}
-    refute_receive {:bulk_action_process_batch, _, _}
-
-    assert updated_socket.assigns.processing == false
-    assert updated_socket.assigns.processed_count == 0
-
-    assert updated_socket.assigns.errors == [
-             "No handler configured for bulk action legacy_archive."
-           ]
-
-    assert updated_socket.assigns.selected_rows == MapSet.new(["42", "43"])
-    assert updated_socket.assigns.selection_count == 2
+    assert html =~ ~s(data-bulk-actions-empty)
+    refute html =~ ~s(data-bulk-action-id="legacy_archive")
   end
 
   defp bulk_contract do
