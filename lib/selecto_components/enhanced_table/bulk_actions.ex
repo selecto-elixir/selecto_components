@@ -395,7 +395,6 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   end
 
   def handle_event("cancel_processing", _params, socket) do
-    send(self(), :cancel_bulk_processing)
     {:noreply, assign(socket, processing: false)}
   end
 
@@ -520,88 +519,57 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         total_to_process: length(selected_ids),
         errors: []
       )
-      |> start_batch_processing(action, selected_ids)
+      |> process_selected_batches(action, selected_ids)
     else
       socket
     end
   end
 
-  defp start_batch_processing(socket, action, selected_ids) do
+  defp process_selected_batches(socket, action, selected_ids) do
     batch_size = action[:batch_size] || 10
     batches = Enum.chunk_every(selected_ids, batch_size)
 
-    # Send first batch for processing
-    send(self(), {:process_batch, action, batches, 0})
-
-    socket
-  end
-
-  def handle_info({:process_batch, action, batches, index}, socket) do
-    if index < length(batches) do
-      batch = Enum.at(batches, index)
-
-      # Process batch
+    Enum.reduce_while(batches, socket, fn batch, batch_socket ->
       case process_batch(action, batch) do
         {:ok, _results} ->
-          new_count = socket.assigns.processed_count + length(batch)
-
-          socket = assign(socket, processed_count: new_count)
-
-          # Schedule next batch
-          if index + 1 < length(batches) do
-            Process.send_after(self(), {:process_batch, action, batches, index + 1}, 100)
-          else
-            # All done
-            send(self(), :bulk_processing_complete)
-          end
-
-          {:noreply, socket}
+          {:cont,
+           assign(batch_socket,
+             processed_count: batch_socket.assigns.processed_count + length(batch)
+           )}
 
         {:error, errors} ->
-          {:noreply,
-           socket
-           |> assign(errors: socket.assigns.errors ++ errors)
+          {:halt,
+           batch_socket
+           |> assign(errors: batch_socket.assigns.errors ++ List.wrap(errors))
            |> assign(processing: false)}
       end
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info(:bulk_processing_complete, socket) do
-    send(self(), {:bulk_action_complete, socket.assigns.bulk_action})
-
-    {:noreply,
-     socket
-     |> assign(processing: false)
-     |> RowSelection.clear_selection()}
-  end
-
-  def handle_info(:cancel_bulk_processing, socket) do
-    {:noreply, assign(socket, processing: false)}
+    end)
+    |> finish_batch_processing()
   end
 
   # Helper functions
 
+  defp finish_batch_processing(%{assigns: %{processing: false}} = socket), do: socket
+
+  defp finish_batch_processing(socket) do
+    socket
+    |> assign(processing: false)
+    |> RowSelection.clear_selection()
+  end
+
   defp process_batch(action, batch_ids) do
-    # Call the configured action handler if available, otherwise return success
     case action do
       %{handler: handler} when is_function(handler, 1) ->
-        # Call custom handler function
         handler.(batch_ids)
 
       %{handler: {module, function}} when is_atom(module) and is_atom(function) ->
-        # Call module function
         apply(module, function, [batch_ids])
 
       %{id: action_id} ->
-        # Send to parent process for handling
-        send(self(), {:bulk_action_process_batch, action_id, batch_ids})
-        # Return success - actual processing happens in parent
-        {:ok, batch_ids}
+        {:error, ["No handler configured for bulk action #{action_id}."]}
 
       _ ->
-        {:ok, batch_ids}
+        {:error, ["No handler configured for this bulk action."]}
     end
   end
 
