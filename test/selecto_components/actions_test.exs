@@ -335,6 +335,31 @@ defmodule SelectoComponents.ActionsTest do
     assert bulk_action.payload.assigns.action.scope == "bulk"
   end
 
+  test "builds bulk action form configs from row actions that explicitly opt in to batching" do
+    actions =
+      write_contract(%{
+        "approve_order" => %{
+          "id" => "approve_order",
+          "label" => "Approve selected",
+          "scope" => "row",
+          "bulk" => %{"enabled" => true},
+          "capability" => "orders.approve",
+          "execution" => %{"operation" => "update"}
+        }
+      })
+      |> Actions.bulk_actions()
+
+    assert Map.keys(actions) == ["bulk_action_form_approve_order"]
+
+    bulk_action = actions["bulk_action_form_approve_order"]
+
+    assert bulk_action.payload.title == "Approve selected"
+    assert bulk_action.payload.assigns.target == %{ids: {:selection, "ids"}}
+    assert bulk_action.payload.assigns.action.id == "approve_order"
+    assert bulk_action.payload.assigns.action.scope == "bulk"
+    assert bulk_action.payload.assigns.action.contract["scope"] == "bulk"
+  end
+
   test "normalizes rich link maps into endpoint metadata" do
     contract =
       write_contract(%{

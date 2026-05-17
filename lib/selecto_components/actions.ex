@@ -285,9 +285,11 @@ defmodule SelectoComponents.Actions do
   Builds generated action-form configs for bulk action surfaces.
 
   This mirrors `detail_actions/2`, but filters to domain actions whose
-  normalized scope is `"bulk"` and defaults the target template to selected row
-  ids. The returned configs intentionally use the same modal payload shape so
-  hosts can route bulk preview/apply through `ActionFormHost`.
+  normalized scope is `"bulk"` or whose row action contract explicitly opts
+  into batching with `bulk: true` or `bulk: %{enabled: true}`. It defaults the
+  target template to selected row ids. The returned configs intentionally use
+  the same modal payload shape so hosts can route bulk preview/apply through
+  `ActionFormHost`.
   """
   @spec bulk_actions(term(), keyword()) :: map()
   def bulk_actions(contract, opts \\ []) do
@@ -302,13 +304,21 @@ defmodule SelectoComponents.Actions do
     contract
     |> action_entries()
     |> Enum.flat_map(fn action ->
-      case form_action(action, opts) do
-        %{scope: "bulk"} = form_action ->
-          config_opts = Keyword.put_new(opts, :title, form_action.label)
-          [{prefix <> form_action.id, detail_action(form_action.contract, config_opts)}]
-
-        _other ->
+      action
+      |> action_for_bulk_surface()
+      |> case do
+        nil ->
           []
+
+        action ->
+          case form_action(action, opts) do
+            %{scope: "bulk"} = form_action ->
+              config_opts = Keyword.put_new(opts, :title, form_action.label)
+              [{prefix <> form_action.id, detail_action(form_action.contract, config_opts)}]
+
+            _other ->
+              []
+          end
       end
     end)
     |> Enum.reject(fn {_id, config} -> is_nil(get_in(config, [:payload, :assigns, :action])) end)
@@ -333,6 +343,40 @@ defmodule SelectoComponents.Actions do
       |> Map.put_new(:id, id)
     end)
   end
+
+  defp action_for_bulk_surface(action) do
+    scope =
+      action
+      |> map_value(:scope)
+      |> normalize_optional_id()
+
+    cond do
+      scope == "bulk" ->
+        action
+
+      bulk_enabled?(map_value(action, :bulk)) ->
+        action
+        |> map_or_empty()
+        |> Map.put(:scope, :bulk)
+        |> Map.put("scope", "bulk")
+
+      true ->
+        nil
+    end
+  end
+
+  defp bulk_enabled?(true), do: true
+  defp bulk_enabled?("true"), do: true
+  defp bulk_enabled?(1), do: true
+  defp bulk_enabled?("1"), do: true
+
+  defp bulk_enabled?(%{} = bulk_config) do
+    bulk_config
+    |> map_value(:enabled)
+    |> bulk_enabled?()
+  end
+
+  defp bulk_enabled?(_bulk_config), do: false
 
   defp maybe_put_new_id(action, nil), do: action
   defp maybe_put_new_id(action, id), do: Map.put_new(action, "id", normalize_id(id))

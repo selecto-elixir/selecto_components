@@ -21,6 +21,20 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
     assert html =~ ~s(id="bulk-actions-menu")
   end
 
+  test "renders generated bulk action forms for row actions that opt in to batching" do
+    html =
+      render_component(BulkActions, %{
+        id: "bulk-actions",
+        action_contract: bulkable_row_contract(),
+        selected_rows: MapSet.new(["42"]),
+        selection_count: 1
+      })
+
+    assert html =~ ~s(data-bulk-action-id="domain_bulk_action_form_approve_order")
+    assert html =~ ~s(data-bulk-action-scope="bulk")
+    assert html =~ "Approve selected"
+  end
+
   test "renders a visible empty state when no bulk actions are available" do
     html =
       render_component(BulkActions, %{
@@ -105,6 +119,22 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
             preview: "/orders/actions/bulk_archive/preview",
             apply: "/orders/actions/bulk_archive/apply"
           }
+        }
+      }
+    }
+  end
+
+  defp bulkable_row_contract do
+    %{
+      actions: %{
+        approve_order: %{
+          id: :approve_order,
+          label: "Approve selected",
+          description: "Approve every selected row.",
+          scope: :row,
+          bulk: %{enabled: true},
+          capability: "orders.approve",
+          execution: %{operation: :update}
         }
       }
     }
