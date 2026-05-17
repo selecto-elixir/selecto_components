@@ -9,6 +9,7 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
   defmacro __using__(_opts) do
     quote do
       alias SelectoComponents.ErrorHandling.ErrorBuilder
+      alias SelectoComponents.CapabilityGate
       alias SelectoComponents.Exporter
       alias SelectoComponents.ScheduledExports.Service, as: ScheduledExportService
       import SelectoComponents.Form.ErrorHandling
@@ -30,13 +31,20 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
           view_mode = socket.assigns[:applied_view] || socket.assigns.view_config.view_mode
           export_mode = normalize_export_mode(Map.get(params, "export_mode"))
 
-          case Exporter.build(format, query_results,
-                 view_mode: view_mode,
-                 view_config: socket.assigns[:view_config],
-                 selecto: socket.assigns[:selecto],
-                 presentation_context: socket.assigns[:presentation_context] || %{},
-                 export_mode: export_mode
-               ) do
+          case authorize_export(socket, :download, format, export_mode) do
+            :ok ->
+              Exporter.build(format, query_results,
+                view_mode: view_mode,
+                view_config: socket.assigns[:view_config],
+                selecto: socket.assigns[:selecto],
+                presentation_context: socket.assigns[:presentation_context] || %{},
+                export_mode: export_mode
+              )
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+          |> case do
             {:ok, export} ->
               if byte_size(export.content) > @max_export_payload_bytes do
                 {:noreply,
@@ -73,7 +81,19 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
           query_results = socket.assigns[:query_results]
           view_mode = socket.assigns[:applied_view] || socket.assigns.view_config.view_mode
 
-          case socket.assigns[:export_delivery_module] do
+          case authorize_export(
+                 socket,
+                 :email,
+                 Map.get(params, "format", "csv"),
+                 normalize_export_mode(Map.get(params, "export_mode"))
+               ) do
+            :ok -> socket.assigns[:export_delivery_module]
+            {:error, reason} -> {:error, reason}
+          end
+          |> case do
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, export_error_message(reason))}
+
             nil ->
               {:noreply,
                put_flash(socket, :error, export_error_message(:missing_delivery_adapter))}
@@ -194,6 +214,18 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
         error.summary <> ": " <> error.user_message
       end
 
+      defp export_error_message({:capability_denied, message, _details}) do
+        error =
+          ErrorBuilder.build(message,
+            stage: :export,
+            category: :authorization,
+            code: :export_capability_denied,
+            operation: "export_data"
+          )
+
+        error.summary <> ": " <> error.user_message
+      end
+
       defp export_error_message(reason) do
         error =
           ErrorBuilder.build(inspect(reason),
@@ -208,6 +240,19 @@ defmodule SelectoComponents.Form.EventHandlers.ExportOperations do
 
       defp normalize_export_mode(value) when value in ["display", :display], do: :display
       defp normalize_export_mode(_value), do: :raw
+
+      defp authorize_export(socket, delivery, format, export_mode) do
+        CapabilityGate.authorize(socket, "selecto.exports.#{delivery}", :export,
+          target: %{
+            format: format,
+            delivery: delivery,
+            export_mode: export_mode
+          },
+          context: %{
+            operation: "export_data"
+          }
+        )
+      end
     end
   end
 end

@@ -145,6 +145,83 @@ defmodule SelectoComponents.ScheduledExports.ManagerTest do
     assert scheduled_export.schedule.kind == :daily
   end
 
+  test "create_scheduled_export stops before persistence when capability is denied" do
+    socket = deny_capabilities_socket("Schedule management is disabled.")
+
+    assert {:noreply, updated_socket} =
+             Manager.handle_event(
+               "create_scheduled_export",
+               %{
+                 "name" => "Morning Orders",
+                 "export_format" => "json",
+                 "recipients" => "ops@example.com",
+                 "subject_template" => "Morning export",
+                 "body_template" => "Attached.",
+                 "schedule" => %{
+                   "enabled" => true,
+                   "kind" => "daily",
+                   "time" => "06:30",
+                   "timezone" => "Etc/UTC",
+                   "day_of_week" => "1",
+                   "day_of_month" => "1"
+                 }
+               },
+               socket
+             )
+
+    assert Adapter.list_scheduled_exports("tenant:1:/orders", []) == []
+    assert_receive {:capability_request, request}
+    assert request.capability == "selecto.scheduled_exports.manage"
+    assert request.operation == :create
+
+    assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) =~
+             "Schedule management is disabled."
+  end
+
+  test "toggle_scheduled_export_disabled stops before persistence when capability is denied" do
+    {:ok, scheduled_export} =
+      Adapter.create_scheduled_export(
+        %{
+          id: 1,
+          public_id: "sched_denied_toggle",
+          name: "Toggle Me",
+          context: "tenant:1:/orders",
+          view_type: "detail",
+          export_format: "csv",
+          delivery: %{email: %{recipients: ["ops@example.com"]}},
+          schedule: %{enabled: true, kind: :daily, time: "07:00", timezone: "Etc/UTC"},
+          next_run_at: ~U[2026-04-02 07:00:00Z],
+          last_status: :never,
+          disabled_at: nil
+        },
+        []
+      )
+
+    deny_socket = deny_capabilities_socket("Schedule management is disabled.")
+
+    socket = %{
+      deny_socket
+      | assigns: Map.put(deny_socket.assigns, :scheduled_exports, [scheduled_export])
+    }
+
+    assert {:noreply, updated_socket} =
+             Manager.handle_event(
+               "toggle_scheduled_export_disabled",
+               %{"id" => "sched_denied_toggle"},
+               socket
+             )
+
+    unchanged = Adapter.get_scheduled_export_by_public_id("sched_denied_toggle", [])
+    assert unchanged.disabled_at == nil
+    assert unchanged.schedule.enabled == true
+    assert_receive {:capability_request, request}
+    assert request.capability == "selecto.scheduled_exports.manage"
+    assert request.operation == :toggle_disabled
+
+    assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) =~
+             "Schedule management is disabled."
+  end
+
   test "edit_scheduled_export loads the selected schedule into the form" do
     {:ok, scheduled_export} =
       Adapter.create_scheduled_export(
@@ -384,6 +461,17 @@ defmodule SelectoComponents.ScheduledExports.ManagerTest do
           scheduled_exports: [],
           loaded_context: "tenant:1:/orders"
         })
+    }
+  end
+
+  defp deny_capabilities_socket(message) do
+    %{
+      base_socket()
+      | assigns:
+          Map.put(base_socket().assigns, :capability_resolver, fn request ->
+            send(self(), {:capability_request, request})
+            Selecto.Capabilities.deny(:scheduled_exports_disabled, user_message: message)
+          end)
     }
   end
 

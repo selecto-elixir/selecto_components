@@ -113,6 +113,39 @@ defmodule SelectoComponents.ActionFormHostTest do
     assert component_assigns.last_result == nil
   end
 
+  test "handle_submit authorizes before executing preview or apply callbacks" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("apply"),
+               authorize: fn action_id, request, _socket, intent ->
+                 assert action_id == "archive"
+                 assert request["target"] == %{"id" => 42}
+                 assert intent == :apply
+
+                 {:error,
+                  {:capability_denied, "Managers only.",
+                   %{code: :manager_required, capability: "work_items.archive"}}}
+               end,
+               preview: fn _action_id, _request, _socket ->
+                 flunk("preview callback should not run")
+               end,
+               apply: fn _action_id, _request, _socket ->
+                 flunk("apply callback should not run")
+               end
+             )
+
+    component_assigns = updated_socket.assigns.modal_detail_data.component_assigns
+    assert component_assigns.submitting == nil
+    assert component_assigns.last_result == nil
+    assert component_assigns.last_error == "Managers only."
+
+    assert component_assigns.last_error_details == %{
+             "capability" => "work_items.archive",
+             "code" => "manager_required",
+             "message" => "Managers only.",
+             "type" => "capability_denied"
+           }
+  end
+
   test "handle_submit keeps host-formatted error messages" do
     assert {:noreply, updated_socket} =
              ActionFormHost.handle_submit(socket(), payload("preview"),

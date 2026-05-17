@@ -6,6 +6,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
   use Phoenix.LiveComponent
 
   alias SelectoComponents.Theme
+  alias SelectoComponents.CapabilityGate
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ExportedViews
   alias SelectoComponents.ExportedViews.Service
@@ -171,7 +172,11 @@ defmodule SelectoComponents.ExportedViews.Manager do
   end
 
   def handle_event("create_exported_view", %{"exported_view" => params}, socket) do
-    case Service.create(adapter(socket), socket.assigns, params, service_opts(socket)) do
+    case authorize_exported_view(socket, :create, params) do
+      :ok -> Service.create(adapter(socket), socket.assigns, params, service_opts(socket))
+      {:error, reason} -> {:error, reason}
+    end
+    |> case do
       {:ok, _view} ->
         {:noreply,
          socket
@@ -200,6 +205,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   def handle_event("regen_exported_view", %{"id" => public_id}, socket) do
     with {:ok, view} <- fetch_view(socket, public_id),
+         :ok <- authorize_exported_view(socket, :regenerate, %{public_id: public_id}),
          {:ok, _updated_view} <- Service.regenerate(adapter(socket), view, service_opts(socket)) do
       {:noreply, socket |> put_flash(:info, "Export regenerated") |> reload_exported_views()}
     else
@@ -218,6 +224,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   def handle_event("rotate_exported_view_signature", %{"id" => public_id}, socket) do
     with {:ok, view} <- fetch_view(socket, public_id),
+         :ok <- authorize_exported_view(socket, :rotate_signature, %{public_id: public_id}),
          {:ok, _updated_view} <-
            Service.rotate_signature(adapter(socket), view, service_opts(socket)) do
       {:noreply, socket |> put_flash(:info, "Signature rotated") |> reload_exported_views()}
@@ -237,6 +244,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   def handle_event("toggle_exported_view_disabled", %{"id" => public_id}, socket) do
     with {:ok, view} <- fetch_view(socket, public_id),
+         :ok <- authorize_exported_view(socket, :toggle_disabled, %{public_id: public_id}),
          {:ok, _updated_view} <-
            adapter(socket).update_exported_view(
              view,
@@ -266,6 +274,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   def handle_event("delete_exported_view", %{"id" => public_id}, socket) do
     with {:ok, view} <- fetch_view(socket, public_id),
+         :ok <- authorize_exported_view(socket, :delete, %{public_id: public_id}),
          {:ok, _deleted_view} <- Service.delete(adapter(socket), view, service_opts(socket)) do
       {:noreply,
        socket
@@ -289,6 +298,7 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   def handle_event("show_exported_view_snippets", %{"id" => public_id}, socket) do
     with {:ok, view} <- fetch_view(socket, public_id),
+         :ok <- authorize_exported_view(socket, :use, %{public_id: public_id}),
          {:ok, snippets} <- build_snippets(view, socket) do
       {:noreply, assign(socket, snippets: snippets, snippets_view_id: public_id)}
     else
@@ -383,6 +393,16 @@ defmodule SelectoComponents.ExportedViews.Manager do
 
   defp service_opts(socket) do
     [adapter_opts: adapter_opts(socket)]
+  end
+
+  defp authorize_exported_view(socket, operation, target) do
+    CapabilityGate.authorize(socket, "selecto.exported_views.manage", operation,
+      target: target,
+      context: %{
+        operation: Atom.to_string(operation),
+        surface: :exported_views_manager
+      }
+    )
   end
 
   defp merge_form(form, params) do
@@ -484,6 +504,19 @@ defmodule SelectoComponents.ExportedViews.Manager do
         "Snippet generation requires `exported_view_endpoint` to be assigned by the host LiveView",
         Keyword.merge(
           [stage: :persistence, category: :configuration],
+          opts
+        )
+      )
+
+    error.summary <> ": " <> error.user_message
+  end
+
+  defp exported_view_error_message({:capability_denied, message, _details}, opts) do
+    error =
+      ErrorBuilder.build(
+        message,
+        Keyword.merge(
+          [stage: :persistence, category: :authorization],
           opts
         )
       )

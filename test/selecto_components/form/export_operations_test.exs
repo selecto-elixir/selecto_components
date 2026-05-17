@@ -76,4 +76,45 @@ defmodule SelectoComponents.Form.ExportOperationsTest do
 
     assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) =~ "Email export requires"
   end
+
+  test "send_export_email stops before delivery when capability is denied" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        query_results: {
+          [["Order A", 10]],
+          ["title", "quantity"],
+          []
+        },
+        applied_view: nil,
+        view_config: %{view_mode: "detail", views: %{}},
+        export_delivery_module: DeliveryStub,
+        capability_resolver: fn request ->
+          send(self(), {:capability_request, request})
+          Selecto.Capabilities.deny(:exports_disabled, user_message: "Exports are disabled.")
+        end,
+        path: "/orders",
+        flash: %{}
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             TestLive.handle_event(
+               "send_export_email",
+               %{
+                 "recipients" => "ops@example.com",
+                 "format" => "csv",
+                 "subject" => "Daily orders",
+                 "body" => "Attached is the latest export."
+               },
+               socket
+             )
+
+    assert_receive {:capability_request, request}
+    assert request.capability == "selecto.exports.email"
+    assert request.operation == :export
+    assert request.target.delivery == :email
+    refute_receive {:deliver_email, _export_payload, _delivery_config}
+    assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) =~ "Exports are disabled."
+  end
 end

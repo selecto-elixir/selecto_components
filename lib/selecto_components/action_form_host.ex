@@ -24,6 +24,10 @@ defmodule SelectoComponents.ActionFormHost do
   - `:after_apply` - callback invoked as `(socket, result)` before modal result assignment.
     It may return the updated socket or `{socket, reload_metadata}` when the
     host refreshed data after the write.
+  - `:authorize` - callback invoked before preview/apply execution. It may be
+    arity 4 `(action_id, request, socket, intent)` or arity 3
+    `(action_id, request, socket)`. Return `:ok`, `{:ok, metadata}`, or
+    `{:error, reason}`.
   - `:format_error` - callback invoked as `(reason)` for host-specific error messages
   """
   def handle_submit(socket, payload, opts) when is_map(payload) do
@@ -31,14 +35,14 @@ defmodule SelectoComponents.ActionFormHost do
     request = Map.fetch!(payload, :request)
     intent = payload |> Map.get(:intent) |> normalize_intent()
 
-    opts
-    |> Keyword.fetch!(intent)
-    |> call_action(action_id, request, socket)
-    |> case do
-      {:ok, result} ->
-        {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
-        {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
-
+    with :ok <- authorize_action(action_id, request, socket, intent, opts),
+         {:ok, result} <-
+           opts
+           |> Keyword.fetch!(intent)
+           |> call_action(action_id, request, socket) do
+      {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
+      {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
+    else
       {:error, reason} ->
         {:noreply, assign_error(socket, error_message(reason, opts), reason)}
     end
@@ -93,6 +97,26 @@ defmodule SelectoComponents.ActionFormHost do
   defp call_action(callback, action_id, request, _socket) when is_function(callback, 2),
     do: callback.(action_id, request)
 
+  defp authorize_action(action_id, request, socket, intent, opts) do
+    case Keyword.get(opts, :authorize) do
+      callback when is_function(callback, 4) ->
+        normalize_authorization_result(callback.(action_id, request, socket, intent))
+
+      callback when is_function(callback, 3) ->
+        normalize_authorization_result(callback.(action_id, request, socket))
+
+      _callback ->
+        :ok
+    end
+  end
+
+  defp normalize_authorization_result(:ok), do: :ok
+  defp normalize_authorization_result({:ok, _metadata}), do: :ok
+  defp normalize_authorization_result({:error, reason}), do: {:error, reason}
+  defp normalize_authorization_result(false), do: {:error, :capability_denied}
+  defp normalize_authorization_result(true), do: :ok
+  defp normalize_authorization_result(other), do: {:error, other}
+
   defp call_after_apply(callback, socket, result) when is_function(callback, 2) do
     case callback.(socket, result) do
       {%Phoenix.LiveView.Socket{} = socket, metadata} when is_map(metadata) ->
@@ -124,7 +148,9 @@ defmodule SelectoComponents.ActionFormHost do
   end
 
   defp default_error_message({:validation_error, message, _details}), do: message
+  defp default_error_message({:capability_denied, message, _details}), do: message
   defp default_error_message({:invalid_request, message}), do: message
+  defp default_error_message(:capability_denied), do: "Action is not allowed."
   defp default_error_message(reason) when is_binary(reason), do: reason
   defp default_error_message(reason), do: inspect(reason)
 
@@ -136,8 +162,20 @@ defmodule SelectoComponents.ActionFormHost do
     |> Map.put_new("type", "validation_error")
   end
 
+  defp error_details({:capability_denied, message, details}) do
+    details
+    |> QueryContract.json_safe()
+    |> map_or_empty()
+    |> Map.put_new("message", message)
+    |> Map.put_new("type", "capability_denied")
+  end
+
   defp error_details({:invalid_request, message}) do
     %{"type" => "invalid_request", "message" => message}
+  end
+
+  defp error_details(:capability_denied) do
+    %{"type" => "capability_denied", "message" => "Action is not allowed."}
   end
 
   defp error_details(nil), do: nil

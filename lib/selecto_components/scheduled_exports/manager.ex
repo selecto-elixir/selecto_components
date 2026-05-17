@@ -5,6 +5,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   use Phoenix.LiveComponent
 
+  alias SelectoComponents.CapabilityGate
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ScheduledExports
   alias SelectoComponents.ScheduledExports.Service
@@ -189,7 +190,8 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   @impl true
   def handle_event("edit_scheduled_export", %{"id" => public_id}, socket) do
-    with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id) do
+    with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         :ok <- authorize_scheduled_export(socket, :edit, %{public_id: public_id}) do
       {:noreply,
        assign(socket,
          form: form_from_scheduled_export(scheduled_export),
@@ -216,6 +218,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   def handle_event("toggle_scheduled_export_disabled", %{"id" => public_id}, socket) do
     with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         :ok <- authorize_scheduled_export(socket, :toggle_disabled, %{public_id: public_id}),
          {:ok, _updated_export} <-
            Service.update(
              adapter(socket),
@@ -243,6 +246,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   def handle_event("delete_scheduled_export", %{"id" => public_id}, socket) do
     with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         :ok <- authorize_scheduled_export(socket, :delete, %{public_id: public_id}),
          {:ok, _deleted_export} <-
            Service.delete(adapter(socket), scheduled_export, service_opts(socket)) do
       {:noreply,
@@ -338,7 +342,11 @@ defmodule SelectoComponents.ScheduledExports.Manager do
   end
 
   defp create_scheduled_export(socket, params) do
-    case Service.create(adapter(socket), socket.assigns, params, service_opts(socket)) do
+    case authorize_scheduled_export(socket, :create, params) do
+      :ok -> Service.create(adapter(socket), socket.assigns, params, service_opts(socket))
+      {:error, reason} -> {:error, reason}
+    end
+    |> case do
       {:ok, _scheduled_export} ->
         {:noreply,
          socket
@@ -362,6 +370,7 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   defp update_scheduled_export(socket, public_id, params) do
     with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         :ok <- authorize_scheduled_export(socket, :update, %{public_id: public_id}),
          {:ok, _updated_export} <-
            Service.update(
              adapter(socket),
@@ -397,6 +406,16 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   defp service_opts(socket) do
     [adapter_opts: adapter_opts(socket)]
+  end
+
+  defp authorize_scheduled_export(socket, operation, target) do
+    CapabilityGate.authorize(socket, "selecto.scheduled_exports.manage", operation,
+      target: target,
+      context: %{
+        operation: Atom.to_string(operation),
+        surface: :scheduled_exports_manager
+      }
+    )
   end
 
   defp default_form do
@@ -561,13 +580,21 @@ defmodule SelectoComponents.ScheduledExports.Manager do
   defp scheduled_export_error_message(reason, opts) do
     error =
       ErrorBuilder.build(
-        inspect(reason),
+        scheduled_export_error_text(reason),
         Keyword.merge(
-          [stage: :persistence, category: :persistence],
+          [stage: :persistence, category: scheduled_export_error_category(reason)],
           opts
         )
       )
 
     error.summary <> ": " <> error.user_message
   end
+
+  defp scheduled_export_error_text({:capability_denied, message, _details}), do: message
+  defp scheduled_export_error_text(reason), do: inspect(reason)
+
+  defp scheduled_export_error_category({:capability_denied, _message, _details}),
+    do: :authorization
+
+  defp scheduled_export_error_category(_reason), do: :persistence
 end
