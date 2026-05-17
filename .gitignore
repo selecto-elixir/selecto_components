@@ -28,3 +28,4 @@ selecto_components-*.tar
 /.vscode/
 
 .expert/
+.DS_Store
