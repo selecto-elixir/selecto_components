@@ -114,14 +114,25 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     <div class={if @action.divider, do: "border-t border-gray-200", else: ""}>
       <button
         type="button"
-        class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center space-x-2"
-        phx-click={execute_action_click(@menu_id, @action.id, @myself)}
+        class={
+          "w-full text-left px-4 py-2 text-sm flex items-center space-x-2 " <>
+            if(@action.disabled?,
+              do: "cursor-not-allowed text-gray-400",
+              else: "hover:bg-gray-100"
+            )
+        }
+        disabled={@action.disabled?}
+        phx-click={!@action.disabled? && execute_action_click(@menu_id, @action.id, @myself)}
         data-bulk-action-id={@action.id}
         data-bulk-action-source={Map.get(@action, :source)}
         data-bulk-action-scope={Map.get(@action, :scope)}
+        data-bulk-action-status={Map.get(@action, :status)}
       >
-        <span class="text-gray-700">{@action.label}</span>
+        <span class={if @action.disabled?, do: "text-gray-400", else: "text-gray-700"}>{@action.label}</span>
       </button>
+      <p :if={@action.disabled? && @action.reason} class="px-4 pb-2 text-xs text-amber-700">
+        {@action.reason}
+      </p>
       <%= if @action.description do %>
         <p class="px-4 pb-2 text-xs text-gray-500">{@action.description}</p>
       <% end %>
@@ -348,9 +359,22 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   end
 
   defp generated_action_forms(assigns) do
+    selected_ids =
+      assigns
+      |> selected_ids()
+      |> Enum.map(&to_string/1)
+
+    availability_opts =
+      assigns
+      |> Map.get(:row_action_availability_opts, [])
+      |> Keyword.put_new(:target, %{ids: selected_ids})
+      |> Keyword.put_new(:surface, :selecto_components_bulk_actions)
+
     assigns
     |> generated_action_contract()
-    |> Actions.bulk_actions(id_prefix: "domain_bulk_action_form_")
+    |> Actions.bulk_actions(
+      Keyword.put(availability_opts, :id_prefix, "domain_bulk_action_form_")
+    )
     |> Enum.map(fn {id, config} -> generated_action_form_menu_item(id, config) end)
     |> Enum.reject(&is_nil/1)
   end
@@ -368,11 +392,15 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
   defp generated_action_form_menu_item(id, config) when is_map(config) do
     payload = Map.get(config, :payload, %{})
     action = get_in(payload, [:assigns, :action]) || %{}
+    disabled? = truthy?(map_value(action, :disabled?))
 
     %{
       id: id,
       label: Map.get(config, :name) || map_value(action, :label) || id,
       description: Map.get(config, :description),
+      disabled?: disabled?,
+      status: map_value(action, :status, if(disabled?, do: "disabled", else: "enabled")),
+      reason: map_value(action, :reason),
       source: :generated_bulk_action_form,
       scope: "bulk",
       type: :live_component,
@@ -390,6 +418,9 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       description: map_value(action, :description),
       divider: truthy?(map_value(action, :divider)),
       confirmation_message: map_value(action, :confirmation_message),
+      disabled?: truthy?(map_value(action, :disabled?)),
+      status: map_value(action, :status),
+      reason: map_value(action, :reason),
       source: map_value(action, :source),
       scope: map_value(action, :scope),
       type: map_value(action, :type),
@@ -411,6 +442,12 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
 
   defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
   defp truthy?(_value), do: false
+
+  defp selected_ids(assigns) do
+    assigns
+    |> Map.get(:selected_rows, MapSet.new())
+    |> MapSet.to_list()
+  end
 
   defp toggle_actions_menu(menu_id) do
     JS.toggle(

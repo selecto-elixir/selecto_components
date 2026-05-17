@@ -372,6 +372,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         selection_target={@myself}
         total_rows={length(@visible_row_ids)}
         all_row_ids={@visible_row_ids}
+        row_action_availability_opts={assigns[:row_action_availability_opts] || []}
       />
 
       <div

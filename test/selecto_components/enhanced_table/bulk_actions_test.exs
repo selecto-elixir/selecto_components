@@ -35,6 +35,28 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
     assert html =~ "Approve selected"
   end
 
+  test "renders capability-denied generated bulk actions as disabled with the host reason" do
+    html =
+      render_component(BulkActions, %{
+        id: "bulk-actions",
+        action_contract: bulkable_row_contract(),
+        selected_rows: MapSet.new(["42"]),
+        selection_count: 1,
+        row_action_availability_opts: [
+          capability_resolver: fn request ->
+            assert request.capability == "orders.approve"
+            assert request.target == %{ids: ["42"]}
+            Selecto.Capabilities.deny(:manager_required, user_message: "Managers only")
+          end
+        ]
+      })
+
+    assert html =~ ~s(data-bulk-action-id="domain_bulk_action_form_approve_order")
+    assert html =~ ~s(data-bulk-action-status="disabled")
+    assert html =~ ~s(disabled)
+    assert html =~ "Managers only"
+  end
+
   test "renders a visible empty state when no bulk actions are available" do
     html =
       render_component(BulkActions, %{
