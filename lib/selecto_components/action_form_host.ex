@@ -21,7 +21,9 @@ defmodule SelectoComponents.ActionFormHost do
 
   Optional options:
 
-  - `:after_apply` - callback invoked as `(socket, result)` before modal result assignment
+  - `:after_apply` - callback invoked as `(socket, result)` before modal result assignment.
+    It may return the updated socket or `{socket, reload_metadata}` when the
+    host refreshed data after the write.
   - `:format_error` - callback invoked as `(reason)` for host-specific error messages
   """
   def handle_submit(socket, payload, opts) when is_map(payload) do
@@ -34,30 +36,35 @@ defmodule SelectoComponents.ActionFormHost do
     |> call_action(action_id, request, socket)
     |> case do
       {:ok, result} ->
-        socket = maybe_after_apply(socket, intent, result, opts)
-        {:noreply, assign_result(socket, Atom.to_string(intent), result)}
+        {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
+        {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
 
       {:error, reason} ->
-        {:noreply, assign_error(socket, error_message(reason, opts))}
+        {:noreply, assign_error(socket, error_message(reason, opts), reason)}
     end
   end
 
-  def assign_result(socket, intent, result) do
+  def assign_result(socket, intent, result, metadata \\ %{}) do
     update_component_assigns(socket, %{
       submitting: nil,
       last_error: nil,
-      last_result: %{
-        "intent" => intent,
-        "payload" => QueryContract.json_safe(result)
-      }
+      last_error_details: nil,
+      last_result:
+        %{
+          "status" => "ok",
+          "intent" => intent,
+          "payload" => QueryContract.json_safe(result)
+        }
+        |> maybe_put("reload", Map.get(metadata, :reload) || Map.get(metadata, "reload"))
     })
   end
 
-  def assign_error(socket, message) do
+  def assign_error(socket, message, reason \\ nil) do
     update_component_assigns(socket, %{
       submitting: nil,
       last_result: nil,
-      last_error: message
+      last_error: message,
+      last_error_details: error_details(reason)
     })
   end
 
@@ -86,10 +93,17 @@ defmodule SelectoComponents.ActionFormHost do
   defp call_action(callback, action_id, request, _socket) when is_function(callback, 2),
     do: callback.(action_id, request)
 
-  defp call_after_apply(callback, socket, result) when is_function(callback, 2),
-    do: callback.(socket, result)
+  defp call_after_apply(callback, socket, result) when is_function(callback, 2) do
+    case callback.(socket, result) do
+      {%Phoenix.LiveView.Socket{} = socket, metadata} when is_map(metadata) ->
+        {socket, metadata}
 
-  defp default_after_apply(socket, _result), do: socket
+      %Phoenix.LiveView.Socket{} = socket ->
+        {socket, %{}}
+    end
+  end
+
+  defp default_after_apply(socket, _result), do: {socket, %{}}
 
   defp normalize_intent(intent) when intent in [:apply, "apply"], do: :apply
   defp normalize_intent(_intent), do: :preview
@@ -100,7 +114,7 @@ defmodule SelectoComponents.ActionFormHost do
     |> call_after_apply(socket, result)
   end
 
-  defp maybe_after_apply(socket, :preview, _result, _opts), do: socket
+  defp maybe_after_apply(socket, :preview, _result, _opts), do: {socket, %{}}
 
   defp error_message(reason, opts) do
     case Keyword.get(opts, :format_error) do
@@ -113,4 +127,29 @@ defmodule SelectoComponents.ActionFormHost do
   defp default_error_message({:invalid_request, message}), do: message
   defp default_error_message(reason) when is_binary(reason), do: reason
   defp default_error_message(reason), do: inspect(reason)
+
+  defp error_details({:validation_error, message, details}) do
+    details
+    |> QueryContract.json_safe()
+    |> map_or_empty()
+    |> Map.put_new("message", message)
+    |> Map.put_new("type", "validation_error")
+  end
+
+  defp error_details({:invalid_request, message}) do
+    %{"type" => "invalid_request", "message" => message}
+  end
+
+  defp error_details(nil), do: nil
+
+  defp error_details(reason) do
+    %{"type" => "error", "reason" => QueryContract.json_safe(reason)}
+  end
+
+  defp map_or_empty(map) when is_map(map), do: map
+  defp map_or_empty(_value), do: %{}
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, value) when value == %{}, do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, QueryContract.json_safe(value))
 end

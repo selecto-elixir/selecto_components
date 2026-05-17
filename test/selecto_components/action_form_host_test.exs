@@ -3,55 +3,59 @@ defmodule SelectoComponents.ActionFormHostTest do
 
   alias SelectoComponents.ActionFormHost
 
-  test "handle_submit delegates preview and stores component result" do
+  test "handle_submit stores preview results in a stable result envelope" do
     socket = socket()
 
     assert {:noreply, updated_socket} =
-             ActionFormHost.handle_submit(
-               socket,
-               %{intent: "preview", action_id: "archive", request: %{"action" => "archive"}},
-               preview: fn action_id, request, received_socket ->
-                 assert action_id == "archive"
-                 assert request == %{"action" => "archive"}
-                 assert received_socket == socket
-                 {:ok, %{"action" => action_id, "changes" => %{"state" => "archived"}}}
+             ActionFormHost.handle_submit(socket, payload("preview"),
+               preview: fn action_id, request, _socket ->
+                 {:ok, %{action: action_id, changes: %{state: "archived"}, request: request}}
                end,
-               apply: fn _, _, _ -> flunk("apply callback should not run") end
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end
              )
 
-    component_assigns = updated_socket.assigns.modal_detail_data.component_assigns
-    assert component_assigns.submitting == nil
-    assert component_assigns.last_error == nil
-    assert component_assigns.last_result["intent"] == "preview"
-    assert component_assigns.last_result["payload"]["changes"] == %{"state" => "archived"}
+    result = updated_socket.assigns.modal_detail_data.component_assigns.last_result
+
+    assert result["status"] == "ok"
+    assert result["intent"] == "preview"
+    assert result["payload"]["action"] == "archive"
+    refute Map.has_key?(result, "reload")
   end
 
-  test "handle_submit delegates apply, runs after_apply, and stores component result" do
+  test "handle_submit accepts host reload metadata from after_apply" do
+    socket = socket()
+
     assert {:noreply, updated_socket} =
-             ActionFormHost.handle_submit(
-               socket(),
-               %{intent: "apply", action_id: "archive", request: %{"action" => "archive"}},
-               preview: fn _, _, _ -> flunk("preview callback should not run") end,
-               apply: fn _action_id, _request, _socket ->
-                 {:ok, %{"result" => %{"mode" => "execute"}}}
-               end,
+             ActionFormHost.handle_submit(socket, payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
+               apply: fn action_id, _request, _socket -> {:ok, %{action: action_id}} end,
                after_apply: fn socket, _result ->
-                 Phoenix.Component.assign(socket, applied_view: "detail")
+                 {socket,
+                  %{
+                    reload: %{
+                      status: "refreshed",
+                      surface: "selecto_results",
+                      message: "The host reran the current query."
+                    }
+                  }}
                end
              )
 
-    assert updated_socket.assigns.applied_view == "detail"
+    result = updated_socket.assigns.modal_detail_data.component_assigns.last_result
 
-    assert updated_socket.assigns.modal_detail_data.component_assigns.last_result["intent"] ==
-             "apply"
+    assert result["intent"] == "apply"
+
+    assert result["reload"] == %{
+             "message" => "The host reran the current query.",
+             "status" => "refreshed",
+             "surface" => "selecto_results"
+           }
   end
 
-  test "handle_submit allows after_apply to close the modal before result assignment" do
+  test "handle_submit still allows after_apply to close the modal before result assignment" do
     assert {:noreply, updated_socket} =
-             ActionFormHost.handle_submit(
-               socket(),
-               %{intent: "apply", action_id: "archive", request: %{"action" => "archive"}},
-               preview: fn _, _, _ -> flunk("preview callback should not run") end,
+             ActionFormHost.handle_submit(socket(), payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
                apply: fn _action_id, _request, _socket ->
                  {:ok, %{"result" => %{"mode" => "execute"}}}
                end,
@@ -69,13 +73,11 @@ defmodule SelectoComponents.ActionFormHostTest do
 
   test "handle_submit accepts atom intents for compatibility" do
     assert {:noreply, updated_socket} =
-             ActionFormHost.handle_submit(
-               socket(),
-               %{intent: :apply, action_id: "archive", request: %{"action" => "archive"}},
-               preview: fn _, _, _ -> flunk("preview callback should not run") end,
+             ActionFormHost.handle_submit(socket(), payload(:apply),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
                apply: fn action_id, request, _socket ->
                  assert action_id == "archive"
-                 assert request == %{"action" => "archive"}
+                 assert request == %{"action" => "archive", "target" => %{"id" => 42}}
                  {:ok, %{"result" => %{"mode" => "execute"}}}
                end
              )
@@ -84,15 +86,40 @@ defmodule SelectoComponents.ActionFormHostTest do
              "apply"
   end
 
-  test "handle_submit stores formatted errors" do
+  test "handle_submit preserves machine-readable error details for the component" do
+    socket = socket()
+
     assert {:noreply, updated_socket} =
-             ActionFormHost.handle_submit(
-               socket(),
-               %{intent: "preview", action_id: "archive", request: %{}},
+             ActionFormHost.handle_submit(socket, payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
+               apply: fn _action_id, _request, _socket ->
+                 {:error,
+                  {:validation_error, "Action precondition failed.",
+                   %{code: :action_precondition_failed, state: "archived"}}}
+               end
+             )
+
+    component_assigns = updated_socket.assigns.modal_detail_data.component_assigns
+
+    assert component_assigns.last_error == "Action precondition failed."
+
+    assert component_assigns.last_error_details == %{
+             "code" => "action_precondition_failed",
+             "message" => "Action precondition failed.",
+             "state" => "archived",
+             "type" => "validation_error"
+           }
+
+    assert component_assigns.last_result == nil
+  end
+
+  test "handle_submit keeps host-formatted error messages" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("preview"),
                preview: fn _action_id, _request, _socket ->
                  {:error, {:validation_error, "Required", %{}}}
                end,
-               apply: fn _, _, _ -> :unused end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end,
                format_error: fn {:validation_error, message, _details} ->
                  "Formatted: #{message}"
                end
@@ -107,8 +134,16 @@ defmodule SelectoComponents.ActionFormHostTest do
     %Phoenix.LiveView.Socket{
       assigns: %{
         __changed__: %{},
-        modal_detail_data: %{component_assigns: %{submitting: "preview"}}
+        modal_detail_data: %{component_assigns: %{submitting: "apply"}}
       }
+    }
+  end
+
+  defp payload(intent) do
+    %{
+      intent: intent,
+      action_id: "archive",
+      request: %{"action" => "archive", "target" => %{"id" => 42}}
     }
   end
 end

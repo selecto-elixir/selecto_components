@@ -73,6 +73,8 @@ defmodule SelectoComponents.Modal.ActionFormModal do
       |> assign(:disabled_reason, disabled_reason(action))
       |> assign(:action_status, action_status(disabled?, applied?))
       |> assign(:result_summary, result_summary(Map.get(assigns, :last_result)))
+      |> assign(:reload_summary, reload_summary(Map.get(assigns, :last_result)))
+      |> assign(:error_details, Map.get(assigns, :last_error_details))
 
     ~H"""
     <div
@@ -153,7 +155,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               :if={!select_input?(input) && !textarea_input?(input)}
               data-selecto-action-form-input={Map.get(input, "id")}
               name={"inputs[#{Map.get(input, "id")}]"}
-              value={Map.get(@form_inputs, Map.get(input, "id"), "")}
+              value={input_value(input, @form_inputs)}
               type={input_type(input)}
               checked={input_checked?(input, @form_inputs)}
               min={input_attr(input, "min")}
@@ -185,7 +187,13 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         </details>
 
         <div :if={@last_error} data-selecto-action-form-error class="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-          {@last_error}
+          <div class="font-medium">{@last_error}</div>
+          <dl :if={@error_details} data-selecto-action-form-error-details class="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+            <div :for={item <- error_summary(@error_details)} data-selecto-action-form-error-detail={item.key} class="rounded bg-white/70 p-2 ring-1 ring-rose-100">
+              <dt class="font-semibold uppercase text-rose-700">{item.label}</dt>
+              <dd class="mt-1 font-mono text-rose-950">{item.value}</dd>
+            </div>
+          </dl>
         </div>
 
         <div :if={@disabled?} data-selecto-action-form-disabled class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -200,6 +208,14 @@ defmodule SelectoComponents.Modal.ActionFormModal do
               <dd class="mt-1 font-mono text-xs text-emerald-950">{item.value}</dd>
             </div>
           </dl>
+          <div
+            :if={@reload_summary}
+            data-selecto-action-form-reload={@reload_summary.status}
+            class="mb-3 rounded border border-emerald-200 bg-white/70 p-2 text-sm text-emerald-900"
+          >
+            <span class="font-medium">{@reload_summary.label}</span>
+            <span :if={@reload_summary.detail} class="ml-1 text-emerald-700">{@reload_summary.detail}</span>
+          </div>
           <details :if={@show_debug_json?} data-selecto-action-form-result-details class="mt-2">
             <summary class="cursor-pointer font-medium text-emerald-800">Response details</summary>
             <pre class="mt-2 max-h-56 overflow-auto rounded bg-white/70 p-2 text-emerald-950 ring-1 ring-emerald-100"><%= Jason.encode!(@last_result, pretty: true) %></pre>
@@ -249,9 +265,20 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
   @impl true
   def handle_event("change_action_form", params, socket) do
+    input_defs = action_input_defs(socket)
+
+    form_inputs =
+      socket.assigns
+      |> Map.get(:form_inputs, %{})
+      |> merge_changed_inputs(
+        Map.get(params, "inputs", %{}),
+        input_defs,
+        Map.get(params, "_target", [])
+      )
+
     {:noreply,
      assign(socket,
-       form_inputs: Map.get(params, "inputs", %{}),
+       form_inputs: form_inputs,
        confirmed: truthy?(Map.get(params, "confirmed")),
        last_error: nil
      )}
@@ -275,13 +302,17 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     intent = normalize_intent(Map.get(params, "intent"))
     action = normalize_action(socket.assigns.action)
     target = normalize_target(socket.assigns)
+    input_defs = action_input_defs(socket, action)
 
     inputs =
-      params |> Map.get("inputs", %{}) |> normalize_inputs(Map.get(socket.assigns, :inputs, []))
+      socket.assigns
+      |> Map.get(:form_inputs, %{})
+      |> merge_submit_inputs(Map.get(params, "inputs", %{}))
+      |> normalize_inputs(input_defs)
 
     confirmed = truthy?(Map.get(params, "confirmed"))
 
-    case validate_required_inputs(inputs, Map.get(socket.assigns, :inputs, [])) do
+    case validate_required_inputs(inputs, input_defs) do
       :ok ->
         submit_action_request(socket, action, target, intent, inputs, confirmed)
 
@@ -328,6 +359,18 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
   defp normalize_action(_action), do: %{}
 
+  defp action_input_defs(socket, action \\ nil) do
+    action = action || normalize_action(Map.get(socket.assigns, :action, %{}))
+
+    case Map.get(socket.assigns, :inputs) do
+      inputs when is_list(inputs) and inputs != [] ->
+        SelectoComponents.QueryContract.json_safe(inputs)
+
+      _inputs ->
+        Map.get(action, "inputs", [])
+    end
+  end
+
   defp normalize_intent("apply"), do: "apply"
   defp normalize_intent(_intent), do: "preview"
 
@@ -359,10 +402,13 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     input_defs = List.wrap(input_defs)
 
     normalized_defined =
-      Map.new(input_defs, fn input ->
+      input_defs
+      |> Enum.map(fn input ->
         id = Map.get(input, "id")
         {id, normalize_input_value(Map.get(inputs, id), input)}
       end)
+      |> Enum.reject(fn {_id, value} -> value == :__selecto_omit_input__ end)
+      |> Map.new()
 
     defined_ids =
       input_defs
@@ -379,12 +425,98 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
   defp normalize_inputs(_inputs, _input_defs), do: %{}
 
+  defp merge_changed_inputs(existing_inputs, changed_inputs, input_defs, target_path) do
+    changed_inputs =
+      changed_inputs
+      |> Map.new()
+      |> reject_unused_inputs()
+      |> reject_empty_non_target_inputs(existing_inputs, target_path)
+      |> maybe_put_unchecked_boolean(input_defs, target_path)
+
+    existing_inputs
+    |> map_or_empty()
+    |> Map.merge(changed_inputs)
+  end
+
+  defp reject_unused_inputs(inputs) do
+    inputs
+    |> Enum.reject(fn {key, _value} -> String.starts_with?(to_string(key), "_unused_") end)
+    |> Map.new()
+  end
+
+  defp reject_empty_non_target_inputs(inputs, existing_inputs, ["inputs", target_id]) do
+    existing_inputs = map_or_empty(existing_inputs)
+
+    inputs
+    |> Enum.reject(fn {key, value} ->
+      key != target_id and value in [nil, ""] and
+        present_input_value?(Map.get(existing_inputs, key))
+    end)
+    |> Map.new()
+  end
+
+  defp reject_empty_non_target_inputs(inputs, _existing_inputs, _target_path), do: inputs
+
+  defp maybe_put_unchecked_boolean(inputs, input_defs, ["inputs", input_id]) do
+    if boolean_input?(input_defs, input_id) and not Map.has_key?(inputs, input_id) do
+      Map.put(inputs, input_id, false)
+    else
+      inputs
+    end
+  end
+
+  defp maybe_put_unchecked_boolean(inputs, _input_defs, _target_path), do: inputs
+
+  defp merge_submit_inputs(existing_inputs, submitted_inputs) do
+    existing_inputs = map_or_empty(existing_inputs)
+
+    submitted_inputs =
+      submitted_inputs
+      |> map_or_empty()
+      |> reject_unused_inputs()
+      |> Enum.reject(fn {key, value} ->
+        value in [nil, ""] and present_input_value?(Map.get(existing_inputs, key))
+      end)
+      |> Map.new()
+
+    Map.merge(existing_inputs, submitted_inputs)
+  end
+
+  defp boolean_input?(input_defs, input_id) do
+    input_defs
+    |> List.wrap()
+    |> Enum.any?(fn input ->
+      Map.get(input, "id") == input_id and Map.get(input, "type") == "boolean"
+    end)
+  end
+
+  defp map_or_empty(value) when is_map(value), do: value
+  defp map_or_empty(_value), do: %{}
+
   defp normalize_input_value(nil, %{"type" => "boolean"}), do: false
   defp normalize_input_value("true", %{"type" => "boolean"}), do: true
   defp normalize_input_value("false", %{"type" => "boolean"}), do: false
   defp normalize_input_value(value, %{"type" => "boolean"}), do: truthy?(value)
-  defp normalize_input_value(nil, input), do: Map.get(input, "default", "")
+  defp normalize_input_value("", input), do: default_or_omit_input(input)
+  defp normalize_input_value(nil, input), do: default_or_omit_input(input)
+
+  defp normalize_input_value(value, %{"type" => type}) when type in ["utc_datetime", "datetime"],
+    do: normalize_utc_datetime(value)
+
   defp normalize_input_value(value, _input), do: value
+
+  defp default_or_omit_input(input) do
+    cond do
+      Map.has_key?(input, "default") ->
+        Map.get(input, "default")
+
+      input_required?(input) ->
+        ""
+
+      true ->
+        :__selecto_omit_input__
+    end
+  end
 
   defp input_type(%{"type" => "boolean"}), do: "checkbox"
 
@@ -394,10 +526,28 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp input_type(%{"type" => type}) when type in ["email", "url", "date", "time"],
     do: type
 
-  defp input_type(%{"type" => type}) when type in ["datetime", "datetime-local"],
-    do: "datetime-local"
+  defp input_type(%{"type" => type})
+       when type in ["datetime", "datetime-local", "utc_datetime", "naive_datetime"],
+       do: "datetime-local"
 
   defp input_type(_input), do: "text"
+
+  defp normalize_utc_datetime(value) when value in [nil, ""], do: value
+
+  defp normalize_utc_datetime(value) when is_binary(value) do
+    cond do
+      String.match?(value, ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/) ->
+        value <> ":00Z"
+
+      String.match?(value, ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/) ->
+        value <> "Z"
+
+      true ->
+        value
+    end
+  end
+
+  defp normalize_utc_datetime(value), do: value
 
   defp input_class(%{"type" => "boolean"}),
     do: "mt-1 rounded border border-slate-300 text-sm"
@@ -410,6 +560,9 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   defp required_html_input?(input), do: input_required?(input) and input_type(input) != "checkbox"
 
   defp input_required?(input), do: truthy?(Map.get(input, "required"))
+
+  defp present_input_value?(value) when value in [nil, ""], do: false
+  defp present_input_value?(_value), do: true
 
   defp select_input?(input), do: input_options(input) != []
 
@@ -473,6 +626,37 @@ defmodule SelectoComponents.Modal.ActionFormModal do
 
   defp input_checked?(_input, _form_inputs), do: false
 
+  defp input_value(%{"type" => "boolean"}, _form_inputs), do: "true"
+
+  defp input_value(input, form_inputs) do
+    form_inputs
+    |> Map.get(Map.get(input, "id"), "")
+    |> scalar_input_value(input)
+  end
+
+  defp scalar_input_value(value, %{"type" => type})
+       when is_binary(value) and type in ["utc_datetime", "datetime", "datetime-local"] do
+    browser_datetime_value(value)
+  end
+
+  defp scalar_input_value(value, _input) when is_binary(value) or is_number(value), do: value
+  defp scalar_input_value(true, _input), do: "true"
+  defp scalar_input_value(false, _input), do: "false"
+  defp scalar_input_value(_value, _input), do: ""
+
+  defp browser_datetime_value(value) do
+    cond do
+      String.match?(value, ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/) ->
+        String.trim_trailing(value, "Z")
+
+      String.match?(value, ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/) ->
+        String.trim_trailing(value, "Z")
+
+      true ->
+        value
+    end
+  end
+
   defp validate_required_inputs(inputs, input_defs) do
     missing =
       input_defs
@@ -507,7 +691,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     |> String.capitalize()
   end
 
-  defp truthy?(value) when value in [true, "true", "1", 1, :yes], do: true
+  defp truthy?(value) when value in [true, "true", "1", "on", 1, :yes], do: true
   defp truthy?(_value), do: false
 
   defp apply_disabled?(confirmation, confirmed, submitting, applied?, disabled?) do
@@ -564,9 +748,20 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         first_present([get_in(payload, ["result", "mode"]), map_value(payload, "mode")])
       ),
       summary_item(
+        "variant",
+        "Variant",
+        first_present([get_in(payload, ["result", "variant"]), map_value(payload, "variant")])
+      ),
+      summary_item(
         "changes",
         "Changes",
         first_present([map_value(payload, "changes"), get_in(payload, ["preview", "changes"])])
+      ),
+      collection_summary_item(
+        first_present([
+          get_in(payload, ["result", "collection_results"]),
+          map_value(payload, "collection_results")
+        ])
       ),
       record_summary_item(
         first_present([get_in(payload, ["result", "record"]), map_value(payload, "record")])
@@ -574,6 +769,65 @@ defmodule SelectoComponents.Modal.ActionFormModal do
     ]
     |> Enum.reject(&is_nil/1)
   end
+
+  defp collection_summary_item(nil), do: nil
+
+  defp collection_summary_item(collection_results) when is_map(collection_results) do
+    operation_count =
+      collection_results
+      |> Enum.map(fn {_key, result} ->
+        result
+        |> map_value("operations", [])
+        |> List.wrap()
+        |> length()
+      end)
+      |> Enum.sum()
+
+    summary_item("collections", "Collections", "#{operation_count} collection operations")
+  end
+
+  defp collection_summary_item(_collection_results), do: nil
+
+  defp reload_summary(result) do
+    case map_value(result, "reload") do
+      nil ->
+        nil
+
+      reload when is_map(reload) ->
+        status = reload |> map_value("status", "complete") |> to_string()
+        surface = map_value(reload, "surface")
+        detail = map_value(reload, "detail") || map_value(reload, "message")
+
+        %{
+          status: status,
+          label: reload_label(status, surface),
+          detail: detail
+        }
+
+      reload ->
+        %{status: "complete", label: "Results refreshed", detail: to_string(reload)}
+    end
+  end
+
+  defp reload_label("skipped", surface), do: reload_label_with_surface("Reload skipped", surface)
+  defp reload_label("failed", surface), do: reload_label_with_surface("Reload failed", surface)
+  defp reload_label(_status, surface), do: reload_label_with_surface("Results refreshed", surface)
+
+  defp reload_label_with_surface(label, nil), do: label
+  defp reload_label_with_surface(label, surface), do: "#{label}: #{humanize(surface)}"
+
+  defp error_summary(details) do
+    details
+    |> error_summary_source()
+    |> Enum.map(fn {key, value} ->
+      %{key: to_string(key), label: humanize(key), value: summary_value(value)}
+    end)
+  end
+
+  defp error_summary_source(%{"metadata" => metadata}) when is_map(metadata), do: metadata
+  defp error_summary_source(%{metadata: metadata}) when is_map(metadata), do: metadata
+  defp error_summary_source(details) when is_map(details), do: details
+  defp error_summary_source(details), do: %{"reason" => inspect(details)}
 
   defp record_summary_item(nil), do: nil
 

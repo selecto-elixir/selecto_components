@@ -155,6 +155,192 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
            }
   end
 
+  test "change_action_form merges partial LiveView input payloads without clearing prior fields" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime"},
+        %{"id" => "arrival_notes", "type" => "string"}
+      ])
+
+    socket =
+      action
+      |> socket(%{id: 42})
+      |> Phoenix.Component.assign(
+        form_inputs: %{
+          "checked_in_at" => "2026-05-16T21:24",
+          "arrival_notes" => "Front desk"
+        }
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "change_action_form",
+               %{
+                 "_target" => ["inputs", "documents_complete"],
+                 "inputs" => %{
+                   "_unused_checked_in_at" => "",
+                   "_unused_arrival_notes" => "",
+                   "documents_complete" => "true"
+                 }
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "checked_in_at" => "2026-05-16T21:24",
+             "arrival_notes" => "Front desk",
+             "documents_complete" => "true"
+           }
+  end
+
+  test "change_action_form ignores blank non-target payloads when a prior value exists" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime"},
+        %{"id" => "arrival_notes", "type" => "string"}
+      ])
+
+    socket =
+      action
+      |> socket(%{id: 42})
+      |> Phoenix.Component.assign(
+        form_inputs: %{
+          "checked_in_at" => "2026-05-16T21:28",
+          "arrival_notes" => "Front desk"
+        }
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "change_action_form",
+               %{
+                 "_target" => ["inputs", "arrival_notes"],
+                 "inputs" => %{
+                   "checked_in_at" => "",
+                   "arrival_notes" => "Front desk ready"
+                 }
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "checked_in_at" => "2026-05-16T21:28",
+             "arrival_notes" => "Front desk ready"
+           }
+  end
+
+  test "submit_action_form omits optional blank inputs without defaults" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime", "required" => false},
+        %{"id" => "arrival_notes", "type" => "string", "required" => false}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{
+                   "documents_complete" => "true",
+                   "checked_in_at" => "",
+                   "arrival_notes" => ""
+                 }
+               },
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.form_inputs == %{"documents_complete" => true}
+
+    assert_receive {:selecto_action_form_submit, payload}
+    assert payload.request["inputs"] == %{"documents_complete" => true}
+  end
+
+  test "submit_action_form preserves component state when submit payload blanks a changed datetime" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime", "required" => false},
+        %{"id" => "arrival_notes", "type" => "string", "required" => false}
+      ])
+
+    socket =
+      action
+      |> socket(%{id: 42})
+      |> Phoenix.Component.assign(
+        form_inputs: %{
+          "documents_complete" => true,
+          "checked_in_at" => "2026-05-16T21:35",
+          "arrival_notes" => "Front desk"
+        }
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "apply",
+                 "confirmed" => "true",
+                 "inputs" => %{
+                   "documents_complete" => "true",
+                   "checked_in_at" => "",
+                   "arrival_notes" => ""
+                 }
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "documents_complete" => true,
+             "checked_in_at" => "2026-05-16T21:35:00Z",
+             "arrival_notes" => "Front desk"
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+
+    assert payload.request["inputs"] == %{
+             "documents_complete" => true,
+             "checked_in_at" => "2026-05-16T21:35:00Z",
+             "arrival_notes" => "Front desk"
+           }
+  end
+
+  test "change_action_form marks changed boolean inputs false when unchecked" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime"}
+      ])
+
+    socket =
+      action
+      |> socket(%{id: 42})
+      |> Phoenix.Component.assign(
+        form_inputs: %{
+          "documents_complete" => true,
+          "checked_in_at" => "2026-05-16T21:24"
+        }
+      )
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "change_action_form",
+               %{
+                 "_target" => ["inputs", "documents_complete"],
+                 "inputs" => %{"_unused_checked_in_at" => ""}
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "documents_complete" => false,
+             "checked_in_at" => "2026-05-16T21:24"
+           }
+  end
+
   test "render summarizes preview and apply results" do
     preview_html =
       render_component(ActionFormModal, %{
@@ -195,6 +381,53 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert apply_html =~ ~s(data-selecto-action-form-result-summary-item="record")
     refute apply_html =~ ~s(data-selecto-action-form-result-details)
     refute apply_html =~ ~s(Response details)
+  end
+
+  test "render surfaces host-owned reload semantics after apply" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        last_result: %{
+          "intent" => "apply",
+          "payload" => %{
+            "result" => %{"mode" => "execute", "record" => %{"id" => 42}}
+          },
+          "reload" => %{
+            "status" => "refreshed",
+            "surface" => "selecto_results",
+            "message" => "Current results were rerun."
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-reload="refreshed")
+    assert html =~ "Results refreshed: Selecto results"
+    assert html =~ "Current results were rerun."
+  end
+
+  test "render surfaces structured host error details" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        last_error: "Action precondition failed.",
+        last_error_details: %{
+          "metadata" => %{
+            "code" => "action_precondition_failed",
+            "state" => "archived"
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-error)
+    assert html =~ ~s(data-selecto-action-form-error-details)
+    assert html =~ ~s(data-selecto-action-form-error-detail="code")
+    assert html =~ "action_precondition_failed"
   end
 
   test "render keeps raw request and response JSON behind an explicit debug flag" do
@@ -251,6 +484,40 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert html =~ ~s(data-selecto-action-form-result-summary-item="records")
     assert html =~ "3 records"
     refute html =~ ~s(data-selecto-action-form-result-summary-item="record")
+    refute html =~ ~s(data-selecto-action-form-result-details)
+  end
+
+  test "render summarizes variant and collection action results" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{"id" => "9002"},
+        record: %{},
+        last_result: %{
+          "intent" => "apply",
+          "payload" => %{
+            "action" => "check_in_camper",
+            "result" => %{
+              "mode" => "execute",
+              "variant" => "missing_documents",
+              "record" => %{"id" => 9002, "status" => "checked_in"},
+              "collection_results" => %{
+                "missing_documents" => %{
+                  "operations" => [
+                    %{"action" => "insert", "record" => %{"document_type" => "waiver"}}
+                  ]
+                }
+              }
+            }
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="variant")
+    assert html =~ "missing_documents"
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="collections")
+    assert html =~ "1 collection operations"
     refute html =~ ~s(data-selecto-action-form-result-details)
   end
 
@@ -373,6 +640,128 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
            }
   end
 
+  test "submit_action_form accepts browser checkbox values and preserves non-scalar defaults" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime", "default" => ["system", "now"]}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{"documents_complete" => "on", "checked_in_at" => ""}
+               },
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "documents_complete" => true,
+             "checked_in_at" => ["system", "now"]
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+
+    assert payload.request["inputs"] == %{
+             "documents_complete" => true,
+             "checked_in_at" => ["system", "now"]
+           }
+  end
+
+  test "submit_action_form normalizes utc datetime-local values to ISO8601" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "checked_in_at", "type" => "utc_datetime"}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{"checked_in_at" => "2026-05-16T21:24"}
+               },
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "checked_in_at" => "2026-05-16T21:24:00Z"
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+    assert payload.request["inputs"]["checked_in_at"] == "2026-05-16T21:24:00Z"
+  end
+
+  test "submit_action_form normalizes generic datetime-local values to ISO8601" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "checked_in_at", "type" => "datetime"}
+      ])
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{"checked_in_at" => "2026-05-16T21:24"}
+               },
+               socket(action, %{id: 42})
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "checked_in_at" => "2026-05-16T21:24:00Z"
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+    assert payload.request["inputs"]["checked_in_at"] == "2026-05-16T21:24:00Z"
+  end
+
+  test "submit_action_form uses action input definitions when socket has no persisted inputs assign" do
+    action =
+      Map.put(action(), "inputs", [
+        %{"id" => "documents_complete", "type" => "boolean"},
+        %{"id" => "checked_in_at", "type" => "utc_datetime"}
+      ])
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          action: action,
+          target: %{id: 42},
+          record: %{"id" => 42},
+          form_inputs: %{"checked_in_at" => "2026-05-16T21:24"}
+        }
+      }
+
+    assert {:noreply, updated_socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{
+                 "intent" => "preview",
+                 "inputs" => %{
+                   "documents_complete" => "true",
+                   "checked_in_at" => "2026-05-16T21:24"
+                 }
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.form_inputs == %{
+             "documents_complete" => true,
+             "checked_in_at" => "2026-05-16T21:24:00Z"
+           }
+
+    assert_receive {:selecto_action_form_submit, payload}
+
+    assert payload.request["inputs"] == %{
+             "documents_complete" => true,
+             "checked_in_at" => "2026-05-16T21:24:00Z"
+           }
+  end
+
   test "submit_action_form blocks missing required inputs before notifying host" do
     action =
       Map.put(action(), "inputs", [
@@ -425,7 +814,46 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
 
     assert html =~ ~r/<textarea[^>]+name="inputs\[archive_reason\]"[^>]+required/
     assert html =~ ~r/<input[^>]+name="inputs\[notify_customer\]"[^>]+type="checkbox"/
+    assert html =~ ~r/<input[^>]+name="inputs\[notify_customer\]"[^>]+value="true"/
     refute html =~ ~r/<input[^>]+name="inputs\[notify_customer\]"[^>]+\srequired(?:\s|>)/
+  end
+
+  test "render leaves non-scalar defaults out of browser input values" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.put(action(), "inputs", [
+            %{
+              "id" => "checked_in_at",
+              "type" => "utc_datetime",
+              "default" => ["system", "now"]
+            }
+          ]),
+        target: %{id: 42},
+        record: %{"id" => 42}
+      })
+
+    assert html =~ ~r/data-selecto-action-form-input="checked_in_at"[\s\S]*type="datetime-local"/
+    refute html =~ "systemnow"
+  end
+
+  test "render adapts normalized utc datetimes back to datetime-local values" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action:
+          Map.put(action(), "inputs", [
+            %{"id" => "checked_in_at", "type" => "utc_datetime"}
+          ]),
+        target: %{id: 42},
+        record: %{"id" => 42},
+        form_inputs: %{"checked_in_at" => "2026-05-16T21:45:00Z"}
+      })
+
+    assert html =~ ~r/data-selecto-action-form-input="checked_in_at"[\s\S]*type="datetime-local"/
+    assert html =~ ~s(value="2026-05-16T21:45:00")
+    refute html =~ ~s(value="2026-05-16T21:45:00Z")
   end
 
   defp socket(action, target) do
