@@ -26,6 +26,9 @@ defmodule SelectoComponents.ScheduledExports do
               {:ok, scheduled_export_run()} | {:error, term()}
   @callback update_scheduled_export_run(scheduled_export_run(), attrs :: map(), opts :: keyword()) ::
               {:ok, scheduled_export_run()} | {:error, term()}
+  @callback list_scheduled_export_runs(public_id :: String.t(), opts :: keyword()) :: [
+              scheduled_export_run()
+            ]
   @callback due_scheduled_exports(now :: DateTime.t(), opts :: keyword()) :: [scheduled_export()]
 
   @supported_formats ~w(csv tsv json xlsx pdf)

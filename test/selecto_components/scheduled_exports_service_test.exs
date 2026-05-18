@@ -49,6 +49,14 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
       {:ok, updated}
     end
 
+    def list_scheduled_export_runs(public_id, _opts) do
+      run_store()
+      |> Agent.get(&Map.values(&1))
+      |> Enum.filter(fn run ->
+        ScheduledExports.field(run, :scheduled_export_public_id) == public_id
+      end)
+    end
+
     def due_scheduled_exports(now, _opts) do
       store()
       |> Agent.get(&Map.values(&1))

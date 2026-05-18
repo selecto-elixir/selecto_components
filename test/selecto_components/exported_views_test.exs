@@ -71,6 +71,13 @@ defmodule SelectoComponents.ExportedViewsTest do
     assert {:error, :invalid_blob} = ExportedViews.decode_term(blob)
   end
 
+  test "decode_term loads trusted compressed runtime snapshots" do
+    blob = ExportedViews.encode_term(%{domain: %{formatter: fn value -> value end}})
+
+    assert {:ok, %{domain: %{formatter: formatter}}} = ExportedViews.decode_term(blob)
+    assert formatter.("ok") == "ok"
+  end
+
   test "cache_status distinguishes fresh stale and disabled exports" do
     now = ~U[2026-03-16 10:00:00Z]
 

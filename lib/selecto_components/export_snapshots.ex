@@ -50,8 +50,16 @@ defmodule SelectoComponents.ExportSnapshots do
   def decode_term(blob) when is_binary(blob) do
     {:ok, :erlang.binary_to_term(blob, [:safe])}
   rescue
+    _ -> decode_trusted_compressed_term(blob)
+  end
+
+  defp decode_trusted_compressed_term(<<131, 80, _::binary>> = blob) do
+    {:ok, :erlang.binary_to_term(blob)}
+  rescue
     _ -> {:error, :invalid_blob}
   end
+
+  defp decode_trusted_compressed_term(_blob), do: {:error, :invalid_blob}
 
   @doc false
   def sanitize_connection(opts) when is_list(opts) do

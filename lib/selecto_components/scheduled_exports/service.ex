@@ -46,6 +46,11 @@ defmodule SelectoComponents.ScheduledExports.Service do
     adapter.due_scheduled_exports(now, Keyword.get(opts, :adapter_opts, []))
   end
 
+  @spec list_runs(module(), String.t(), keyword()) :: [map()]
+  def list_runs(adapter, public_id, opts \\ []) do
+    adapter.list_scheduled_export_runs(public_id, Keyword.get(opts, :adapter_opts, []))
+  end
+
   @spec create_run(module(), map(), atom(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def create_run(adapter, scheduled_export, trigger_type, attrs \\ %{}, opts \\ []) do
     adapter.create_scheduled_export_run(

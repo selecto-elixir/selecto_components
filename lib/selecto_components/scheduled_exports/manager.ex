@@ -16,6 +16,8 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     {:ok,
      assign(socket,
        scheduled_exports: [],
+       scheduled_export_runs: %{},
+       run_results: %{},
        loaded_context: nil,
        form: default_form(),
        editing_public_id: nil
@@ -165,9 +167,48 @@ defmodule SelectoComponents.ScheduledExports.Manager do
                 <div>Public ID: <span class="font-mono">{ScheduledExports.field(scheduled_export, :public_id, "-")}</span></div>
                 <div :if={ScheduledExports.field(scheduled_export, :last_error)} class="text-error">Last error: {ScheduledExports.field(scheduled_export, :last_error)}</div>
               </div>
+
+              <div
+                :if={run_result = Map.get(@run_results, ScheduledExports.field(scheduled_export, :public_id))}
+                class="rounded-lg border px-3 py-2 text-sm"
+                style={run_result_style(run_result)}
+              >
+                <div class="font-medium">{run_result_title(run_result)}</div>
+                <div class="mt-1 text-xs">{run_result_summary(run_result)}</div>
+              </div>
+
+              <div class="space-y-2">
+                <h6 class="text-xs font-semibold uppercase tracking-[0.16em]" style="color: var(--sc-text-muted);">Recent Runs</h6>
+                <div
+                  :if={scheduled_export_runs(@scheduled_export_runs, scheduled_export) == []}
+                  class="text-xs"
+                  style="color: var(--sc-text-muted);"
+                >
+                  No runs recorded yet.
+                </div>
+                <div
+                  :for={run <- scheduled_export_runs(@scheduled_export_runs, scheduled_export)}
+                  class="grid gap-2 rounded-lg border px-3 py-2 text-xs md:grid-cols-[auto_1fr_auto]"
+                  style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);"
+                >
+                  <span class={status_badge_class()} style={status_badge_style(run_status(run))}>{status_label(run_status(run))}</span>
+                  <span>{format_datetime(ScheduledExports.field(run, :finished_at) || ScheduledExports.field(run, :started_at))}</span>
+                  <span>
+                    {run_metric_summary(run)}
+                  </span>
+                  <span
+                    :if={ScheduledExports.field(run, :error_message)}
+                    class="md:col-span-3"
+                    style="color: var(--sc-danger);"
+                  >
+                    {ScheduledExports.field(run, :error_message)}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div class="flex flex-wrap gap-2 xl:max-w-[340px] xl:justify-end">
+              <button type="button" phx-click="run_scheduled_export_now" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_primary) <> " px-3 py-2 text-sm"}>Run Now</button>
               <button type="button" phx-click="edit_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>Edit</button>
               <button type="button" phx-click="toggle_scheduled_export_disabled" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} class={Theme.slot(@theme, :button_secondary) <> " px-3 py-2 text-sm"}>{if schedule_enabled?(scheduled_export), do: "Pause", else: "Enable"}</button>
               <button type="button" phx-click="delete_scheduled_export" phx-value-id={ScheduledExports.field(scheduled_export, :public_id)} phx-target={@myself} data-confirm="Delete this scheduled export?" class={Theme.slot(@theme, :button_danger) <> " px-3 py-2 text-sm"}>Delete</button>
@@ -269,6 +310,35 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     end
   end
 
+  def handle_event("run_scheduled_export_now", %{"id" => public_id}, socket) do
+    with {:ok, scheduled_export} <- fetch_scheduled_export(socket, public_id),
+         {:ok, result} <-
+           Service.run_scheduled_export(
+             adapter(socket),
+             scheduled_export,
+             run_service_opts(socket)
+           ) do
+      {:noreply,
+       socket
+       |> put_flash(:info, run_flash_message(result))
+       |> put_run_result(public_id, result)
+       |> reload_scheduled_exports()}
+    else
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           scheduled_export_error_message(reason,
+             code: :run_scheduled_export_failed,
+             operation: "run_scheduled_export"
+           )
+         )
+         |> put_run_result(public_id, {:error, reason})
+         |> reload_scheduled_exports()}
+    end
+  end
+
   defp maybe_load_scheduled_exports(socket) do
     context = Map.get(socket.assigns, :scheduled_export_context)
 
@@ -300,14 +370,41 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
     assign(socket,
       scheduled_exports: exports,
+      scheduled_export_runs: load_scheduled_export_runs(socket, exports),
       loaded_context: Map.get(socket.assigns, :scheduled_export_context)
     )
   rescue
     _ ->
       assign(socket,
         scheduled_exports: [],
+        scheduled_export_runs: %{},
         loaded_context: Map.get(socket.assigns, :scheduled_export_context)
       )
+  end
+
+  defp load_scheduled_export_runs(socket, exports) do
+    Enum.reduce(exports, %{}, fn scheduled_export, acc ->
+      public_id = ScheduledExports.field(scheduled_export, :public_id)
+      Map.put(acc, public_id, safe_list_runs(socket, public_id))
+    end)
+  end
+
+  defp safe_list_runs(_socket, nil), do: []
+
+  defp safe_list_runs(socket, public_id) do
+    adapter(socket)
+    |> Service.list_runs(public_id, service_opts(socket))
+    |> Enum.sort_by(
+      fn run ->
+        run
+        |> ScheduledExports.field(:started_at, DateTime.utc_now())
+        |> normalize_datetime()
+        |> DateTime.to_unix(:microsecond)
+      end,
+      :desc
+    )
+  rescue
+    _ -> []
   end
 
   defp fetch_scheduled_export(socket, public_id) do
@@ -408,6 +505,21 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     [adapter_opts: adapter_opts(socket)]
   end
 
+  defp run_service_opts(socket) do
+    service_opts(socket)
+    |> Keyword.merge(
+      delivery_adapter: Map.get(socket.assigns, :scheduled_export_delivery_adapter),
+      delivery_opts: [current_user_id: Map.get(socket.assigns, :current_user_id)],
+      trigger_type: :manual_email,
+      capability_resolver: Map.get(socket.assigns, :capability_resolver),
+      actor: Map.get(socket.assigns, :capability_actor),
+      tenant: Map.get(socket.assigns, :capability_tenant),
+      domain: Map.get(socket.assigns, :capability_domain),
+      context: Map.get(socket.assigns, :capability_context, %{})
+    )
+    |> Keyword.merge(Map.get(socket.assigns, :scheduled_export_run_opts, []))
+  end
+
   defp authorize_scheduled_export(socket, operation, target) do
     CapabilityGate.authorize(socket, "selecto.scheduled_exports.manage", operation,
       target: target,
@@ -477,6 +589,52 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     end
   end
 
+  defp scheduled_export_runs(runs_by_public_id, scheduled_export) do
+    Map.get(runs_by_public_id, ScheduledExports.field(scheduled_export, :public_id), [])
+  end
+
+  defp put_run_result(socket, public_id, result) do
+    assign(
+      socket,
+      :run_results,
+      socket.assigns
+      |> Map.get(:run_results, %{})
+      |> Map.put(public_id, result)
+    )
+  end
+
+  defp run_flash_message(%{export: nil}), do: "Scheduled export skipped"
+  defp run_flash_message(_result), do: "Scheduled export run completed"
+
+  defp run_result_title({:error, _reason}), do: "Run failed"
+  defp run_result_title(%{export: nil}), do: "Run skipped"
+  defp run_result_title(_result), do: "Run completed"
+
+  defp run_result_summary({:error, reason}), do: scheduled_export_error_text(reason)
+
+  defp run_result_summary(%{export: nil, run: run}) do
+    ScheduledExports.field(run, :error_message, "No export was delivered.")
+  end
+
+  defp run_result_summary(result) when is_map(result) do
+    [
+      "#{ScheduledExports.field(result, :row_count, 0)} rows",
+      "#{ScheduledExports.field(result, :payload_bytes, 0)} bytes",
+      "#{ScheduledExports.field(result, :execution_time_ms, "-")} ms"
+    ]
+    |> Enum.join(" / ")
+  end
+
+  defp run_result_style({:error, _reason}),
+    do:
+      "border-color: color-mix(in srgb, var(--sc-danger) 30%, var(--sc-surface-border)); background: color-mix(in srgb, var(--sc-danger) 8%, var(--sc-surface-bg)); color: var(--sc-danger);"
+
+  defp run_result_style(%{export: nil}), do: pill_style()
+
+  defp run_result_style(_result),
+    do:
+      "border-color: color-mix(in srgb, var(--sc-accent) 30%, var(--sc-surface-border)); background: color-mix(in srgb, var(--sc-accent) 8%, var(--sc-surface-bg)); color: var(--sc-text-primary);"
+
   defp schedule_summary(scheduled_export) do
     schedule = ScheduledExports.field(scheduled_export, :schedule, %{})
     kind = ScheduledExports.field(schedule, :kind, :daily)
@@ -507,6 +665,24 @@ defmodule SelectoComponents.ScheduledExports.Manager do
     case recipients do
       [] -> "-"
       values -> Enum.join(values, ", ")
+    end
+  end
+
+  defp run_status(run), do: ScheduledExports.field(run, :status, :running)
+
+  defp run_metric_summary(run) do
+    row_count = ScheduledExports.field(run, :row_count)
+    payload_bytes = ScheduledExports.field(run, :payload_bytes)
+
+    cond do
+      is_integer(row_count) and is_integer(payload_bytes) ->
+        "#{row_count} rows / #{payload_bytes} bytes"
+
+      is_integer(row_count) ->
+        "#{row_count} rows"
+
+      true ->
+        "-"
     end
   end
 
@@ -550,7 +726,10 @@ defmodule SelectoComponents.ScheduledExports.Manager do
   defp pill_class, do: "rounded-full px-2.5 py-1 text-xs font-medium"
   defp pill_style, do: "background: var(--sc-surface-bg-alt); color: var(--sc-text-secondary);"
 
-  defp status_label(status), do: status |> Atom.to_string() |> String.capitalize()
+  defp status_label(status) when is_atom(status),
+    do: status |> Atom.to_string() |> String.capitalize()
+
+  defp status_label(status), do: status |> to_string() |> String.capitalize()
 
   defp format_datetime(nil), do: "-"
 
@@ -595,6 +774,8 @@ defmodule SelectoComponents.ScheduledExports.Manager do
 
   defp scheduled_export_error_category({:capability_denied, _message, _details}),
     do: :authorization
+
+  defp scheduled_export_error_category(:disabled), do: :authorization
 
   defp scheduled_export_error_category(_reason), do: :persistence
 end

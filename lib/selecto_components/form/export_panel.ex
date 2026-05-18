@@ -8,10 +8,12 @@ defmodule SelectoComponents.Form.ExportPanel do
   attr(:theme, :map, required: true)
   attr(:id, :any, required: true)
   attr(:use_export_delivery, :boolean, default: false)
+  attr(:export_delivery_module, :any, default: nil)
   attr(:use_scheduled_exports, :boolean, default: false)
   attr(:use_exported_views, :boolean, default: false)
   attr(:scheduled_export_module, :any, default: nil)
   attr(:scheduled_export_context, :any, default: nil)
+  attr(:scheduled_export_run_opts, :list, default: [])
   attr(:exported_view_module, :any, default: nil)
   attr(:exported_view_context, :any, default: nil)
   attr(:exported_view_endpoint, :any, default: nil)
@@ -185,6 +187,8 @@ defmodule SelectoComponents.Form.ExportPanel do
         scheduled_export_context={@scheduled_export_context}
         theme={@theme}
         current_user_id={@current_user_id}
+        scheduled_export_delivery_adapter={@export_delivery_module}
+        scheduled_export_run_opts={@scheduled_export_run_opts}
         capability_resolver={@capability_resolver}
         capability_actor={@capability_actor}
         capability_tenant={@capability_tenant}

@@ -258,10 +258,12 @@ defmodule SelectoComponents.Form do
               theme={@theme}
               id={@id}
               use_export_delivery={@use_export_delivery}
+              export_delivery_module={Map.get(assigns, :export_delivery_module)}
               use_scheduled_exports={@use_scheduled_exports}
               use_exported_views={@use_exported_views}
               scheduled_export_module={Map.get(assigns, :scheduled_export_module)}
               scheduled_export_context={@scheduled_export_context}
+              scheduled_export_run_opts={Map.get(assigns, :scheduled_export_run_opts, [])}
               exported_view_module={Map.get(assigns, :exported_view_module)}
               exported_view_context={@exported_view_context}
               exported_view_endpoint={Map.get(assigns, :exported_view_endpoint)}
