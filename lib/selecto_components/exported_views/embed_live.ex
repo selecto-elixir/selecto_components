@@ -49,12 +49,19 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
       |> assign(:page_title, Keyword.get(opts, :page_title, "Exported View"))
       |> assign(:export_adapter, adapter)
       |> assign(:export_endpoint, endpoint)
+      |> assign(:export_embed_opts, embed_service_opts(opts))
       |> assign(:export_public_id, public_id)
       |> assign(:export_signature, signature)
       |> assign(:export_request_ip, request_ip)
       |> assign(:sort_by, nil)
 
-    case Service.resolve_for_embed(adapter, public_id, signature, request_ip, endpoint: endpoint) do
+    case Service.resolve_for_embed(
+           adapter,
+           public_id,
+           signature,
+           request_ip,
+           Keyword.put(socket.assigns.export_embed_opts, :endpoint, endpoint)
+         ) do
       {:ok, view, render_payload, status} ->
         {:ok, assign_embed(socket, view, render_payload, status)}
 
@@ -189,6 +196,7 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
   defp embed_error_title(:not_found), do: "Export not found"
   defp embed_error_title(:invalid_signature), do: "Signature rejected"
   defp embed_error_title(:forbidden), do: "Access blocked"
+  defp embed_error_title({:capability_denied, _message, _details}), do: "Access blocked"
   defp embed_error_title(:disabled), do: "Export disabled"
   defp embed_error_title(_), do: "Export failed"
 
@@ -197,9 +205,15 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
   defp embed_error_category(reason) when reason in [:invalid_signature, :forbidden],
     do: :authorization
 
+  defp embed_error_category({:capability_denied, _message, _details}), do: :authorization
+
   defp embed_error_category(_), do: :runtime
 
   defp embed_error_code(reason) when is_atom(reason), do: reason
+
+  defp embed_error_code({:capability_denied, _message, details}),
+    do: Map.get(details, "code", :capability_denied)
+
   defp embed_error_code(_), do: :export_embed_failed
 
   defp embed_error_message(:not_found), do: "This exported view no longer exists."
@@ -211,8 +225,24 @@ defmodule SelectoComponents.ExportedViews.EmbedLive do
   defp embed_error_message(:disabled),
     do: "This exported view has been disabled by an administrator."
 
+  defp embed_error_message({:capability_denied, message, _details}), do: message
+
   defp embed_error_message(reason),
     do: "The exported view could not be loaded: #{inspect(reason)}"
+
+  defp embed_service_opts(opts) do
+    opts
+    |> Keyword.take([
+      :adapter_opts,
+      :capability_resolver,
+      :actor,
+      :tenant,
+      :domain,
+      :context,
+      :metadata,
+      :resolver_context
+    ])
+  end
 
   defp format_datetime(nil), do: "-"
 

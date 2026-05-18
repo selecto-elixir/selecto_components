@@ -5,6 +5,7 @@ defmodule SelectoComponents.ExportedViews.Service do
   alias SelectoComponents.ExportedViews.IPAllowlist
   alias SelectoComponents.ExportedViews.Renderer
   alias SelectoComponents.ExportedViews.Token
+  alias SelectoComponents.QueryContract
 
   @type resolve_result ::
           {:ok, map(), map(), :fresh | :stale | :missing}
@@ -64,6 +65,7 @@ defmodule SelectoComponents.ExportedViews.Service do
           resolve_result()
   def resolve_for_embed(adapter, public_id, signature, request_ip, opts \\ []) do
     adapter_opts = Keyword.get(opts, :adapter_opts, [])
+    opts = Keyword.put_new(opts, :request_ip, request_ip)
 
     case adapter.get_exported_view_by_public_id(public_id, adapter_opts) do
       nil ->
@@ -72,7 +74,8 @@ defmodule SelectoComponents.ExportedViews.Service do
       view ->
         with :ok <- ensure_active(view),
              :ok <- Token.verify(view, signature, endpoint: Keyword.fetch!(opts, :endpoint)),
-             true <- IPAllowlist.allowed?(view, request_ip) do
+             true <- IPAllowlist.allowed?(view, request_ip),
+             :ok <- authorize_embed_access(view, opts) do
           do_resolve(adapter, view, opts)
         else
           {:error, :invalid} -> {:error, :invalid_signature}
@@ -162,6 +165,134 @@ defmodule SelectoComponents.ExportedViews.Service do
     if ExportedViews.disabled?(view), do: {:error, :disabled}, else: :ok
   end
 
+  defp authorize_embed_access(view, opts) do
+    case Keyword.get(opts, :capability_resolver) do
+      resolver when is_function(resolver, 1) or is_function(resolver, 2) ->
+        view
+        |> embed_access_request(opts)
+        |> call_capability_resolver(resolver, opts)
+        |> normalize_capability_decision("selecto.exported_views.access", :access)
+
+      _resolver ->
+        :ok
+    end
+  end
+
+  defp embed_access_request(view, opts) do
+    Selecto.Capabilities.request(
+      actor: Keyword.get(opts, :actor),
+      tenant: Keyword.get(opts, :tenant),
+      domain: Keyword.get(opts, :domain),
+      capability: "selecto.exported_views.access",
+      operation: :access,
+      target: %{
+        public_id: ExportedViews.field(view, :public_id),
+        name: ExportedViews.field(view, :name),
+        context: ExportedViews.field(view, :context),
+        path: ExportedViews.field(view, :path),
+        view_type: ExportedViews.field(view, :view_type),
+        cache_status: ExportedViews.cache_status(view)
+      },
+      context:
+        opts
+        |> Keyword.get(:context, %{})
+        |> map_or_empty()
+        |> Map.merge(%{
+          surface: :exported_view_embed,
+          public_id: ExportedViews.field(view, :public_id),
+          request_ip: format_request_ip(Keyword.get(opts, :request_ip))
+        }),
+      metadata:
+        opts
+        |> Keyword.get(:metadata, %{})
+        |> map_or_empty()
+    )
+  end
+
+  defp call_capability_resolver(request, resolver, _opts) when is_function(resolver, 1) do
+    resolver.(request)
+  rescue
+    error -> {:error, error}
+  end
+
+  defp call_capability_resolver(request, resolver, opts) when is_function(resolver, 2) do
+    resolver.(request, Keyword.get(opts, :resolver_context, %{}))
+  rescue
+    error -> {:error, error}
+  end
+
+  defp normalize_capability_decision({:ok, decision}, capability, operation),
+    do: normalize_capability_decision(decision, capability, operation)
+
+  defp normalize_capability_decision({:error, reason}, capability, operation) do
+    capability_denied("Capability check failed.", %{
+      capability: capability,
+      operation: operation,
+      reason: inspect(reason)
+    })
+  end
+
+  defp normalize_capability_decision(
+         %Selecto.Capabilities.Decision{status: :allow},
+         _capability,
+         _operation
+       ),
+       do: :ok
+
+  defp normalize_capability_decision(
+         %Selecto.Capabilities.Decision{} = decision,
+         capability,
+         operation
+       ) do
+    capability_denied(decision.user_message || "Exported view access is not allowed.", %{
+      capability: capability,
+      operation: operation,
+      code: decision.reason_code,
+      status: decision.status,
+      visibility: decision.visibility,
+      audit_reason: decision.audit_reason,
+      metadata: decision.metadata
+    })
+  end
+
+  defp normalize_capability_decision(decision, capability, operation) when is_map(decision) do
+    status = map_value(decision, :status)
+    visibility = map_value(decision, :visibility)
+
+    if status in [:allow, "allow", :enabled, "enabled"] or
+         (is_nil(status) and visibility in [:enabled, "enabled"]) do
+      :ok
+    else
+      capability_denied(
+        map_value(decision, :reason) || map_value(decision, :user_message) ||
+          "Exported view access is not allowed.",
+        %{
+          capability: map_value(decision, :capability, capability),
+          operation: operation,
+          code: map_value(decision, :code) || map_value(decision, :reason_code),
+          status: status,
+          visibility: visibility,
+          reason: map_value(decision, :reason),
+          audit: map_value(decision, :audit),
+          metadata: map_value(decision, :metadata, %{})
+        }
+      )
+    end
+  end
+
+  defp normalize_capability_decision(false, capability, operation) do
+    capability_denied("Exported view access is not allowed.", %{
+      capability: capability,
+      operation: operation
+    })
+  end
+
+  defp normalize_capability_decision(_decision, _capability, _operation), do: :ok
+
+  defp capability_denied(message, details) do
+    {:error, {:capability_denied, message, QueryContract.json_safe(details)}}
+  end
+
   defp cache_attrs(view, render_payload, stats) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -179,4 +310,21 @@ defmodule SelectoComponents.ExportedViews.Service do
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(%_{} = reason), do: Exception.message(reason)
   defp error_message(reason), do: inspect(reason)
+
+  defp format_request_ip(nil), do: nil
+
+  defp format_request_ip(address) when is_tuple(address),
+    do: address |> :inet.ntoa() |> to_string()
+
+  defp format_request_ip(address), do: to_string(address)
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map),
+    do: Map.get(map, key, Map.get(map, to_string(key), default))
+
+  defp map_value(_map, _key, default), do: default
+
+  defp map_or_empty(value) when is_map(value), do: value
+  defp map_or_empty(_value), do: %{}
 end

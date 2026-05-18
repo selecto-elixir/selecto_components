@@ -61,19 +61,6 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
   end
 
   test "resolve_for_embed serves fresh cached payloads" do
-    render_payload = %{
-      selecto: %{},
-      views: [],
-      query_results: {[], [], []},
-      view_meta: %{},
-      applied_view: "detail",
-      executed: true,
-      execution_error: nil,
-      last_query_info: %{},
-      params: %{"view_mode" => "detail"},
-      used_params: %{"view_mode" => "detail"}
-    }
-
     {:ok, view} =
       Adapter.create_exported_view(
         %{
@@ -83,7 +70,7 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
           signature_version: 1,
           cache_ttl_hours: 3,
           snapshot_blob: ExportedViews.encode_term(%{params: %{"view_mode" => "detail"}}),
-          cache_blob: ExportedViews.encode_term(render_payload),
+          cache_blob: ExportedViews.encode_term(render_payload()),
           cache_generated_at: ~U[2026-03-16 08:00:00Z],
           cache_expires_at: DateTime.add(DateTime.utc_now(), 3_600, :second),
           access_count: 0,
@@ -101,6 +88,55 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
 
     assert payload.applied_view == "detail"
     assert ExportedViews.field(updated_view, :access_count) == 1
+  end
+
+  test "resolve_for_embed stops before cache access when capability denies access" do
+    {:ok, view} =
+      Adapter.create_exported_view(
+        %{
+          public_id: "pub_denied",
+          name: "Denied export",
+          context: "/orders",
+          path: "/orders",
+          view_type: "detail",
+          signature_version: 1,
+          cache_ttl_hours: 3,
+          snapshot_blob: ExportedViews.encode_term(%{params: %{"view_mode" => "detail"}}),
+          cache_blob: ExportedViews.encode_term(render_payload()),
+          cache_generated_at: ~U[2026-03-16 08:00:00Z],
+          cache_expires_at: DateTime.add(DateTime.utc_now(), 3_600, :second),
+          access_count: 0,
+          ip_allowlist_text: nil
+        },
+        []
+      )
+
+    token = Token.sign(view, endpoint: TestEndpoint)
+
+    assert {:error, {:capability_denied, "Published view access is disabled.", details}} =
+             Service.resolve_for_embed(Adapter, "pub_denied", token, {127, 0, 0, 1},
+               endpoint: TestEndpoint,
+               capability_resolver: fn request ->
+                 send(self(), {:capability_request, request})
+
+                 Selecto.Capabilities.deny(:published_view_disabled,
+                   user_message: "Published view access is disabled."
+                 )
+               end
+             )
+
+    assert_receive {:capability_request, request}
+    assert request.capability == "selecto.exported_views.access"
+    assert request.operation == :access
+    assert request.target.public_id == "pub_denied"
+    assert request.context.request_ip == "127.0.0.1"
+    assert details["code"] == "published_view_disabled"
+
+    assert ExportedViews.field(
+             Adapter.get_exported_view_by_public_id("pub_denied", []),
+             :access_count
+           ) ==
+             0
   end
 
   test "resolve_for_embed rejects disallowed IPs" do
@@ -147,5 +183,20 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
 
     assert {:ok, updated_view} = Service.rotate_signature(Adapter, view)
     assert ExportedViews.field(updated_view, :signature_version) == 2
+  end
+
+  defp render_payload do
+    %{
+      selecto: %{},
+      views: [],
+      query_results: {[], [], []},
+      view_meta: %{},
+      applied_view: "detail",
+      executed: true,
+      execution_error: nil,
+      last_query_info: %{},
+      params: %{"view_mode" => "detail"},
+      used_params: %{"view_mode" => "detail"}
+    }
   end
 end
