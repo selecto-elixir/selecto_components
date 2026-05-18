@@ -4,6 +4,7 @@ defmodule SelectoComponents.ScheduledExports.Service do
   alias SelectoComponents.ExportSnapshots
   alias SelectoComponents.Exporter
   alias SelectoComponents.ExportedViews.Renderer
+  alias SelectoComponents.QueryContract
   alias SelectoComponents.ScheduledExports
 
   @default_max_attachment_bytes 6_000_000
@@ -156,6 +157,7 @@ defmodule SelectoComponents.ScheduledExports.Service do
 
   defp do_run_scheduled_export(scheduled_export, opts) do
     with :ok <- ensure_active(scheduled_export),
+         :ok <- authorize_scheduled_export_run(scheduled_export, opts),
          {:ok, delivery_adapter} <- fetch_delivery_adapter(opts),
          {:ok, snapshot} <-
            ExportSnapshots.decode_term(ScheduledExports.field(scheduled_export, :snapshot_blob)),
@@ -190,9 +192,128 @@ defmodule SelectoComponents.ScheduledExports.Service do
        }}
     else
       {:error, :disabled} -> {:skip, :disabled}
+      {:error, {:capability_denied, _message, _details} = reason} -> {:skip, reason}
       {:error, reason} -> {:error, reason}
       other -> {:error, other}
     end
+  end
+
+  defp authorize_scheduled_export_run(scheduled_export, opts) do
+    case Keyword.get(opts, :capability_resolver) do
+      resolver when is_function(resolver, 1) or is_function(resolver, 2) ->
+        scheduled_export
+        |> scheduled_export_run_request(opts)
+        |> call_capability_resolver(resolver, opts)
+        |> normalize_capability_decision("selecto.scheduled_exports.run")
+
+      _resolver ->
+        :ok
+    end
+  end
+
+  defp scheduled_export_run_request(scheduled_export, opts) do
+    capability = "selecto.scheduled_exports.run"
+
+    Selecto.Capabilities.request(
+      actor: Keyword.get(opts, :actor),
+      tenant: Keyword.get(opts, :tenant),
+      domain: Keyword.get(opts, :domain),
+      capability: capability,
+      operation: :run,
+      target: %{
+        capability: capability,
+        public_id: ScheduledExports.field(scheduled_export, :public_id),
+        context: ScheduledExports.field(scheduled_export, :context),
+        format: ScheduledExports.field(scheduled_export, :export_format, "csv"),
+        path: ScheduledExports.field(scheduled_export, :path),
+        name: ScheduledExports.field(scheduled_export, :name)
+      },
+      context:
+        opts
+        |> Keyword.get(:context, %{})
+        |> map_or_empty()
+        |> Map.merge(%{
+          surface: :scheduled_exports_service,
+          trigger_type: Keyword.get(opts, :trigger_type, :scheduled)
+        }),
+      metadata:
+        opts
+        |> Keyword.get(:metadata, %{})
+        |> map_or_empty()
+    )
+  end
+
+  defp call_capability_resolver(request, resolver, _opts) when is_function(resolver, 1),
+    do: resolver.(request)
+
+  defp call_capability_resolver(request, resolver, opts) when is_function(resolver, 2),
+    do: resolver.(request, Keyword.get(opts, :resolver_context, %{}))
+
+  defp normalize_capability_decision({:ok, decision}, capability),
+    do: normalize_capability_decision(decision, capability)
+
+  defp normalize_capability_decision({:error, reason}, capability) do
+    capability_denied("Capability check failed.", %{
+      capability: capability,
+      operation: :run,
+      reason: inspect(reason)
+    })
+  end
+
+  defp normalize_capability_decision(
+         %Selecto.Capabilities.Decision{status: :allow},
+         _capability
+       ),
+       do: :ok
+
+  defp normalize_capability_decision(%Selecto.Capabilities.Decision{} = decision, capability) do
+    capability_denied(decision.user_message || "Scheduled export run is not allowed.", %{
+      capability: capability,
+      operation: :run,
+      code: decision.reason_code,
+      status: decision.status,
+      visibility: decision.visibility,
+      audit_reason: decision.audit_reason,
+      metadata: decision.metadata
+    })
+  end
+
+  defp normalize_capability_decision(decision, capability) when is_map(decision) do
+    status = map_value(decision, :status)
+    visibility = map_value(decision, :visibility)
+
+    if status in [:allow, "allow", :enabled, "enabled"] or
+         (is_nil(status) and visibility in [:enabled, "enabled"]) do
+      :ok
+    else
+      capability_denied(
+        map_value(decision, :reason) || map_value(decision, :user_message) ||
+          "Scheduled export run is not allowed.",
+        %{
+          capability: map_value(decision, :capability, capability),
+          operation: :run,
+          code: map_value(decision, :code) || map_value(decision, :reason_code),
+          status: status,
+          visibility: visibility,
+          reason: map_value(decision, :reason),
+          audit: map_value(decision, :audit),
+          metadata: map_value(decision, :metadata, %{})
+        }
+      )
+    end
+  end
+
+  defp normalize_capability_decision(false, capability) do
+    capability_denied("Scheduled export run is not allowed.", %{
+      capability: capability,
+      operation: :run
+    })
+  end
+
+  defp normalize_capability_decision(_decision, _capability), do: :ok
+
+  defp capability_denied(message, details) do
+    {:error, {:capability_denied, message, QueryContract.json_safe(map_or_empty(details))}}
   end
 
   defp finish_run_success(adapter, scheduled_export, run, result, opts) do
@@ -392,4 +513,14 @@ defmodule SelectoComponents.ScheduledExports.Service do
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(%_{} = reason), do: Exception.message(reason)
   defp error_message(reason), do: inspect(reason)
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map),
+    do: Map.get(map, key, Map.get(map, to_string(key), default))
+
+  defp map_value(_map, _key, default), do: default
+
+  defp map_or_empty(value) when is_map(value), do: value
+  defp map_or_empty(_value), do: %{}
 end

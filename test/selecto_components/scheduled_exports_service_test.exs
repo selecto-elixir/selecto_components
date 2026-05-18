@@ -336,4 +336,70 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
     assert run.status == :failed
     assert run.error_message == ":query_failed"
   end
+
+  test "run_scheduled_export skips before rendering when capability is denied" do
+    assigns = %{
+      selecto: %{domain: %{name: "orders"}, postgrex_opts: [], adapter: Selecto.DB.PostgreSQL},
+      view_config: %{view_mode: "detail", filters: [], views: %{detail: %{selected: []}}},
+      views: [{:detail, SelectoComponents.Views.Detail, "Detail", %{}}],
+      path: "/orders",
+      scheduled_export_context: "tenant:1:/orders",
+      current_user_id: "9",
+      tenant_context: %{tenant_id: 1}
+    }
+
+    {:ok, scheduled_export} =
+      Service.create(Adapter, assigns, %{
+        "name" => "Denied Orders",
+        "export_format" => "csv",
+        "recipients" => ["ops@example.com"],
+        "schedule" => %{
+          "enabled" => true,
+          "kind" => "daily",
+          "time" => "06:00",
+          "timezone" => "Etc/UTC"
+        }
+      })
+
+    assert {:ok, result} =
+             Service.run_scheduled_export(Adapter, scheduled_export,
+               actor: %{role: :analyst},
+               tenant: "tenant-1",
+               domain: :orders,
+               delivery_adapter: DeliveryAdapter,
+               snapshot_runner: SnapshotRunner,
+               delivery_opts: [notify: self()],
+               capability_resolver: fn request ->
+                 send(self(), {:capability_request, request})
+
+                 Selecto.Capabilities.deny(:manager_required,
+                   user_message: "Managers must approve scheduled export runs."
+                 )
+               end
+             )
+
+    assert_receive {:capability_request, request}
+    assert request.capability == "selecto.scheduled_exports.run"
+    assert request.operation == :run
+    assert request.actor == %{role: :analyst}
+    assert request.tenant == "tenant-1"
+    assert request.domain == :orders
+    assert request.target.public_id == scheduled_export.public_id
+    assert request.target.format == "csv"
+
+    refute_receive {:render_snapshot, _snapshot}
+    refute_receive {:deliver_email, _export_payload, _delivery_config}
+
+    assert result.export == nil
+    assert result.delivery == nil
+    assert result.payload_bytes == 0
+    assert result.row_count == 0
+    assert result.run.status == :skipped
+    assert result.run.error_message =~ "Managers must approve scheduled export runs."
+
+    updated_export = Adapter.get_scheduled_export_by_public_id(scheduled_export.public_id, [])
+    assert updated_export.last_status == :skipped
+    assert updated_export.last_error =~ "Managers must approve scheduled export runs."
+    assert is_nil(updated_export.next_run_at)
+  end
 end
