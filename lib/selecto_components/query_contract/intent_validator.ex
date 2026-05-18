@@ -35,7 +35,8 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
           validate_mode_intent(view_mode, intent, indexes)
         else
           []
-        end
+        end ++
+        validate_output_intent(intent, indexes)
 
     %{valid?: errors == [], errors: errors, warnings: []}
   end
@@ -67,7 +68,13 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
     %{
       fields: Map.new(fields, &{string_id(map_get(&1, :id)), &1}),
-      filters: Map.new(filters, &{string_id(map_get(&1, :id)), &1})
+      filters: Map.new(filters, &{string_id(map_get(&1, :id)), &1}),
+      published_views:
+        contract
+        |> map_get(:published_views, [])
+        |> list_or_empty()
+        |> Map.new(&{string_id(map_get(&1, :id)), &1}),
+      context: contract |> map_get(:context, %{}) |> map_or_empty()
     }
   end
 
@@ -312,6 +319,106 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     maybe_invalid_list(errors, intent, base_path, [:order_by, :sort])
   end
 
+  defp validate_output_intent(intent, indexes) do
+    validate_export_intent(intent, indexes) ++
+      validate_published_view_intent(intent, indexes) ++
+      validate_exported_view_intent(intent, indexes) ++
+      validate_scheduled_export_intent(intent, indexes)
+  end
+
+  defp validate_export_intent(intent, indexes) do
+    case export_format(intent) do
+      nil ->
+        []
+
+      format ->
+        allowed_formats =
+          indexes.context
+          |> map_get(:exports, [])
+          |> list_or_empty()
+          |> Enum.map(&string_id/1)
+
+        if format in allowed_formats do
+          []
+        else
+          [
+            error(
+              :invalid_export_format,
+              "export.format",
+              "export format is not exposed by this contract",
+              value: format,
+              allowed: allowed_formats
+            )
+          ]
+        end
+    end
+  end
+
+  defp validate_published_view_intent(intent, indexes) do
+    case published_view_id(intent) do
+      nil ->
+        []
+
+      published_view_id ->
+        case Map.fetch(indexes.published_views, published_view_id) do
+          {:ok, published_view} ->
+            if map_get(published_view, :disabled, false) do
+              [
+                error(
+                  :published_view_disabled,
+                  "published_view",
+                  "published view is disabled by capability policy",
+                  value: published_view_id
+                )
+              ]
+            else
+              []
+            end
+
+          :error ->
+            [
+              error(
+                :invalid_published_view,
+                "published_view",
+                "published view is not exposed by this contract",
+                value: published_view_id,
+                allowed: Map.keys(indexes.published_views)
+              )
+            ]
+        end
+    end
+  end
+
+  defp validate_exported_view_intent(intent, indexes) do
+    if truthy?(map_get(intent, :exported_view, false)) and
+         not truthy?(map_get(indexes.context, :exported_views_enabled, false)) do
+      [
+        error(
+          :exported_views_disabled,
+          "exported_view",
+          "exported views are not enabled by this contract"
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp validate_scheduled_export_intent(intent, indexes) do
+    if truthy?(map_get(intent, :scheduled_export, false)) and
+         not truthy?(map_get(indexes.context, :scheduled_exports_enabled, false)) do
+      [
+        error(
+          :scheduled_exports_disabled,
+          "scheduled_export",
+          "scheduled exports are not enabled by this contract"
+        )
+      ]
+    else
+      []
+    end
+  end
+
   defp validate_field_capability(indexes, field_id, capability, capability_error, path) do
     case Map.fetch(indexes.fields, string_id(field_id)) do
       {:ok, field} ->
@@ -480,6 +587,24 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
   defp aggregate_function_id({_field, function}), do: function
   defp aggregate_function_id(_metric), do: nil
 
+  defp export_format(intent) do
+    case map_get(intent, :export) do
+      %{} = export -> map_get(export, :format)
+      value when is_binary(value) or is_atom(value) -> value
+      _other -> map_get(intent, :export_format)
+    end
+    |> string_id()
+  end
+
+  defp published_view_id(intent) do
+    case map_get(intent, :published_view) do
+      %{} = published_view -> map_get(published_view, :id)
+      value when is_binary(value) or is_atom(value) -> value
+      _other -> map_get(intent, :published_view_id)
+    end
+    |> string_id()
+  end
+
   defp sort_direction(order) when is_map(order) do
     order
     |> then(fn order ->
@@ -531,6 +656,9 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
   defp map_get(_map, _key, default), do: default
 
+  defp map_or_empty(value) when is_map(value), do: value
+  defp map_or_empty(_value), do: %{}
+
   defp existing_atom(value) do
     String.to_existing_atom(value)
   rescue
@@ -542,4 +670,7 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
   defp string_id(nil), do: nil
   defp string_id(value), do: to_string(value)
+
+  defp truthy?(value) when value in [true, "true", 1, "1"], do: true
+  defp truthy?(_value), do: false
 end

@@ -445,6 +445,76 @@ defmodule SelectoComponents.QueryContractTest do
 
       assert [%{code: :invalid_view_mode, path: "view_mode"}] = invalid.errors
     end
+
+    test "validates requested export and share surfaces against contract policy" do
+      document =
+        query_contract_document()
+        |> put_in(["context", "exports"], ["csv"])
+        |> put_in(["context", "exported_views_enabled"], false)
+        |> put_in(["context", "scheduled_exports_enabled"], false)
+        |> update_in(["published_views"], fn published_views ->
+          Enum.map(published_views, fn
+            %{"id" => "order_summary"} = published_view ->
+              published_view
+              |> Map.put("disabled", true)
+              |> Map.put("capability_decision", %{"status" => "disabled"})
+
+            published_view ->
+              published_view
+          end)
+        end)
+
+      validation =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "export" => %{"format" => "xlsx"},
+          "published_view" => "order_summary",
+          "exported_view" => true,
+          "scheduled_export" => true
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_export_format, path: "export.format"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :published_view_disabled, path: "published_view"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :exported_views_disabled, path: "exported_view"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :scheduled_exports_disabled, path: "scheduled_export"}, &1)
+             )
+    end
+
+    test "accepts requested enabled export and published view surfaces" do
+      document =
+        query_contract_document()
+        |> put_in(["context", "exports"], ["csv", "xlsx"])
+        |> put_in(["context", "exported_views_enabled"], true)
+        |> put_in(["context", "scheduled_exports_enabled"], true)
+
+      validation =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "export_format" => "xlsx",
+          "published_view_id" => "order_summary",
+          "exported_view" => true,
+          "scheduled_export" => true
+        })
+
+      assert validation[:valid?]
+      assert validation.errors == []
+    end
   end
 
   defp domain do
