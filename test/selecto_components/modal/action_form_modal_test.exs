@@ -471,6 +471,7 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
             "preview" => %{"action" => "bulk_archive"},
             "result" => %{
               "mode" => "execute",
+              "target" => %{"table" => "work_items", "ids" => [1541, 1542, 1543]},
               "record" => [
                 %{"id" => 1541, "state" => "archived"},
                 %{"id" => 1542, "state" => "archived"},
@@ -483,8 +484,41 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
 
     assert html =~ ~s(data-selecto-action-form-result-summary-item="records")
     assert html =~ "3 records"
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="target_ids")
+    assert html =~ "[1541,1542,1543]"
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="affected")
+    assert html =~ ">3<"
     refute html =~ ~s(data-selecto-action-form-result-summary-item="record")
     refute html =~ ~s(data-selecto-action-form-result-details)
+  end
+
+  test "render summarizes bulk preview target and would-update counts" do
+    html =
+      render_component(ActionFormModal, %{
+        id: "action-form",
+        action: action(),
+        target: %{"ids" => ["1541", "1542"]},
+        record: %{},
+        last_result: %{
+          "intent" => "preview",
+          "payload" => %{
+            "action" => "bulk_archive",
+            "target" => %{"ids" => [1541, 1542]},
+            "result" => %{
+              "mode" => "dry_run",
+              "would_update" => [
+                %{"id" => 1541, "state" => "archived"},
+                %{"id" => 1542, "state" => "archived"}
+              ]
+            }
+          }
+        }
+      })
+
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="target_ids")
+    assert html =~ "[1541,1542]"
+    assert html =~ ~s(data-selecto-action-form-result-summary-item="affected")
+    assert html =~ ">2<"
   end
 
   test "render summarizes variant and collection action results" do

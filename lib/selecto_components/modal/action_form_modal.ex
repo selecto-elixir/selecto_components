@@ -742,6 +742,14 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         "Action",
         first_present([map_value(payload, "action"), get_in(payload, ["preview", "action"])])
       ),
+      target_summary_item(
+        first_present([
+          map_value(payload, "target"),
+          get_in(payload, ["result", "target"]),
+          get_in(payload, ["preview", "target"])
+        ])
+      ),
+      affected_summary_item(payload),
       summary_item(
         "mode",
         "Mode",
@@ -787,6 +795,41 @@ defmodule SelectoComponents.Modal.ActionFormModal do
   end
 
   defp collection_summary_item(_collection_results), do: nil
+
+  defp target_summary_item(nil), do: nil
+
+  defp target_summary_item(target) when is_map(target) do
+    cond do
+      ids = map_value(target, "ids") ->
+        summary_item("target_ids", "Target IDs", ids)
+
+      id = map_value(target, "id") ->
+        summary_item("target_id", "Target ID", id)
+
+      true ->
+        nil
+    end
+  end
+
+  defp target_summary_item(_target), do: nil
+
+  defp affected_summary_item(payload) do
+    affected_count =
+      first_present([
+        get_in(payload, ["result", "affected_count"]),
+        map_value(payload, "affected_count"),
+        count_records(get_in(payload, ["result", "record"])),
+        count_records(map_value(payload, "record")),
+        count_records(get_in(payload, ["result", "would_update"])),
+        count_records(map_value(payload, "would_update"))
+      ])
+
+    summary_item("affected", "Affected", affected_count)
+  end
+
+  defp count_records(records) when is_list(records), do: length(records)
+  defp count_records(record) when is_map(record), do: 1
+  defp count_records(_records), do: nil
 
   defp reload_summary(result) do
     case map_value(result, "reload") do
