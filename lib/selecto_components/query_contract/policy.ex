@@ -49,9 +49,24 @@ defmodule SelectoComponents.QueryContract.Policy do
 
       decisions = field_decisions ++ filter_decisions
 
+      {published_views, published_view_decisions} =
+        contract
+        |> map_value(:published_views, [])
+        |> list_or_empty()
+        |> project_entries(:published_view, opts)
+
+      {context, context_decisions} =
+        contract
+        |> map_value(:context, %{})
+        |> project_context(opts)
+
+      decisions = decisions ++ published_view_decisions ++ context_decisions
+
       contract
       |> Map.put(:fields, fields)
       |> Map.put(:filters, filters)
+      |> Map.put(:published_views, published_views)
+      |> Map.put(:context, context)
       |> prune_field_choice_bindings(hidden_field_ids)
       |> prune_defaults(hidden_field_ids, hidden_filter_ids)
       |> put_policy_summary(decisions, opts)
@@ -135,6 +150,7 @@ defmodule SelectoComponents.QueryContract.Policy do
   end
 
   defp operation_for(:filter, _entry), do: :query_filter
+  defp operation_for(:published_view, _entry), do: :published_view
 
   defp target_for(entry, kind) do
     %{
@@ -143,6 +159,131 @@ defmodule SelectoComponents.QueryContract.Policy do
       field: entry |> map_value(:field) |> normalize_optional_id(),
       capability: entry |> map_value(:capability) |> normalize_optional_id()
     }
+  end
+
+  defp project_context(context, opts) do
+    context = map_or_empty(context)
+
+    {exports, export_decisions} =
+      context
+      |> map_value(:exports, [])
+      |> list_or_empty()
+      |> project_export_formats(opts)
+
+    {context, exported_view_decisions} =
+      project_context_toggle(
+        Map.put(context, context_key(context, :exports), exports),
+        :exported_views_enabled,
+        "selecto.exported_views.manage",
+        :create,
+        opts
+      )
+
+    {context, scheduled_export_decisions} =
+      project_context_toggle(
+        context,
+        :scheduled_exports_enabled,
+        "selecto.scheduled_exports.manage",
+        :create,
+        opts
+      )
+
+    {context, export_decisions ++ exported_view_decisions ++ scheduled_export_decisions}
+  end
+
+  defp project_export_formats(formats, opts) do
+    Enum.reduce(formats, {[], []}, fn format, {projected, decisions} ->
+      format_id = normalize_id(format)
+
+      decision =
+        context_decision("selecto.exports.download", :export, %{format: format_id}, opts)
+
+      decision_entry =
+        context_decision_entry("exports", format_id, "selecto.exports.download", decision)
+
+      case map_value(decision_entry, :status) do
+        status when status in ["hidden", "disabled"] ->
+          {projected, [decision_entry | decisions]}
+
+        _enabled ->
+          {[format | projected], [decision_entry | decisions]}
+      end
+    end)
+    |> then(fn {projected, decisions} -> {Enum.reverse(projected), Enum.reverse(decisions)} end)
+  end
+
+  defp project_context_toggle(context, key, capability, operation, opts) do
+    if truthy?(map_value(context, key, false)) do
+      decision = context_decision(capability, operation, %{feature: normalize_id(key)}, opts)
+      decision_entry = context_decision_entry("context", normalize_id(key), capability, decision)
+
+      case map_value(decision_entry, :status) do
+        status when status in ["hidden", "disabled"] ->
+          {Map.put(context, context_key(context, key), false), [decision_entry]}
+
+        _enabled ->
+          {context, [decision_entry]}
+      end
+    else
+      {context, []}
+    end
+  end
+
+  defp context_decision(capability, operation, target, opts) do
+    request =
+      Selecto.Capabilities.request(
+        actor: Keyword.get(opts, :actor),
+        tenant: Keyword.get(opts, :tenant),
+        domain: Keyword.get(opts, :domain),
+        capability: capability,
+        operation: operation,
+        target: Map.put(target, :capability, capability),
+        context:
+          opts
+          |> Keyword.get(:context, %{})
+          |> map_or_empty()
+          |> Map.merge(%{
+            surface: Keyword.get(opts, :surface, :query_contract),
+            kind: :context,
+            id: Map.get(target, :format) || Map.get(target, :feature)
+          }),
+        metadata:
+          opts
+          |> Keyword.get(:metadata, %{})
+          |> map_or_empty()
+      )
+
+    case Keyword.get(opts, :capability_resolver) do
+      resolver when is_function(resolver, 1) ->
+        resolver.(request)
+
+      resolver when is_function(resolver, 2) ->
+        resolver.(request, Keyword.get(opts, :resolver_context, %{}))
+    end
+    |> unwrap_decision()
+    |> normalize_decision()
+  end
+
+  defp context_decision_entry(kind, id, capability, decision) do
+    %{
+      "kind" => kind,
+      "id" => id,
+      "capability" => capability,
+      "status" => map_value(decision, :status, "enabled"),
+      "reason" => map_value(decision, :reason),
+      "code" => map_value(decision, :code)
+    }
+    |> compact_map()
+  end
+
+  defp context_key(context, key) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(context, key) -> key
+      Map.has_key?(context, string_key) -> string_key
+      true -> key
+    end
   end
 
   defp unwrap_decision({:ok, decision}), do: decision
@@ -228,6 +369,12 @@ defmodule SelectoComponents.QueryContract.Policy do
     |> put_decision(decision_entry)
     |> put_entry_value(:disabled, true)
     |> put_entry_value(:comparators, [])
+  end
+
+  defp disable_entry(entry, :published_view, decision_entry) do
+    entry
+    |> put_decision(decision_entry)
+    |> put_entry_value(:disabled, true)
   end
 
   defp put_entry_value(entry, key, value) when is_atom(key) do

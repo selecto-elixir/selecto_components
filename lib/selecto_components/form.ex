@@ -267,6 +267,11 @@ defmodule SelectoComponents.Form do
               exported_view_endpoint={Map.get(assigns, :exported_view_endpoint)}
               exported_view_base_url={Map.get(assigns, :exported_view_base_url)}
               current_user_id={Map.get(assigns, :current_user_id)}
+              capability_resolver={Map.get(assigns, :capability_resolver)}
+              capability_actor={Map.get(assigns, :capability_actor)}
+              capability_tenant={Map.get(assigns, :capability_tenant)}
+              capability_domain={Map.get(assigns, :capability_domain)}
+              capability_context={Map.get(assigns, :capability_context, %{})}
               selecto={@selecto}
               views={@views}
               view_config={@view_config}

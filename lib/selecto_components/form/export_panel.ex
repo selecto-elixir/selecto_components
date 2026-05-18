@@ -17,6 +17,11 @@ defmodule SelectoComponents.Form.ExportPanel do
   attr(:exported_view_endpoint, :any, default: nil)
   attr(:exported_view_base_url, :any, default: nil)
   attr(:current_user_id, :any, default: nil)
+  attr(:capability_resolver, :any, default: nil)
+  attr(:capability_actor, :any, default: nil)
+  attr(:capability_tenant, :any, default: nil)
+  attr(:capability_domain, :any, default: nil)
+  attr(:capability_context, :map, default: %{})
   attr(:selecto, :any, required: true)
   attr(:views, :list, required: true)
   attr(:view_config, :map, required: true)
@@ -180,6 +185,11 @@ defmodule SelectoComponents.Form.ExportPanel do
         scheduled_export_context={@scheduled_export_context}
         theme={@theme}
         current_user_id={@current_user_id}
+        capability_resolver={@capability_resolver}
+        capability_actor={@capability_actor}
+        capability_tenant={@capability_tenant}
+        capability_domain={@capability_domain}
+        capability_context={@capability_context}
         selecto={@selecto}
         views={@views}
         view_config={@view_config}
@@ -197,6 +207,11 @@ defmodule SelectoComponents.Form.ExportPanel do
         exported_view_base_url={@exported_view_base_url}
         theme={@theme}
         current_user_id={@current_user_id}
+        capability_resolver={@capability_resolver}
+        capability_actor={@capability_actor}
+        capability_tenant={@capability_tenant}
+        capability_domain={@capability_domain}
+        capability_context={@capability_context}
         selecto={@selecto}
         views={@views}
         view_config={@view_config}

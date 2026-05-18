@@ -20,6 +20,7 @@ defmodule SelectoComponents.QueryContract do
     exports: [],
     saved_views_enabled: false,
     exported_views_enabled: false,
+    scheduled_exports_enabled: false,
     ai_actions_enabled: false
   }
   @default_params_schema %{
@@ -259,6 +260,7 @@ defmodule SelectoComponents.QueryContract do
         :exports,
         :saved_views_enabled,
         :exported_views_enabled,
+        :scheduled_exports_enabled,
         :ai_actions_enabled
       ],
       context,

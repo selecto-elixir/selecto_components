@@ -96,7 +96,8 @@ defmodule SelectoComponents.QueryContract.Guide do
       "- Default view mode: #{inline_code(Map.get(context, "default_view_mode"))}",
       "- Exports: #{inline_list(Map.get(context, "exports", []))}",
       "- Saved views enabled: #{Map.get(context, "saved_views_enabled", false)}",
-      "- Exported views enabled: #{Map.get(context, "exported_views_enabled", false)}"
+      "- Exported views enabled: #{Map.get(context, "exported_views_enabled", false)}",
+      "- Scheduled exports enabled: #{Map.get(context, "scheduled_exports_enabled", false)}"
     ]
     |> Enum.join("\n")
   end

@@ -101,6 +101,101 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
+  test "projects published views through capability policy" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [],
+          filters: [],
+          published_views: [
+            %{id: "public_rollup", kind: :view},
+            %{id: "manager_rollup", kind: :view, capability: "items.analytics"}
+          ],
+          context: %{}
+        },
+        capability_resolver: fn request ->
+          assert request.operation == :published_view
+          assert request.target.kind == :published_view
+
+          Selecto.Capabilities.deny(:manager_required,
+            user_message: "Managers only."
+          )
+        end
+      )
+
+    assert Enum.find(projected.published_views, &(&1.id == "public_rollup"))
+
+    assert %{
+             disabled: true,
+             capability_decision: %{
+               "status" => "disabled",
+               "code" => :manager_required,
+               "reason" => "Managers only."
+             }
+           } = Enum.find(projected.published_views, &(&1.id == "manager_rollup"))
+
+    assert projected.capability_policy.counts == %{
+             "enabled" => 0,
+             "disabled" => 1,
+             "hidden" => 0
+           }
+  end
+
+  test "removes denied exports and disables denied share surfaces from context" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [],
+          filters: [],
+          published_views: [],
+          context: %{
+            exports: [:csv, :xlsx],
+            exported_views_enabled: true,
+            scheduled_exports_enabled: true
+          }
+        },
+        capability_resolver: fn request ->
+          case {request.capability, request.target} do
+            {"selecto.exports.download", %{format: "xlsx"}} ->
+              Selecto.Capabilities.deny(:format_blocked,
+                user_message: "XLSX exports are disabled."
+              )
+
+            {"selecto.scheduled_exports.manage", _target} ->
+              Selecto.Capabilities.deny(:schedule_blocked,
+                user_message: "Schedules are disabled."
+              )
+
+            _allowed ->
+              Selecto.Capabilities.allow()
+          end
+        end
+      )
+
+    assert projected.context.exports == [:csv]
+    assert projected.context.exported_views_enabled == true
+    assert projected.context.scheduled_exports_enabled == false
+
+    assert Enum.any?(
+             projected.capability_policy.decisions,
+             &match?(
+               %{
+                 "kind" => "exports",
+                 "id" => "xlsx",
+                 "capability" => "selecto.exports.download",
+                 "status" => "disabled"
+               },
+               &1
+             )
+           )
+
+    assert projected.capability_policy.counts == %{
+             "enabled" => 2,
+             "disabled" => 2,
+             "hidden" => 0
+           }
+  end
+
   defp field(contract, id),
     do: Enum.find(contract.fields, &(Map.get(&1, :id, Map.get(&1, "id")) == id))
 
