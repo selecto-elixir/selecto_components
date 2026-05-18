@@ -77,6 +77,28 @@ defmodule SelectoComponents.ScheduledExportsTest do
     refute Keyword.has_key?(snapshot.postgrex_opts, :password)
   end
 
+  test "build_create_attrs generates a public id when create payload sends a blank id" do
+    assigns = %{
+      selecto: %{domain: %{name: "orders"}, postgrex_opts: [], adapter: Selecto.DB.PostgreSQL},
+      view_config: %{view_mode: "detail", filters: [], views: %{detail: %{selected: []}}},
+      views: [{:detail, SelectoComponents.Views.Detail, "Detail", %{}}],
+      path: "/orders",
+      scheduled_export_context: "tenant:1:/orders",
+      current_user_id: "7"
+    }
+
+    attrs =
+      ScheduledExports.build_create_attrs(assigns, %{
+        "public_id" => "",
+        "name" => "Weekly Orders",
+        "recipients" => "ops@example.com",
+        "schedule" => %{"enabled" => "true", "kind" => "daily"}
+      })
+
+    assert is_binary(attrs.public_id)
+    assert attrs.public_id != ""
+  end
+
   test "build_run_attrs normalizes run metadata" do
     scheduled_export = %{id: 42, public_id: "pub_123"}
 

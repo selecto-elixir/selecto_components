@@ -46,7 +46,7 @@ defmodule SelectoComponents.ScheduledExports do
       context: snapshot.context,
       path: snapshot.path,
       view_type: Map.get(snapshot.params, "view_mode", "detail"),
-      public_id: field(attrs, :public_id, generate_public_id()),
+      public_id: normalize_public_id(field(attrs, :public_id)),
       export_format: normalize_export_format(field(attrs, :export_format, "csv")),
       snapshot_blob: ExportSnapshots.encode_term(snapshot),
       delivery: normalize_delivery(delivery_attrs(attrs)),
@@ -259,6 +259,13 @@ defmodule SelectoComponents.ScheduledExports do
   defp normalize_channel(:email), do: :email
   defp normalize_channel("email"), do: :email
   defp normalize_channel(_), do: :email
+
+  defp normalize_public_id(value) do
+    case normalize_optional_text(value) do
+      nil -> generate_public_id()
+      public_id -> public_id
+    end
+  end
 
   defp normalize_schedule_kind(kind) when is_atom(kind) do
     if kind in [:hourly, :daily, :weekly, :monthly], do: kind, else: nil
