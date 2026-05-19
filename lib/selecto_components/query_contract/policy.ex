@@ -29,10 +29,20 @@ defmodule SelectoComponents.QueryContract.Policy do
         |> list_or_empty()
         |> project_entries(:field, opts)
 
+      {choice_sources, choice_source_decisions} =
+        contract
+        |> map_value(:choice_sources, [])
+        |> list_or_empty()
+        |> project_entries(:choice_source, opts)
+
+      {fields, field_choice_source_decisions, hidden_choice_source_field_ids} =
+        project_field_choice_sources(fields, choice_source_decisions, opts)
+
       hidden_field_ids =
         field_decisions
         |> Enum.filter(&(map_value(&1, :status) == "hidden"))
         |> Enum.map(&map_value(&1, :id))
+        |> Enum.concat(hidden_choice_source_field_ids)
         |> MapSet.new()
 
       {filters, filter_decisions} =
@@ -47,7 +57,9 @@ defmodule SelectoComponents.QueryContract.Policy do
         |> Enum.map(&map_value(&1, :id))
         |> MapSet.new()
 
-      decisions = field_decisions ++ filter_decisions
+      decisions =
+        field_decisions ++
+          choice_source_decisions ++ field_choice_source_decisions ++ filter_decisions
 
       {published_views, published_view_decisions} =
         contract
@@ -65,6 +77,7 @@ defmodule SelectoComponents.QueryContract.Policy do
       contract
       |> Map.put(:fields, fields)
       |> Map.put(:filters, filters)
+      |> Map.put(:choice_sources, choice_sources)
       |> Map.put(:published_views, published_views)
       |> Map.put(:context, context)
       |> prune_field_choice_bindings(hidden_field_ids)
@@ -103,6 +116,66 @@ defmodule SelectoComponents.QueryContract.Policy do
     |> then(fn {projected, decisions} ->
       {Enum.reverse(projected), Enum.reverse(decisions)}
     end)
+  end
+
+  defp project_field_choice_sources(fields, choice_source_decisions, opts) do
+    choice_source_decisions_by_id =
+      Map.new(choice_source_decisions, fn decision -> {map_value(decision, :id), decision} end)
+
+    Enum.reduce(fields, {[], [], []}, fn field, {projected, decisions, hidden_field_ids} ->
+      metadata = field |> map_value(:choice_source_metadata, %{}) |> map_or_empty()
+      capability = metadata |> map_value(:capability) |> normalize_optional_id()
+
+      if is_nil(capability) do
+        {[field | projected], decisions, hidden_field_ids}
+      else
+        metadata_id = metadata |> map_value(:id) |> normalize_id()
+
+        {decision_entry, decisions} =
+          case Map.fetch(choice_source_decisions_by_id, metadata_id) do
+            {:ok, decision_entry} ->
+              {decision_entry, decisions}
+
+            :error ->
+              decision =
+                entry_decision(
+                  choice_source_entry(field, metadata),
+                  :choice_source,
+                  capability,
+                  opts
+                )
+
+              decision_entry = decision_entry(metadata, :choice_source, capability, decision)
+              {decision_entry, [decision_entry | decisions]}
+          end
+
+        case map_value(decision_entry, :status) do
+          "hidden" ->
+            {projected, decisions, [field |> map_value(:id) |> normalize_id() | hidden_field_ids]}
+
+          "disabled" ->
+            field =
+              field
+              |> disable_entry(:field, decision_entry)
+              |> put_choice_source_decision(decision_entry, true)
+
+            {[field | projected], decisions, hidden_field_ids}
+
+          _enabled ->
+            field = put_choice_source_decision(field, decision_entry, false)
+            {[field | projected], decisions, hidden_field_ids}
+        end
+      end
+    end)
+    |> then(fn {projected, decisions, hidden_field_ids} ->
+      {Enum.reverse(projected), Enum.reverse(decisions), Enum.reverse(hidden_field_ids)}
+    end)
+  end
+
+  defp choice_source_entry(field, metadata) do
+    metadata
+    |> Map.put_new(:field, map_value(field, :id))
+    |> Map.put_new("field", map_value(field, :id))
   end
 
   defp entry_decision(entry, kind, capability, opts) do
@@ -151,6 +224,7 @@ defmodule SelectoComponents.QueryContract.Policy do
 
   defp operation_for(:filter, _entry), do: :query_filter
   defp operation_for(:published_view, _entry), do: :published_view
+  defp operation_for(:choice_source, _entry), do: :choice_source
 
   defp target_for(entry, kind) do
     %{
@@ -375,6 +449,23 @@ defmodule SelectoComponents.QueryContract.Policy do
     entry
     |> put_decision(decision_entry)
     |> put_entry_value(:disabled, true)
+  end
+
+  defp disable_entry(entry, :choice_source, decision_entry) do
+    entry
+    |> put_decision(decision_entry)
+    |> put_entry_value(:disabled, true)
+  end
+
+  defp put_choice_source_decision(field, decision_entry, disabled?) do
+    metadata =
+      field
+      |> map_value(:choice_source_metadata, %{})
+      |> map_or_empty()
+      |> put_entry_value(:capability_decision, decision_entry)
+      |> put_entry_value(:disabled, disabled?)
+
+    put_entry_value(field, :choice_source_metadata, metadata)
   end
 
   defp put_entry_value(entry, key, value) when is_atom(key) do

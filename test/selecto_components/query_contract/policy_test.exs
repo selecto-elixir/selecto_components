@@ -141,6 +141,136 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
+  test "disables fields whose choice source capability is denied" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [
+            %{
+              id: "customer_id",
+              detail_selectable: true,
+              filterable: true,
+              sortable: true,
+              groupable: true,
+              aggregatable: true,
+              comparators: ["eq"],
+              aggregate_functions: ["count"],
+              choice_source: "customer_choices",
+              choice_source_metadata: %{
+                id: "customer_choices",
+                field: "customer_id",
+                capability: "customer.choose"
+              }
+            }
+          ],
+          choice_sources: [
+            %{id: "customer_choices", capability: "customer.choose"}
+          ],
+          filters: [],
+          field_choice_bindings: [
+            %{field: "customer_id", choice_source: "customer_choices"}
+          ],
+          published_views: [],
+          context: %{}
+        },
+        capability_resolver: fn request ->
+          assert request.operation == :choice_source
+          assert request.target.kind == :choice_source
+          assert request.target.id == "customer_choices"
+
+          Selecto.Capabilities.deny(:manager_required,
+            user_message: "Managers choose customers."
+          )
+        end
+      )
+
+    assert %{
+             disabled: true,
+             detail_selectable: false,
+             filterable: false,
+             sortable: false,
+             groupable: false,
+             aggregatable: false,
+             comparators: [],
+             aggregate_functions: [],
+             capability_decision: %{
+               "kind" => "choice_source",
+               "id" => "customer_choices",
+               "capability" => "customer.choose",
+               "status" => "disabled",
+               "code" => :manager_required,
+               "reason" => "Managers choose customers."
+             },
+             choice_source_metadata: %{
+               disabled: true,
+               capability_decision: %{
+                 "kind" => "choice_source",
+                 "id" => "customer_choices",
+                 "status" => "disabled"
+               }
+             }
+           } = field(projected, "customer_id")
+
+    assert %{
+             disabled: true,
+             capability_decision: %{
+               "kind" => "choice_source",
+               "id" => "customer_choices",
+               "status" => "disabled"
+             }
+           } = Enum.find(projected.choice_sources, &(&1.id == "customer_choices"))
+
+    assert [%{field: "customer_id"}] = projected.field_choice_bindings
+
+    assert projected.capability_policy.counts == %{
+             "enabled" => 0,
+             "disabled" => 1,
+             "hidden" => 0
+           }
+  end
+
+  test "removes fields and bindings whose choice source capability is hidden" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [
+            %{
+              id: "customer_id",
+              choice_source_metadata: %{
+                id: "customer_choices",
+                field: "customer_id",
+                capability: "customer.choose"
+              }
+            }
+          ],
+          choice_sources: [
+            %{id: "customer_choices", capability: "customer.choose"}
+          ],
+          filters: [],
+          field_choice_bindings: [
+            %{field: "customer_id", choice_source: "customer_choices"}
+          ],
+          defaults: %{default_selected: ["customer_id"]},
+          published_views: [],
+          context: %{}
+        },
+        capability_resolver: fn _request ->
+          Selecto.Capabilities.hidden(:not_visible)
+        end
+      )
+
+    refute field(projected, "customer_id")
+    assert projected.choice_sources == []
+    assert projected.field_choice_bindings == []
+    assert projected.defaults.default_selected == []
+
+    assert projected.capability_policy.counts == %{
+             "enabled" => 0,
+             "disabled" => 0,
+             "hidden" => 1
+           }
+  end
+
   test "removes denied exports and disables denied share surfaces from context" do
     projected =
       Policy.apply(
