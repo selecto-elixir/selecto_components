@@ -185,7 +185,11 @@ defmodule SelectoComponents.QueryContractTest do
     end
 
     test "projects canonical ecosystem examples with capability policy" do
+      expectations = Selecto.Domain.Examples.Compatibility.expectations()
+
       for {domain_id, domain} <- canonical_examples() do
+        expected = Map.fetch!(expectations, domain_id)
+
         assert {:ok, document, diagnostics} =
                  QueryContract.json_document(domain,
                    generated_at: "2026-05-18T00:00:00Z",
@@ -205,6 +209,15 @@ defmodule SelectoComponents.QueryContractTest do
         assert document["capability_ids"] != []
         assert document["choice_sources"] != []
         assert document["published_views"] != []
+
+        assert Selecto.Domain.Examples.Compatibility.query_summary(document) == %{
+                 capability_ids: expected.capability_ids,
+                 field_ids: expected.field_ids,
+                 filter_ids: expected.filter_ids,
+                 choice_source_ids: expected.choice_source_ids,
+                 published_view_ids: expected.published_view_ids
+               }
+
         assert document["context"]["exports"] == ["csv"]
         assert document["context"]["exported_views_enabled"] == true
         assert document["context"]["scheduled_exports_enabled"] == false
