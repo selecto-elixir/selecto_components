@@ -184,6 +184,70 @@ defmodule SelectoComponents.QueryContractTest do
       refute_nil_map_values(document)
     end
 
+    test "projects canonical ecosystem examples with capability policy" do
+      for {domain_id, domain} <- canonical_examples() do
+        assert {:ok, document, diagnostics} =
+                 QueryContract.json_document(domain,
+                   generated_at: "2026-05-18T00:00:00Z",
+                   domain_id: Atom.to_string(domain_id),
+                   form_metadata: true,
+                   context: %{
+                     exports: [:csv, :xlsx],
+                     exported_views_enabled: true,
+                     scheduled_exports_enabled: true
+                   },
+                   capability_resolver: &canonical_policy/1
+                 )
+
+        assert diagnostics.errors == []
+        assert document["projection"] == "query_contract"
+        assert document["domain"]["id"] == Atom.to_string(domain_id)
+        assert document["capability_ids"] != []
+        assert document["choice_sources"] != []
+        assert document["published_views"] != []
+        assert document["context"]["exports"] == ["csv"]
+        assert document["context"]["exported_views_enabled"] == true
+        assert document["context"]["scheduled_exports_enabled"] == false
+
+        assert %{
+                 "counts" => %{"enabled" => enabled, "disabled" => disabled, "hidden" => 0},
+                 "decisions" => decisions
+               } = document["capability_policy"]
+
+        assert enabled > 0
+        assert disabled > 0
+
+        assert Enum.any?(
+                 decisions,
+                 &match?(
+                   %{
+                     "kind" => "exports",
+                     "id" => "xlsx",
+                     "capability" => "selecto.exports.download",
+                     "status" => "disabled"
+                   },
+                   &1
+                 )
+               )
+
+        assert Enum.any?(
+                 decisions,
+                 &match?(
+                   %{
+                     "kind" => "context",
+                     "id" => "scheduled_exports_enabled",
+                     "capability" => "selecto.scheduled_exports.manage",
+                     "status" => "disabled"
+                   },
+                   &1
+                 )
+               )
+
+        assert_json_safe(document)
+        refute_nil_map_values(document)
+      end
+    end
+
     test "encodes a query contract JSON document" do
       assert {:ok, json, diagnostics} =
                QueryContract.encode_json(domain(),
@@ -729,6 +793,28 @@ defmodule SelectoComponents.QueryContractTest do
 
     document
   end
+
+  defp canonical_examples do
+    [
+      work_items: Selecto.Domain.Examples.work_items(),
+      camp_registrations: Selecto.Domain.Examples.camp_registrations()
+    ]
+  end
+
+  defp canonical_policy(%Selecto.Capabilities.Request{
+         capability: "selecto.exports.download",
+         target: %{format: "xlsx"}
+       }) do
+    Selecto.Capabilities.deny(:format_blocked, user_message: "XLSX exports are disabled.")
+  end
+
+  defp canonical_policy(%Selecto.Capabilities.Request{
+         capability: "selecto.scheduled_exports.manage"
+       }) do
+    Selecto.Capabilities.deny(:schedule_blocked, user_message: "Schedules are disabled.")
+  end
+
+  defp canonical_policy(_request), do: Selecto.Capabilities.allow()
 
   defp put_field_capability(document, field_id, capability, value) do
     update_in(document["fields"], fn fields ->
