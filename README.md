@@ -188,6 +188,10 @@ forward "/selecto/orders/query-contract.json",
         domain: MyApp.SelectoDomains.Orders.domain()
 ```
 
+For the full host integration path, including generated action forms,
+capability policy, choice-source diagnostics, exported views, scheduled exports,
+and reload/result semantics, see `docs/developer_integration_guide.md`.
+
 ## Generated Domain Action Forms
 
 Domains can expose write-contract actions under `:actions`. Selecto Components
