@@ -426,9 +426,7 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
           []
         else
           [
-            error(capability_error, path, "field is not allowed for this query use",
-              field: string_id(field_id)
-            )
+            disabled_field_error(field, capability_error, path, field_id)
           ]
         end
 
@@ -439,6 +437,58 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
           )
         ]
     end
+  end
+
+  defp disabled_field_error(field, fallback_code, path, field_id) do
+    decision =
+      field
+      |> map_get(:capability_decision, %{})
+      |> map_or_empty()
+
+    metadata_decision =
+      field
+      |> map_get(:choice_source_metadata, %{})
+      |> map_or_empty()
+      |> map_get(:capability_decision, %{})
+      |> map_or_empty()
+
+    choice_source_decision? =
+      map_get(decision, :kind) == "choice_source" or
+        map_get(metadata_decision, :kind) == "choice_source"
+
+    code = if choice_source_decision?, do: :choice_source_disabled, else: fallback_code
+
+    message =
+      map_get(decision, :reason) ||
+        map_get(metadata_decision, :reason) ||
+        if(choice_source_decision?,
+          do: "choice source is disabled by capability policy",
+          else: "field is not allowed for this query use"
+        )
+
+    extra =
+      [
+        field: string_id(field_id),
+        capability: map_get(decision, :capability) || map_get(metadata_decision, :capability),
+        capability_code: map_get(decision, :code) || map_get(metadata_decision, :code),
+        capability_decision: compact_map(decision),
+        choice_source: choice_source_id(field)
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+
+    error(code, path, message, extra)
+  end
+
+  defp choice_source_id(field) do
+    field
+    |> map_get(:choice_source_metadata, %{})
+    |> map_or_empty()
+    |> map_get(:id)
+    |> case do
+      nil -> map_get(field, :choice_source)
+      value -> value
+    end
+    |> string_id()
   end
 
   defp validate_comparator(_indexes, _field_id, nil, path) do
@@ -673,4 +723,12 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
   defp truthy?(value) when value in [true, "true", 1, "1"], do: true
   defp truthy?(_value), do: false
+
+  defp compact_map(map) when is_map(map) do
+    map
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == %{} or value == [] end)
+    |> Map.new()
+  end
+
+  defp compact_map(_value), do: %{}
 end

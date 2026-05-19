@@ -124,32 +124,35 @@ defmodule SelectoComponents.QueryContract.Policy do
 
     Enum.reduce(fields, {[], [], []}, fn field, {projected, decisions, hidden_field_ids} ->
       metadata = field |> map_value(:choice_source_metadata, %{}) |> map_or_empty()
+      choice_source_id = choice_source_id(field, metadata)
       capability = metadata |> map_value(:capability) |> normalize_optional_id()
 
-      if is_nil(capability) do
+      if is_nil(capability) and is_nil(choice_source_id) do
         {[field | projected], decisions, hidden_field_ids}
       else
-        metadata_id = metadata |> map_value(:id) |> normalize_id()
-
         {decision_entry, decisions} =
-          case Map.fetch(choice_source_decisions_by_id, metadata_id) do
+          case Map.fetch(choice_source_decisions_by_id, choice_source_id) do
             {:ok, decision_entry} ->
               {decision_entry, decisions}
 
             :error ->
-              decision =
-                entry_decision(
-                  choice_source_entry(field, metadata),
-                  :choice_source,
-                  capability,
-                  opts
-                )
+              if is_nil(capability) do
+                {nil, decisions}
+              else
+                decision =
+                  entry_decision(
+                    choice_source_entry(field, metadata, choice_source_id),
+                    :choice_source,
+                    capability,
+                    opts
+                  )
 
-              decision_entry = decision_entry(metadata, :choice_source, capability, decision)
-              {decision_entry, [decision_entry | decisions]}
+                decision_entry = decision_entry(metadata, :choice_source, capability, decision)
+                {decision_entry, [decision_entry | decisions]}
+              end
           end
 
-        case map_value(decision_entry, :status) do
+        case map_value(decision_entry, :status, "enabled") do
           "hidden" ->
             {projected, decisions, [field |> map_value(:id) |> normalize_id() | hidden_field_ids]}
 
@@ -172,8 +175,20 @@ defmodule SelectoComponents.QueryContract.Policy do
     end)
   end
 
-  defp choice_source_entry(field, metadata) do
+  defp choice_source_id(field, metadata) do
     metadata
+    |> map_value(:id)
+    |> case do
+      nil -> map_value(field, :choice_source)
+      value -> value
+    end
+    |> normalize_optional_id()
+  end
+
+  defp choice_source_entry(field, metadata, choice_source_id) do
+    metadata
+    |> Map.put_new(:id, choice_source_id)
+    |> Map.put_new("id", choice_source_id)
     |> Map.put_new(:field, map_value(field, :id))
     |> Map.put_new("field", map_value(field, :id))
   end

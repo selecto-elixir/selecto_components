@@ -271,6 +271,51 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
+  test "applies top-level choice source decisions to bound fields without form metadata" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [
+            %{
+              id: "customer_id",
+              choice_source: "customer_choices",
+              detail_selectable: true,
+              filterable: true,
+              sortable: true,
+              groupable: true,
+              aggregatable: true,
+              comparators: ["eq"],
+              aggregate_functions: ["count"]
+            }
+          ],
+          choice_sources: [
+            %{id: "customer_choices", capability: "customer.choose"}
+          ],
+          filters: [],
+          published_views: [],
+          context: %{}
+        },
+        capability_resolver: fn _request ->
+          Selecto.Capabilities.deny(:manager_required,
+            user_message: "Managers choose customers."
+          )
+        end
+      )
+
+    assert %{
+             disabled: true,
+             detail_selectable: false,
+             filterable: false,
+             comparators: [],
+             capability_decision: %{
+               "kind" => "choice_source",
+               "id" => "customer_choices",
+               "status" => "disabled",
+               "reason" => "Managers choose customers."
+             }
+           } = field(projected, "customer_id")
+  end
+
   test "removes denied exports and disables denied share surfaces from context" do
     projected =
       Policy.apply(

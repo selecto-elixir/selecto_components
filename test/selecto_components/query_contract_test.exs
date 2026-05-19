@@ -496,6 +496,76 @@ defmodule SelectoComponents.QueryContractTest do
              )
     end
 
+    test "reports disabled choice-source-backed fields with host policy details" do
+      document =
+        query_contract_document()
+        |> update_in(["fields"], fn fields ->
+          Enum.map(fields, fn
+            %{"id" => "customer_id"} = field ->
+              field
+              |> Map.put("disabled", true)
+              |> Map.put("detail_selectable", false)
+              |> Map.put("filterable", false)
+              |> Map.put("comparators", [])
+              |> Map.put("capability_decision", %{
+                "kind" => "choice_source",
+                "id" => "customer_choices",
+                "capability" => "customer.choose",
+                "status" => "disabled",
+                "code" => "manager_required",
+                "reason" => "Managers must choose customers."
+              })
+              |> Map.put("choice_source_metadata", %{
+                "id" => "customer_choices",
+                "field" => "customer_id",
+                "capability" => "customer.choose",
+                "disabled" => true,
+                "capability_decision" => %{
+                  "kind" => "choice_source",
+                  "id" => "customer_choices",
+                  "capability" => "customer.choose",
+                  "status" => "disabled",
+                  "code" => "manager_required",
+                  "reason" => "Managers must choose customers."
+                }
+              })
+
+            field ->
+              field
+          end)
+        end)
+
+      validation =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "selected" => [%{"field" => "customer_id"}],
+          "filters" => [%{"field" => "customer_id", "comparator" => "eq", "value" => "1"}]
+        })
+
+      refute validation[:valid?]
+
+      assert %{
+               code: :choice_source_disabled,
+               path: "selected.0",
+               field: "customer_id",
+               choice_source: "customer_choices",
+               capability: "customer.choose",
+               capability_code: "manager_required",
+               message: "Managers must choose customers.",
+               capability_decision: %{
+                 "kind" => "choice_source",
+                 "id" => "customer_choices",
+                 "status" => "disabled"
+               }
+             } = Enum.find(validation.errors, &(&1.path == "selected.0"))
+
+      assert %{
+               code: :choice_source_disabled,
+               path: "filters.0.field",
+               message: "Managers must choose customers."
+             } = Enum.find(validation.errors, &(&1.path == "filters.0.field"))
+    end
+
     test "accepts requested enabled export and published view surfaces" do
       document =
         query_contract_document()
