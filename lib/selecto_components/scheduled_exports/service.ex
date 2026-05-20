@@ -205,14 +205,14 @@ defmodule SelectoComponents.ScheduledExports.Service do
 
   defp authorize_scheduled_export_run(scheduled_export, opts) do
     case Keyword.get(opts, :capability_resolver) do
-      resolver when is_function(resolver, 1) or is_function(resolver, 2) ->
+      nil ->
+        :ok
+
+      resolver ->
         scheduled_export
         |> scheduled_export_run_request(opts)
-        |> call_capability_resolver(resolver, opts)
+        |> resolve_capability(resolver, opts)
         |> normalize_capability_decision("selecto.scheduled_exports.run")
-
-      _resolver ->
-        :ok
     end
   end
 
@@ -248,11 +248,11 @@ defmodule SelectoComponents.ScheduledExports.Service do
     )
   end
 
-  defp call_capability_resolver(request, resolver, _opts) when is_function(resolver, 1),
-    do: resolver.(request)
-
-  defp call_capability_resolver(request, resolver, opts) when is_function(resolver, 2),
-    do: resolver.(request, Keyword.get(opts, :resolver_context, %{}))
+  defp resolve_capability(request, resolver, opts) do
+    Selecto.Capabilities.decide(resolver, request,
+      resolver_context: Keyword.get(opts, :resolver_context, %{})
+    )
+  end
 
   defp normalize_capability_decision({:ok, decision}, capability),
     do: normalize_capability_decision(decision, capability)

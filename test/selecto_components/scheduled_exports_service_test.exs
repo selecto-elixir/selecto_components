@@ -7,6 +7,19 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
   alias SelectoComponents.ScheduledExports
   alias SelectoComponents.ScheduledExports.Service
 
+  defmodule RunResolver do
+    @behaviour Selecto.Capabilities.Resolver
+
+    @impl true
+    def decide(request, %{test_pid: test_pid}) do
+      send(test_pid, {:module_capability_request, request})
+
+      Selecto.Capabilities.deny(:module_run_denied,
+        user_message: "Module policy blocks scheduled export runs."
+      )
+    end
+  end
+
   defmodule Adapter do
     @behaviour SelectoComponents.ScheduledExports
 
@@ -409,5 +422,53 @@ defmodule SelectoComponents.ScheduledExportsServiceTest do
     assert updated_export.last_status == :skipped
     assert updated_export.last_error =~ "Managers must approve scheduled export runs."
     assert is_nil(updated_export.next_run_at)
+  end
+
+  test "run_scheduled_export accepts a module capability resolver" do
+    assigns = %{
+      selecto: %{domain: %{name: "orders"}, postgrex_opts: [], adapter: Selecto.DB.PostgreSQL},
+      view_config: %{view_mode: "detail", filters: [], views: %{detail: %{selected: []}}},
+      views: [{:detail, SelectoComponents.Views.Detail, "Detail", %{}}],
+      path: "/orders",
+      scheduled_export_context: "tenant:1:/orders",
+      current_user_id: "9",
+      tenant_context: %{tenant_id: 1}
+    }
+
+    {:ok, scheduled_export} =
+      Service.create(Adapter, assigns, %{
+        "name" => "Module Denied Orders",
+        "export_format" => "csv",
+        "recipients" => ["ops@example.com"],
+        "schedule" => %{
+          "enabled" => true,
+          "kind" => "daily",
+          "time" => "06:00",
+          "timezone" => "Etc/UTC"
+        }
+      })
+
+    assert {:ok, result} =
+             Service.run_scheduled_export(Adapter, scheduled_export,
+               actor: %{role: :analyst},
+               tenant: "tenant-1",
+               domain: :orders,
+               delivery_adapter: DeliveryAdapter,
+               snapshot_runner: SnapshotRunner,
+               delivery_opts: [notify: self()],
+               capability_resolver: RunResolver,
+               resolver_context: %{test_pid: self()}
+             )
+
+    assert_receive {:module_capability_request, request}
+    assert request.capability == "selecto.scheduled_exports.run"
+    assert request.operation == :run
+    assert request.target.public_id == scheduled_export.public_id
+
+    refute_receive {:render_snapshot, _snapshot}
+    refute_receive {:deliver_email, _export_payload, _delivery_config}
+
+    assert result.run.status == :skipped
+    assert result.run.error_message =~ "Module policy blocks scheduled export runs."
   end
 end

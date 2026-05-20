@@ -3,6 +3,19 @@ defmodule SelectoComponents.ActionsTest do
 
   alias SelectoComponents.Actions
 
+  defmodule ModuleResolver do
+    @behaviour Selecto.Capabilities.Resolver
+
+    @impl true
+    def decide(request, %{test_pid: test_pid}) do
+      send(test_pid, {:module_resolver_request, request})
+
+      Selecto.Capabilities.deny(:module_policy,
+        user_message: "Denied by module resolver"
+      )
+    end
+  end
+
   test "builds enabled action items from a write contract document" do
     assert [action] =
              Actions.available(write_contract(),
@@ -112,6 +125,25 @@ defmodule SelectoComponents.ActionsTest do
     assert action.status == "disabled"
     assert action.disabled? == true
     assert action.reason == "Managers only"
+  end
+
+  test "uses module capability resolver decisions for action availability" do
+    assert [action] =
+             Actions.available(write_contract(),
+               actor: %{id: 1, role: :analyst},
+               domain: :orders,
+               capability_resolver: ModuleResolver,
+               resolver_context: %{test_pid: self()}
+             )
+
+    assert_receive {:module_resolver_request, request}
+    assert request.capability == "orders.approve"
+    assert request.operation == "update"
+    assert request.context.action_id == "approve_order"
+
+    assert action.id == "approve_order"
+    assert action.status == "disabled"
+    assert action.reason == "Denied by module resolver"
   end
 
   test "filters resolver-hidden actions" do

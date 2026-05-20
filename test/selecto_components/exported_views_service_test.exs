@@ -12,6 +12,19 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
     def url, do: "https://example.test"
   end
 
+  defmodule AccessResolver do
+    @behaviour Selecto.Capabilities.Resolver
+
+    @impl true
+    def decide(request, %{test_pid: test_pid}) do
+      send(test_pid, {:module_capability_request, request})
+
+      Selecto.Capabilities.deny(:module_access_denied,
+        user_message: "Module policy blocks published view access."
+      )
+    end
+  end
+
   defmodule Adapter do
     @behaviour SelectoComponents.ExportedViews
 
@@ -137,6 +150,42 @@ defmodule SelectoComponents.ExportedViewsServiceTest do
              :access_count
            ) ==
              0
+  end
+
+  test "resolve_for_embed accepts a module capability resolver" do
+    {:ok, view} =
+      Adapter.create_exported_view(
+        %{
+          public_id: "pub_module_denied",
+          name: "Module-denied export",
+          context: "/orders",
+          view_type: "detail",
+          signature_version: 1,
+          cache_ttl_hours: 3,
+          snapshot_blob: ExportedViews.encode_term(%{params: %{"view_mode" => "detail"}}),
+          cache_blob: ExportedViews.encode_term(render_payload()),
+          cache_generated_at: ~U[2026-03-16 08:00:00Z],
+          cache_expires_at: DateTime.add(DateTime.utc_now(), 3_600, :second),
+          access_count: 0,
+          ip_allowlist_text: nil
+        },
+        []
+      )
+
+    token = Token.sign(view, endpoint: TestEndpoint)
+
+    assert {:error, {:capability_denied, "Module policy blocks published view access.", details}} =
+             Service.resolve_for_embed(Adapter, "pub_module_denied", token, {127, 0, 0, 1},
+               endpoint: TestEndpoint,
+               capability_resolver: AccessResolver,
+               resolver_context: %{test_pid: self()}
+             )
+
+    assert_receive {:module_capability_request, request}
+    assert request.capability == "selecto.exported_views.access"
+    assert request.operation == :access
+    assert request.target.public_id == "pub_module_denied"
+    assert details["code"] == "module_access_denied"
   end
 
   test "resolve_for_embed rejects disallowed IPs" do

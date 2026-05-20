@@ -167,14 +167,14 @@ defmodule SelectoComponents.ExportedViews.Service do
 
   defp authorize_embed_access(view, opts) do
     case Keyword.get(opts, :capability_resolver) do
-      resolver when is_function(resolver, 1) or is_function(resolver, 2) ->
+      nil ->
+        :ok
+
+      resolver ->
         view
         |> embed_access_request(opts)
-        |> call_capability_resolver(resolver, opts)
+        |> resolve_capability(resolver, opts)
         |> normalize_capability_decision("selecto.exported_views.access", :access)
-
-      _resolver ->
-        :ok
     end
   end
 
@@ -209,14 +209,10 @@ defmodule SelectoComponents.ExportedViews.Service do
     )
   end
 
-  defp call_capability_resolver(request, resolver, _opts) when is_function(resolver, 1) do
-    resolver.(request)
-  rescue
-    error -> {:error, error}
-  end
-
-  defp call_capability_resolver(request, resolver, opts) when is_function(resolver, 2) do
-    resolver.(request, Keyword.get(opts, :resolver_context, %{}))
+  defp resolve_capability(request, resolver, opts) do
+    Selecto.Capabilities.decide(resolver, request,
+      resolver_context: Keyword.get(opts, :resolver_context, %{})
+    )
   rescue
     error -> {:error, error}
   end

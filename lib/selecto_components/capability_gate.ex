@@ -25,7 +25,7 @@ defmodule SelectoComponents.CapabilityGate do
       resolver ->
         socket
         |> request(capability, operation, opts)
-        |> call_resolver(resolver, opts)
+        |> resolve_capability(resolver, opts)
         |> normalize_decision(capability, operation)
     end
   end
@@ -77,20 +77,13 @@ defmodule SelectoComponents.CapabilityGate do
     end
   end
 
-  defp call_resolver(request, resolver, _opts) when is_function(resolver, 1) do
-    resolver.(request)
+  defp resolve_capability(request, resolver, opts) do
+    Selecto.Capabilities.decide(resolver, request,
+      resolver_context: Keyword.get(opts, :resolver_context, %{})
+    )
   rescue
     error -> {:error, error}
   end
-
-  defp call_resolver(request, resolver, opts) when is_function(resolver, 2) do
-    resolver_context = Keyword.get(opts, :resolver_context, %{})
-    resolver.(request, resolver_context)
-  rescue
-    error -> {:error, error}
-  end
-
-  defp call_resolver(_request, _resolver, _opts), do: :ok
 
   defp normalize_decision({:ok, decision}, capability, operation),
     do: normalize_decision(decision, capability, operation)

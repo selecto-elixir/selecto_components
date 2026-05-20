@@ -22,7 +22,7 @@ defmodule SelectoComponents.QueryContract.Policy do
   def apply(contract, opts) when is_map(contract) do
     resolver = Keyword.get(opts, :capability_resolver)
 
-    if is_function(resolver, 1) or is_function(resolver, 2) do
+    if capability_resolver?(resolver) do
       {fields, field_decisions} =
         contract
         |> map_value(:fields, [])
@@ -61,6 +61,17 @@ defmodule SelectoComponents.QueryContract.Policy do
         field_decisions ++
           choice_source_decisions ++ field_choice_source_decisions ++ filter_decisions
 
+      {functions, function_decisions} =
+        contract
+        |> map_value(:functions, [])
+        |> list_or_empty()
+        |> project_entries(:function, opts)
+
+      {query_members, query_member_decisions} =
+        contract
+        |> map_value(:query_members, %{})
+        |> project_query_members(opts)
+
       {published_views, published_view_decisions} =
         contract
         |> map_value(:published_views, [])
@@ -72,11 +83,18 @@ defmodule SelectoComponents.QueryContract.Policy do
         |> map_value(:context, %{})
         |> project_context(opts)
 
-      decisions = decisions ++ published_view_decisions ++ context_decisions
+      decisions =
+        decisions ++
+          function_decisions ++
+          query_member_decisions ++
+          published_view_decisions ++
+          context_decisions
 
       contract
       |> Map.put(:fields, fields)
       |> Map.put(:filters, filters)
+      |> Map.put(:functions, functions)
+      |> Map.put(:query_members, query_members)
       |> Map.put(:choice_sources, choice_sources)
       |> Map.put(:published_views, published_views)
       |> Map.put(:context, context)
@@ -90,32 +108,118 @@ defmodule SelectoComponents.QueryContract.Policy do
 
   def apply(contract, _opts), do: contract
 
-  defp project_entries(entries, kind, opts) do
-    Enum.reduce(entries, {[], []}, fn entry, {projected, decisions} ->
-      capability = entry |> map_value(:capability) |> normalize_optional_id()
+  defp capability_resolver?(nil), do: false
+  defp capability_resolver?(_resolver), do: true
 
-      if is_nil(capability) do
-        {[entry | projected], decisions}
-      else
-        decision = entry_decision(entry, kind, capability, opts)
+  defp project_query_members(query_members, opts) when is_map(query_members) do
+    Enum.reduce(query_members, {%{}, []}, fn {group, members}, {projected, decisions} ->
+      {projected_members, member_decisions} =
+        members
+        |> list_or_empty()
+        |> Enum.map(&put_entry_value(&1, :group, normalize_id(group)))
+        |> project_entries(:query_member, opts)
+
+      {put_entry_value(projected, group, projected_members), decisions ++ member_decisions}
+    end)
+  end
+
+  defp project_query_members(_query_members, _opts), do: {%{}, []}
+
+  defp project_entries(entries, kind, opts) do
+    resolver = Keyword.get(opts, :capability_resolver)
+
+    items =
+      Enum.map(entries, fn entry ->
+        capability = entry |> map_value(:capability) |> normalize_optional_id()
+
+        if is_nil(capability) do
+          {:plain, entry}
+        else
+          {:governed, entry, capability, entry_request(entry, kind, capability, opts)}
+        end
+      end)
+
+    capability_decisions =
+      resolver
+      |> Selecto.Capabilities.decide_many(governed_requests(items),
+        resolver_context: Keyword.get(opts, :resolver_context, %{})
+      )
+      |> Enum.map(&normalize_decision/1)
+
+    Enum.reduce(items, {[], [], capability_decisions}, fn
+      {:plain, entry}, {projected, decisions, remaining_decisions} ->
+        {[entry | projected], decisions, remaining_decisions}
+
+      {:governed, entry, capability, _request},
+      {projected, decisions,
+       [
+         decision | remaining_decisions
+       ]} ->
         decision_entry = decision_entry(entry, kind, capability, decision)
 
         case map_value(decision_entry, :status) do
           "hidden" ->
-            {projected, [decision_entry | decisions]}
+            {projected, [decision_entry | decisions], remaining_decisions}
 
           "disabled" ->
             {[disable_entry(entry, kind, decision_entry) | projected],
-             [decision_entry | decisions]}
+             [decision_entry | decisions], remaining_decisions}
 
           _enabled ->
-            {[put_decision(entry, decision_entry) | projected], [decision_entry | decisions]}
+            {[put_decision(entry, decision_entry) | projected], [decision_entry | decisions],
+             remaining_decisions}
         end
-      end
+
+      {:governed, entry, capability, _request}, {projected, decisions, []} ->
+        decision_entry =
+          decision_entry(entry, kind, capability, Selecto.Capabilities.deny(:missing_decision))
+
+        {[disable_entry(entry, kind, decision_entry) | projected], [decision_entry | decisions],
+         []}
     end)
-    |> then(fn {projected, decisions} ->
+    |> then(fn {projected, decisions, _remaining_decisions} ->
       {Enum.reverse(projected), Enum.reverse(decisions)}
     end)
+  end
+
+  defp governed_requests(items) do
+    Enum.flat_map(items, fn
+      {:governed, _entry, _capability, request} -> [request]
+      {:plain, _entry} -> []
+    end)
+  end
+
+  defp entry_decision(entry, kind, capability, opts) do
+    opts
+    |> Keyword.get(:capability_resolver)
+    |> Selecto.Capabilities.decide(entry_request(entry, kind, capability, opts),
+      resolver_context: Keyword.get(opts, :resolver_context, %{})
+    )
+    |> normalize_decision()
+  end
+
+  defp entry_request(entry, kind, capability, opts) do
+    Selecto.Capabilities.request(
+      actor: Keyword.get(opts, :actor),
+      tenant: Keyword.get(opts, :tenant),
+      domain: Keyword.get(opts, :domain),
+      capability: capability,
+      operation: operation_for(kind, entry),
+      target: target_for(entry, kind),
+      context:
+        opts
+        |> Keyword.get(:context, %{})
+        |> map_or_empty()
+        |> Map.merge(%{
+          surface: Keyword.get(opts, :surface, :query_contract),
+          kind: kind,
+          id: entry |> map_value(:id) |> normalize_id()
+        }),
+      metadata:
+        opts
+        |> Keyword.get(:metadata, %{})
+        |> map_or_empty()
+    )
   end
 
   defp project_field_choice_sources(fields, choice_source_decisions, opts) do
@@ -193,41 +297,6 @@ defmodule SelectoComponents.QueryContract.Policy do
     |> Map.put_new("field", map_value(field, :id))
   end
 
-  defp entry_decision(entry, kind, capability, opts) do
-    request =
-      Selecto.Capabilities.request(
-        actor: Keyword.get(opts, :actor),
-        tenant: Keyword.get(opts, :tenant),
-        domain: Keyword.get(opts, :domain),
-        capability: capability,
-        operation: operation_for(kind, entry),
-        target: target_for(entry, kind),
-        context:
-          opts
-          |> Keyword.get(:context, %{})
-          |> map_or_empty()
-          |> Map.merge(%{
-            surface: Keyword.get(opts, :surface, :query_contract),
-            kind: kind,
-            id: entry |> map_value(:id) |> normalize_id()
-          }),
-        metadata:
-          opts
-          |> Keyword.get(:metadata, %{})
-          |> map_or_empty()
-      )
-
-    case Keyword.get(opts, :capability_resolver) do
-      resolver when is_function(resolver, 1) ->
-        resolver.(request)
-
-      resolver when is_function(resolver, 2) ->
-        resolver.(request, Keyword.get(opts, :resolver_context, %{}))
-    end
-    |> unwrap_decision()
-    |> normalize_decision()
-  end
-
   defp operation_for(:field, entry) do
     cond do
       truthy?(map_value(entry, :aggregatable)) -> :query_aggregate_field
@@ -238,6 +307,8 @@ defmodule SelectoComponents.QueryContract.Policy do
   end
 
   defp operation_for(:filter, _entry), do: :query_filter
+  defp operation_for(:function, _entry), do: :query_function
+  defp operation_for(:query_member, _entry), do: :query_member
   defp operation_for(:published_view, _entry), do: :published_view
   defp operation_for(:choice_source, _entry), do: :choice_source
 
@@ -245,9 +316,11 @@ defmodule SelectoComponents.QueryContract.Policy do
     %{
       kind: kind,
       id: entry |> map_value(:id) |> normalize_id(),
+      group: entry |> map_value(:group) |> normalize_optional_id(),
       field: entry |> map_value(:field) |> normalize_optional_id(),
       capability: entry |> map_value(:capability) |> normalize_optional_id()
     }
+    |> compact_map()
   end
 
   defp project_context(context, opts) do
@@ -342,14 +415,11 @@ defmodule SelectoComponents.QueryContract.Policy do
           |> map_or_empty()
       )
 
-    case Keyword.get(opts, :capability_resolver) do
-      resolver when is_function(resolver, 1) ->
-        resolver.(request)
-
-      resolver when is_function(resolver, 2) ->
-        resolver.(request, Keyword.get(opts, :resolver_context, %{}))
-    end
-    |> unwrap_decision()
+    opts
+    |> Keyword.get(:capability_resolver)
+    |> Selecto.Capabilities.decide(request,
+      resolver_context: Keyword.get(opts, :resolver_context, %{})
+    )
     |> normalize_decision()
   end
 
@@ -374,10 +444,6 @@ defmodule SelectoComponents.QueryContract.Policy do
       true -> key
     end
   end
-
-  defp unwrap_decision({:ok, decision}), do: decision
-  defp unwrap_decision({:error, reason}), do: %{status: :disabled, reason: inspect(reason)}
-  defp unwrap_decision(decision), do: decision
 
   defp normalize_decision(%Selecto.Capabilities.Decision{} = decision) do
     %{
@@ -430,6 +496,7 @@ defmodule SelectoComponents.QueryContract.Policy do
     %{
       "kind" => Atom.to_string(kind),
       "id" => entry |> map_value(:id) |> normalize_id(),
+      "group" => entry |> map_value(:group) |> normalize_optional_id(),
       "capability" => capability,
       "status" => map_value(decision, :status, "enabled"),
       "reason" => map_value(decision, :reason),
@@ -458,6 +525,19 @@ defmodule SelectoComponents.QueryContract.Policy do
     |> put_decision(decision_entry)
     |> put_entry_value(:disabled, true)
     |> put_entry_value(:comparators, [])
+  end
+
+  defp disable_entry(entry, :function, decision_entry) do
+    entry
+    |> put_decision(decision_entry)
+    |> put_entry_value(:disabled, true)
+    |> put_entry_value(:allowed_in, [])
+  end
+
+  defp disable_entry(entry, :query_member, decision_entry) do
+    entry
+    |> put_decision(decision_entry)
+    |> put_entry_value(:disabled, true)
   end
 
   defp disable_entry(entry, :published_view, decision_entry) do

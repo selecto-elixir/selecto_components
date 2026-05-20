@@ -3,6 +3,22 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
 
   alias SelectoComponents.QueryContract.Policy
 
+  defmodule BatchPolicy do
+    @behaviour Selecto.Capabilities.Resolver
+
+    @impl true
+    def decide(_request, _context), do: Selecto.Capabilities.allow(:single_path)
+
+    @impl true
+    def decide_many(requests, _context) do
+      Enum.map(requests, fn request ->
+        Selecto.Capabilities.deny(:batch_path,
+          user_message: "Denied by batch for #{request.capability}."
+        )
+      end)
+    end
+  end
+
   test "keeps allowed fields and disables denied fields" do
     contract = contract()
 
@@ -107,6 +123,8 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
         %{
           fields: [],
           filters: [],
+          functions: [],
+          query_members: %{},
           published_views: [
             %{id: "public_rollup", kind: :view},
             %{id: "manager_rollup", kind: :view, capability: "items.analytics"}
@@ -139,6 +157,127 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
              "disabled" => 1,
              "hidden" => 0
            }
+  end
+
+  test "projects functions and query members through capability policy" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [],
+          filters: [],
+          functions: [
+            %{id: "public_label", allowed_in: [:select]},
+            %{
+              id: "private_score",
+              allowed_in: [:select, :order_by],
+              capability: "items.analytics"
+            },
+            %{
+              id: "internal_rank",
+              allowed_in: [:select],
+              capability: "items.internal_rank"
+            }
+          ],
+          query_members: %{
+            ctes: [
+              %{id: "public_items", columns: [:id]},
+              %{id: "private_items", columns: [:id], capability: "items.analytics"}
+            ],
+            values: [
+              %{id: "internal_values", columns: [:id], capability: "items.internal_rank"}
+            ]
+          },
+          published_views: [],
+          context: %{}
+        },
+        capability_resolver: fn request ->
+          case request.capability do
+            "items.analytics" ->
+              assert request.operation in [:query_function, :query_member]
+              assert request.target.kind in [:function, :query_member]
+
+              Selecto.Capabilities.deny(:manager_required,
+                user_message: "Managers only."
+              )
+
+            "items.internal_rank" ->
+              Selecto.Capabilities.hidden(:not_visible)
+
+            _capability ->
+              Selecto.Capabilities.allow()
+          end
+        end
+      )
+
+    assert Enum.find(projected.functions, &(&1.id == "public_label"))
+    refute Enum.find(projected.functions, &(&1.id == "internal_rank"))
+
+    assert %{
+             disabled: true,
+             allowed_in: [],
+             capability_decision: %{
+               "kind" => "function",
+               "id" => "private_score",
+               "capability" => "items.analytics",
+               "status" => "disabled",
+               "code" => :manager_required,
+               "reason" => "Managers only."
+             }
+           } = Enum.find(projected.functions, &(&1.id == "private_score"))
+
+    assert Enum.find(projected.query_members.ctes, &(&1.id == "public_items"))
+    refute Enum.any?(projected.query_members.values, &(&1.id == "internal_values"))
+
+    assert %{
+             disabled: true,
+             capability_decision: %{
+               "kind" => "query_member",
+               "group" => "ctes",
+               "id" => "private_items",
+               "capability" => "items.analytics",
+               "status" => "disabled"
+             }
+           } = Enum.find(projected.query_members.ctes, &(&1.id == "private_items"))
+
+    assert projected.capability_policy.counts == %{
+             "enabled" => 0,
+             "disabled" => 2,
+             "hidden" => 2
+           }
+  end
+
+  test "uses module batch resolvers for projected entries" do
+    projected =
+      Policy.apply(
+        %{
+          fields: [
+            %{
+              id: "private_metric",
+              capability: "items.private_metric",
+              detail_selectable: true,
+              filterable: true,
+              sortable: true,
+              groupable: true,
+              aggregatable: true,
+              comparators: ["eq"],
+              aggregate_functions: ["sum"]
+            }
+          ],
+          filters: [],
+          published_views: [],
+          context: %{}
+        },
+        capability_resolver: BatchPolicy
+      )
+
+    assert %{
+             disabled: true,
+             capability_decision: %{
+               "status" => "disabled",
+               "code" => :batch_path,
+               "reason" => "Denied by batch for items.private_metric."
+             }
+           } = field(projected, "private_metric")
   end
 
   test "disables fields whose choice source capability is denied" do

@@ -474,22 +474,13 @@ defmodule SelectoComponents.Actions do
       is_nil(capability) ->
         nil
 
-      is_function(resolver, 1) ->
-        action
-        |> capability_request(opts)
-        |> resolver.()
-        |> unwrap_resolver_decision()
-
-      is_function(resolver, 2) ->
-        request = capability_request(action, opts)
-        resolver_context = Keyword.get(opts, :resolver_context, %{})
-
-        request
-        |> resolver.(resolver_context)
-        |> unwrap_resolver_decision()
+      is_nil(resolver) ->
+        nil
 
       true ->
-        nil
+        Selecto.Capabilities.decide(resolver, capability_request(action, opts),
+          resolver_context: Keyword.get(opts, :resolver_context, %{})
+        )
     end
   end
 
@@ -521,13 +512,6 @@ defmodule SelectoComponents.Actions do
         |> map_or_empty()
     )
   end
-
-  defp unwrap_resolver_decision({:ok, decision}), do: decision
-
-  defp unwrap_resolver_decision({:error, reason}),
-    do: %{status: :disabled, reason: inspect(reason)}
-
-  defp unwrap_resolver_decision(decision), do: decision
 
   defp merge_resolver_decision(nil, nil), do: nil
   defp merge_resolver_decision(explicit_decision, nil), do: explicit_decision
