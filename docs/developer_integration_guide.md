@@ -137,6 +137,17 @@ The modal sends:
 %{
   intent: "preview" | "apply",
   action_id: "approve",
+  action_label: "Approve",
+  action_scope: "row",
+  action_operation: "update",
+  capability: "orders.approve",
+  target: %{"id" => 42},
+  inputs: %{"note" => "Ready"},
+  confirmation_required?: true,
+  endpoints: %{
+    "preview" => %{"href" => "/api/selecto/orders/actions/approve/preview"},
+    "apply" => %{"href" => "/api/selecto/orders/actions/approve/apply"}
+  },
   request: %{
     "action" => "approve",
     "target" => %{"id" => 42},
@@ -166,6 +177,9 @@ Host callbacks should be deterministic and side-effect aware:
 - `authorize` runs before preview or apply.
 - `preview` must not mutate data.
 - `apply` owns the write.
+- `preview` and `apply` can use arity 4
+  `(action_id, request, socket, payload)` when they need normalized action
+  metadata, endpoints, target, or inputs from the submit payload.
 - `after_apply` owns reload behavior and final result shape.
 - `format_error` maps host errors to clear messages.
 

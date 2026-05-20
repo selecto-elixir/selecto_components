@@ -86,6 +86,65 @@ defmodule SelectoComponents.ActionFormHostTest do
              "apply"
   end
 
+  test "handle_submit accepts string-keyed payloads" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(socket(), string_payload("preview"),
+               preview: fn action_id, request, _socket ->
+                 assert action_id == "archive"
+                 assert request == %{"action" => "archive", "target" => %{"id" => 42}}
+                 {:ok, %{action: action_id}}
+               end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end
+             )
+
+    assert updated_socket.assigns.modal_detail_data.component_assigns.last_result["intent"] ==
+             "preview"
+  end
+
+  test "handle_submit can pass normalized submit metadata to action callbacks" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("preview"),
+               preview: fn action_id, request, _socket, payload ->
+                 assert action_id == "archive"
+                 assert request["target"] == %{"id" => 42}
+                 assert payload.action_id == "archive"
+                 assert payload.intent == "preview"
+
+                 {:ok,
+                  %{
+                    action: action_id,
+                    target: payload["target"],
+                    endpoint: get_in(payload, ["endpoints", "preview", "href"])
+                  }}
+               end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end
+             )
+
+    result = updated_socket.assigns.modal_detail_data.component_assigns.last_result
+    assert result["payload"]["target"] == %{"id" => 42}
+    assert result["payload"]["endpoint"] == "/actions/archive/preview"
+  end
+
+  test "handle_submit reports malformed submit payloads without raising" do
+    assert {:noreply, updated_socket} =
+             ActionFormHost.handle_submit(socket(), %{"intent" => "preview"},
+               preview: fn _action_id, _request, _socket ->
+                 flunk("preview callback should not run")
+               end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end
+             )
+
+    component_assigns = updated_socket.assigns.modal_detail_data.component_assigns
+
+    assert component_assigns.last_error == "action form payload is missing action_id"
+
+    assert component_assigns.last_error_details == %{
+             "field" => "action_id",
+             "message" => "action form payload is missing action_id",
+             "type" => "invalid_action_form_payload"
+           }
+  end
+
   test "handle_submit preserves machine-readable error details for the component" do
     socket = socket()
 
@@ -176,7 +235,20 @@ defmodule SelectoComponents.ActionFormHostTest do
     %{
       intent: intent,
       action_id: "archive",
-      request: %{"action" => "archive", "target" => %{"id" => 42}}
+      request: %{"action" => "archive", "target" => %{"id" => 42}},
+      target: %{"id" => 42},
+      endpoints: %{
+        "preview" => %{"href" => "/actions/archive/preview"},
+        "apply" => %{"href" => "/actions/archive/apply"}
+      }
+    }
+  end
+
+  defp string_payload(intent) do
+    %{
+      "intent" => intent,
+      "action_id" => "archive",
+      "request" => %{"action" => "archive", "target" => %{"id" => 42}}
     }
   end
 end

@@ -336,11 +336,7 @@ defmodule SelectoComponents.Modal.ActionFormModal do
         confirmed: confirmed
       )
 
-    payload = %{
-      intent: intent,
-      action_id: Map.get(action, "id"),
-      request: request
-    }
+    payload = action_submit_payload(action, target, intent, inputs, request)
 
     send(self(), {:selecto_action_form_submit, payload})
 
@@ -352,6 +348,26 @@ defmodule SelectoComponents.Modal.ActionFormModal do
        last_request: request,
        last_error: nil
      )}
+  end
+
+  defp action_submit_payload(action, target, intent, inputs, request) do
+    %{
+      intent: intent,
+      action_id: Map.get(action, "id"),
+      action: action,
+      action_label: Map.get(action, "label"),
+      action_scope: Map.get(action, "scope"),
+      action_operation: Map.get(action, "operation"),
+      capability: Map.get(action, "capability"),
+      endpoints: map_or_empty(Map.get(action, "endpoints")),
+      links: map_or_empty(Map.get(action, "links")),
+      target: target,
+      inputs: inputs,
+      confirmation_required?: truthy?(get_in(action, ["confirmation", "required"])),
+      request: request
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+    |> Map.new()
   end
 
   defp normalize_action(action) when is_map(action),

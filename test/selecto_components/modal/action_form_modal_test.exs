@@ -21,7 +21,19 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
     assert_receive {:selecto_action_form_submit, payload}
     assert payload.intent == "preview"
     assert payload.action_id == "archive"
-    assert Map.keys(payload) |> Enum.sort() == [:action_id, :intent, :request]
+    assert payload.action_label == "Archive"
+    assert payload.action_scope == "row"
+    assert payload.action_operation == "update"
+    assert payload.confirmation_required? == true
+    assert payload.target == %{"id" => 42}
+    assert payload.inputs == %{"note" => "Ready"}
+
+    assert payload.endpoints == %{
+             "preview" => %{"href" => "/actions/archive/preview", "method" => "POST"},
+             "apply" => %{"href" => "/actions/archive/apply", "method" => "POST"}
+           }
+
+    assert payload.action["id"] == "archive"
 
     assert payload.request == %{
              "action" => "archive",
@@ -42,9 +54,28 @@ defmodule SelectoComponents.Modal.ActionFormModalTest do
 
     assert_receive {:selecto_action_form_submit, payload}
     assert payload.intent == "apply"
-    assert Map.keys(payload) |> Enum.sort() == [:action_id, :intent, :request]
     assert payload.request["confirmed"] == true
     assert payload.request["dry_run"] == false
+    assert payload.confirmation_required? == true
+    assert payload.target == %{"id" => 42}
+  end
+
+  test "submit_action_form includes capability and link metadata when present" do
+    action =
+      action()
+      |> Map.put("capability", "work_items.archive")
+      |> Map.put("links", %{"audit" => %{"href" => "/actions/archive/audit"}})
+
+    assert {:noreply, _socket} =
+             ActionFormModal.handle_event(
+               "submit_action_form",
+               %{"intent" => "preview", "inputs" => %{"note" => "Ready"}},
+               socket(action, %{id: 42})
+             )
+
+    assert_receive {:selecto_action_form_submit, payload}
+    assert payload.capability == "work_items.archive"
+    assert payload.links == %{"audit" => %{"href" => "/actions/archive/audit"}}
   end
 
   test "render disables further submissions after apply succeeds" do

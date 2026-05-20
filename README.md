@@ -257,6 +257,17 @@ LiveView:
 %{
   intent: "apply",
   action_id: "set_estimate",
+  action_label: "Set estimate",
+  action_scope: "row",
+  action_operation: "update",
+  capability: "work_items.estimation",
+  target: %{"id" => 42},
+  inputs: %{"estimate_hours" => "8"},
+  confirmation_required?: false,
+  endpoints: %{
+    "preview" => %{"href" => "/api/v1/updato/work-items/actions/set_estimate/preview"},
+    "apply" => %{"href" => "/api/v1/updato/work-items/actions/set_estimate/apply"}
+  },
   request: %{
     "action" => "set_estimate",
     "target" => %{"id" => 42},
