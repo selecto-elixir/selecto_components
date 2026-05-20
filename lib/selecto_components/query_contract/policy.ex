@@ -313,6 +313,11 @@ defmodule SelectoComponents.QueryContract.Policy do
   defp operation_for(:choice_source, _entry), do: :choice_source
 
   defp target_for(entry, kind) do
+    entry_target =
+      entry
+      |> map_value(:capability_target, %{})
+      |> map_or_empty()
+
     %{
       kind: kind,
       id: entry |> map_value(:id) |> normalize_id(),
@@ -320,6 +325,7 @@ defmodule SelectoComponents.QueryContract.Policy do
       field: entry |> map_value(:field) |> normalize_optional_id(),
       capability: entry |> map_value(:capability) |> normalize_optional_id()
     }
+    |> Map.merge(entry_target)
     |> compact_map()
   end
 

@@ -63,6 +63,33 @@ defmodule SelectoComponents.QueryContract.PolicyTest do
            }
   end
 
+  test "merges field capability_target into capability request targets" do
+    contract =
+      update_in(contract().fields, fn fields ->
+        Enum.map(fields, fn
+          %{id: "private_metric"} = field ->
+            Map.put(field, :capability_target, %{ash_resource: Example.Post, ash_action: :read})
+
+          field ->
+            field
+        end)
+      end)
+
+    projected =
+      Policy.apply(contract,
+        capability_resolver: fn request ->
+          if request.capability == "items.private_metric" do
+            assert request.target.ash_resource == Example.Post
+            assert request.target.ash_action == :read
+          end
+
+          Selecto.Capabilities.allow()
+        end
+      )
+
+    assert field(projected, "private_metric").capability_decision["status"] == "enabled"
+  end
+
   test "disables string-keyed field and filter surfaces" do
     projected =
       Policy.apply(string_keyed_contract(),
