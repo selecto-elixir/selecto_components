@@ -31,21 +31,31 @@ defmodule SelectoComponents.ActionFormHost do
   - `:format_error` - callback invoked as `(reason)` for host-specific error messages
   """
   def handle_submit(socket, payload, opts) when is_map(payload) do
-    action_id = Map.fetch!(payload, :action_id)
-    request = Map.fetch!(payload, :request)
-    intent = payload |> Map.get(:intent) |> normalize_intent()
+    with {:ok, payload} <- normalize_submit_payload(payload) do
+      action_id = Map.fetch!(payload, :action_id)
+      request = Map.fetch!(payload, :request)
+      intent = payload |> Map.get(:intent) |> normalize_intent()
 
-    with :ok <- authorize_action(action_id, request, socket, intent, opts),
-         {:ok, result} <-
-           opts
-           |> Keyword.fetch!(intent)
-           |> call_action(action_id, request, socket) do
-      {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
-      {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
+      with :ok <- authorize_action(action_id, request, socket, intent, opts),
+           {:ok, result} <-
+             opts
+             |> Keyword.fetch!(intent)
+             |> call_action(action_id, request, socket, payload) do
+        {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
+        {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
+      else
+        {:error, reason} ->
+          {:noreply, assign_error(socket, error_message(reason, opts), reason)}
+      end
     else
       {:error, reason} ->
         {:noreply, assign_error(socket, error_message(reason, opts), reason)}
     end
+  end
+
+  def handle_submit(socket, _payload, opts) do
+    reason = {:invalid_action_form_payload, "expected action form payload map", %{}}
+    {:noreply, assign_error(socket, error_message(reason, opts), reason)}
   end
 
   def assign_result(socket, intent, result, metadata \\ %{}) do
@@ -91,10 +101,39 @@ defmodule SelectoComponents.ActionFormHost do
     end
   end
 
-  defp call_action(callback, action_id, request, socket) when is_function(callback, 3),
+  defp normalize_submit_payload(payload) do
+    action_id = Map.get(payload, :action_id, Map.get(payload, "action_id"))
+    request = Map.get(payload, :request, Map.get(payload, "request"))
+    intent = Map.get(payload, :intent, Map.get(payload, "intent"))
+
+    cond do
+      not is_binary(action_id) or action_id == "" ->
+        {:error,
+         {:invalid_action_form_payload, "action form payload is missing action_id",
+          %{field: :action_id}}}
+
+      not is_map(request) ->
+        {:error,
+         {:invalid_action_form_payload, "action form payload is missing request",
+          %{field: :request}}}
+
+      true ->
+        {:ok,
+         payload
+         |> QueryContract.json_safe()
+         |> Map.put(:action_id, action_id)
+         |> Map.put(:request, request)
+         |> Map.put(:intent, intent)}
+    end
+  end
+
+  defp call_action(callback, action_id, request, socket, payload) when is_function(callback, 4),
+    do: callback.(action_id, request, socket, payload)
+
+  defp call_action(callback, action_id, request, socket, _payload) when is_function(callback, 3),
     do: callback.(action_id, request, socket)
 
-  defp call_action(callback, action_id, request, _socket) when is_function(callback, 2),
+  defp call_action(callback, action_id, request, _socket, _payload) when is_function(callback, 2),
     do: callback.(action_id, request)
 
   defp authorize_action(action_id, request, socket, intent, opts) do
@@ -150,6 +189,7 @@ defmodule SelectoComponents.ActionFormHost do
   defp default_error_message({:validation_error, message, _details}), do: message
   defp default_error_message({:capability_denied, message, _details}), do: message
   defp default_error_message({:invalid_request, message}), do: message
+  defp default_error_message({:invalid_action_form_payload, message, _details}), do: message
   defp default_error_message(:capability_denied), do: "Action is not allowed."
   defp default_error_message(reason) when is_binary(reason), do: reason
   defp default_error_message(reason), do: inspect(reason)
@@ -172,6 +212,14 @@ defmodule SelectoComponents.ActionFormHost do
 
   defp error_details({:invalid_request, message}) do
     %{"type" => "invalid_request", "message" => message}
+  end
+
+  defp error_details({:invalid_action_form_payload, message, details}) do
+    details
+    |> QueryContract.json_safe()
+    |> map_or_empty()
+    |> Map.put_new("message", message)
+    |> Map.put_new("type", "invalid_action_form_payload")
   end
 
   defp error_details(:capability_denied) do
