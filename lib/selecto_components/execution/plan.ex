@@ -157,8 +157,10 @@ defmodule SelectoComponents.Execution.Plan do
       denorm_groups = selecto.set.denorm_groups
 
       try do
-        Enum.reduce(denorm_groups, selecto, fn {relationship_path, columns}, acc ->
-          SubselectBuilder.add_subselect_for_group(acc, relationship_path, columns)
+        selecto
+        |> SubselectBuilder.generate_subselect_configs(denorm_groups)
+        |> Enum.reduce(selecto, fn config, acc ->
+          SubselectBuilder.add_subselect_tree(acc, config)
         end)
       rescue
         _e -> selecto

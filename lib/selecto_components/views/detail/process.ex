@@ -91,20 +91,9 @@ defmodule SelectoComponents.Views.Detail.Process do
 
           # Generate subselect configurations for UI display
           subselect_configs =
-            Enum.map(visible_denorm_groups, fn {path, cols} ->
-              config = SelectoComponents.SubselectBuilder.generate_nested_config(path, cols)
-              # Add the actual columns to the config for later use
-              config =
-                Map.put(
-                  config,
-                  :columns,
-                  Enum.map(cols, fn col ->
-                    {UUID.uuid4(), col, %{}}
-                  end)
-                )
-
-              config
-            end)
+            visible_denorm_groups
+            |> Map.new()
+            |> SelectoComponents.SubselectBuilder.generate_nested_configs()
 
           {normal_query_detail_columns, normal_detail_columns, subselect_configs, denorm_groups}
         end

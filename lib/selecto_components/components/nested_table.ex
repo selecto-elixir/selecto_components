@@ -21,6 +21,7 @@ defmodule SelectoComponents.Components.NestedTable do
   attr(:row_id, :string, required: true)
   attr(:expanded, :boolean, default: false)
   attr(:theme, :any, default: nil)
+  attr(:depth, :integer, default: 0)
 
   def nested_table(assigns) do
     assigns =
@@ -70,7 +71,13 @@ defmodule SelectoComponents.Components.NestedTable do
                     <tr style="border-color: var(--sc-surface-border);">
                       <%= for key <- get_data_keys(@parsed_data, @config) do %>
                         <td class="whitespace-nowrap px-3 py-2 text-sm" style="color: var(--sc-text-primary);">
-                          {format_value(Map.get(item, key, ""))}
+                          <.nested_value
+                            value={Map.get(item, key, "")}
+                            config={child_config(@config, key)}
+                            row_id={"#{@row_id}_#{idx}_#{safe_key(key)}"}
+                            depth={@depth + 1}
+                            theme={@theme}
+                          />
                         </td>
                       <% end %>
                     </tr>
@@ -244,6 +251,7 @@ defmodule SelectoComponents.Components.NestedTable do
 
   def format_value(value) when is_binary(value), do: value
   def format_value(value) when is_number(value), do: to_string(value)
+  def format_value(value) when is_boolean(value), do: to_string(value)
   def format_value(nil), do: ""
   def format_value(value), do: inspect(value)
 
@@ -255,6 +263,7 @@ defmodule SelectoComponents.Components.NestedTable do
   attr(:config, :map, required: true)
   attr(:row_id, :string, required: true)
   attr(:theme, :any, default: nil)
+  attr(:depth, :integer, default: 0)
 
   def inline_nested_table(assigns) do
     assigns =
@@ -276,11 +285,17 @@ defmodule SelectoComponents.Components.NestedTable do
             </tr>
           </thead>
           <tbody>
-            <%= for {item, _idx} <- Enum.with_index(@parsed_data) do %>
+            <%= for {item, idx} <- Enum.with_index(@parsed_data) do %>
               <tr class="last:border-b-0" style="border-color: var(--sc-surface-border);">
                 <%= for key <- get_data_keys(@parsed_data, @config) do %>
                   <td class="px-2 py-1 text-xs" style="color: var(--sc-text-primary);">
-                    {format_value(Map.get(item, key, ""))}
+                    <.nested_value
+                      value={Map.get(item, key, "")}
+                      config={child_config(@config, key)}
+                      row_id={"#{@row_id}_#{idx}_#{safe_key(key)}"}
+                      depth={@depth + 1}
+                      theme={@theme}
+                    />
                   </td>
                 <% end %>
               </tr>
@@ -292,6 +307,119 @@ defmodule SelectoComponents.Components.NestedTable do
       <% end %>
     </div>
     """
+  end
+
+  attr(:value, :any, required: true)
+  attr(:config, :map, required: true)
+  attr(:row_id, :string, required: true)
+  attr(:depth, :integer, required: true)
+  attr(:theme, :any, default: nil)
+
+  defp nested_value(assigns) do
+    assigns =
+      assigns
+      |> Map.put(:nested_data, parse_nested_value(assigns.value))
+      |> Map.put(:max_depth_reached?, assigns.depth >= max_depth(assigns.config))
+
+    ~H"""
+    <%= cond do %>
+      <% @nested_data == [] -> %>
+        {format_value(@value)}
+      <% @max_depth_reached? -> %>
+        {format_value(@value)}
+      <% true -> %>
+        <.inline_nested_table
+          data={@nested_data}
+          config={@config}
+          row_id={@row_id}
+          depth={@depth}
+          theme={@theme}
+        />
+    <% end %>
+    """
+  end
+
+  defp parse_nested_value(value) when is_list(value) do
+    parse_subselect_data(value, %{})
+  end
+
+  defp parse_nested_value(value) when is_map(value), do: [value]
+
+  defp parse_nested_value(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, decoded} when is_list(decoded) -> parse_subselect_data(decoded, %{})
+      {:ok, decoded} when is_map(decoded) -> [decoded]
+      _ -> []
+    end
+  end
+
+  defp parse_nested_value(_value), do: []
+
+  defp child_config(config, key) do
+    child =
+      config
+      |> Map.get(:children, %{})
+      |> find_child_config(key)
+
+    Map.merge(
+      %{
+        key: to_string(key),
+        title: humanize_key(key),
+        max_rows: max_display_rows(config),
+        max_depth: max_depth(config)
+      },
+      child
+    )
+  end
+
+  defp find_child_config(children, key) when is_map(children) do
+    key_string = to_string(key)
+
+    Map.get(children, key) ||
+      Map.get(children, key_string) ||
+      find_atom_child_config(children, key_string) ||
+      %{}
+  end
+
+  defp find_child_config(children, key) when is_list(children) do
+    Enum.find(children, %{}, fn child ->
+      is_map(child) and
+        to_string(Map.get(child, :key, Map.get(child, "key", ""))) == to_string(key)
+    end)
+  end
+
+  defp find_child_config(_children, _key), do: %{}
+
+  defp find_atom_child_config(children, key) do
+    Enum.find_value(children, fn
+      {child_key, child_config} when is_atom(child_key) ->
+        if Atom.to_string(child_key) == key, do: child_config
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp max_depth(config) do
+    case Map.get(config, :max_depth, Map.get(config, "max_depth", 6)) do
+      value when is_integer(value) and value >= 0 ->
+        value
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {parsed, ""} when parsed >= 0 -> parsed
+          _ -> 6
+        end
+
+      _ ->
+        6
+    end
+  end
+
+  defp safe_key(key) do
+    key
+    |> to_string()
+    |> String.replace(~r/[^A-Za-z0-9_-]+/, "_")
   end
 
   @doc """

@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Detail.Component do
 
   """
   import SelectoComponents.Components.SqlDebug
+  import SelectoComponents.Components.NestedTable, only: [inline_nested_table: 1]
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.BulkActions
@@ -565,38 +566,13 @@ defmodule SelectoComponents.Views.Detail.Component do
                       data-result-column-index={length(@columns) + subselect_idx + 1}
                       tabindex="-1"
                     >
-                      <% # Parse the data here to ensure it's fresh %>
-                      <% parsed_data =
-                        SelectoComponents.Components.NestedTable.parse_subselect_data(data, config) %>
                       <div id={"nested_#{unique_id}"}>
-                        <%= if length(parsed_data) > 0 do %>
-                          <table class="min-w-full rounded border" style="border-color: var(--sc-surface-border);">
-                            <thead>
-                              <tr style="background: var(--sc-surface-bg-alt);">
-                                <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                  <th class="border-b px-2 py-1 text-xs font-medium" style="border-color: var(--sc-surface-border); color: var(--sc-text-secondary);">
-                                    {SelectoComponents.Components.NestedTable.humanize_key(key)}
-                                  </th>
-                                <% end %>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <%= for {item, _idx} <- Enum.with_index(parsed_data) do %>
-                                <tr class="last:border-b-0" style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg);">
-                                  <%= for key <- SelectoComponents.Components.NestedTable.get_data_keys(parsed_data, config) do %>
-                                    <td class="px-2 py-1 text-xs" style="color: var(--sc-text-secondary);">
-                                      {SelectoComponents.Components.NestedTable.format_value(
-                                        Map.get(item, key, "")
-                                      )}
-                                    </td>
-                                  <% end %>
-                                </tr>
-                              <% end %>
-                            </tbody>
-                          </table>
-                        <% else %>
-                          <div class="text-xs italic" style="color: var(--sc-text-muted);">No data</div>
-                        <% end %>
+                        <.inline_nested_table
+                          data={data}
+                          config={config}
+                          row_id={unique_id}
+                          theme={@theme}
+                        />
                       </div>
                     </td>
                   <% end %>

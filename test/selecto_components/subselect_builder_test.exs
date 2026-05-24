@@ -157,4 +157,102 @@ defmodule SelectoComponents.SubselectBuilderTest do
     assert config.alias == "members.manager"
     assert config.join_path == [:members, :manager]
   end
+
+  test "builds nested subselect configs from descendant denormalization groups" do
+    domain = %{
+      source: %{
+        source_table: "workspaces",
+        primary_key: :id,
+        fields: [:id, :name],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, name: %{type: :string}},
+        associations: %{
+          members: %{
+            queryable: :employee,
+            field: :members,
+            owner_key: :id,
+            related_key: :workspace_id
+          }
+        }
+      },
+      schemas: %{
+        employee: %{
+          source_table: "employees",
+          primary_key: :id,
+          fields: [:id, :full_name, :workspace_id, :manager_id],
+          redact_fields: [],
+          columns: %{
+            id: %{type: :integer},
+            full_name: %{type: :string},
+            workspace_id: %{type: :integer},
+            manager_id: %{type: :integer}
+          },
+          associations: %{
+            manager: %{
+              queryable: :employee,
+              field: :manager,
+              owner_key: :manager_id,
+              related_key: :id
+            }
+          }
+        }
+      },
+      name: "Workspace",
+      joins: %{members: %{type: :left, name: "members"}}
+    }
+
+    selecto =
+      Selecto.configure(domain, [hostname: "localhost"], validate: false)
+      |> then(fn base ->
+        joins = %{
+          members: %{
+            type: :left,
+            name: "members",
+            source: "employees",
+            my_key: :workspace_id,
+            requires_join: :selecto_root,
+            fields: %{}
+          },
+          manager: %{
+            type: :left,
+            name: "manager",
+            source: "employees",
+            my_key: :manager_id,
+            requires_join: :members,
+            fields: %{}
+          }
+        }
+
+        %{base | config: Map.put(base.config, :joins, joins)}
+      end)
+
+    [config] =
+      SubselectBuilder.generate_subselect_configs(selecto, %{
+        "members" => ["members.full_name"],
+        "members.manager" => ["manager.full_name"]
+      })
+
+    assert config.alias == "members"
+    assert config.fields == ["full_name"]
+    assert config.join_path == [:members]
+
+    assert [
+             %{
+               key: "manager",
+               fields: ["full_name"],
+               target_schema: :employee,
+               join_path: [:members, :manager]
+             }
+           ] = config.nested
+
+    [ui_config] =
+      SubselectBuilder.generate_nested_configs(%{
+        "members" => ["members.full_name"],
+        "members.manager" => ["manager.full_name"]
+      })
+
+    assert ui_config.key == "members"
+    assert Map.has_key?(ui_config.children, "manager")
+    assert ui_config.children["manager"].key == "members.manager"
+  end
 end

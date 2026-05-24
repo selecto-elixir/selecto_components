@@ -15,10 +15,21 @@ defmodule SelectoComponents.SubselectBuilder do
     query = apply_normal_columns(selecto, normal_columns)
 
     # Add subselects for each denormalizing group
-    Enum.reduce(denormalizing_groups, query, fn {relationship_path, columns}, acc ->
-      add_subselect_for_group(acc, relationship_path, columns)
+    Enum.reduce(generate_subselect_configs(selecto, denormalizing_groups), query, fn config,
+                                                                                     acc ->
+      Selecto.subselect(acc, [config])
     end)
   end
+
+  def generate_subselect_configs(selecto, denormalizing_groups)
+      when is_map(denormalizing_groups) do
+    denormalizing_groups
+    |> build_group_tree()
+    |> Enum.map(fn {_segment, node} -> sql_config_from_node(selecto, node) end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def generate_subselect_configs(_selecto, _denormalizing_groups), do: []
 
   @doc """
   Separates columns into main query columns and subselect groups
@@ -86,6 +97,10 @@ defmodule SelectoComponents.SubselectBuilder do
 
       Selecto.subselect(selecto, [config])
     end
+  end
+
+  def add_subselect_tree(selecto, config) when is_map(config) do
+    Selecto.subselect(selecto, [config])
   end
 
   # defp build_subselect_alias(relationship_path) do
@@ -226,6 +241,86 @@ defmodule SelectoComponents.SubselectBuilder do
       max_rows: 10,
       show_more: true
     }
+  end
+
+  def generate_nested_configs(denormalizing_groups) when is_map(denormalizing_groups) do
+    denormalizing_groups
+    |> build_group_tree()
+    |> Enum.map(fn {_segment, node} -> ui_config_from_node(node) end)
+  end
+
+  def generate_nested_configs(_denormalizing_groups), do: []
+
+  defp build_group_tree(denormalizing_groups) do
+    Enum.reduce(denormalizing_groups, %{}, fn {relationship_path, columns}, acc ->
+      path_segments =
+        relationship_path
+        |> to_string()
+        |> String.split(".")
+        |> Enum.reject(&(&1 == ""))
+
+      put_group_node(acc, path_segments, columns, [])
+    end)
+  end
+
+  defp put_group_node(tree, [], _columns, _prefix), do: tree
+
+  defp put_group_node(tree, [segment | rest], columns, prefix) do
+    node_path = prefix ++ [segment]
+
+    Map.update(
+      tree,
+      segment,
+      %{path_segments: node_path, columns: [], children: %{}},
+      fn node -> node end
+    )
+    |> update_in([segment], fn node ->
+      if rest == [] do
+        %{node | columns: columns}
+      else
+        %{node | children: put_group_node(node.children, rest, columns, node_path)}
+      end
+    end)
+  end
+
+  defp sql_config_from_node(selecto, node) do
+    relationship_path = Enum.join(node.path_segments, ".")
+    field_names = node.columns |> Enum.map(&extract_field_name/1) |> Enum.reject(&is_nil/1)
+    target_schema = resolve_target_schema(selecto, relationship_path)
+
+    if is_nil(target_schema) do
+      nil
+    else
+      %{
+        fields: field_names,
+        target_schema: target_schema,
+        format: :json_agg,
+        alias: relationship_path,
+        join_path: normalize_join_path(selecto, relationship_path),
+        nested:
+          node.children
+          |> Enum.map(fn {_segment, child} -> sql_config_from_node(selecto, child) end)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.map(fn config -> Map.put(config, :key, config_key(config)) end)
+      }
+    end
+  end
+
+  defp ui_config_from_node(node) do
+    relationship_path = Enum.join(node.path_segments, ".")
+
+    generate_nested_config(relationship_path, node.columns)
+    |> Map.put(
+      :children,
+      Map.new(node.children, fn {segment, child} -> {segment, ui_config_from_node(child)} end)
+    )
+  end
+
+  defp config_key(config) do
+    config
+    |> Map.get(:join_path, [])
+    |> List.last()
+    |> to_string()
   end
 
   defp humanize_relationship(path) do
