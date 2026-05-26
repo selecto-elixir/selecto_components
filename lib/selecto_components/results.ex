@@ -107,7 +107,7 @@ defmodule SelectoComponents.Results do
         <% end %>
       </div>
       <div
-        :if={@has_component_errors && !@applied_view}
+        :if={@has_component_errors && !@applied_view && @executed}
         class="mb-4 rounded-lg border px-4 py-3"
         style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"
