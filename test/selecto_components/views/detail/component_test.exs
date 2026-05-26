@@ -22,6 +22,44 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     Selecto.configure(domain, nil)
   end
 
+  defp selecto_with_bulk_action do
+    domain = %{
+      name: "DetailBulkSelectionTest",
+      source: %{
+        source_table: "work_items",
+        primary_key: :id,
+        fields: [:id, :title],
+        redact_fields: [],
+        columns: %{id: %{type: :integer}, title: %{type: :string}},
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{},
+      actions: %{
+        archive_selected: %{
+          id: :archive_selected,
+          label: "Archive selected",
+          scope: :bulk,
+          capability: "work_items.archive",
+          execution: %{operation: :update},
+          links: %{
+            preview: "/work-items/actions/archive_selected/preview",
+            apply: "/work-items/actions/archive_selected/apply"
+          },
+          inputs: [%{id: :reason, type: :textarea, required: true}]
+        }
+      }
+    }
+
+    Selecto.configure(domain, nil)
+    |> Map.put(:set, %{
+      columns: [
+        %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
+        %{"field" => "title", "alias" => "title", "uuid" => "title-col"}
+      ]
+    })
+  end
+
   defp base_assigns(overrides \\ %{}) do
     base = %{
       id: "detail-component-test",
@@ -72,49 +110,12 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
   end
 
   test "renders bulk selection checkboxes and toolbar for detail rows" do
-    domain = %{
-      name: "DetailBulkSelectionTest",
-      source: %{
-        source_table: "work_items",
-        primary_key: :id,
-        fields: [:id, :title],
-        redact_fields: [],
-        columns: %{id: %{type: :integer}, title: %{type: :string}},
-        associations: %{}
-      },
-      schemas: %{},
-      joins: %{},
-      actions: %{
-        archive_selected: %{
-          id: :archive_selected,
-          label: "Archive selected",
-          scope: :bulk,
-          capability: "work_items.archive",
-          execution: %{operation: :update},
-          links: %{
-            preview: "/work-items/actions/archive_selected/preview",
-            apply: "/work-items/actions/archive_selected/apply"
-          },
-          inputs: [%{id: :reason, type: :textarea, required: true}]
-        }
-      }
-    }
-
-    selecto =
-      Selecto.configure(domain, nil)
-      |> Map.put(:set, %{
-        columns: [
-          %{"field" => "id", "alias" => "id", "uuid" => "id-col"},
-          %{"field" => "title", "alias" => "title", "uuid" => "title-col"}
-        ]
-      })
-
     html =
       render_component(Component, %{
         id: "detail-bulk-selection-test",
         executed: true,
         execution_error: nil,
-        selecto: selecto,
+        selecto: selecto_with_bulk_action(),
         query_results:
           {[[42, "Archive me"], [43, "Archive me too"]], ["id", "title"], ["id", "title"]},
         view_meta: %{page: 0, per_page: 10, total_rows: 2, subselect_configs: []}
@@ -126,6 +127,16 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert html =~ ~s(id="detail-bulk-actions-detail-bulk-selection-test")
     assert html =~ ~s(data-bulk-action-id="domain_bulk_action_form_archive_selected")
     refute html =~ ~s(data-bulk-action-id="archive")
+  end
+
+  test "hides bulk selection controls when no bulk actions are defined" do
+    html = render_component(Component, base_assigns())
+
+    refute html =~ "Bulk Actions"
+    refute html =~ ~s(id="select-all-checkbox")
+    refute html =~ ~s(id="row-checkbox-100")
+    refute html =~ ~s(id="row-checkbox-101")
+    refute html =~ ~s(id="detail-bulk-actions-detail-component-test")
   end
 
   test "detail selection events update selected row ids" do
@@ -162,6 +173,7 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
           selected_rows: MapSet.new(["1541", "1542", "1543"]),
           selection_count: 3,
           select_all: false,
+          selecto: selecto_with_bulk_action(),
           query_results: {[[1544], [1545]], ["id"], ["id"]},
           view_meta: %{page: 0, per_page: 10, total_rows: 2, subselect_configs: []}
         })

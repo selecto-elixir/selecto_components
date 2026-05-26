@@ -5,6 +5,7 @@ defmodule SelectoComponents.Views.Detail.Component do
   """
   import SelectoComponents.Components.SqlDebug
   import SelectoComponents.Components.NestedTable, only: [inline_nested_table: 1]
+  alias SelectoComponents.Actions
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.EnhancedTable.BulkActions
@@ -190,6 +191,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       |> MapSet.intersection(visible_row_id_set)
 
     selection_count = MapSet.size(selected_rows)
+    bulk_actions_enabled = bulk_actions_enabled?(assigns)
 
     ### Use Selecto columns rather than aliases because a column can lead to more than one selection...
 
@@ -211,6 +213,7 @@ defmodule SelectoComponents.Views.Detail.Component do
         visible_row_ids: visible_row_ids,
         selected_rows: selected_rows,
         selection_count: selection_count,
+        bulk_actions_enabled: bulk_actions_enabled,
         select_all: selection_count > 0 and selection_count == length(visible_row_ids),
         visible_selection_count: selection_count,
         bulk_actions_component_id:
@@ -364,6 +367,7 @@ defmodule SelectoComponents.Views.Detail.Component do
       </div>
 
       <.live_component
+        :if={@bulk_actions_enabled}
         module={BulkActions}
         id={@bulk_actions_component_id}
         selecto={@selecto}
@@ -385,6 +389,7 @@ defmodule SelectoComponents.Views.Detail.Component do
           <thead style="background: var(--sc-surface-bg-alt);">
             <tr>
               <RowSelection.selection_header
+                :if={@bulk_actions_enabled}
                 target={@myself}
                 select_all={@select_all}
                 selection_count={@visible_selection_count}
@@ -494,11 +499,13 @@ defmodule SelectoComponents.Views.Detail.Component do
                 phx-value-row-index={if row_action_type == "modal", do: display_idx}
                 phx-target={if row_action_type == "modal", do: @myself}
               >
-                <RowSelection.row_checkbox
-                  target={@myself}
-                  row_id={row_selection_id}
-                  selected_rows={@selected_rows}
-                />
+                <%= if @bulk_actions_enabled do %>
+                  <RowSelection.row_checkbox
+                    target={@myself}
+                    row_id={row_selection_id}
+                    selected_rows={@selected_rows}
+                  />
+                <% end %>
                 <td
                   class="w-12 max-w-12 min-w-12 px-2 py-1 text-center"
                   style="color: var(--sc-text-secondary); border-bottom: 1px solid var(--sc-surface-border);"
@@ -910,6 +917,26 @@ defmodule SelectoComponents.Views.Detail.Component do
     RowActions.current_action(selecto, row_click_action,
       legacy_modal_enabled: enable_modal_detail == true
     )
+  end
+
+  defp bulk_actions_enabled?(assigns) do
+    assigns
+    |> bulk_action_contract()
+    |> Actions.bulk_actions(id_prefix: "domain_bulk_action_form_")
+    |> map_size()
+    |> Kernel.>(0)
+  rescue
+    _ -> false
+  end
+
+  defp bulk_action_contract(assigns) do
+    assigns[:action_contract] ||
+      assigns[:write_contract] ||
+      assigns[:domain] ||
+      case assigns[:selecto] do
+        nil -> %{}
+        selecto -> Selecto.domain(selecto)
+      end
   end
 
   defp visible_aliases(columns) do
