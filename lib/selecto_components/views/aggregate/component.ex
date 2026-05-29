@@ -4,6 +4,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   """
   use Phoenix.LiveComponent
   alias SelectoComponents.Env
+  alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.Presentation
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
@@ -562,13 +563,30 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   @impl true
   def render(assigns) do
     # Check for execution error first
-    if Map.get(assigns, :execution_error) do
-      # Error is already displayed by the form component wrapper
-      # Just show a message that view cannot be rendered
+    if execution_error?(assigns) do
+      error_info = ErrorBuilder.normalize(assigns.execution_error)
+      assigns = assign(assigns, :error_info, error_info)
+
       ~H"""
       <div>
-        <div class="p-4 italic" style="color: var(--sc-text-muted);">
-          View cannot be displayed due to query error. Please check the error message above.
+        <div class="mb-4 rounded px-4 py-3" role="alert" style="background: color-mix(in srgb, var(--sc-danger) 10%, var(--sc-surface-bg)); border: 1px solid color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);">
+          <strong class="font-bold">{@error_info.summary}:</strong>
+          <span :if={present?(@error_info.user_message)} class="block sm:inline">
+            {@error_info.user_message}
+          </span>
+          <span
+            :if={not present?(@error_info.user_message)}
+            class="block sm:inline font-mono text-xs"
+          >
+            {inspect(assigns.execution_error, pretty: true, limit: 12)}
+          </span>
+          <div :if={@error_info.detail} class="text-sm mt-1">{@error_info.detail}</div>
+          <div :if={@error_info.suggestion} class="text-sm mt-1 font-medium">
+            Next step: {@error_info.suggestion}
+          </div>
+        </div>
+        <div class="p-4 italic" style="color: var(--sc-text-secondary);">
+          Aggregate view cannot be displayed until the query error is resolved.
         </div>
       </div>
       """
@@ -825,28 +843,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 if is_binary(field_name) && String.contains?(field_name, ".") do
                   [schema_name, field_only] = String.split(field_name, ".", parts: 2)
 
-                  # Look up from domain.schemas[schema].columns[field]
-                  domain = Selecto.domain(assigns.selecto)
-
-                  schema_atom =
-                    try do
-                      String.to_existing_atom(schema_name)
-                    rescue
-                      ArgumentError -> nil
-                    end
-
-                  field_atom =
-                    try do
-                      String.to_existing_atom(field_only)
-                    rescue
-                      ArgumentError -> nil
-                    end
-
-                  if schema_atom && field_atom do
-                    get_in(domain, [:schemas, schema_atom, :columns, field_atom])
-                  else
-                    nil
-                  end
+                  SelectoComponents.SchemaUtils.lookup_domain_column_metadata(
+                    assigns.selecto,
+                    schema_name,
+                    field_only
+                  )
                 else
                   configured_column(assigns.selecto, field_name) ||
                     Selecto.field(assigns.selecto, field_name)
@@ -1914,4 +1915,15 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       _ -> page
     end
   end
+
+  defp execution_error?(assigns) do
+    case Map.get(assigns, :execution_error) do
+      nil -> false
+      "" -> false
+      _ -> true
+    end
+  end
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(_), do: false
 end

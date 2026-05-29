@@ -64,6 +64,35 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     Selecto.configure(domain, nil)
   end
 
+  defp studio_runtime_selecto do
+    domain = %{
+      name: "StudioRuntime",
+      source: %{
+        source_table: "workspaces_public_teams",
+        primary_key: "id",
+        fields: ["id"],
+        redact_fields: [],
+        columns: %{"id" => %{type: :integer}},
+        associations: %{}
+      },
+      schemas: %{
+        "public.buildings_public_campuses" => %{
+          source_table: "buildings_public_campuses",
+          primary_key: "id",
+          fields: ["city"],
+          redact_fields: [],
+          columns: %{
+            "city" => %{name: "Campus City", type: :string}
+          },
+          associations: %{}
+        }
+      },
+      joins: %{}
+    }
+
+    Selecto.configure(domain, nil)
+  end
+
   test "param_to_state reads aggregate grid toggle" do
     state = Process.param_to_state(%{"aggregate_grid" => "true"}, %{})
     assert state.grid == true
@@ -126,6 +155,29 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
            ) == [
              {:field, {:sum, {:coalesce, ["total", 0]}}, "Total Sum"}
            ]
+  end
+
+  test "group by resolves studio runtime schemas without pre-existing atoms" do
+    selecto = studio_runtime_selecto()
+
+    columns = %{
+      "buildings_public_campuses.city" => %{
+        name: "Campus City",
+        type: :string,
+        colid: "buildings_public_campuses.city"
+      }
+    }
+
+    [{coldef, selector}] =
+      Process.group_by(
+        %{"g1" => %{"field" => "buildings_public_campuses.city", "format" => "default"}},
+        columns,
+        selecto
+      )
+
+    assert selector == {:field, "buildings_public_campuses.city", "Campus City"}
+    assert coldef.colid == "buildings_public_campuses.city"
+    assert coldef.type == :string
   end
 
   test "group by uses column display names by default" do

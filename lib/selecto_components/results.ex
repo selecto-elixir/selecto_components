@@ -83,7 +83,7 @@ defmodule SelectoComponents.Results do
         }
       </style>
       <div
-        :if={@normalized_execution_error && !@applied_view}
+        :if={@normalized_execution_error}
         class="mb-4 rounded-lg border px-4 py-3"
         style="background: var(--sc-danger-soft); border-color: color-mix(in srgb, var(--sc-danger) 35%, var(--sc-surface-border)); color: var(--sc-danger);"
         role="alert"

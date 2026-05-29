@@ -47,6 +47,54 @@ defmodule SelectoComponents.SchemaUtils do
 
   def uuid_type?(type), do: normalize_type(type) == :uuid
 
+  @doc false
+  def lookup_domain_column_metadata(selecto, schema_ref, field_name)
+      when is_binary(schema_ref) and is_binary(field_name) do
+    schemas = get_in(Selecto.domain(selecto), [:schemas]) || %{}
+
+    case find_schema_config(schemas, schema_ref) do
+      %{columns: columns} when is_map(columns) ->
+        lookup_column_in_schema(columns, field_name)
+
+      _ ->
+        nil
+    end
+  end
+
+  def lookup_domain_column_metadata(_selecto, _schema_ref, _field_name), do: nil
+
+  defp find_schema_config(schemas, schema_ref) when is_map(schemas) do
+    cond do
+      Map.has_key?(schemas, schema_ref) ->
+        Map.get(schemas, schema_ref)
+
+      true ->
+        Enum.find_value(schemas, fn {key, config} ->
+          if schema_ref_matches?(key, config, schema_ref), do: config
+        end) ||
+          case safe_existing_atom(schema_ref) do
+            {:ok, atom} -> Map.get(schemas, atom)
+            :error -> nil
+          end
+    end
+  end
+
+  defp schema_ref_matches?(key, config, schema_ref) do
+    key_str = to_string(key)
+    source_table = config |> Map.get(:source_table) |> to_string()
+
+    schema_ref == key_str or schema_ref == source_table or
+      String.ends_with?(key_str, "." <> schema_ref)
+  end
+
+  defp lookup_column_in_schema(columns, field_name) do
+    Map.get(columns, field_name) ||
+      case safe_existing_atom(field_name) do
+        {:ok, atom} -> Map.get(columns, atom)
+        :error -> nil
+      end
+  end
+
   defp schema_field_type(selecto, column) do
     with {:ok, field_atom} <- field_atom(column),
          {:ok, schema_module} <- schema_module(column, selecto),

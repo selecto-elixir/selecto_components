@@ -152,15 +152,11 @@ defmodule SelectoComponents.Views.Aggregate.Process do
       # Selecto.field() doesn't return custom metadata from joined schema columns
       col =
         if selecto && String.contains?(to_string(field_name), ".") do
-          # This is a joined field like "category.category_name"
-          # Parse it to get schema and field name
+          # Joined field like "category.category_name" or Studio "table.column" refs.
           [schema_name, field_only] = String.split(to_string(field_name), ".", parts: 2)
-          schema_atom = String.to_existing_atom(schema_name)
-          field_atom = String.to_existing_atom(field_only)
 
-          # Look up the column metadata from domain.schemas[schema].columns[field]
-          domain = Selecto.domain(selecto)
-          schema_col_metadata = get_in(domain, [:schemas, schema_atom, :columns, field_atom])
+          schema_col_metadata =
+            SchemaUtils.lookup_domain_column_metadata(selecto, schema_name, field_only)
 
           if schema_col_metadata do
             # Merge with basic field info and ensure colid is set
