@@ -1242,7 +1242,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
   defp normalize_type_family(type) when type in [:id, :integer, :float, :decimal], do: :number
 
   defp normalize_type_family(type)
-       when type in [:utc_datetime, :naive_datetime, :date, :datetime], do: :date
+       when type in [:utc_datetime, :naive_datetime, :date, :datetime],
+       do: :date
 
   defp normalize_type_family(:boolean), do: :boolean
   defp normalize_type_family(type) when type in [:string, :text, :citext, :tsvector], do: :text
@@ -1251,7 +1252,8 @@ defmodule SelectoComponents.Components.TreeBuilder do
   defp normalize_type_family(:binary), do: :binary
 
   defp normalize_type_family(type)
-       when type in [:lookup, :star_dimension, :tag_dimension, :component, :link], do: :relation
+       when type in [:lookup, :star_dimension, :tag_dimension, :component, :link],
+       do: :relation
 
   defp normalize_type_family({:array, _}), do: :list
   defp normalize_type_family(type) when type in [:map, :json, :jsonb], do: :json

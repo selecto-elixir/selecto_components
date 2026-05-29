@@ -195,7 +195,8 @@ defmodule SelectoComponents.SafeAtom do
   def to_aggregate_function("", default), do: default
 
   def to_aggregate_function(value, _default)
-      when is_atom(value) and value in @valid_aggregate_functions, do: value
+      when is_atom(value) and value in @valid_aggregate_functions,
+      do: value
 
   def to_aggregate_function(value, default) when is_atom(value), do: default
 

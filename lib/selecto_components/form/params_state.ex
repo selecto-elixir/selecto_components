@@ -893,7 +893,8 @@ defmodule SelectoComponents.Form.ParamsState do
   defp measurement_to_canonical(value, :celsius, :kelvin), do: value + 273.15
 
   defp measurement_to_canonical(value, display_unit, canonical_unit)
-       when display_unit == canonical_unit, do: value
+       when display_unit == canonical_unit,
+       do: value
 
   defp measurement_to_canonical(value, display_unit, canonical_unit) do
     with {:ok, display_factor} <- measurement_factor(display_unit),

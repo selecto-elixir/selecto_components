@@ -470,7 +470,8 @@ defmodule SelectoComponents.ErrorHandling.ErrorBuilder do
   defp build_debug(error), do: %{raw_error: error}
 
   defp normalize_suggestions(suggestions, _suggestion)
-       when is_list(suggestions) and suggestions != [], do: suggestions
+       when is_list(suggestions) and suggestions != [],
+       do: suggestions
 
   defp normalize_suggestions(_suggestions, nil), do: []
   defp normalize_suggestions(_suggestions, suggestion), do: [suggestion]

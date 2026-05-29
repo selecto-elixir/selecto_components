@@ -396,7 +396,8 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
   defp root_enum_field?(%{field: field, requires_join: :selecto_root}, selecto) do
     with {:ok, field_atom} <- to_existing_atom_safe(field),
-         module when is_atom(module) <- get_in(Selecto.domain(selecto), [:source, :schema_module]),
+         module when is_atom(module) <-
+           get_in(Selecto.domain(selecto), [:source, :schema_module]),
          true <- Code.ensure_loaded?(module),
          {:parameterized, {Ecto.Enum, _}} <- module.__schema__(:type, field_atom) do
       true
