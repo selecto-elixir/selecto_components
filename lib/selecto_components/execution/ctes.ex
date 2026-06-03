@@ -60,8 +60,6 @@ defmodule SelectoComponents.Execution.CTEs do
     end
   end
 
-  defp ctes_from_params(_params, default), do: default
-
   defp derived_cte_names_from_params(params, %Selecto{} = selecto) when is_map(params) do
     field_ids = field_ids_from_params(params) ++ filter_ids_from_params(params)
     ColumnCatalog.required_cte_names_for_fields(selecto, field_ids)
@@ -88,8 +86,6 @@ defmodule SelectoComponents.Execution.CTEs do
     end)
   end
 
-  defp field_ids_from_params(_params), do: []
-
   defp list_field_ids_from_param_section(section) when is_map(section) do
     section
     |> Map.values()
@@ -107,16 +103,12 @@ defmodule SelectoComponents.Execution.CTEs do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp filter_ids_from_params(_params), do: []
-
   defp field_ids_from_view_config(view_config) when is_map(view_config) do
     view_config
     |> get_map_value(:views, %{})
     |> Map.values()
     |> Enum.flat_map(&field_ids_from_view_state/1)
   end
-
-  defp field_ids_from_view_config(_view_config), do: []
 
   defp field_ids_from_view_state(view_state) when is_map(view_state) do
     @view_state_field_keys
@@ -151,8 +143,6 @@ defmodule SelectoComponents.Execution.CTEs do
     end)
     |> Enum.reject(&is_nil/1)
   end
-
-  defp filter_ids_from_view_config(_view_config), do: []
 
   defp build_cte_entries(names, existing_ctes) when is_list(names) do
     existing_by_name =

@@ -86,8 +86,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       find_graph_group_config(used_params, field_name, group_idx)
   end
 
-  defp find_field_group_config(_used_params, _field_name, _group_idx), do: nil
-
   defp find_field_group_config_in_collection(config_map, field_name, group_idx)
        when is_map(config_map) do
     by_index = find_field_group_config_by_index(config_map, group_idx)

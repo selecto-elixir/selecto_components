@@ -281,8 +281,6 @@ defmodule SelectoComponents.Views.Graph.Process do
     Map.get(params, "_presentation_context", %{})
   end
 
-  defp runtime_presentation_context(_params), do: %{}
-
   defp maybe_timezone_aware_datetime_selector(col, field_ref, format, presentation_context) do
     if timezone_grouping_applicable?(col, presentation_context) do
       {:raw_sql, timezone_aware_to_char_sql(col, field_ref, format, presentation_context)}

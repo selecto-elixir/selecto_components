@@ -267,8 +267,6 @@ defmodule SelectoComponents.Form.ParamsState do
     end
   end
 
-  defp normalize_filter_form_state(filter), do: filter
-
   defp normalize_in_filter_state(filter, value) do
     {selected_values, pending_values} =
       filter
@@ -371,8 +369,6 @@ defmodule SelectoComponents.Form.ParamsState do
     |> Map.delete("selected_values")
     |> Map.delete("pending_values")
   end
-
-  defp normalize_filter_storage_state(filter), do: filter
 
   defp normalize_numeric_choice(value, min_value, max_value, default) do
     case Integer.parse(to_string(value || "")) do
@@ -587,10 +583,6 @@ defmodule SelectoComponents.Form.ParamsState do
   end
 
   def canonicalize_form_params(params, _selecto, _presentation_context), do: params
-
-  defp merge_promoted_filter_params(params, _selecto, _presentation_context)
-       when not is_map(params),
-       do: params
 
   defp merge_promoted_filter_params(params, selecto, presentation_context) do
     case {Map.get(params, "filters"), Map.get(params, "promoted_filters")} do
@@ -988,8 +980,6 @@ defmodule SelectoComponents.Form.ParamsState do
     normalized_type = Selecto.Temporal.date_like_type(column) || Map.get(column, :type)
     normalized_type in [:integer, :float, :decimal]
   end
-
-  defp locale_numeric_column?(_column), do: false
 
   defp locale_sensitive_in_filter_column?(column) when is_map(column) do
     Selecto.Presentation.measurement?(column) or locale_numeric_column?(column)
@@ -1640,6 +1630,8 @@ defmodule SelectoComponents.Form.ParamsState do
     if trimmed == "", do: nil, else: trimmed
   end
 
+  defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
+
   defp normalize_map_scalar(value) when is_atom(value),
     do: value |> Atom.to_string() |> normalize_map_scalar()
 
@@ -1648,7 +1640,6 @@ defmodule SelectoComponents.Form.ParamsState do
   defp normalize_map_scalar(value) when is_float(value),
     do: value |> Float.round(6) |> to_string()
 
-  defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
   defp normalize_map_scalar(_value), do: nil
 
   @doc """

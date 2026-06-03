@@ -65,9 +65,6 @@ defmodule SelectoComponents.Execution.QueryHelpers do
              aggregate_total_rows_before_cap: total_rows,
              aggregate_max_client_rows: max_client_rows
            })}
-
-        _other ->
-          {rows, view_meta}
       end
     else
       {rows, view_meta}
@@ -120,7 +117,7 @@ defmodule SelectoComponents.Execution.QueryHelpers do
           case maybe_fetch_aggregate_page(base_selecto, aggregate_cache, safe_page, per_page) do
             {:ok, {aggregate_cache, rows, columns, aliases, metadata}} ->
               merged_metadata =
-                Map.merge(metadata || %{}, %{
+                Map.merge(metadata, %{
                   aggregate_count_sql: Map.get(count_metadata, :sql),
                   aggregate_count_params: Map.get(count_metadata, :params, []),
                   aggregate_count_execution_time: Map.get(count_metadata, :execution_time)

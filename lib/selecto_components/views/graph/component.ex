@@ -3,7 +3,6 @@ defmodule SelectoComponents.Views.Graph.Component do
   Display results as interactive charts using Chart.js
   """
   use Phoenix.LiveComponent
-  require Logger
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.Presentation
@@ -809,8 +808,6 @@ defmodule SelectoComponents.Views.Graph.Component do
     end
   end
 
-  defp linked_group_ranges(_group_defs), do: []
-
   defp linked_to_next?(coldef) when is_map(coldef) do
     Map.get(coldef, :linked_to_next, Map.get(coldef, "linked_to_next")) in [
       true,
@@ -979,7 +976,7 @@ defmodule SelectoComponents.Views.Graph.Component do
         "Field"
 
       _ ->
-        to_string(value)
+        inspect(value)
     end
   end
 

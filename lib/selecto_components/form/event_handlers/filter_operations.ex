@@ -286,21 +286,23 @@ defmodule SelectoComponents.Form.EventHandlers.FilterOperations do
         end
       end
 
-      defp current_filter_selected_values(filter_config) when is_map(filter_config) do
-        cond do
-          is_list(Map.get(filter_config, "selected_values")) ->
-            Map.get(filter_config, "selected_values")
+      defp current_filter_selected_values(filter_config) do
+        if is_map(filter_config) do
+          cond do
+            is_list(Map.get(filter_config, "selected_values")) ->
+              Map.get(filter_config, "selected_values")
 
-          is_list(Map.get(filter_config, :selected_values)) ->
-            Map.get(filter_config, :selected_values)
+            is_list(Map.get(filter_config, :selected_values)) ->
+              Map.get(filter_config, :selected_values)
 
-          true ->
-            Map.get(filter_config, "value") || Map.get(filter_config, :value) || ""
+            true ->
+              Map.get(filter_config, "value") || Map.get(filter_config, :value) || ""
+          end
+        else
+          []
         end
         |> parse_filter_selected_values()
       end
-
-      defp current_filter_selected_values(_filter_config), do: []
 
       defp parse_filter_selected_values(values) when is_list(values) do
         values

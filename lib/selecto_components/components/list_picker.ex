@@ -1706,7 +1706,7 @@ defmodule SelectoComponents.Components.ListPicker do
       normalize_type_family(metadata[:type] || metadata["type"])
   end
 
-  defp normalize_icon_key(type), do: icon_key_from_format(nil) || normalize_type_family(type)
+  defp normalize_icon_key(type), do: normalize_type_family(type)
 
   defp icon_key_from_format(format) when format in [:currency, :currency_with_symbol],
     do: :currency

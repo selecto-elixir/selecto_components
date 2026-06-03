@@ -2341,11 +2341,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp normalize_comp(value, _fallback) when is_binary(value) and value != "", do: value
   defp normalize_comp(_value, fallback), do: fallback
 
+  defp normalize_string(nil), do: ""
   defp normalize_string(value) when is_binary(value), do: value
+  defp normalize_string(value) when is_boolean(value), do: to_string(value)
   defp normalize_string(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string(value) when is_integer(value), do: Integer.to_string(value)
   defp normalize_string(value) when is_float(value), do: :erlang.float_to_binary(value)
-  defp normalize_string(nil), do: ""
   defp normalize_string(value), do: to_string(value)
 
   defp normalize_choice_source_display(nil, value), do: normalize_string(value)
@@ -2550,16 +2551,12 @@ defmodule SelectoComponents.Form.FilterRendering do
     |> choice_source_metadata_value(value_key)
   end
 
-  defp choice_source_request_value(_metadata, _request_key, _value_key), do: nil
-
   defp choice_source_request_json(metadata, request_key) when is_map(metadata) do
     case choice_source_metadata_value(metadata, request_key) do
       request when is_map(request) -> Jason.encode!(request)
       _ -> nil
     end
   end
-
-  defp choice_source_request_json(_metadata, _request_key), do: nil
 
   defp find_join_mode_config(selecto, filter_id, column_def) do
     # Check if column_def already has join_mode

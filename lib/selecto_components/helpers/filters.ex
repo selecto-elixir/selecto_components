@@ -17,8 +17,6 @@ defmodule SelectoComponents.Helpers.Filters do
     |> String.replace("_", "\\_")
   end
 
-  defp sanitize_like_value(value), do: value
-
   defp parse_num(type, num) do
     {:ok, v} = cast(type, num)
     v

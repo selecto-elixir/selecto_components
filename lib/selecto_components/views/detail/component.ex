@@ -1249,8 +1249,6 @@ defmodule SelectoComponents.Views.Detail.Component do
     ArgumentError -> nil
   end
 
-  defp safe_existing_atom(_value), do: nil
-
   defp maybe_normalized_column(nil), do: nil
   defp maybe_normalized_column(column_def), do: Selecto.Presentation.normalize_column(column_def)
 

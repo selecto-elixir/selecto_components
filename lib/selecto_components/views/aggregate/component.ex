@@ -759,13 +759,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     aggregate_mappings = Enum.drop(field_mappings, num_group_by)
 
     selecto_group_by_config =
-      case assigns do
-        %{selecto: %{set: set}} when is_map(set) ->
-          Map.get(set, :gb_params) || Map.get(set, "gb_params")
-
-        _ ->
-          nil
-      end
+      Map.get(assigns.selecto.set, :gb_params) || Map.get(assigns.selecto.set, "gb_params")
 
     view_config_group_by =
       case assigns do
@@ -1687,8 +1681,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     ArgumentError -> nil
   end
 
-  defp safe_existing_atom(_value), do: nil
-
   defp maybe_normalized_column(nil), do: nil
   defp maybe_normalized_column(column_def), do: Selecto.Presentation.normalize_column(column_def)
 
@@ -1760,8 +1752,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     |> Enum.map(& &1.alias)
   end
 
-  defp display_group_headers(_group_by), do: []
-
   defp visible_group_axes(group_by) when is_list(group_by) do
     linked_group_ranges(group_by)
     |> Enum.map(fn {start_idx, end_idx} ->
@@ -1814,8 +1804,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       start_idx -> ranges ++ [{start_idx, max(length(group_by) - 1, start_idx)}]
     end
   end
-
-  defp linked_group_ranges(_group_by), do: []
 
   defp linked_to_next?(coldef) when is_map(coldef) do
     truthy?(Map.get(coldef, :linked_to_next, Map.get(coldef, "linked_to_next")))
