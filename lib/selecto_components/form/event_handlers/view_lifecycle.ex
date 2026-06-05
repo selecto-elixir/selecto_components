@@ -111,7 +111,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       """
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
         with_error_handling(socket, "save_view", fn ->
-          save_as = String.trim(Map.get(params, "save_as", ""))
+          save_as = submitted_save_name(params)
 
           cond do
             save_as == "" ->
@@ -280,6 +280,15 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         error = ErrorBuilder.build(message, opts)
         error.summary <> ": " <> error.user_message
       end
+
+      defp submitted_save_name(params) when is_map(params) do
+        params
+        |> Map.get("save_as", get_in(params, ["view_config", "save_as"]))
+        |> to_string()
+        |> String.trim()
+      end
+
+      defp submitted_save_name(_params), do: ""
     end
   end
 end

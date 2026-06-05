@@ -158,4 +158,32 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
              ["f1", "filters", %{"comp" => "=", "filter" => "status", "value" => "open"}]
            ]
   end
+
+  test "save tab accepts nested form save_as params" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        active_tab: "save",
+        saved_view_module: SavedViewStub,
+        saved_view_context: "/work-items",
+        my_path: "/work-items",
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{detail: %{selected: [], order_by: []}}
+        },
+        params: %{}
+      }
+    }
+
+    {:noreply, _updated_socket} =
+      TestLive.handle_event(
+        "view-apply",
+        %{"view_config" => %{"save_as" => "Nested View"}},
+        socket
+      )
+
+    assert_received {:saved_view, "Nested View", "/work-items", saved_params}
+    assert saved_params["view_mode"] == "detail"
+  end
 end
