@@ -342,6 +342,23 @@ defmodule SelectoComponents.Views.Detail.FormTest do
     assert html =~ "sc-select"
   end
 
+  test "detail column config supports postgres datetime atom formatting" do
+    html =
+      render_component(ColumnConfig, %{
+        id: "detail-column-config-datetime-atom",
+        theme: Theme.default_theme(:light),
+        item: "atnd_created",
+        col: %{type: :datetime, name: "Attendance Created", colid: :atnd_created},
+        columns: [{:atnd_created, "Attendance Created", :datetime}],
+        prefix: "selected[c0]",
+        config: %{"format" => "year_buckets"}
+      })
+
+    assert html =~ "Options:"
+    assert html =~ "Year Buckets"
+    assert html =~ "Bucket Ranges"
+  end
+
   test "detail column config keeps temporal format on default when none is configured" do
     html =
       render_component(ColumnConfig, %{

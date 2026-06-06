@@ -122,7 +122,15 @@ defmodule SelectoComponents.Views.Graph.Process do
         field_selector =
           case Selecto.Temporal.date_like_type(col) || col.type do
             x
-            when x in [:naive_datetime, :utc_datetime, :naive_datetime_usec, :utc_datetime_usec] ->
+            when x in [
+                   :datetime,
+                   :timestamp,
+                   :date,
+                   :naive_datetime,
+                   :utc_datetime,
+                   :naive_datetime_usec,
+                   :utc_datetime_usec
+                 ] ->
               {:field, datetime_group_by_processor(col, field_config, presentation_context),
                alias_name}
 

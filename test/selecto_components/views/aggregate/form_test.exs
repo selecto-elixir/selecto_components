@@ -178,6 +178,27 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
     refute html =~ "Count Distinct"
   end
 
+  test "datetime atom group by config shows date bucket options" do
+    html =
+      render_component(GroupByConfig, %{
+        id: "group-by-datetime-atom-options",
+        col: %{type: :datetime, name: "Attendance Created", colid: :atnd_created},
+        uuid: "group-by-datetime-atom-options",
+        item: "atnd_created",
+        columns: [{:atnd_created, "Attendance Created", :datetime}],
+        fieldname: "group_by",
+        prefix: "group_by[g0]",
+        config: %{"format" => "year_buckets"}
+      })
+
+    assert html =~ "Year Buckets"
+    assert html =~ "Bucket Ranges"
+    assert html =~ "*/5 or 2020-2024"
+    refute html =~ "True Count"
+    refute html =~ "False Count"
+    refute html =~ "Count Distinct"
+  end
+
   test "group by form shows link controls between adjacent selected items" do
     domain = %{
       name: "AggregateFormTest",

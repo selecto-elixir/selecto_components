@@ -275,6 +275,35 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert {:field, {:to_char, {:created_at, "YYYY-Q"}}, "Quarter"} = field_selector
     end
 
+    test "supports postgres datetime atom format tokens in graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "atnd_created", %{colid: :atnd_created, type: :datetime})
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "atnd_created",
+            "index" => "0",
+            "alias" => "Quarter",
+            "format" => "YYYY-Q"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:to_char, {:atnd_created, "YYYY-Q"}}, "Quarter"} = field_selector
+    end
+
     test "uses viewer timezone for instant datetime graph grouping", %{columns: columns} do
       datetime_columns =
         Map.put(columns, "created_at", %{

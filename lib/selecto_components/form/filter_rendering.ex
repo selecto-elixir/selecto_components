@@ -153,7 +153,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         join_mode_config ->
           render_multiselect_filter(assign(assigns, :join_mode_config, join_mode_config))
 
-        field_type in [:naive_datetime, :utc_datetime, :date] or
+        field_type in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] or
             date_specific_datetime_comp?(value_for(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
@@ -1951,7 +1951,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   def format_datetime_value(value, type)
-      when type in [:naive_datetime, :utc_datetime] and is_binary(value) do
+      when type in [:datetime, :timestamp, :naive_datetime, :utc_datetime] and is_binary(value) do
     # Try to parse and format as YYYY-MM-DDTHH:MM for datetime-local input
     cond do
       String.contains?(value, "T") ->

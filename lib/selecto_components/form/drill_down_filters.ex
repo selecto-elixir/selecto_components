@@ -555,7 +555,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type, :string)
 
     case field_type do
-      x when x in [:utc_datetime, :naive_datetime] ->
+      x when x in [:datetime, :timestamp, :utc_datetime, :naive_datetime] ->
         {v1_parsed, v2_parsed} =
           Selecto.Helpers.Date.val_to_dates(%{"value" => value, "value2" => ""})
 

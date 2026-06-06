@@ -94,6 +94,8 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
           :float,
           :string,
           :boolean,
+          :datetime,
+          :timestamp,
           :naive_datetime,
           :utc_datetime,
           :date
@@ -215,7 +217,7 @@ defmodule SelectoComponents.Views.Aggregate.Aggregate.Config do
                   ]}
                 />
               </label>
-            <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
+            <% x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] -> %>
               <label class="block text-sm" style="color: var(--sc-text-primary);">
                 Format
                 <.sc_select

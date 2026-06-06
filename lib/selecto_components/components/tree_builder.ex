@@ -1242,7 +1242,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
   defp normalize_type_family(type) when type in [:id, :integer, :float, :decimal], do: :number
 
   defp normalize_type_family(type)
-       when type in [:utc_datetime, :naive_datetime, :date, :datetime],
+       when type in [:utc_datetime, :naive_datetime, :date, :datetime, :timestamp],
        do: :date
 
   defp normalize_type_family(:boolean), do: :boolean

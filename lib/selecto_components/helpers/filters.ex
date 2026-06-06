@@ -888,7 +888,7 @@ defmodule SelectoComponents.Helpers.Filters do
     date_like_type = Selecto.Temporal.date_like_type(column)
 
     cond do
-      date_like_type in [:naive_datetime, :utc_datetime, :date] ->
+      date_like_type in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
         case safe_make_date_filter(f, column) do
           {:ok, {:or, conditions}} ->
             or_filters =

@@ -468,7 +468,13 @@ defmodule SelectoComponents.Views.Graph.Form do
       Map.get(config || %{}, "max_series") not in [nil, "", "10"] ->
         "max #{Map.get(config, "max_series")}"
 
-      Map.get(col || %{}, :type, :string) in [:naive_datetime, :utc_datetime, :date] ->
+      (Selecto.Temporal.date_like_type(col || %{}) || Map.get(col || %{}, :type, :string)) in [
+        :datetime,
+        :timestamp,
+        :naive_datetime,
+        :utc_datetime,
+        :date
+      ] ->
         "date grouping"
 
       true ->

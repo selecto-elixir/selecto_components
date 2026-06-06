@@ -311,6 +311,8 @@ defmodule SelectoComponents.Views.Aggregate.Form do
                  :decimal,
                  :float,
                  :integer,
+                 :datetime,
+                 :timestamp,
                  :naive_datetime,
                  :utc_datetime,
                  :date

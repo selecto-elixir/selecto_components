@@ -1658,7 +1658,13 @@ defmodule SelectoComponents.Form do
     field_conf = controller_filter_field_conf(selecto, filter)
 
     (is_map(field_conf) and Selecto.Temporal.date_like?(field_conf)) or
-      controller_filter_field_type(selecto, filter) in [:date, :naive_datetime, :utc_datetime] or
+      controller_filter_field_type(selecto, filter) in [
+        :date,
+        :datetime,
+        :timestamp,
+        :naive_datetime,
+        :utc_datetime
+      ] or
       comp in [
         "DATE=",
         "DATE!=",

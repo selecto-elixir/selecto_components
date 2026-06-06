@@ -343,7 +343,7 @@ defmodule SelectoComponents.Views.Detail.Process do
 
       # move to a validation lib
       case Selecto.Temporal.date_like_type(col) || col.type do
-        x when x in [:naive_datetime, :utc_datetime, :date] ->
+        x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
           datetime_selected(col, e, alias, date_formats)
 
         :custom_column ->
