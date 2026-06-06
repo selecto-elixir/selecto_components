@@ -40,11 +40,14 @@ defmodule SelectoComponents.Components.ListPickerTest do
       )
 
     assert html =~ "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
+    assert html =~ "items-stretch"
+    assert html =~ "flex-1 space-y-2 overflow-y-auto"
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
     assert html =~ ~s(data-list-picker-fieldname="selected")
-    assert html =~ ">Selected<"
+    assert html =~ "Selected"
+    assert html =~ "text-[0.68rem] font-semibold uppercase"
     assert html =~ ~s(data-type-icon="Text")
     assert html =~ ~s(data-type-icon="Date")
   end

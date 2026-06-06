@@ -61,7 +61,9 @@ defmodule SelectoComponents.Components.ListPicker do
     >
       <section class="min-w-0 space-y-2">
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">{@available_label}</div>
+          <div class={picker_header_class()} style={picker_header_style()}>
+            {@available_label}
+          </div>
 
           <div class="mt-2 flex items-center gap-1">
             <input
@@ -159,17 +161,19 @@ defmodule SelectoComponents.Components.ListPicker do
         id={@component_dom_id}
         phx-hook=".ListPickerSortable"
         data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
-        class={Theme.slot(@theme, :panel) <> " flex min-w-0 flex-col gap-3 p-2"}
+        class={Theme.slot(@theme, :panel) <> " flex min-h-0 min-w-0 flex-col gap-3 p-2"}
         style="background: var(--sc-surface-bg);"
       >
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">{@selected_label}</div>
+          <div class={picker_header_class()} style={picker_header_style()}>
+            {@selected_label}
+          </div>
         </div>
 
         <div
           data-scroll-handoff
           class={[
-            "min-h-0 space-y-2 overflow-y-auto pr-1",
+            "min-h-0 flex-1 space-y-2 overflow-y-auto pr-1",
             picker_pane_height_class(@compact, @selected_height_class)
           ]}
           style={picker_pane_style("", @compact, @selected_max_height)}
@@ -1429,17 +1433,25 @@ defmodule SelectoComponents.Components.ListPicker do
   end
 
   defp picker_root_class(true) do
-    "grid min-w-0 items-start gap-3"
+    "grid min-w-0 items-stretch gap-3"
   end
 
   defp picker_root_class(_compact) do
-    "grid min-w-0 items-start gap-3"
+    "grid min-w-0 items-stretch gap-3"
   end
 
   defp picker_root_style(true), do: "grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);"
 
   defp picker_root_style(_compact),
     do: "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
+
+  defp picker_header_class do
+    "text-[0.68rem] font-semibold uppercase tracking-[0.14em]"
+  end
+
+  defp picker_header_style do
+    "color: var(--sc-text-muted);"
+  end
 
   defp picker_pane_height_class(_compact, override)
        when is_binary(override) and byte_size(override) > 0,

@@ -102,7 +102,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           </.sc_select_with_slot>
         </div>
       </div>
-      Group By
+      <.section_header title="Group By" />
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="group_by"
@@ -177,7 +177,7 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           </label>
         </:between_item>
       </.live_component>
-      Aggregates:
+      <.section_header title="Aggregates" class="mt-5" />
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="aggregate"
@@ -209,6 +209,19 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           />
         </:item_form>
       </.live_component>
+    </div>
+    """
+  end
+
+  attr(:title, :string, required: true)
+  attr(:class, :string, default: nil)
+
+  defp section_header(assigns) do
+    ~H"""
+    <div class={["mb-3 border-b pb-2", @class]} style="border-color: var(--sc-surface-border);">
+      <h3 class="text-sm font-semibold" style="color: var(--sc-text-primary);">
+        {@title}
+      </h3>
     </div>
     """
   end
