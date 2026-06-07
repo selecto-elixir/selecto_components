@@ -283,7 +283,12 @@ defmodule SelectoComponents.Form do
           </TabPanel.panel>
         </div>
 
-        <SubmitFooter.footer id={@id} theme={@theme} view_config_dirty?={@view_config_dirty?} />
+        <SubmitFooter.footer
+          id={@id}
+          theme={@theme}
+          view_config_dirty?={@view_config_dirty?}
+          show_view_configurator={@show_view_configurator}
+        />
       </.form>
 
       <%!-- Render modal if enabled and triggered --%>

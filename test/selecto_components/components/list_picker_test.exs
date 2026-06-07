@@ -45,6 +45,7 @@ defmodule SelectoComponents.Components.ListPickerTest do
     refute html =~ "data-selected-tray-toggle"
     refute html =~ "data-selected-tray-backdrop"
     refute html =~ "data-selected-tray"
+    refute html =~ "data-available-group"
     assert html =~ ~s(data-list-picker-fieldname="selected")
     assert html =~ "Selected"
     assert html =~ "text-[0.68rem] font-semibold uppercase"
@@ -81,6 +82,33 @@ defmodule SelectoComponents.Components.ListPickerTest do
     assert html =~ ~s(type="button" data-picker-action="add")
     assert html =~ ~s(data-available-item)
     assert html =~ ~s(data-item-id="alpha")
+  end
+
+  test "groups prefixed available items and strips repeated prefixes from item labels" do
+    html =
+      render_component(
+        ListPicker,
+        base_assigns(%{
+          available: [
+            {"film.title", "Film: Title", :string},
+            {"film.rating", "Film: Rating", :string},
+            {"actor.first_name", "Actor: First name", :string},
+            {"full_name", "Full Name", :string}
+          ],
+          selected_items: []
+        })
+      )
+
+    assert html =~ ~s(data-available-group)
+    assert html =~ ~s(data-available-group-key="actor")
+    assert html =~ ~s(data-available-group-key="film")
+    assert html =~ ~s(data-available-group-key="other")
+    assert html =~ ~s(data-search-text="Film: Title")
+    assert html =~ ">Title</span>"
+    assert html =~ ">Rating</span>"
+    assert html =~ ">First name</span>"
+    assert html =~ ">Full Name</span>"
+    refute html =~ ">Film: Title</span>"
   end
 
   test "renders a dedicated badge for cte-backed columns" do

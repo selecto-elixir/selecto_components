@@ -119,6 +119,51 @@ defmodule SelectoComponents.Views.Aggregate.FormTest do
     assert html =~ "Count Distinct"
   end
 
+  test "excludes component and link fields from aggregate available pickers" do
+    domain = %{
+      name: "AggregateFormTest",
+      source: %{
+        source_table: "items",
+        primary_key: :id,
+        fields: [:id],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer, name: "ID", colid: :id}
+        },
+        associations: %{}
+      },
+      schemas: %{},
+      joins: %{}
+    }
+
+    html =
+      render_component(Form, %{
+        id: "aggregate-form-available-filter-test",
+        columns: [
+          {:id, "Actor: Actor id", %{type: :integer}},
+          {:actor_card, "Actor Card", %{type: :component, format: :component}},
+          {:film_link, "Film Link", %{type: :link, format: :link}}
+        ],
+        view: {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate", %{}},
+        selecto: Selecto.configure(domain, nil),
+        view_config: %{
+          views: %{
+            aggregate: %{
+              group_by: [],
+              aggregate: [],
+              per_page: "30"
+            }
+          }
+        }
+      })
+
+    assert html =~ "Actor id"
+    refute html =~ "Actor Card"
+    refute html =~ "Film Link"
+    refute html =~ ~s(data-item-id="actor_card")
+    refute html =~ ~s(data-item-id="film_link")
+  end
+
   test "omits default group by format from the selected item summary" do
     domain = %{
       name: "AggregateFormTest",
