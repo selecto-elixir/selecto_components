@@ -72,6 +72,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           true ->
             with_error_handling(socket, "view-validate", fn ->
+              clear_saved_view? = manual_change_from_saved_view?(params, socket)
+
               socket =
                 if socket.assigns[:skip_next_validation] do
                   assign(socket, skip_next_validation: false)
@@ -81,6 +83,13 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
               # Process all parameters including view-specific configs (aggregates, group_by, etc.)
               socket = ParamsState.form_params_to_state(params, socket)
+
+              socket =
+                if clear_saved_view? do
+                  assign(socket, :selected_saved_view, nil)
+                else
+                  socket
+                end
 
               socket =
                 if Map.has_key?(params, "promoted_filters") do
@@ -192,6 +201,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
           socket =
             socket
             |> assign(:current_detail_page, 0)
+            |> assign(:selected_saved_view, nil)
             |> ParamsState.clear_query_caches()
 
           socket = ParamsState.form_params_to_state(submitted_params, socket)
@@ -289,6 +299,13 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       end
 
       defp submitted_save_name(_params), do: ""
+
+      defp manual_change_from_saved_view?(params, socket) when is_map(params) do
+        not is_nil(socket.assigns[:selected_saved_view]) and
+          Map.get(params, "view_mode") != socket.assigns.view_config.view_mode
+      end
+
+      defp manual_change_from_saved_view?(_params, _socket), do: false
     end
   end
 end

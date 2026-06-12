@@ -100,6 +100,34 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
            ]
   end
 
+  test "view validate clears saved view selection when switching view type" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selected_saved_view: "Aggregate Overview",
+        views: [
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{}},
+          {:detail, SelectoComponents.Views.Detail, "Detail View", %{}},
+          {:graph, SelectoComponents.Views.Graph, "Graph View", %{}}
+        ],
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"}
+          }
+        }
+      }
+    }
+
+    {:noreply, updated_socket} =
+      TestLive.handle_event("view-validate", %{"view_mode" => "detail"}, socket)
+
+    assert updated_socket.assigns.selected_saved_view == nil
+    assert updated_socket.assigns.view_config.view_mode == "detail"
+  end
+
   test "save tab persists all view configurations" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
