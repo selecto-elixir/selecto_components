@@ -145,7 +145,7 @@ defmodule SelectoComponents.ErrorHandling.ErrorSanitizer do
         "Please check your data configuration"
 
       # Remove suggestions with specific field names
-      String.contains?(suggestion, ~r/field: :\w+/) ->
+      Regex.match?(~r/field: :\w+/, suggestion) ->
         "Please verify your field selection"
 
       # Keep generic helpful suggestions

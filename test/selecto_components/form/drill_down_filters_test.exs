@@ -565,6 +565,58 @@ defmodule SelectoComponents.Form.DrillDownFiltersTest do
       assert is_map(view_params["filters"])
     end
 
+    test "preserves configured detail columns when aggregate params are sparse" do
+      socket = %{
+        assigns: %{
+          selecto: selecto(),
+          used_params: %{
+            "view_mode" => "aggregate",
+            "group_by" => %{
+              "k0" => %{"field" => "category", "index" => "0", "uuid" => "g-category"}
+            },
+            "aggregate" => %{
+              "k0" => %{
+                "field" => "id",
+                "function" => "count",
+                "index" => "0",
+                "uuid" => "a-count"
+              }
+            }
+          },
+          view_config: %{
+            view_mode: "aggregate",
+            filters: [],
+            views: %{
+              detail: %{
+                selected: [{"d-name", "username", %{"alias" => "User"}}],
+                order_by: [],
+                per_page: "30",
+                max_rows: "1000"
+              },
+              aggregate: %{
+                group_by: [{"g-category", "category", %{}}],
+                aggregate: [{"a-count", "id", %{"function" => "count"}}]
+              }
+            }
+          }
+        }
+      }
+
+      params = %{"field0" => "category", "value0" => "Action"}
+
+      view_params = DrillDownFilters.build_agg_drill_down_params(params, socket)
+
+      assert view_params["view_mode"] == "detail"
+      assert view_params["selected"]["k0"]["field"] == "username"
+      assert view_params["selected"]["k0"]["alias"] == "User"
+      assert view_params["group_by"]["k0"]["field"] == "category"
+
+      assert view_params["filters"] |> Map.values() |> hd() |> Map.take(["filter", "value"]) == %{
+               "filter" => "category",
+               "value" => "Action"
+             }
+    end
+
     test "text prefix drill-down enables case-insensitive starts filter when excluding articles" do
       socket =
         %{assigns: %{selecto: selecto(), used_params: %{}}}

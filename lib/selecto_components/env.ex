@@ -3,11 +3,11 @@ defmodule SelectoComponents.Env do
 
   def current do
     cond do
-      Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) ->
-        Mix.env()
-
       env = Application.get_env(:selecto_components, :env) ->
         env
+
+      Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) ->
+        Mix.env()
 
       env = System.get_env("MIX_ENV") ->
         String.to_atom(env)
