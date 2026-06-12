@@ -266,105 +266,100 @@ defmodule SelectoComponents.Views.Aggregate.Component do
       idx < level
     end)
     |> Enum.reduce(%{}, fn {{value, {_alias, {:group_by, field, coldef}}}, idx}, acc ->
-      # Determine the filter field name
-      # Check for special join modes (lookup, star, tag) that use ID-based filtering
-      filter_field =
-        case coldef do
-          %{group_by_filter: filter} when not is_nil(filter) ->
-            filter
+      put_filter_attr(acc, value, field, coldef, idx)
+    end)
+  end
 
-          %{"group_by_filter" => filter} when not is_nil(filter) ->
-            filter
+  defp build_axis_filter_attrs(%{defs: defs, start_idx: start_idx}, value)
+       when is_list(defs) and is_integer(start_idx) do
+    values = if is_list(value), do: value, else: [value]
 
-          # Special join modes - use the configured ID field for filtering
-          %{join_mode: mode, id_field: id_field}
-          when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
-            # colid might be nil, so extract table prefix from the field tuple
-            table_prefix =
-              case field do
-                {:row, [display_field | _], _} ->
-                  # ROW selector - extract from display field
-                  case display_field do
-                    {:coalesce, [inner | _]} -> extract_table_prefix(inner)
-                    _ -> extract_table_prefix(display_field)
-                  end
+    values
+    |> Enum.zip(defs)
+    |> Enum.with_index(start_idx)
+    |> Enum.reduce(%{}, fn {{axis_value, {_alias, {:group_by, field, coldef}}}, idx}, acc ->
+      put_filter_attr(acc, axis_value, field, coldef, idx)
+    end)
+  end
 
-                {:field, field_ref, _} ->
-                  extract_table_prefix(field_ref)
+  defp build_axis_filter_attrs(_axis, _value), do: %{}
 
-                _ ->
-                  nil
-              end
+  defp put_filter_attr(acc, value, field, coldef, idx) do
+    filter_field = filter_field_for_group(field, coldef)
+    filter_value = filter_value_for_group(value, field, coldef)
 
-            # Build the filter field as "table.id_field"
-            if table_prefix do
-              "#{table_prefix}.#{id_field}"
-            else
-              Atom.to_string(id_field)
-            end
+    acc
+    |> Map.put("phx-value-field#{idx}", filter_field)
+    |> Map.put("phx-value-value#{idx}", to_string(filter_value))
+    |> Map.put("phx-value-gidx#{idx}", to_string(idx))
+  end
 
-          # Try with string keys too
-          %{"join_mode" => mode, "id_field" => id_field}
-          when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
-            # colid might be nil, so extract table prefix from the field tuple
-            table_prefix =
-              case field do
-                {:row, [display_field | _], _} ->
-                  # ROW selector - extract from display field
-                  case display_field do
-                    {:coalesce, [inner | _]} -> extract_table_prefix(inner)
-                    _ -> extract_table_prefix(display_field)
-                  end
+  defp filter_field_for_group(field, coldef) do
+    case coldef do
+      %{group_by_filter: filter} when not is_nil(filter) ->
+        filter
 
-                {:field, field_ref, _} ->
-                  extract_table_prefix(field_ref)
+      %{"group_by_filter" => filter} when not is_nil(filter) ->
+        filter
 
-                _ ->
-                  nil
-              end
+      %{join_mode: mode, id_field: id_field}
+      when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+        id_filter_field(field, id_field, &Atom.to_string/1)
 
-            # Build the filter field as "table.id_field"
-            if table_prefix do
-              "#{table_prefix}.#{id_field}"
-            else
-              to_string(id_field)
-            end
+      %{"join_mode" => mode, "id_field" => id_field}
+      when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
+        id_filter_field(field, id_field, &to_string/1)
 
-          _ ->
-            # Extract field name from field tuple, handling COALESCE wrapper
-            case field do
-              {:field, {:coalesce, [inner_field | _]}, _} ->
-                # Field is wrapped in COALESCE - extract the inner field
-                case inner_field do
-                  {:to_char, {field_name, _format}} -> Atom.to_string(field_name)
-                  field_id when is_atom(field_id) -> Atom.to_string(field_id)
-                  field_id when is_binary(field_id) -> field_id
-                  _ -> "id"
-                end
+      _ ->
+        field_name_for_group(field)
+    end
+  end
 
-              {:field, {:to_char, {field_name, _format}}, _} ->
-                Atom.to_string(field_name)
+  defp id_filter_field(field, id_field, fallback_fun) do
+    case group_table_prefix(field) do
+      nil -> fallback_fun.(id_field)
+      table_prefix -> "#{table_prefix}.#{id_field}"
+    end
+  end
 
-              {:field, field_id, _} when is_atom(field_id) ->
-                Atom.to_string(field_id)
-
-              {:field, field_id, _} when is_binary(field_id) ->
-                field_id
-
-              _ ->
-                "id"
-            end
+  defp group_table_prefix(field) do
+    case field do
+      {:row, [display_field | _], _} ->
+        case display_field do
+          {:coalesce, [inner | _]} -> extract_table_prefix(inner)
+          _ -> extract_table_prefix(display_field)
         end
 
-      filter_value = filter_value_for_group(value, field, coldef)
+      {:field, field_ref, _} ->
+        extract_table_prefix(field_ref)
 
-      # Use indexed phx-value attributes to support multiple group levels
-      # phx-value-field0, phx-value-value0, phx-value-field1, phx-value1, etc.
-      acc
-      |> Map.put("phx-value-field#{idx}", filter_field)
-      |> Map.put("phx-value-value#{idx}", to_string(filter_value))
-      |> Map.put("phx-value-gidx#{idx}", to_string(idx))
-    end)
+      _ ->
+        nil
+    end
+  end
+
+  defp field_name_for_group(field) do
+    case field do
+      {:field, {:coalesce, [inner_field | _]}, _} ->
+        case inner_field do
+          {:to_char, {field_name, _format}} -> Atom.to_string(field_name)
+          field_id when is_atom(field_id) -> Atom.to_string(field_id)
+          field_id when is_binary(field_id) -> field_id
+          _ -> "id"
+        end
+
+      {:field, {:to_char, {field_name, _format}}, _} ->
+        Atom.to_string(field_name)
+
+      {:field, field_id, _} when is_atom(field_id) ->
+        Atom.to_string(field_id)
+
+      {:field, field_id, _} when is_binary(field_id) ->
+        field_id
+
+      _ ->
+        "id"
+    end
   end
 
   # Extract table prefix from a field reference
@@ -1254,9 +1249,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                 </th>
                 <%= for col_value <- @grid_data.col_headers do %>
                   <th class="sticky top-0 z-20 px-3 py-3.5 text-left text-sm font-semibold" style="background: var(--sc-surface-bg-alt); color: var(--sc-text-primary);">
-                    <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef, @presentation_context))}>
-                      {format_group_value(col_value, @grid_data.col_coldef, @presentation_context)}
-                    </span>
+                    <div
+                      phx-click="agg_add_filters"
+                      {build_axis_filter_attrs(@grid_data.col_axis, col_value)}
+                      data-selecto-result-action
+                      class="cursor-pointer whitespace-nowrap hover:underline"
+                    >
+                      <span class={null_grid_text_class(format_group_value(col_value, @grid_data.col_coldef, @presentation_context))}>
+                        {format_group_value(col_value, @grid_data.col_coldef, @presentation_context)}
+                      </span>
+                    </div>
                   </th>
                 <% end %>
               </tr>
@@ -1275,9 +1277,16 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                   data-result-column-index="0"
                   tabindex="-1"
                 >
-                  <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef, @presentation_context))}>
-                    {format_group_value(row_value, @grid_data.row_coldef, @presentation_context)}
-                  </span>
+                  <div
+                    phx-click="agg_add_filters"
+                    {build_axis_filter_attrs(@grid_data.row_axis, row_value)}
+                    data-selecto-result-action
+                    class="cursor-pointer whitespace-nowrap hover:underline"
+                  >
+                    <span class={null_grid_text_class(format_group_value(row_value, @grid_data.row_coldef, @presentation_context))}>
+                      {format_group_value(row_value, @grid_data.row_coldef, @presentation_context)}
+                    </span>
+                  </div>
                 </td>
           <td
             :for={{col_value, col_idx} <- Enum.with_index(@grid_data.col_headers)}
@@ -1288,6 +1297,7 @@ defmodule SelectoComponents.Views.Aggregate.Component do
             data-result-column-index={col_idx + 1}
             tabindex="-1"
           >
+                  <%= if Map.has_key?(@grid_data.cell_group_cols, {row_value, col_value}) do %>
                   <div
                     phx-click="agg_add_filters"
                     {build_filter_attrs(
@@ -1302,6 +1312,11 @@ defmodule SelectoComponents.Views.Aggregate.Component do
                       {format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context)}
                     </span>
                   </div>
+                  <% else %>
+                    <span class={null_grid_text_class(format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context))}>
+                      {format_aggregate_value(Map.get(@grid_data.cells, {row_value, col_value}), @grid_data.agg_coldef, @presentation_context)}
+                    </span>
+                  <% end %>
                 </td>
               </tr>
             </tbody>
@@ -1416,6 +1431,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
     %{
       row_alias: row_axis.alias,
+      row_axis: row_axis,
+      col_axis: col_axis,
       row_headers: row_headers,
       col_headers: col_headers,
       cells: cells,
