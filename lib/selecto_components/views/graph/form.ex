@@ -16,6 +16,7 @@ defmodule SelectoComponents.Views.Graph.Form do
       |> Map.put(:graph_x_axis, map_get(graph_view, :x_axis, []))
       |> Map.put(:graph_y_axis, map_get(graph_view, :y_axis, []))
       |> Map.put(:graph_series, map_get(graph_view, :series, []))
+      |> Map.put(:graph_color_by, map_get(graph_view, :color_by, []))
       |> Map.put(:graph_options, map_get(graph_view, :options, %{}))
 
     ~H"""
@@ -247,6 +248,49 @@ defmodule SelectoComponents.Views.Graph.Form do
         </.live_component>
       </.graph_section>
        
+      <.graph_section
+        theme={@theme}
+        title="Color"
+        summary={field_count_summary(@graph_color_by, "Metric colors")}
+        open={not Enum.empty?(@graph_color_by)}
+      >
+        <.live_component
+          module={SelectoComponents.Components.ListPicker}
+          id={"#{@graph_view_key}_color_by"}
+          theme={@theme}
+          compact={true}
+          available_label="Fields"
+          selected_label="Color By"
+          fieldname="color_by"
+          view={@view}
+          available={
+            Enum.filter(@columns, fn {_f, _n, format} -> format not in [:component, :link] end)
+          }
+          selected_items={@graph_color_by}
+        >
+          <:item_summary :let={{_id, item, config, _index}}>
+            <% col = Selecto.field(@selecto, item) %>
+            <span class="truncate"><%= summary_title(config, graph_column_name(col, item)) %></span>
+            <span class="truncate text-sm font-normal" style="color: var(--sc-text-muted);"><%= graph_series_summary(col, config) %></span>
+          </:item_summary>
+          <:item_form :let={{id, item, config, index}}>
+            <input name={"color_by[#{id}][field]"} type="hidden" value={item} />
+            <input name={"color_by[#{id}][index]"} type="hidden" value={index} />
+            <.live_component
+              module={SelectoComponents.Views.Graph.SeriesConfig}
+              id={"#{@graph_view_key}-color-by-config-#{id}"}
+              col={Selecto.field(@selecto, item)}
+              uuid={id}
+              item={item}
+              fieldname="color_by"
+              prefix={"color_by[#{id}]"}
+              config={config}
+              theme={@theme}
+            />
+          </:item_form>
+        </.live_component>
+      </.graph_section>
+
       <.graph_section
         theme={@theme}
         title="Display Options"

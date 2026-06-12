@@ -10,6 +10,7 @@ defmodule SelectoComponents.Views.Graph.Process do
       x_axis: SelectoComponents.Views.view_param_process(params, "x_axis", "field"),
       y_axis: SelectoComponents.Views.view_param_process(params, "y_axis", "field"),
       series: SelectoComponents.Views.view_param_process(params, "series", "field"),
+      color_by: SelectoComponents.Views.view_param_process(params, "color_by", "field"),
       chart_type: Map.get(params, "chart_type", "bar"),
       options: Map.get(params, "options", %{})
     }
@@ -31,6 +32,9 @@ defmodule SelectoComponents.Views.Graph.Process do
       series:
         Map.get(domain, :default_graph_series, [])
         |> SelectoComponents.Helpers.build_initial_state(),
+      color_by:
+        Map.get(domain, :default_graph_color_by, [])
+        |> SelectoComponents.Helpers.build_initial_state(),
       chart_type: Map.get(domain, :default_chart_type, "bar"),
       options: Map.get(domain, :default_chart_options, %{})
     }
@@ -43,6 +47,7 @@ defmodule SelectoComponents.Views.Graph.Process do
     x_axis_params = Map.get(params, "x_axis", %{})
     y_axis_params = Map.get(params, "y_axis", %{})
     series_params = Map.get(params, "series", %{})
+    color_by_params = Map.get(params, "color_by", %{})
     chart_type = Map.get(params, "chart_type", "bar")
     presentation_context = runtime_presentation_context(params)
 
@@ -56,8 +61,15 @@ defmodule SelectoComponents.Views.Graph.Process do
     # Process Series (optional secondary grouping)
     series_fields = series_params |> group_by_fields(columns, presentation_context)
 
-    # Combine all grouping fields (x_axis + series)
-    all_group_by = x_axis_fields ++ series_fields
+    # Process Color By (optional color grouping)
+    color_by_fields = color_by_params |> group_by_fields(columns, presentation_context)
+
+    base_group_by = x_axis_fields ++ series_fields
+    color_by_query_fields = Enum.reject(color_by_fields, &group_field_present?(&1, base_group_by))
+
+    # Combine all grouping fields (x_axis + series + non-duplicate color fields)
+    all_group_by = base_group_by ++ color_by_query_fields
+    resolved_color_by_fields = resolve_color_by_fields(color_by_fields, all_group_by)
 
     # Build selected fields for query
     selected_fields = Enum.map(all_group_by, fn {_col, sel} -> sel end) ++ y_axis_fields
@@ -66,6 +78,7 @@ defmodule SelectoComponents.Views.Graph.Process do
        groups: all_group_by,
        x_axis_groups: x_axis_fields,
        series_groups: series_fields,
+       color_by_groups: resolved_color_by_fields,
        aggregates: y_axis_fields,
        graph_series_defs: y_axis_defs,
        selected: selected_fields,
@@ -153,6 +166,30 @@ defmodule SelectoComponents.Views.Graph.Process do
 
   defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
   defp truthy_param?(_), do: false
+
+  defp group_field_present?(group_field, existing_fields) do
+    Enum.any?(existing_fields, &same_group_field?(&1, group_field))
+  end
+
+  defp resolve_color_by_fields(color_by_fields, all_group_by) do
+    Enum.map(color_by_fields, fn color_field ->
+      Enum.find(all_group_by, &same_group_field?(&1, color_field)) || color_field
+    end)
+  end
+
+  defp same_group_field?({left_col, left_selector}, {right_col, right_selector}) do
+    group_col_key(left_col) == group_col_key(right_col) ||
+      group_selector_key(left_selector) == group_selector_key(right_selector)
+  end
+
+  defp group_col_key(col) when is_map(col) do
+    Map.get(col, :colid) || Map.get(col, "colid") || Map.get(col, :field) || Map.get(col, "field")
+  end
+
+  defp group_col_key(value), do: value
+
+  defp group_selector_key({:field, field, _alias}), do: field
+  defp group_selector_key(value), do: value
 
   @doc """
   Process aggregate fields (for Y-axis)
