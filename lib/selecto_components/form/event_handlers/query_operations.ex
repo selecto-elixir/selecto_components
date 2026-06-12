@@ -59,6 +59,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         socket =
           socket
           |> assign(:params, params)
+          |> assign(:selected_saved_view, name)
           |> assign(:validation_locked_until_patch, false)
 
         socket = ParamsState.clear_query_caches(socket)
@@ -95,6 +96,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
             socket = ParamsState.saved_params_to_state(saved_params, socket)
             committed_params = ParamsState.view_config_to_params(socket.assigns.view_config)
             updated_socket = ParamsState.view_from_params(committed_params, socket)
+            updated_socket = assign(updated_socket, :show_view_configurator, false)
 
             {:noreply, ParamsState.state_to_url(committed_params, updated_socket, replace: true)}
           end
@@ -109,6 +111,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         socket =
           socket
           |> assign(:params, params)
+          |> assign(:selected_saved_view, nil)
           |> assign(:validation_locked_until_patch, false)
 
         # Normalize any existing query results before processing
@@ -126,6 +129,7 @@ defmodule SelectoComponents.Form.EventHandlers.QueryOperations do
         {:noreply,
          socket
          |> assign(:params, params)
+         |> assign(:selected_saved_view, nil)
          |> assign(:validation_locked_until_patch, false)}
       end
 
