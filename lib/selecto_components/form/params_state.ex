@@ -551,6 +551,42 @@ defmodule SelectoComponents.Form.ParamsState do
     |> then(&assign_view_config(socket, &1))
   end
 
+  @doc """
+  Copy the aggregate view's grouping and metric configuration into the graph view.
+
+  Aggregate `group_by` entries become graph `x_axis` entries. Aggregate metric
+  entries become graph `y_axis` entries, with aggregate `format` translated to
+  the graph metric `function` setting. Existing graph series, color, chart type,
+  and display options are preserved.
+  """
+  def copy_aggregate_to_graph(view_config) when is_map(view_config) do
+    views = get_map_value(view_config, :views, %{})
+    aggregate_view = get_map_value(views, :aggregate, %{})
+    graph_view = get_map_value(views, :graph, %{})
+
+    graph_view =
+      graph_view
+      |> Map.put(:x_axis, copy_view_items(get_map_value(aggregate_view, :group_by, [])))
+      |> Map.put(
+        :y_axis,
+        aggregate_items_to_graph_y_axis(get_map_value(aggregate_view, :aggregate, []))
+      )
+      |> Map.put_new(:series, get_map_value(graph_view, :series, []))
+      |> Map.put_new(:color_by, get_map_value(graph_view, :color_by, []))
+      |> Map.put_new(:chart_type, get_map_value(graph_view, :chart_type, "bar"))
+      |> Map.put_new(:options, get_map_value(graph_view, :options, %{}))
+
+    updated_views =
+      views
+      |> put_view_config(:graph, graph_view)
+
+    view_config
+    |> Map.put(:views, updated_views)
+    |> Map.put(:view_mode, "graph")
+  end
+
+  def copy_aggregate_to_graph(view_config), do: view_config
+
   def sync_view_config_ctes(view_config, selecto), do: CTEs.sync_view_config(view_config, selecto)
 
   def apply_ctes_for_params(selecto, params), do: CTEs.apply_for_params(selecto, params)
@@ -1709,6 +1745,55 @@ defmodule SelectoComponents.Form.ParamsState do
   def state_to_url(params, socket, opts \\ []) do
     URL.state_to_url(params, socket, opts)
   end
+
+  defp put_view_config(views, key, view_config) when is_map(views) do
+    if Map.has_key?(views, key) do
+      Map.put(views, key, view_config)
+    else
+      Map.put(views, to_string(key), view_config)
+    end
+  end
+
+  defp put_view_config(_views, key, view_config), do: %{key => view_config}
+
+  defp copy_view_items(items) when is_list(items), do: Enum.map(items, &copy_view_item/1)
+  defp copy_view_items(_items), do: []
+
+  defp aggregate_items_to_graph_y_axis(items) when is_list(items) do
+    Enum.map(items, &aggregate_item_to_graph_y_axis/1)
+  end
+
+  defp aggregate_items_to_graph_y_axis(_items), do: []
+
+  defp aggregate_item_to_graph_y_axis({uuid, field, config}) when is_map(config) do
+    {uuid, field, aggregate_config_to_graph_y_axis(config)}
+  end
+
+  defp aggregate_item_to_graph_y_axis([uuid, field, config]) when is_map(config) do
+    {uuid, field, aggregate_config_to_graph_y_axis(config)}
+  end
+
+  defp aggregate_item_to_graph_y_axis(item), do: copy_view_item(item)
+
+  defp aggregate_config_to_graph_y_axis(config) do
+    aggregate_function =
+      get_map_value(config, :function) ||
+        get_map_value(config, :format) ||
+        "count"
+
+    config
+    |> stringify_map_keys()
+    |> Map.put("function", aggregate_function)
+    |> Map.delete("format")
+  end
+
+  defp copy_view_item({uuid, field, config}) when is_map(config),
+    do: {uuid, field, stringify_map_keys(config)}
+
+  defp copy_view_item([uuid, field, config]) when is_map(config),
+    do: {uuid, field, stringify_map_keys(config)}
+
+  defp copy_view_item(item), do: item
 
   defp get_map_value(map, key, default \\ nil)
 

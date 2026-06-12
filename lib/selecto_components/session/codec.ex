@@ -320,6 +320,7 @@ defmodule SelectoComponents.Session.Codec do
       {:list, "x_axis", :x_axis},
       {:list, "y_axis", :y_axis},
       {:list, "series", :series},
+      {:list, "color_by", :color_by},
       {:scalar, "chart_type", :chart_type},
       {:scalar, "options", :options}
     ]
@@ -348,7 +349,8 @@ defmodule SelectoComponents.Session.Codec do
       "aggregate_grid_color_scale"
     ]
 
-  defp view_param_keys(:graph), do: ["x_axis", "y_axis", "series", "chart_type", "options"]
+  defp view_param_keys(:graph),
+    do: ["x_axis", "y_axis", "series", "color_by", "chart_type", "options"]
 
   defp view_param_keys(:map),
     do: [

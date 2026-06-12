@@ -128,6 +128,54 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     assert updated_socket.assigns.view_config.view_mode == "detail"
   end
 
+  test "copy aggregate to graph updates graph config without executing" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selected_saved_view: "Aggregate Overview",
+        current_detail_page: 3,
+        active_tab: "view",
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            aggregate: %{
+              group_by: [{"g1", "status", %{"format" => "default"}}],
+              aggregate: [{"a1", "id", %{"format" => "count", "alias" => "Rows"}}],
+              per_page: "100"
+            },
+            graph: %{
+              x_axis: [],
+              y_axis: [],
+              series: [{"s1", "priority", %{}}],
+              color_by: [{"c1", "status", %{}}],
+              chart_type: "line",
+              options: %{"title" => "Status"}
+            }
+          }
+        }
+      }
+    }
+
+    {:noreply, updated_socket} = TestLive.handle_event("copy_aggregate_to_graph", %{}, socket)
+
+    assert updated_socket.assigns.selected_saved_view == nil
+    assert updated_socket.assigns.current_detail_page == 0
+    assert updated_socket.assigns.view_config.view_mode == "graph"
+
+    assert updated_socket.assigns.view_config.views.graph.x_axis == [
+             {"g1", "status", %{"format" => "default"}}
+           ]
+
+    assert updated_socket.assigns.view_config.views.graph.y_axis == [
+             {"a1", "id", %{"alias" => "Rows", "function" => "count"}}
+           ]
+
+    assert updated_socket.assigns.view_config.views.graph.series == [{"s1", "priority", %{}}]
+    assert updated_socket.assigns.view_config.views.graph.color_by == [{"c1", "status", %{}}]
+    assert Map.get(updated_socket.assigns, :executed) != true
+  end
+
   test "save tab persists all view configurations" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{

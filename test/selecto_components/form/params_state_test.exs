@@ -1158,6 +1158,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           x_axis: [{"x1", "status", %{}}],
           y_axis: [{"y1", "id", %{"function" => "count"}}],
           series: [{"s1", "priority", %{}}],
+          color_by: [{"c1", "status", %{}}],
           chart_type: "line",
           options: %{"title" => "Open Items"}
         }
@@ -1175,6 +1176,55 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert saved["views"]["detail"]["row_click_action"] == "workspace_spotlight"
     assert saved["views"]["aggregate"]["grid"] == true
     assert saved["views"]["graph"]["chart_type"] == "line"
+    assert saved["views"]["graph"]["color_by"] == [["c1", "status", %{}]]
+  end
+
+  test "copy_aggregate_to_graph maps aggregate grouping and metrics into graph config" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [
+        {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
+      ],
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"g1", "event_name", %{"alias" => "Event", "format" => "default"}},
+            {"g2", "event_start", %{"alias" => "Year", "format" => "year"}}
+          ],
+          aggregate: [
+            {"a1", "atnd_id", %{"alias" => "Attendees", "format" => "count"}}
+          ],
+          per_page: "300"
+        },
+        graph: %{
+          x_axis: [{"old-x", "old_field", %{}}],
+          y_axis: [{"old-y", "old_metric", %{"function" => "sum"}}],
+          series: [{"s1", "event_year", %{}}],
+          color_by: [{"c1", "event_name", %{}}],
+          chart_type: "line",
+          options: %{"title" => "Registration Pace"}
+        }
+      }
+    }
+
+    updated = ParamsState.copy_aggregate_to_graph(view_config)
+
+    assert updated.view_mode == "graph"
+    assert updated.filters == view_config.filters
+
+    assert updated.views.graph.x_axis == [
+             {"g1", "event_name", %{"alias" => "Event", "format" => "default"}},
+             {"g2", "event_start", %{"alias" => "Year", "format" => "year"}}
+           ]
+
+    assert updated.views.graph.y_axis == [
+             {"a1", "atnd_id", %{"alias" => "Attendees", "function" => "count"}}
+           ]
+
+    assert updated.views.graph.series == [{"s1", "event_year", %{}}]
+    assert updated.views.graph.color_by == [{"c1", "event_name", %{}}]
+    assert updated.views.graph.chart_type == "line"
+    assert updated.views.graph.options == %{"title" => "Registration Pace"}
   end
 
   test "saved_params_to_state restores all view configurations" do
@@ -1215,6 +1265,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           "x_axis" => [["x1", "status", %{}]],
           "y_axis" => [["y1", "id", %{"function" => "count"}]],
           "series" => [["s1", "priority", %{}]],
+          "color_by" => [["c1", "status", %{}]],
           "chart_type" => "line",
           "options" => %{"title" => "Open Items"}
         }
@@ -1235,9 +1286,14 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert get_in(updated.assigns.view_config, [:views, :aggregate, "grid"]) == true
     assert get_in(updated.assigns.view_config, [:views, :graph, "chart_type"]) == "line"
 
+    assert get_in(updated.assigns.view_config, [:views, :graph, "color_by"]) == [
+             ["c1", "status", %{}]
+           ]
+
     detail_params = ParamsState.view_config_to_params(updated.assigns.view_config)
     assert detail_params["row_click_action"] == "workspace_spotlight"
     assert detail_params["filters"]["k0"]["filter"] == "status"
+    assert detail_params["color_by"]["k0"]["field"] == "status"
   end
 
   test "saved_params_to_state normalizes saved detail prevent_denormalization strings" do
