@@ -234,7 +234,12 @@ defmodule SelectoComponents.Session.Codec do
         if Map.has_key?(params, param_key) do
           submitted_items = Map.get(submitted_view, state_key, [])
           existing_items = Map.get(existing_view, state_key, [])
-          Map.put(acc, state_key, merge_submitted_list_items(submitted_items, existing_items))
+
+          Map.put(
+            acc,
+            state_key,
+            merge_submitted_list_items(submitted_items, existing_items, params, param_key)
+          )
         else
           Map.put(
             acc,
@@ -256,17 +261,44 @@ defmodule SelectoComponents.Session.Codec do
     end)
   end
 
-  defp merge_submitted_list_items([], existing_items), do: existing_items
+  defp merge_submitted_list_items([], existing_items, _params, _param_key), do: existing_items
 
-  defp merge_submitted_list_items(submitted_items, existing_items) do
+  defp merge_submitted_list_items(submitted_items, existing_items, params, param_key) do
     submitted_by_uuid = Map.new(submitted_items, fn item -> {list_item_uuid(item), item} end)
 
-    Enum.map(existing_items, fn existing_item ->
+    existing_items
+    |> Enum.map(fn existing_item ->
       case Map.get(submitted_by_uuid, list_item_uuid(existing_item)) do
         nil -> existing_item
         submitted_item -> merge_list_item(existing_item, submitted_item)
       end
     end)
+    |> maybe_append_targeted_submitted_item(submitted_items, existing_items, params, param_key)
+  end
+
+  defp maybe_append_targeted_submitted_item(
+         merged_items,
+         submitted_items,
+         existing_items,
+         params,
+         param_key
+       ) do
+    existing_uuids = MapSet.new(existing_items, &list_item_uuid/1)
+
+    case targeted_list_item_uuid(params, param_key) do
+      nil ->
+        merged_items
+
+      target_uuid ->
+        if MapSet.member?(existing_uuids, target_uuid) do
+          merged_items
+        else
+          submitted_item =
+            Enum.find(submitted_items, fn item -> list_item_uuid(item) == target_uuid end)
+
+          if submitted_item, do: merged_items ++ [submitted_item], else: merged_items
+        end
+    end
   end
 
   defp merge_list_item(
@@ -291,6 +323,36 @@ defmodule SelectoComponents.Session.Codec do
   defp list_item_uuid({uuid, _field, _config}), do: uuid
   defp list_item_uuid([uuid, _field, _config]), do: uuid
   defp list_item_uuid(other), do: other
+
+  defp targeted_list_item_uuid(params, param_key) when is_map(params) do
+    case Map.get(params, "_target") do
+      [^param_key, uuid | _] when is_binary(uuid) and uuid != "" ->
+        uuid
+
+      target when is_binary(target) ->
+        parse_targeted_list_item_uuid(target, param_key)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp targeted_list_item_uuid(_params, _param_key), do: nil
+
+  defp parse_targeted_list_item_uuid(target, param_key) do
+    prefix = "#{param_key}["
+
+    if String.starts_with?(target, prefix) do
+      target
+      |> String.trim_leading(prefix)
+      |> String.split("]", parts: 2)
+      |> List.first()
+      |> case do
+        "" -> nil
+        uuid -> uuid
+      end
+    end
+  end
 
   defp submitted_view_specs(:detail) do
     [

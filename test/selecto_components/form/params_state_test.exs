@@ -1041,6 +1041,100 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.aggregate.aggregate == []
   end
 
+  test "form_params_to_state persists edits to the second graph y-axis item" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "graph",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{
+              x_axis: [{"x1", "status", %{"field" => "status", "index" => "0"}}],
+              y_axis: [
+                {"y1", "id", %{"field" => "id", "function" => "count", "index" => "0"}},
+                {"y2", "amount", %{"field" => "amount", "function" => "count", "index" => "1"}}
+              ],
+              series: [],
+              chart_type: "bar",
+              options: %{}
+            }
+          }
+        }
+      )
+
+    params = %{
+      "view_mode" => "graph",
+      "chart_type" => "bar",
+      "x_axis" => %{
+        "k0" => %{"field" => "status", "index" => "0", "uuid" => "x1"}
+      },
+      "y_axis" => %{
+        "k0" => %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"},
+        "k1" => %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.graph.y_axis == [
+             {"y1", "id",
+              %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"}},
+             {"y2", "amount",
+              %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}}
+           ]
+  end
+
+  test "stale targeted graph y-axis edits keep the submitted item being changed" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "graph",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{
+              x_axis: [{"x1", "status", %{"field" => "status", "index" => "0"}}],
+              y_axis: [
+                {"y1", "id", %{"field" => "id", "function" => "count", "index" => "0"}}
+              ],
+              series: [],
+              chart_type: "bar",
+              options: %{}
+            }
+          }
+        },
+        form_state_revision: 2
+      )
+
+    stale_params = %{
+      "_target" => ["y_axis", "y2", "function"],
+      "view_mode" => "graph",
+      "chart_type" => "bar",
+      "form_state_revision" => "1",
+      "x_axis" => %{
+        "k0" => %{"field" => "status", "index" => "0", "uuid" => "x1"}
+      },
+      "y_axis" => %{
+        "k0" => %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"},
+        "k1" => %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(stale_params, socket)
+
+    assert updated.assigns.view_config.views.graph.y_axis == [
+             {"y1", "id",
+              %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"}},
+             {"y2", "amount",
+              %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}}
+           ]
+  end
+
   test "form_params_to_state normalizes pasted IN values into selected filter values" do
     socket =
       base_socket()
