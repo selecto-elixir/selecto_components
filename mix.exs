@@ -26,7 +26,8 @@ defmodule SelectoComponents.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
-        "coveralls.json": :test
+        "coveralls.json": :test,
+        precommit: :test
       ]
     ]
   end
@@ -55,6 +56,7 @@ defmodule SelectoComponents.MixProject do
       {:ecto, ">= 3.9.1 and < 4.0.0"},
       {:makeup, "~> 1.1"},
       {:makeup_sql, "~> 0.1.0"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 1.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test}
     ]
@@ -96,7 +98,9 @@ defmodule SelectoComponents.MixProject do
         "cmd mkdir -p priv/static",
         "esbuild.install --if-missing",
         "esbuild package --minify"
-      ]
+      ],
+      "credo.atom_audit": ["credo -C atom_audit --all-priorities"],
+      precommit: ["compile --warnings-as-errors", "format --check-formatted", "credo", "test"]
     ]
   end
 end

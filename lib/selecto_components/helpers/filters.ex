@@ -1244,14 +1244,14 @@ defmodule SelectoComponents.Helpers.Filters do
     cond do
       is_map(enum_conf) and is_map(Map.get(enum_conf, :on_dump)) ->
         enum_conf
-        |> Map.get(:on_dump)
+        |> Map.get(:on_dump, %{})
         |> Map.values()
         |> Enum.map(&to_string/1)
         |> Enum.uniq()
 
       is_map(enum_conf) and is_list(Map.get(enum_conf, :mappings)) ->
         enum_conf
-        |> Map.get(:mappings)
+        |> Map.get(:mappings, [])
         |> Enum.map(fn
           {_k, v} -> to_string(v)
           v -> to_string(v)

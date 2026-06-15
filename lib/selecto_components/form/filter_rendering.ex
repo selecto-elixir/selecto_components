@@ -1767,12 +1767,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp selected_in_values(filter_value) when is_map(filter_value) do
     cond do
       is_list(Map.get(filter_value, "selected_values")) ->
-        Map.get(filter_value, "selected_values")
+        Map.get(filter_value, "selected_values", [])
         |> Enum.map(&to_string/1)
         |> Enum.reject(&(&1 == ""))
 
       is_list(Map.get(filter_value, :selected_values)) ->
-        Map.get(filter_value, :selected_values)
+        Map.get(filter_value, :selected_values, [])
         |> Enum.map(&to_string/1)
         |> Enum.reject(&(&1 == ""))
 
