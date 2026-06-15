@@ -71,11 +71,16 @@ defmodule SelectoComponents.ExportedViewsTest do
     assert {:error, :invalid_blob} = ExportedViews.decode_term(blob)
   end
 
-  test "decode_term loads trusted compressed runtime snapshots" do
-    blob = ExportedViews.encode_term(%{domain: %{formatter: fn value -> value end}})
+  test "encode_term rejects snapshots that require unsafe deserialization" do
+    assert_raise ArgumentError, ~r/unsafe deserialization/, fn ->
+      ExportedViews.encode_term(%{domain: %{formatter: fn value -> value end}})
+    end
+  end
 
-    assert {:ok, %{domain: %{formatter: formatter}}} = ExportedViews.decode_term(blob)
-    assert formatter.("ok") == "ok"
+  test "decode_term rejects compressed runtime snapshots with functions" do
+    blob = :erlang.term_to_binary(%{domain: %{formatter: fn value -> value end}}, compressed: 6)
+
+    assert {:error, :invalid_blob} = ExportedViews.decode_term(blob)
   end
 
   test "cache_status distinguishes fresh stale and disabled exports" do

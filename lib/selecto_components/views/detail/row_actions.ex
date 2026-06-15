@@ -399,7 +399,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     try do
       String.to_existing_atom(key)
     rescue
-      ArgumentError -> String.to_atom(key)
+      ArgumentError -> key
     end
   end
 

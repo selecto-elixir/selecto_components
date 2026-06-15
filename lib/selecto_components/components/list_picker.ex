@@ -110,7 +110,7 @@ defmodule SelectoComponents.Components.ListPicker do
                       class="checkbox checkbox-sm"
                       style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
                     />
-                    <.type_badge type={%{icon: String.to_atom(type_filter.key)}} />
+                    <.type_badge type={%{icon: type_filter.icon}} />
                     <span class="flex-1">{type_filter.label}</span>
                     <span class="text-xs" style="color: var(--sc-text-muted);">
                       {type_filter.count}
@@ -1749,7 +1749,7 @@ defmodule SelectoComponents.Components.ListPicker do
       Map.update(acc, key, 1, &(&1 + 1))
     end)
     |> Enum.map(fn {key, count} ->
-      %{key: to_string(key), label: type_badge_label(%{icon: key}), count: count}
+      %{key: to_string(key), icon: key, label: type_badge_label(%{icon: key}), count: count}
     end)
     |> Enum.sort_by(& &1.label)
   end
