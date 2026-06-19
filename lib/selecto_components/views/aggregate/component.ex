@@ -295,25 +295,48 @@ defmodule SelectoComponents.Views.Aggregate.Component do
   end
 
   defp filter_field_for_group(field, coldef) do
-    case coldef do
-      %{group_by_filter: filter} when not is_nil(filter) ->
-        filter
+    if legacy_tag_id_filter?(coldef) do
+      id_filter_field(
+        field,
+        Map.get(coldef, :id_field) || Map.get(coldef, "id_field"),
+        &to_string/1
+      )
+    else
+      case coldef do
+        %{group_by_filter: filter} when not is_nil(filter) ->
+          filter
 
-      %{"group_by_filter" => filter} when not is_nil(filter) ->
-        filter
+        %{"group_by_filter" => filter} when not is_nil(filter) ->
+          filter
 
-      %{join_mode: mode, id_field: id_field}
-      when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
-        id_filter_field(field, id_field, &Atom.to_string/1)
+        %{join_mode: mode, id_field: id_field}
+        when mode in [:lookup, :star, :tag] and not is_nil(id_field) ->
+          id_filter_field(field, id_field, &Atom.to_string/1)
 
-      %{"join_mode" => mode, "id_field" => id_field}
-      when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
-        id_filter_field(field, id_field, &to_string/1)
+        %{"join_mode" => mode, "id_field" => id_field}
+        when mode in ["lookup", "star", "tag"] and not is_nil(id_field) ->
+          id_filter_field(field, id_field, &to_string/1)
 
-      _ ->
-        field_name_for_group(field)
+        _ ->
+          field_name_for_group(field)
+      end
     end
   end
+
+  defp legacy_tag_id_filter?(coldef) when is_map(coldef) do
+    mode = Map.get(coldef, :join_mode) || Map.get(coldef, "join_mode")
+    id_field = Map.get(coldef, :id_field) || Map.get(coldef, "id_field")
+    filter = Map.get(coldef, :group_by_filter) || Map.get(coldef, "group_by_filter")
+
+    group_by_filter_select =
+      Map.get(coldef, :group_by_filter_select) ||
+        Map.get(coldef, "group_by_filter_select")
+
+    mode in [:tag, "tag"] and is_nil(group_by_filter_select) and not is_nil(id_field) and
+      to_string(filter) == to_string(id_field)
+  end
+
+  defp legacy_tag_id_filter?(_coldef), do: false
 
   defp id_filter_field(field, id_field, fallback_fun) do
     case group_table_prefix(field) do
@@ -1729,12 +1752,23 @@ defmodule SelectoComponents.Views.Aggregate.Component do
 
   defp maybe_set_group_by_filter(coldef, field_name)
        when is_map(coldef) and is_binary(field_name) and field_name != "" do
-    coldef
-    |> Map.put_new(:group_by_filter, field_name)
-    |> Map.put_new("group_by_filter", field_name)
+    if join_mode_group?(coldef) do
+      coldef
+    else
+      coldef
+      |> Map.put_new(:group_by_filter, field_name)
+      |> Map.put_new("group_by_filter", field_name)
+    end
   end
 
   defp maybe_set_group_by_filter(coldef, _), do: coldef
+
+  defp join_mode_group?(coldef) when is_map(coldef) do
+    mode = Map.get(coldef, :join_mode) || Map.get(coldef, "join_mode")
+    id_field = Map.get(coldef, :id_field) || Map.get(coldef, "id_field")
+
+    mode in [:lookup, :star, :tag, "lookup", "star", "tag"] and not is_nil(id_field)
+  end
 
   defp maybe_set_group_by_format(coldef, cfg) when is_map(coldef) and is_map(cfg) do
     format = Map.get(cfg, "format") || Map.get(cfg, :format)

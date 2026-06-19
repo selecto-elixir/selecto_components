@@ -196,6 +196,81 @@ defmodule SelectoComponents.Views.Aggregate.ComponentTest do
     assert html =~ "Total"
   end
 
+  test "tag group-by drill-down filters on the joined tag id" do
+    domain = %{
+      name: "AggregateTagGroupComponentTest",
+      source: %{
+        source_table: "products",
+        primary_key: :id,
+        fields: [:id],
+        redact_fields: [],
+        columns: %{
+          id: %{type: :integer}
+        },
+        associations: %{}
+      },
+      schemas: %{
+        tags: %{
+          source_table: "tags",
+          primary_key: :id,
+          fields: [:id, :name],
+          redact_fields: [],
+          columns: %{
+            id: %{hidden: true, type: :integer},
+            name: %{
+              type: :string,
+              id_field: :id,
+              display_field: :name,
+              filter_type: :multi_select_id,
+              group_by_filter: "id",
+              join_mode: :tag,
+              prevent_denormalization: true
+            }
+          },
+          associations: %{}
+        }
+      },
+      joins: %{}
+    }
+
+    tag_selecto = Selecto.configure(domain, nil)
+
+    assigns = %{
+      id: "aggregate-tag-group-render-test",
+      executed: true,
+      execution_error: nil,
+      view_config: %{
+        view_mode: "aggregate",
+        filters: [],
+        group_by: %{
+          "g0" => %{"field" => "tags.name", "index" => "0"}
+        }
+      },
+      selecto: %{
+        tag_selecto
+        | set: %{
+            selected: [
+              {:row, ["tags.name", "tags.id"], "Name"},
+              {:field, {:count, :id}, "ID Count"}
+            ],
+            groups: [{:row, ["tags.name", "tags.id"], "Name"}],
+            group_by: [{:rollup, [{:literal_position, 1}]}],
+            aggregates: [{:field, {:count, :id}, "ID Count"}],
+            gb_params: %{"g0" => %{"field" => "tags.name", "index" => "0"}}
+          }
+      },
+      query_results: {[[{"Vegan", 4}, 35]], [], ["name", "id_count"]},
+      view_meta: %{exe_id: "aggregate-tag-group-render-test-run"}
+    }
+
+    html = render_component(Component, assigns)
+
+    assert html =~ "Vegan"
+    assert html =~ ~s(phx-value-field0="tags.id")
+    assert html =~ ~s(phx-value-value0="4")
+    refute html =~ ~s(phx-value-field0="id")
+  end
+
   test "linked group-by blocks collapse into one header and preserve multi-filter drill-down" do
     domain = %{
       name: "AggregateLinkedGroupComponentTest",
