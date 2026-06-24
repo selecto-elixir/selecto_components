@@ -28,7 +28,7 @@ It is the package you use when you want users to:
 
 - Phoenix 1.7+
 - Elixir ~> 1.18
-- `selecto >= 0.4.6 and < 0.6.0`
+- `selecto >= 0.4.5 and < 0.6.0`
 - an adapter package such as `selecto_db_postgresql >= 0.4.4 and < 0.6.0`
 - `selecto_mix >= 0.4.6 and < 0.6.0` if you want generators and installation helpers
 
@@ -38,7 +38,7 @@ It is the package you use when you want users to:
 def deps do
   [
     {:selecto_components, ">= 0.4.8 and < 0.6.0"},
-    {:selecto, ">= 0.4.6 and < 0.6.0"},
+    {:selecto, ">= 0.4.5 and < 0.6.0"},
     {:selecto_db_postgresql, ">= 0.4.4 and < 0.6.0"},
     {:selecto_mix, ">= 0.4.6 and < 0.6.0"}
   ]

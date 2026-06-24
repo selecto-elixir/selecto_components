@@ -7,7 +7,9 @@ V 0.4.8
 
 - Relaxed Selecto ecosystem dependency guidance to allow the coordinated 0.5
   release line while preserving the current 0.4 lower bounds.
-- Updated packaged `selecto` compatibility to require `>= 0.4.6`.
+- Preserved packaged `selecto` compatibility at `>= 0.4.5` so the package can
+  publish against the currently available `selecto` 0.4 release while allowing
+  the coordinated 0.5 release line.
 - Bump package version to `0.4.8`.
 
 V 0.4.7

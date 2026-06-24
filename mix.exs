@@ -66,7 +66,7 @@ defmodule SelectoComponents.MixProject do
     if use_local_selecto?() do
       {:selecto, path: "../selecto"}
     else
-      {:selecto, ">= 0.4.6 and < 0.6.0"}
+      {:selecto, ">= 0.4.5 and < 0.6.0"}
     end
   end
 
