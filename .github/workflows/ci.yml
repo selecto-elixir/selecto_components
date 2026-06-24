@@ -7,18 +7,23 @@ on:
     branches: [main]
 
 env:
-  ELIXIR_VERSION: "1.18"
-  # OTP 28 + Elixir 1.18 breaks regexes in module attributes in some transitive deps.
-  OTP_VERSION: "27"
+  ELIXIR_VERSION: "1.20.0"
+  OTP_VERSION: "29.0"
+  SELECTO_ECOSYSTEM_USE_LOCAL: "1"
 
 jobs:
   test:
     name: Test & Quality
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: selecto_components
 
     steps:
       - name: Checkout selecto_components
         uses: actions/checkout@v4
+        with:
+          path: selecto_components
 
       - name: Checkout selecto
         uses: actions/checkout@v4
@@ -37,20 +42,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+            selecto_components/deps
+            selecto_components/_build
+          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('selecto_components/mix.exs', 'selecto_components/mix.lock', 'selecto/mix.exs') }}
           restore-keys: |
             ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
 
       - name: Install dependencies
         run: mix deps.get
 
-      - name: Check formatting
-        run: mix format --check-formatted
-
-      - name: Compile with warnings as errors
-        run: mix compile --warnings-as-errors
-
-      - name: Run tests
-        run: mix test
+      - name: Run precommit checks
+        run: mix precommit

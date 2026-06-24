@@ -3,6 +3,7 @@ defmodule SelectoComponentsErrorHandlingTest do
 
   alias SelectoComponents.ErrorHandling.ErrorBuilder
   alias SelectoComponents.ErrorHandling.ErrorCategorizer
+  alias SelectoComponents.ErrorHandling.ErrorSanitizer
   alias SelectoComponents.Form
 
   describe "ErrorCategorizer" do
@@ -293,6 +294,23 @@ defmodule SelectoComponentsErrorHandlingTest do
       assert result.summary == "Query error while generating SQL"
       assert result.operation == "view-apply"
       assert result.view_mode == "aggregate"
+    end
+
+    test "sanitizes field-name suggestions in production without crashing" do
+      previous_env = Application.get_env(:selecto_components, :env)
+      Application.put_env(:selecto_components, :env, :prod)
+
+      on_exit(fn ->
+        if previous_env do
+          Application.put_env(:selecto_components, :env, previous_env)
+        else
+          Application.delete_env(:selecto_components, :env)
+        end
+      end)
+
+      assert ErrorSanitizer.sanitize_suggestions(["field: :missing_name"]) == [
+               "Please verify your field selection"
+             ]
     end
   end
 end

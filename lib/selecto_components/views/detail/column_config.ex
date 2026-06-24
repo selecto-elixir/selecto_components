@@ -63,7 +63,17 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
     configure_component = Map.get(assigns[:col] || %{}, :configure_component)
 
     show_options =
-      col_type in [:int, :id, :float, :decimal, :naive_datetime, :utc_datetime, :date] or
+      col_type in [
+        :int,
+        :id,
+        :float,
+        :decimal,
+        :datetime,
+        :timestamp,
+        :naive_datetime,
+        :utc_datetime,
+        :date
+      ] or
         is_function(configure_component)
 
     assigns =
@@ -100,7 +110,7 @@ defmodule SelectoComponents.Views.Detail.ColumnConfig do
                   value={Map.get(@config, "decimal_places")}/>
                   Decimal Places</label>
 
-              <% x when x in [:naive_datetime, :utc_datetime, :date] -> %>
+              <% x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] -> %>
                 <label class="block text-sm" style="color: var(--sc-text-primary);">Format
                   <.sc_select
                     theme={@theme}

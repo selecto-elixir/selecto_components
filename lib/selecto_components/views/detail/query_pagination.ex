@@ -43,7 +43,7 @@ defmodule SelectoComponents.Views.Detail.QueryPagination do
       columns = cache.columns || []
       aliases = cache.aliases || []
 
-      metadata = data_metadata || count_metadata || %{sql: nil, params: [], execution_time: 0}
+      metadata = data_metadata || count_metadata
 
       emit_detail_query_telemetry(%{
         count_metadata: count_metadata,

@@ -1,6 +1,9 @@
 defmodule SelectoComponents.Helpers.Filters do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.SafeAtom
   alias SelectoComponents.SchemaUtils
+
+  @text_search_modes ~w(web websearch plain natural boolean query_expansion phrase)a
 
   ## For cast
   import Ecto.Type
@@ -16,8 +19,6 @@ defmodule SelectoComponents.Helpers.Filters do
     # Escape underscore
     |> String.replace("_", "\\_")
   end
-
-  defp sanitize_like_value(value), do: value
 
   defp parse_num(type, num) do
     {:ok, v} = cast(type, num)
@@ -201,13 +202,29 @@ defmodule SelectoComponents.Helpers.Filters do
     filter_field = Map.get(filter, "filter")
     query = Map.get(filter, "value")
 
-    case Map.get(filter, "mode") do
-      mode when mode in [nil, "", "websearch"] ->
+    case normalize_text_search_mode(Map.get(filter, "mode")) do
+      :websearch ->
         {filter_field, {:text_search, query}}
 
       mode ->
-        {filter_field, {:text_search, query, [mode: String.to_atom(mode)]}}
+        {filter_field, {:text_search, query, [mode: mode]}}
     end
+  end
+
+  defp normalize_text_search_mode(mode) when mode in [nil, ""], do: :websearch
+
+  defp normalize_text_search_mode(mode) when is_atom(mode) and mode in @text_search_modes,
+    do: mode
+
+  defp normalize_text_search_mode(mode) when is_binary(mode) do
+    case SafeAtom.to_atom_if_allowed(mode, @text_search_modes, nil) do
+      nil -> raise ArgumentError, "unsupported text search mode #{inspect(mode)}"
+      atom -> atom
+    end
+  end
+
+  defp normalize_text_search_mode(mode) do
+    raise ArgumentError, "unsupported text search mode #{inspect(mode)}"
   end
 
   defp _make_string_filter(filter) do
@@ -890,7 +907,7 @@ defmodule SelectoComponents.Helpers.Filters do
     date_like_type = Selecto.Temporal.date_like_type(column)
 
     cond do
-      date_like_type in [:naive_datetime, :utc_datetime, :date] ->
+      date_like_type in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
         case safe_make_date_filter(f, column) do
           {:ok, {:or, conditions}} ->
             or_filters =
@@ -1227,14 +1244,14 @@ defmodule SelectoComponents.Helpers.Filters do
     cond do
       is_map(enum_conf) and is_map(Map.get(enum_conf, :on_dump)) ->
         enum_conf
-        |> Map.get(:on_dump)
+        |> Map.get(:on_dump, %{})
         |> Map.values()
         |> Enum.map(&to_string/1)
         |> Enum.uniq()
 
       is_map(enum_conf) and is_list(Map.get(enum_conf, :mappings)) ->
         enum_conf
-        |> Map.get(:mappings)
+        |> Map.get(:mappings, [])
         |> Enum.map(fn
           {_k, v} -> to_string(v)
           v -> to_string(v)

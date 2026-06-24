@@ -338,7 +338,7 @@ defmodule SelectoComponents.Views.Detail.Form do
         decimals = Map.get(config, "decimal_places", "default decimals")
         commas <> to_string(decimals)
 
-      x when x in [:naive_datetime, :utc_datetime, :date] ->
+      x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
         case Map.get(config, "format") do
           value when value in [nil, "", "default"] -> nil
           value -> format_summary_label(value)

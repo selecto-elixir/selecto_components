@@ -163,6 +163,33 @@ defmodule SelectoComponents.Helpers.FiltersTest do
       assert {"search_document", {:text_search, "wireless charger", [mode: :boolean]}} = filter
     end
 
+    test "skips unsupported text search modes without creating atoms" do
+      invalid_mode = "not_a_supported_mode_#{System.unique_integer([:positive])}"
+
+      assert_raise ArgumentError, fn ->
+        String.to_existing_atom(invalid_mode)
+      end
+
+      filters = %{
+        "filters" => [
+          %{
+            "uuid" => "f1",
+            "section" => "filters",
+            "filter" => "search_document",
+            "comp" => "TEXT_SEARCH",
+            "value" => "wireless charger",
+            "mode" => invalid_mode
+          }
+        ]
+      }
+
+      assert [] == Filters.filter_recurse(text_search_selecto(), filters, "filters")
+
+      assert_raise ArgumentError, fn ->
+        String.to_existing_atom(invalid_mode)
+      end
+    end
+
     test "builds an Other-bucket raw sql filter" do
       filters = %{
         "filters" => [

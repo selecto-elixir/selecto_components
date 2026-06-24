@@ -100,6 +100,82 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
            ]
   end
 
+  test "view validate clears saved view selection when switching view type" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selected_saved_view: "Aggregate Overview",
+        views: [
+          {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{}},
+          {:detail, SelectoComponents.Views.Detail, "Detail View", %{}},
+          {:graph, SelectoComponents.Views.Graph, "Graph View", %{}}
+        ],
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"}
+          }
+        }
+      }
+    }
+
+    {:noreply, updated_socket} =
+      TestLive.handle_event("view-validate", %{"view_mode" => "detail"}, socket)
+
+    assert updated_socket.assigns.selected_saved_view == nil
+    assert updated_socket.assigns.view_config.view_mode == "detail"
+  end
+
+  test "copy aggregate to graph updates graph config without executing" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        selected_saved_view: "Aggregate Overview",
+        current_detail_page: 3,
+        active_tab: "view",
+        view_config: %{
+          view_mode: "aggregate",
+          filters: [],
+          views: %{
+            aggregate: %{
+              group_by: [{"g1", "status", %{"format" => "default"}}],
+              aggregate: [{"a1", "id", %{"format" => "count", "alias" => "Rows"}}],
+              per_page: "100"
+            },
+            graph: %{
+              x_axis: [],
+              y_axis: [],
+              series: [{"s1", "priority", %{}}],
+              color_by: [{"c1", "status", %{}}],
+              chart_type: "line",
+              options: %{"title" => "Status"}
+            }
+          }
+        }
+      }
+    }
+
+    {:noreply, updated_socket} = TestLive.handle_event("copy_aggregate_to_graph", %{}, socket)
+
+    assert updated_socket.assigns.selected_saved_view == nil
+    assert updated_socket.assigns.current_detail_page == 0
+    assert updated_socket.assigns.view_config.view_mode == "graph"
+
+    assert updated_socket.assigns.view_config.views.graph.x_axis == [
+             {"g1", "status", %{"format" => "default"}}
+           ]
+
+    assert updated_socket.assigns.view_config.views.graph.y_axis == [
+             {"a1", "id", %{"alias" => "Rows", "function" => "count"}}
+           ]
+
+    assert updated_socket.assigns.view_config.views.graph.series == [{"s1", "priority", %{}}]
+    assert updated_socket.assigns.view_config.views.graph.color_by == [{"c1", "status", %{}}]
+    assert Map.get(updated_socket.assigns, :executed) != true
+  end
+
   test "save tab persists all view configurations" do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
@@ -157,5 +233,33 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     assert saved_params["filters"] == [
              ["f1", "filters", %{"comp" => "=", "filter" => "status", "value" => "open"}]
            ]
+  end
+
+  test "save tab accepts nested form save_as params" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        active_tab: "save",
+        saved_view_module: SavedViewStub,
+        saved_view_context: "/work-items",
+        my_path: "/work-items",
+        view_config: %{
+          view_mode: "detail",
+          filters: [],
+          views: %{detail: %{selected: [], order_by: []}}
+        },
+        params: %{}
+      }
+    }
+
+    {:noreply, _updated_socket} =
+      TestLive.handle_event(
+        "view-apply",
+        %{"view_config" => %{"save_as" => "Nested View"}},
+        socket
+      )
+
+    assert_received {:saved_view, "Nested View", "/work-items", saved_params}
+    assert saved_params["view_mode"] == "detail"
   end
 end

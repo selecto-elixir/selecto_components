@@ -20,6 +20,7 @@ defmodule SelectoComponents.Components.ListPicker do
   attr(:compact, :boolean, default: false)
   attr(:available_label, :string, default: "Available")
   attr(:selected_label, :string, default: "Selected")
+  attr(:group_available_by_prefix, :boolean, default: true)
   attr(:available_height_class, :string, default: nil)
   attr(:selected_height_class, :string, default: nil)
   attr(:available_max_height, :string, default: nil)
@@ -41,12 +42,14 @@ defmodule SelectoComponents.Components.ListPicker do
       |> Map.put_new(:compact, false)
       |> Map.put_new(:available_label, "Available")
       |> Map.put_new(:selected_label, "Selected")
+      |> Map.put_new(:group_available_by_prefix, true)
       |> Map.put_new(:available_height_class, nil)
       |> Map.put_new(:selected_height_class, nil)
       |> Map.put_new(:available_max_height, nil)
       |> Map.put_new(:selected_max_height, nil)
       |> assign(view_id: view_id)
       |> assign(available: sorted_available)
+      |> assign_available_groups(sorted_available)
       |> assign(type_filters: available_type_filters(sorted_available))
       |> assign(component_dom_id: "list-picker-#{assigns.id}")
 
@@ -61,7 +64,9 @@ defmodule SelectoComponents.Components.ListPicker do
     >
       <section class="min-w-0 space-y-2">
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">{@available_label}</div>
+          <div class={picker_header_class()} style={picker_header_style()}>
+            {@available_label}
+          </div>
 
           <div class="mt-2 flex items-center gap-1">
             <input
@@ -105,7 +110,7 @@ defmodule SelectoComponents.Components.ListPicker do
                       class="checkbox checkbox-sm"
                       style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-accent);"
                     />
-                    <.type_badge type={%{icon: String.to_atom(type_filter.key)}} />
+                    <.type_badge type={%{icon: type_filter.icon}} />
                     <span class="flex-1">{type_filter.label}</span>
                     <span class="text-xs" style="color: var(--sc-text-muted);">
                       {type_filter.count}
@@ -135,6 +140,7 @@ defmodule SelectoComponents.Components.ListPicker do
           style={picker_pane_style("background: var(--sc-surface-bg-alt);", @compact, @available_max_height)}
         >
           <button
+            :if={!@available_grouped?}
             :for={{id, name, field_type} <- @available}
             type="button"
             data-picker-action="add"
@@ -142,6 +148,7 @@ defmodule SelectoComponents.Components.ListPicker do
             data-list-id={@fieldname}
             data-item-id={id}
             data-type-key={normalize_icon_key(field_type)}
+            data-search-text={name}
             data-available-item
             class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-left text-sm transition"
             style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
@@ -152,6 +159,59 @@ defmodule SelectoComponents.Components.ListPicker do
               <span class="block break-words">{name}</span>
             </div>
           </button>
+
+          <div
+            :if={@available_grouped?}
+            :for={group <- @available_groups}
+            data-available-group
+            data-available-group-key={group.key}
+            class="space-y-1"
+          >
+            <button
+              type="button"
+              data-available-group-toggle
+              data-available-group-key={group.key}
+              class="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-xs font-semibold uppercase tracking-[0.1em] transition"
+              style="color: var(--sc-text-secondary);"
+              aria-expanded="true"
+            >
+              <svg
+                data-available-group-caret
+                class="h-3 w-3 shrink-0 transition-transform"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M6.2 7.25a.75.75 0 0 1 1.06-.05L10 9.72l2.74-2.52a.75.75 0 1 1 1.02 1.1l-3.25 3a.75.75 0 0 1-1.02 0l-3.25-3a.75.75 0 0 1-.04-1.06Z" />
+              </svg>
+              <span class="min-w-0 flex-1 truncate">{group.label}</span>
+              <span data-available-group-count class="text-[0.65rem] font-medium" style="color: var(--sc-text-muted);">
+                {length(group.items)}
+              </span>
+            </button>
+
+            <div data-available-group-items class="space-y-1">
+              <button
+                :for={item <- group.items}
+                type="button"
+                data-picker-action="add"
+                data-view-id={@view_id}
+                data-list-id={@fieldname}
+                data-item-id={item.id}
+                data-type-key={normalize_icon_key(item.field_type)}
+                data-search-text={item.search_name}
+                data-available-item
+                class="w-full min-w-0 cursor-pointer rounded-lg border px-3 py-2 text-left text-sm transition"
+                style="border-color: var(--sc-surface-border); background: var(--sc-surface-bg); color: var(--sc-text-primary);"
+              >
+                <div class="flex items-start gap-2">
+                  <.type_badge type={item.field_type} />
+                  <.choice_source_indicator type={item.field_type} />
+                  <span class="block break-words">{item.display_name}</span>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -159,17 +219,19 @@ defmodule SelectoComponents.Components.ListPicker do
         id={@component_dom_id}
         phx-hook=".ListPickerSortable"
         data-reorder-button-id={"#{@component_dom_id}-reorder-button"}
-        class={Theme.slot(@theme, :panel) <> " flex min-w-0 flex-col gap-3 p-2"}
+        class={Theme.slot(@theme, :panel) <> " flex min-h-0 min-w-0 flex-col gap-3 p-2"}
         style="background: var(--sc-surface-bg);"
       >
         <div class="min-w-0" style="color: var(--sc-text-primary);">
-          <div class="text-sm font-semibold">{@selected_label}</div>
+          <div class={picker_header_class()} style={picker_header_style()}>
+            {@selected_label}
+          </div>
         </div>
 
         <div
           data-scroll-handoff
           class={[
-            "min-h-0 space-y-2 overflow-y-auto pr-1",
+            "min-h-0 flex-1 space-y-2 overflow-y-auto pr-1",
             picker_pane_height_class(@compact, @selected_height_class)
           ]}
           style={picker_pane_style("", @compact, @selected_max_height)}
@@ -446,6 +508,10 @@ defmodule SelectoComponents.Components.ListPicker do
             return `${this.persistKey()}::type-filters`;
           },
 
+          groupPersistKey() {
+            return `${this.persistKey()}::available-groups`;
+          },
+
           readPersistedFilter() {
             const store = window.__selectoListPickerFilterValues || {};
             return store[this.persistKey()] || '';
@@ -454,6 +520,11 @@ defmodule SelectoComponents.Components.ListPicker do
           readPersistedTypeFilters() {
             const store = window.__selectoListPickerTypeFilters || {};
             return store[this.typePersistKey()] || [];
+          },
+
+          readPersistedCollapsedGroups() {
+            const store = window.__selectoListPickerCollapsedGroups || {};
+            return store[this.groupPersistKey()] || [];
           },
 
           writePersistedFilter(value) {
@@ -466,9 +537,15 @@ defmodule SelectoComponents.Components.ListPicker do
             window.__selectoListPickerTypeFilters[this.typePersistKey()] = values || [];
           },
 
+          writePersistedCollapsedGroups(values) {
+            window.__selectoListPickerCollapsedGroups = window.__selectoListPickerCollapsedGroups || {};
+            window.__selectoListPickerCollapsedGroups[this.groupPersistKey()] = values || [];
+          },
+
           mounted() {
             this.filterValue = this.readPersistedFilter();
             this.selectedTypeFilters = this.readPersistedTypeFilters();
+            this.collapsedAvailableGroups = this.readPersistedCollapsedGroups();
             this.highlightedAvailableItemId = null;
             this.highlightedSelectedItemId = null;
             this.filterWasFocused = false;
@@ -477,6 +554,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableGroups();
             this.bindAvailableItemKeyboard();
             this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
@@ -493,6 +571,7 @@ defmodule SelectoComponents.Components.ListPicker do
           updated() {
             this.bindActionHandlers();
             this.bindFilter();
+            this.bindAvailableGroups();
             this.bindAvailableItemKeyboard();
             this.bindSelectedItemKeyboard();
             this.bindTypeFilters();
@@ -536,6 +615,10 @@ defmodule SelectoComponents.Components.ListPicker do
               });
             }
 
+            if (this.handleAvailableGroupToggle) {
+              this.el.removeEventListener('click', this.handleAvailableGroupToggle);
+            }
+
             if (this.handleActionClick) {
               this.el.removeEventListener('click', this.handleActionClick);
             }
@@ -561,6 +644,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
             this.writePersistedFilter(this.filterValue || '');
             this.writePersistedTypeFilters(this.selectedTypeFilters || []);
+            this.writePersistedCollapsedGroups(this.collapsedAvailableGroups || []);
           },
 
           bindActionHandlers() {
@@ -758,6 +842,43 @@ defmodule SelectoComponents.Components.ListPicker do
             });
           },
 
+          bindAvailableGroups() {
+            if (this.handleAvailableGroupToggle) {
+              return;
+            }
+
+            this.handleAvailableGroupToggle = (event) => {
+              const trigger = event.target.closest('[data-available-group-toggle]');
+
+              if (!trigger || !this.el.contains(trigger)) {
+                return;
+              }
+
+              event.preventDefault();
+              event.stopPropagation();
+
+              const groupKey = trigger.dataset.availableGroupKey;
+
+              if (!groupKey) {
+                return;
+              }
+
+              const collapsed = new Set(this.collapsedAvailableGroups || []);
+
+              if (collapsed.has(groupKey)) {
+                collapsed.delete(groupKey);
+              } else {
+                collapsed.add(groupKey);
+              }
+
+              this.collapsedAvailableGroups = Array.from(collapsed);
+              this.writePersistedCollapsedGroups(this.collapsedAvailableGroups);
+              this.updateAvailableGroups();
+            };
+
+            this.el.addEventListener('click', this.handleAvailableGroupToggle);
+          },
+
           bindScrollHandoff() {
             const panes = Array.from(this.el.querySelectorAll('[data-scroll-handoff]'));
             this.scrollHandoffHandlers = this.scrollHandoffHandlers || new Map();
@@ -823,15 +944,18 @@ defmodule SelectoComponents.Components.ListPicker do
             const filterValue = (this.filterValue || '').trim().toUpperCase();
             const items = this.el.querySelectorAll('[data-available-item]');
             const typeFilters = this.selectedTypeFilters || [];
+            const hasActiveFilter = filterValue !== '' || typeFilters.length > 0;
 
             items.forEach((item) => {
-              const text = item.textContent.toUpperCase();
+              const text = (item.dataset.searchText || item.textContent || '').toUpperCase();
               const typeKey = item.dataset.typeKey || 'unknown';
               const textMatch = !filterValue || text.includes(filterValue);
               const typeMatch = typeFilters.length === 0 || typeFilters.includes(typeKey);
 
               item.style.display = textMatch && typeMatch ? '' : 'none';
             });
+
+            this.updateAvailableGroups({ forceExpanded: hasActiveFilter });
 
             if (this.filterInput && this.filterInput.value !== (this.filterValue || '')) {
               this.filterInput.value = this.filterValue || '';
@@ -844,6 +968,41 @@ defmodule SelectoComponents.Components.ListPicker do
             if (this.highlightedAvailableItemId) {
               this.restoreHighlightedAvailableItem();
             }
+          },
+
+          updateAvailableGroups(options = {}) {
+            const forceExpanded = options.forceExpanded === true;
+            const collapsed = new Set(this.collapsedAvailableGroups || []);
+            const groups = Array.from(this.el.querySelectorAll('[data-available-group]'));
+
+            groups.forEach((group) => {
+              const groupKey = group.dataset.availableGroupKey;
+              const itemsContainer = group.querySelector('[data-available-group-items]');
+              const toggle = group.querySelector('[data-available-group-toggle]');
+              const count = group.querySelector('[data-available-group-count]');
+              const caret = group.querySelector('[data-available-group-caret]');
+              const items = Array.from(group.querySelectorAll('[data-available-item]'));
+              const matchingItems = items.filter((item) => item.style.display !== 'none');
+              const isCollapsed = !forceExpanded && collapsed.has(groupKey);
+
+              group.style.display = matchingItems.length === 0 ? 'none' : '';
+
+              if (itemsContainer) {
+                itemsContainer.style.display = isCollapsed ? 'none' : '';
+              }
+
+              if (toggle) {
+                toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+              }
+
+              if (count) {
+                count.textContent = String(matchingItems.length);
+              }
+
+              if (caret) {
+                caret.style.transform = isCollapsed ? 'rotate(-90deg)' : '';
+              }
+            });
           },
 
           bindAvailableItemKeyboard() {
@@ -1027,7 +1186,7 @@ defmodule SelectoComponents.Components.ListPicker do
 
           visibleAvailableItems() {
             return Array.from(this.el.querySelectorAll('[data-available-item]')).filter((item) => {
-              return item.style.display !== 'none';
+              return item.style.display !== 'none' && item.offsetParent !== null;
             });
           },
 
@@ -1428,18 +1587,111 @@ defmodule SelectoComponents.Components.ListPicker do
     {:noreply, socket}
   end
 
+  defp assign_available_groups(assigns, sorted_available) do
+    grouped? =
+      assigns.group_available_by_prefix &&
+        Enum.any?(sorted_available, &prefixed_available_item?/1)
+
+    assigns
+    |> assign(available_grouped?: grouped?)
+    |> assign(available_groups: if(grouped?, do: available_groups(sorted_available), else: []))
+  end
+
+  defp prefixed_available_item?({_id, name, _field_type}) when is_binary(name) do
+    case split_available_prefix(name) do
+      {_prefix, _display_name} -> true
+      nil -> false
+    end
+  end
+
+  defp prefixed_available_item?(_item), do: false
+
+  defp available_groups(available) do
+    available
+    |> Enum.map(&available_group_item/1)
+    |> Enum.group_by(& &1.group_label)
+    |> Enum.map(fn {group_label, items} ->
+      sorted_items = Enum.sort_by(items, &String.downcase(&1.display_name))
+
+      %{
+        key: available_group_key(group_label),
+        label: group_label,
+        items: sorted_items
+      }
+    end)
+    |> Enum.sort_by(fn group ->
+      if group.label == "Other" do
+        {1, group.label}
+      else
+        {0, String.downcase(group.label)}
+      end
+    end)
+  end
+
+  defp available_group_item({id, name, field_type}) do
+    {group_label, display_name} =
+      case split_available_prefix(name) do
+        {prefix, rest} -> {prefix, rest}
+        nil -> {"Other", name}
+      end
+
+    %{
+      id: id,
+      field_type: field_type,
+      group_label: group_label,
+      display_name: display_name,
+      search_name: name
+    }
+  end
+
+  defp split_available_prefix(name) when is_binary(name) do
+    case String.split(name, ":", parts: 2) do
+      [prefix, rest] ->
+        prefix = String.trim(prefix)
+        rest = String.trim(rest)
+
+        if prefix != "" && rest != "" do
+          {prefix, rest}
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp split_available_prefix(_name), do: nil
+
+  defp available_group_key(group_label) do
+    group_label
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+    |> then(fn
+      "" -> "group"
+      key -> key
+    end)
+  end
+
   defp picker_root_class(true) do
-    "grid min-w-0 items-start gap-3"
+    "grid min-w-0 items-stretch gap-3"
   end
 
   defp picker_root_class(_compact) do
-    "grid min-w-0 items-start gap-3"
+    "grid min-w-0 items-stretch gap-3"
   end
 
   defp picker_root_style(true), do: "grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);"
 
   defp picker_root_style(_compact),
     do: "grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);"
+
+  defp picker_header_class do
+    "text-[0.68rem] font-semibold uppercase tracking-[0.14em]"
+  end
+
+  defp picker_header_style do
+    "color: var(--sc-text-muted);"
+  end
 
   defp picker_pane_height_class(_compact, override)
        when is_binary(override) and byte_size(override) > 0,
@@ -1497,7 +1749,7 @@ defmodule SelectoComponents.Components.ListPicker do
       Map.update(acc, key, 1, &(&1 + 1))
     end)
     |> Enum.map(fn {key, count} ->
-      %{key: to_string(key), label: type_badge_label(%{icon: key}), count: count}
+      %{key: to_string(key), icon: key, label: type_badge_label(%{icon: key}), count: count}
     end)
     |> Enum.sort_by(& &1.label)
   end
@@ -1706,7 +1958,7 @@ defmodule SelectoComponents.Components.ListPicker do
       normalize_type_family(metadata[:type] || metadata["type"])
   end
 
-  defp normalize_icon_key(type), do: icon_key_from_format(nil) || normalize_type_family(type)
+  defp normalize_icon_key(type), do: normalize_type_family(type)
 
   defp icon_key_from_format(format) when format in [:currency, :currency_with_symbol],
     do: :currency
@@ -1717,7 +1969,7 @@ defmodule SelectoComponents.Components.ListPicker do
   defp normalize_type_family(type) when type in [:id, :integer, :float, :decimal], do: :number
 
   defp normalize_type_family(type)
-       when type in [:utc_datetime, :naive_datetime, :date, :datetime],
+       when type in [:utc_datetime, :naive_datetime, :date, :datetime, :timestamp],
        do: :date
 
   defp normalize_type_family(:boolean), do: :boolean

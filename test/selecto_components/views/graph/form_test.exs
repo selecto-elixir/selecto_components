@@ -269,6 +269,9 @@ defmodule SelectoComponents.Views.Graph.FormTest do
               series: [
                 {"uuid3", "rating", %{"field" => "rating", "index" => "0"}}
               ],
+              color_by: [
+                {"uuid4", "category", %{"field" => "category", "index" => "0"}}
+              ],
               options: %{}
             }
           }
@@ -284,14 +287,17 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       x_axis_picker = list_picker(rendered, "x_axis")
       y_axis_picker = list_picker(rendered, "y_axis")
       series_picker = list_picker(rendered, "series")
+      color_by_picker = list_picker(rendered, "color_by")
 
       assert x_axis_picker.component == ListPicker
       assert y_axis_picker.component == ListPicker
       assert series_picker.component == ListPicker
+      assert color_by_picker.component == ListPicker
 
       assert x_axis_picker.assigns.fieldname == "x_axis"
       assert y_axis_picker.assigns.fieldname == "y_axis"
       assert series_picker.assigns.fieldname == "series"
+      assert color_by_picker.assigns.fieldname == "color_by"
 
       assert x_axis_picker.assigns.selected_items ==
                [{"uuid1", "category", %{"field" => "category", "index" => "0"}}]
@@ -301,6 +307,9 @@ defmodule SelectoComponents.Views.Graph.FormTest do
 
       assert series_picker.assigns.selected_items ==
                [{"uuid3", "rating", %{"field" => "rating", "index" => "0"}}]
+
+      assert color_by_picker.assigns.selected_items ==
+               [{"uuid4", "category", %{"field" => "category", "index" => "0"}}]
     end
 
     test "filters available columns for x-axis and series" do
@@ -312,6 +321,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
               x_axis: [],
               y_axis: [],
               series: [],
+              color_by: [],
               options: %{}
             }
           }
@@ -329,6 +339,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
       rendered = Form.render(assigns)
       x_axis_picker = list_picker(rendered, "x_axis")
       series_picker = list_picker(rendered, "series")
+      color_by_picker = list_picker(rendered, "color_by")
 
       assert Enum.any?(x_axis_picker.assigns.available, &match?({"category", _, :string}, &1))
 
@@ -342,6 +353,10 @@ defmodule SelectoComponents.Views.Graph.FormTest do
              end)
 
       refute Enum.any?(series_picker.assigns.available, fn {_field, _label, format} ->
+               format in [:component, :link]
+             end)
+
+      refute Enum.any?(color_by_picker.assigns.available, fn {_field, _label, format} ->
                format in [:component, :link]
              end)
     end

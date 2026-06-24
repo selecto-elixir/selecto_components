@@ -15,6 +15,37 @@ defmodule SelectoComponents.Form.ViewPanelTest do
     assert html =~ "Columns"
   end
 
+  test "renders aggregate to graph copy action when both views are available" do
+    html =
+      render_component(
+        &ViewPanel.panel/1,
+        base_assigns(%{
+          views: [
+            {:aggregate, SelectoComponents.Views.Aggregate, "Aggregate View", %{}},
+            {:graph, SelectoComponents.Views.Graph, "Graph View", %{}}
+          ],
+          view_config: %{
+            view_mode: "aggregate",
+            filters: [],
+            views: %{
+              aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+              graph: %{
+                x_axis: [],
+                y_axis: [],
+                series: [],
+                color_by: [],
+                chart_type: "bar",
+                options: %{}
+              }
+            }
+          }
+        })
+      )
+
+    assert html =~ ~s(id="copy-aggregate-to-graph")
+    assert html =~ "Send to Graph"
+  end
+
   defp base_assigns(overrides) do
     domain = %{
       name: "ViewPanelTest",

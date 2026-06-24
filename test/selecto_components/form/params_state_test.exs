@@ -1041,6 +1041,100 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert updated.assigns.view_config.views.aggregate.aggregate == []
   end
 
+  test "form_params_to_state persists edits to the second graph y-axis item" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "graph",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{
+              x_axis: [{"x1", "status", %{"field" => "status", "index" => "0"}}],
+              y_axis: [
+                {"y1", "id", %{"field" => "id", "function" => "count", "index" => "0"}},
+                {"y2", "amount", %{"field" => "amount", "function" => "count", "index" => "1"}}
+              ],
+              series: [],
+              chart_type: "bar",
+              options: %{}
+            }
+          }
+        }
+      )
+
+    params = %{
+      "view_mode" => "graph",
+      "chart_type" => "bar",
+      "x_axis" => %{
+        "k0" => %{"field" => "status", "index" => "0", "uuid" => "x1"}
+      },
+      "y_axis" => %{
+        "k0" => %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"},
+        "k1" => %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(params, socket)
+
+    assert updated.assigns.view_config.views.graph.y_axis == [
+             {"y1", "id",
+              %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"}},
+             {"y2", "amount",
+              %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}}
+           ]
+  end
+
+  test "stale targeted graph y-axis edits keep the submitted item being changed" do
+    socket =
+      base_socket()
+      |> Phoenix.Component.assign(
+        view_config: %{
+          view_mode: "graph",
+          filters: [],
+          views: %{
+            detail: %{selected: [], order_by: [], per_page: "30", max_rows: "1000"},
+            aggregate: %{group_by: [], aggregate: [], per_page: "100"},
+            graph: %{
+              x_axis: [{"x1", "status", %{"field" => "status", "index" => "0"}}],
+              y_axis: [
+                {"y1", "id", %{"field" => "id", "function" => "count", "index" => "0"}}
+              ],
+              series: [],
+              chart_type: "bar",
+              options: %{}
+            }
+          }
+        },
+        form_state_revision: 2
+      )
+
+    stale_params = %{
+      "_target" => ["y_axis", "y2", "function"],
+      "view_mode" => "graph",
+      "chart_type" => "bar",
+      "form_state_revision" => "1",
+      "x_axis" => %{
+        "k0" => %{"field" => "status", "index" => "0", "uuid" => "x1"}
+      },
+      "y_axis" => %{
+        "k0" => %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"},
+        "k1" => %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}
+      }
+    }
+
+    updated = ParamsState.form_params_to_state(stale_params, socket)
+
+    assert updated.assigns.view_config.views.graph.y_axis == [
+             {"y1", "id",
+              %{"field" => "id", "function" => "count", "index" => "0", "uuid" => "y1"}},
+             {"y2", "amount",
+              %{"field" => "amount", "function" => "sum", "index" => "1", "uuid" => "y2"}}
+           ]
+  end
+
   test "form_params_to_state normalizes pasted IN values into selected filter values" do
     socket =
       base_socket()
@@ -1158,6 +1252,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           x_axis: [{"x1", "status", %{}}],
           y_axis: [{"y1", "id", %{"function" => "count"}}],
           series: [{"s1", "priority", %{}}],
+          color_by: [{"c1", "status", %{}}],
           chart_type: "line",
           options: %{"title" => "Open Items"}
         }
@@ -1175,6 +1270,55 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert saved["views"]["detail"]["row_click_action"] == "workspace_spotlight"
     assert saved["views"]["aggregate"]["grid"] == true
     assert saved["views"]["graph"]["chart_type"] == "line"
+    assert saved["views"]["graph"]["color_by"] == [["c1", "status", %{}]]
+  end
+
+  test "copy_aggregate_to_graph maps aggregate grouping and metrics into graph config" do
+    view_config = %{
+      view_mode: "aggregate",
+      filters: [
+        {"f1", "filters", %{"filter" => "status", "comp" => "=", "value" => "open"}}
+      ],
+      views: %{
+        aggregate: %{
+          group_by: [
+            {"g1", "event_name", %{"alias" => "Event", "format" => "default"}},
+            {"g2", "event_start", %{"alias" => "Year", "format" => "year"}}
+          ],
+          aggregate: [
+            {"a1", "atnd_id", %{"alias" => "Attendees", "format" => "count"}}
+          ],
+          per_page: "300"
+        },
+        graph: %{
+          x_axis: [{"old-x", "old_field", %{}}],
+          y_axis: [{"old-y", "old_metric", %{"function" => "sum"}}],
+          series: [{"s1", "event_year", %{}}],
+          color_by: [{"c1", "event_name", %{}}],
+          chart_type: "line",
+          options: %{"title" => "Registration Pace"}
+        }
+      }
+    }
+
+    updated = ParamsState.copy_aggregate_to_graph(view_config)
+
+    assert updated.view_mode == "graph"
+    assert updated.filters == view_config.filters
+
+    assert updated.views.graph.x_axis == [
+             {"g1", "event_name", %{"alias" => "Event", "format" => "default"}},
+             {"g2", "event_start", %{"alias" => "Year", "format" => "year"}}
+           ]
+
+    assert updated.views.graph.y_axis == [
+             {"a1", "atnd_id", %{"alias" => "Attendees", "function" => "count"}}
+           ]
+
+    assert updated.views.graph.series == [{"s1", "event_year", %{}}]
+    assert updated.views.graph.color_by == [{"c1", "event_name", %{}}]
+    assert updated.views.graph.chart_type == "line"
+    assert updated.views.graph.options == %{"title" => "Registration Pace"}
   end
 
   test "saved_params_to_state restores all view configurations" do
@@ -1215,6 +1359,7 @@ defmodule SelectoComponents.Form.ParamsStateTest do
           "x_axis" => [["x1", "status", %{}]],
           "y_axis" => [["y1", "id", %{"function" => "count"}]],
           "series" => [["s1", "priority", %{}]],
+          "color_by" => [["c1", "status", %{}]],
           "chart_type" => "line",
           "options" => %{"title" => "Open Items"}
         }
@@ -1235,9 +1380,14 @@ defmodule SelectoComponents.Form.ParamsStateTest do
     assert get_in(updated.assigns.view_config, [:views, :aggregate, "grid"]) == true
     assert get_in(updated.assigns.view_config, [:views, :graph, "chart_type"]) == "line"
 
+    assert get_in(updated.assigns.view_config, [:views, :graph, "color_by"]) == [
+             ["c1", "status", %{}]
+           ]
+
     detail_params = ParamsState.view_config_to_params(updated.assigns.view_config)
     assert detail_params["row_click_action"] == "workspace_spotlight"
     assert detail_params["filters"]["k0"]["filter"] == "status"
+    assert detail_params["color_by"]["k0"]["field"] == "status"
   end
 
   test "saved_params_to_state normalizes saved detail prevent_denormalization strings" do

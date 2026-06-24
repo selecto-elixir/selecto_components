@@ -50,6 +50,21 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
          )}
       end
 
+      def handle_event("copy_aggregate_to_graph", _params, socket) do
+        with_error_handling(socket, "copy_aggregate_to_graph", fn ->
+          updated_config = ParamsState.copy_aggregate_to_graph(socket.assigns.view_config)
+
+          socket =
+            socket
+            |> assign(:current_detail_page, 0)
+            |> assign(:selected_saved_view, nil)
+            |> assign(:view_config_dirty?, true)
+            |> ParamsState.assign_view_config(updated_config)
+
+          {:noreply, socket}
+        end)
+      end
+
       @doc """
       Handles form validation events without executing the query.
 
@@ -72,6 +87,8 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
           true ->
             with_error_handling(socket, "view-validate", fn ->
+              clear_saved_view? = manual_change_from_saved_view?(params, socket)
+
               socket =
                 if socket.assigns[:skip_next_validation] do
                   assign(socket, skip_next_validation: false)
@@ -81,6 +98,13 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
 
               # Process all parameters including view-specific configs (aggregates, group_by, etc.)
               socket = ParamsState.form_params_to_state(params, socket)
+
+              socket =
+                if clear_saved_view? do
+                  assign(socket, :selected_saved_view, nil)
+                else
+                  socket
+                end
 
               socket =
                 if Map.has_key?(params, "promoted_filters") do
@@ -111,7 +135,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
       """
       def handle_event("view-apply", params, %{assigns: %{active_tab: "save"}} = socket) do
         with_error_handling(socket, "save_view", fn ->
-          save_as = String.trim(Map.get(params, "save_as", ""))
+          save_as = submitted_save_name(params)
 
           cond do
             save_as == "" ->
@@ -192,6 +216,7 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
           socket =
             socket
             |> assign(:current_detail_page, 0)
+            |> assign(:selected_saved_view, nil)
             |> ParamsState.clear_query_caches()
 
           socket = ParamsState.form_params_to_state(submitted_params, socket)
@@ -280,6 +305,22 @@ defmodule SelectoComponents.Form.EventHandlers.ViewLifecycle do
         error = ErrorBuilder.build(message, opts)
         error.summary <> ": " <> error.user_message
       end
+
+      defp submitted_save_name(params) when is_map(params) do
+        params
+        |> Map.get("save_as", get_in(params, ["view_config", "save_as"]))
+        |> to_string()
+        |> String.trim()
+      end
+
+      defp submitted_save_name(_params), do: ""
+
+      defp manual_change_from_saved_view?(params, socket) when is_map(params) do
+        not is_nil(socket.assigns[:selected_saved_view]) and
+          Map.get(params, "view_mode") != socket.assigns.view_config.view_mode
+      end
+
+      defp manual_change_from_saved_view?(_params, _socket), do: false
     end
   end
 end

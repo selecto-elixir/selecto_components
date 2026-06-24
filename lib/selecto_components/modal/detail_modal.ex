@@ -404,12 +404,12 @@ defmodule SelectoComponents.Modal.DetailModal do
 
   defp format_template_value(nil), do: ""
   defp format_template_value(value) when is_binary(value), do: value
+  defp format_template_value(value) when is_boolean(value), do: to_string(value)
   defp format_template_value(value) when is_atom(value), do: Atom.to_string(value)
 
   defp format_template_value(value) when is_integer(value) or is_float(value),
     do: to_string(value)
 
-  defp format_template_value(value) when is_boolean(value), do: to_string(value)
   defp format_template_value(value), do: inspect(value)
 
   defp has_prev_record?(assigns) do

@@ -47,7 +47,7 @@ defmodule SelectoComponents.Views.Graph.XAxisConfig do
         </div>
 
         <!-- Datetime Formatting (if applicable) -->
-        <div :if={(Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string)) in [:naive_datetime, :utc_datetime, :date]}>
+        <div :if={(Selecto.Temporal.date_like_type(@col) || Map.get(@col, :type, :string)) in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date]}>
           <label class="mb-1 block text-xs font-medium" style="color: var(--sc-text-secondary)">Date Format</label>
           <.sc_select_with_slot theme={@theme} name={"#{@prefix}[format]"} value={Map.get(@config, "format", "") == "" && ""}>
             <option value="" selected={Map.get(@config, "format", "") == ""}>Default</option>

@@ -399,7 +399,7 @@ defmodule SelectoComponents.Filter.FilterSets do
     # Handle both "value" and direct parameter access
     set_id = params["value"] || params["filter-set-select-#{socket.assigns.id}"] || ""
 
-    if set_id == "" or is_nil(set_id) do
+    if set_id == "" do
       {:noreply, socket}
     else
       case get_filter_set(set_id, socket.assigns) do

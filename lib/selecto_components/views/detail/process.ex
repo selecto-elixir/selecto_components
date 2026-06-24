@@ -183,8 +183,6 @@ defmodule SelectoComponents.Views.Detail.Process do
     end
   end
 
-  defp prevent_denormalization_enabled?(_params), do: true
-
   defp normalize_selected_entry(%{} = config, fallback_uuid, fallback_index) do
     config
     |> map_string_keys()
@@ -203,9 +201,8 @@ defmodule SelectoComponents.Views.Detail.Process do
   end
 
   defp normalize_selected_entry({uuid, field, config}, fallback_uuid, fallback_index) do
-    config_map = if is_map(config), do: map_string_keys(config), else: %{}
-
-    config_map
+    config
+    |> non_map_config()
     |> Map.put_new("uuid", to_string(uuid || fallback_uuid || UUID.uuid4()))
     |> Map.put_new("field", to_string(field))
     |> Map.put_new("index", to_string(fallback_index || 0))
@@ -251,6 +248,8 @@ defmodule SelectoComponents.Views.Detail.Process do
       "alias" => ""
     }
   end
+
+  defp non_map_config(_config), do: %{}
 
   defp sort_selected_entries(entries) do
     Enum.sort(entries, fn a, b ->
@@ -344,7 +343,7 @@ defmodule SelectoComponents.Views.Detail.Process do
 
       # move to a validation lib
       case Selecto.Temporal.date_like_type(col) || col.type do
-        x when x in [:naive_datetime, :utc_datetime, :date] ->
+        x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
           datetime_selected(col, e, alias, date_formats)
 
         :custom_column ->

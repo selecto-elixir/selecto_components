@@ -1231,7 +1231,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
       normalize_type_family(metadata[:type] || metadata["type"])
   end
 
-  defp normalize_icon_key(type), do: icon_key_from_format(nil) || normalize_type_family(type)
+  defp normalize_icon_key(type), do: normalize_type_family(type)
 
   defp icon_key_from_format(format) when format in [:currency, :currency_with_symbol],
     do: :currency
@@ -1242,7 +1242,7 @@ defmodule SelectoComponents.Components.TreeBuilder do
   defp normalize_type_family(type) when type in [:id, :integer, :float, :decimal], do: :number
 
   defp normalize_type_family(type)
-       when type in [:utc_datetime, :naive_datetime, :date, :datetime],
+       when type in [:utc_datetime, :naive_datetime, :date, :datetime, :timestamp],
        do: :date
 
   defp normalize_type_family(:boolean), do: :boolean

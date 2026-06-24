@@ -153,7 +153,7 @@ defmodule SelectoComponents.Form.FilterRendering do
         join_mode_config ->
           render_multiselect_filter(assign(assigns, :join_mode_config, join_mode_config))
 
-        field_type in [:naive_datetime, :utc_datetime, :date] or
+        field_type in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] or
             date_specific_datetime_comp?(value_for(filter_value, "comp")) ->
           render_datetime_filter(assigns)
 
@@ -1767,12 +1767,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp selected_in_values(filter_value) when is_map(filter_value) do
     cond do
       is_list(Map.get(filter_value, "selected_values")) ->
-        Map.get(filter_value, "selected_values")
+        Map.get(filter_value, "selected_values", [])
         |> Enum.map(&to_string/1)
         |> Enum.reject(&(&1 == ""))
 
       is_list(Map.get(filter_value, :selected_values)) ->
-        Map.get(filter_value, :selected_values)
+        Map.get(filter_value, :selected_values, [])
         |> Enum.map(&to_string/1)
         |> Enum.reject(&(&1 == ""))
 
@@ -1951,7 +1951,7 @@ defmodule SelectoComponents.Form.FilterRendering do
   end
 
   def format_datetime_value(value, type)
-      when type in [:naive_datetime, :utc_datetime] and is_binary(value) do
+      when type in [:datetime, :timestamp, :naive_datetime, :utc_datetime] and is_binary(value) do
     # Try to parse and format as YYYY-MM-DDTHH:MM for datetime-local input
     cond do
       String.contains?(value, "T") ->
@@ -2341,11 +2341,12 @@ defmodule SelectoComponents.Form.FilterRendering do
   defp normalize_comp(value, _fallback) when is_binary(value) and value != "", do: value
   defp normalize_comp(_value, fallback), do: fallback
 
+  defp normalize_string(nil), do: ""
   defp normalize_string(value) when is_binary(value), do: value
+  defp normalize_string(value) when is_boolean(value), do: to_string(value)
   defp normalize_string(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string(value) when is_integer(value), do: Integer.to_string(value)
   defp normalize_string(value) when is_float(value), do: :erlang.float_to_binary(value)
-  defp normalize_string(nil), do: ""
   defp normalize_string(value), do: to_string(value)
 
   defp normalize_choice_source_display(nil, value), do: normalize_string(value)
@@ -2550,16 +2551,12 @@ defmodule SelectoComponents.Form.FilterRendering do
     |> choice_source_metadata_value(value_key)
   end
 
-  defp choice_source_request_value(_metadata, _request_key, _value_key), do: nil
-
   defp choice_source_request_json(metadata, request_key) when is_map(metadata) do
     case choice_source_metadata_value(metadata, request_key) do
       request when is_map(request) -> Jason.encode!(request)
       _ -> nil
     end
   end
-
-  defp choice_source_request_json(_metadata, _request_key), do: nil
 
   defp find_join_mode_config(selecto, filter_id, column_def) do
     # Check if column_def already has join_mode

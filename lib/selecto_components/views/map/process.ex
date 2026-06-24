@@ -541,8 +541,6 @@ defmodule SelectoComponents.Views.Map.Process do
   defp normalize_max_points(value) when is_integer(value), do: 1
   defp normalize_max_points(_), do: nil
 
-  defp normalize_lat(nil), do: nil
-
   defp normalize_lat(value) when is_number(value) do
     value
     |> Kernel.*(1.0)
@@ -550,8 +548,6 @@ defmodule SelectoComponents.Views.Map.Process do
   end
 
   defp normalize_lat(_), do: nil
-
-  defp normalize_lng(nil), do: nil
 
   defp normalize_lng(value) when is_number(value) do
     value
@@ -737,8 +733,6 @@ defmodule SelectoComponents.Views.Map.Process do
       nil
     end
   end
-
-  defp maybe_normalize_layers(_), do: nil
 
   defp has_map_key?(map, key) when is_map(map) and is_atom(key) do
     Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))

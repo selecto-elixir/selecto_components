@@ -183,8 +183,6 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     |> Enum.to_list()
   end
 
-  defp registered_detail_actions(_domain), do: %{}
-
   defp generated_action_forms(domain, opts) when is_map(domain) do
     domain
     |> Actions.detail_actions(
@@ -207,8 +205,6 @@ defmodule SelectoComponents.Views.Detail.RowActions do
       action_scope in [nil, "row"]
     end)
   end
-
-  defp generated_action_forms(_domain, _opts), do: []
 
   defp normalize_action({action_id, action_config}) when is_map(action_config) do
     type = normalize_action_type(map_get(action_config, :type))
@@ -353,9 +349,9 @@ defmodule SelectoComponents.Views.Detail.RowActions do
 
   defp stringify_value(nil), do: ""
   defp stringify_value(value) when is_binary(value), do: value
+  defp stringify_value(value) when is_boolean(value), do: to_string(value)
   defp stringify_value(value) when is_atom(value), do: Atom.to_string(value)
   defp stringify_value(value) when is_integer(value) or is_float(value), do: to_string(value)
-  defp stringify_value(value) when is_boolean(value), do: to_string(value)
   defp stringify_value(%Date{} = value), do: Date.to_string(value)
 
   defp stringify_value(%DateTime{} = value) do
@@ -403,7 +399,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
     try do
       String.to_existing_atom(key)
     rescue
-      ArgumentError -> String.to_atom(key)
+      ArgumentError -> key
     end
   end
 

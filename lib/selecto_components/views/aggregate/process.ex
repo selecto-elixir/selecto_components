@@ -214,7 +214,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
           end
         else
           case Selecto.Temporal.date_like_type(col) || col.type do
-            x when x in [:naive_datetime, :utc_datetime, :date] ->
+            x when x in [:datetime, :timestamp, :naive_datetime, :utc_datetime, :date] ->
               {:field, datetime_gb_proc(col, e, presentation_context), alias}
 
             x when x in [:integer, :float, :decimal, :id] ->
@@ -545,8 +545,6 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     Map.get(params, "_presentation_context", %{})
   end
 
-  defp runtime_presentation_context(_params), do: %{}
-
   defp maybe_timezone_aware_datetime_selector(col, field_ref, format, presentation_context) do
     if timezone_grouping_applicable?(col, presentation_context) do
       {:raw_sql, timezone_aware_to_char_sql(col, field_ref, format, presentation_context)}
@@ -680,7 +678,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
               # Add the alias prefix only to the first column
               pretty_label =
-                if index == 0 && aggregate_alias != "" && aggregate_alias != nil do
+                if index == 0 && aggregate_alias not in [nil, ""] do
                   "#{aggregate_alias}: #{pretty_label}"
                 else
                   pretty_label
@@ -750,7 +748,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
 
               # Add the alias prefix only to the first column
               pretty_label =
-                if index == 0 && aggregate_alias != "" && aggregate_alias != nil do
+                if index == 0 && aggregate_alias not in [nil, ""] do
                   "#{aggregate_alias}: #{pretty_label}"
                 else
                   pretty_label

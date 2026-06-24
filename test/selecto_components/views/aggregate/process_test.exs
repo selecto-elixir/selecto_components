@@ -245,6 +245,33 @@ defmodule SelectoComponents.Views.Aggregate.ProcessTest do
     assert sql =~ "CASE WHEN"
   end
 
+  test "group by supports postgres datetime atom year buckets" do
+    columns = %{
+      "atnd_created" => %{
+        name: "Attendance Created",
+        type: :datetime,
+        colid: :atnd_created
+      }
+    }
+
+    [{_col, selector}] =
+      Process.group_by(
+        %{
+          "g1" => %{
+            "field" => "atnd_created",
+            "format" => "year_buckets",
+            "bucket_ranges" => "*/5"
+          }
+        },
+        columns,
+        nil
+      )
+
+    assert {:field, {:raw_sql, sql}, "Attendance Created"} = selector
+    assert sql =~ "EXTRACT(YEAR FROM selecto_root.atnd_created)"
+    assert sql =~ "CASE WHEN"
+  end
+
   test "group by uses viewer timezone for instant datetime formatting" do
     columns = %{
       "created_at" => %{

@@ -421,6 +421,8 @@ defmodule SelectoComponents.Session.URL do
   defp normalize_map_scalar(value) when is_binary(value),
     do: if(String.trim(value) == "", do: nil, else: String.trim(value))
 
+  defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
+
   defp normalize_map_scalar(value) when is_atom(value),
     do: value |> Atom.to_string() |> normalize_map_scalar()
 
@@ -429,7 +431,6 @@ defmodule SelectoComponents.Session.URL do
   defp normalize_map_scalar(value) when is_float(value),
     do: value |> Float.round(6) |> to_string()
 
-  defp normalize_map_scalar(value) when is_boolean(value), do: to_string(value)
   defp normalize_map_scalar(_value), do: nil
 
   defp sort_index_for_compaction(%{"index" => index}) when is_binary(index) do

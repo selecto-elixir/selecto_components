@@ -3,14 +3,14 @@ defmodule SelectoComponents.Env do
 
   def current do
     cond do
+      env = Application.get_env(:selecto_components, :env) ->
+        normalize_env(env)
+
       Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) ->
         Mix.env()
 
-      env = Application.get_env(:selecto_components, :env) ->
-        env
-
       env = System.get_env("MIX_ENV") ->
-        String.to_atom(env)
+        normalize_env(env)
 
       true ->
         :prod
@@ -21,4 +21,10 @@ defmodule SelectoComponents.Env do
   def test?, do: current() == :test
   def prod?, do: current() == :prod
   def dev_or_test?, do: current() in [:dev, :test]
+
+  defp normalize_env(env) when env in [:dev, :test, :prod], do: env
+  defp normalize_env("dev"), do: :dev
+  defp normalize_env("test"), do: :test
+  defp normalize_env("prod"), do: :prod
+  defp normalize_env(_env), do: :prod
 end

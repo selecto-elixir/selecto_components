@@ -263,6 +263,73 @@ defmodule SelectoComponents.Views.Graph.ComponentTest do
              ]
     end
 
+    test "builds color-by datasets using an existing x-axis field for color" do
+      assigns = %{
+        selecto: %{
+          set: %{
+            groups: [
+              {%{colid: :event_name, linked_to_next: true}, {:field, :event_name, "Event Name"}},
+              {%{colid: :event_year, linked_to_next: false}, {:field, :event_year, "Year"}}
+            ],
+            x_axis_groups: [
+              {%{colid: :event_name, linked_to_next: true}, {:field, :event_name, "Event Name"}},
+              {%{colid: :event_year, linked_to_next: false}, {:field, :event_year, "Year"}}
+            ],
+            aggregates: [
+              {:field, {:count, "atnd_id"}, "Attendee Count"}
+            ],
+            color_by_groups: [
+              {%{colid: :event_name, linked_to_next: true}, {:field, :event_name, "Event Name"}}
+            ],
+            series_groups: [],
+            chart_type: "bar"
+          }
+        }
+      }
+
+      results = [
+        ["Dark Odyssey Summer Camp", "2007", 32],
+        ["Dark Odyssey Summer Camp", "2008", 40],
+        ["Winter Fire", "2007", 12]
+      ]
+
+      chart_data =
+        Component.prepare_chart_data(assigns, results, [
+          "Event Name",
+          "Year",
+          "Attendee Count"
+        ])
+
+      assert chart_data.labels == [
+               "Dark Odyssey Summer Camp • 2007",
+               "Dark Odyssey Summer Camp • 2008",
+               "Winter Fire • 2007"
+             ]
+
+      assert length(chart_data.datasets) == 2
+
+      summer =
+        Enum.find(chart_data.datasets, &(&1.label == "Attendee Count - Dark Odyssey Summer Camp"))
+
+      winter = Enum.find(chart_data.datasets, &(&1.label == "Attendee Count - Winter Fire"))
+
+      assert summer.data == [32, 40, nil]
+      assert winter.data == [nil, nil, 12]
+      assert summer.backgroundColor != winter.backgroundColor
+
+      assert summer.drillDown == [
+               [
+                 %{field: "event_name", value: "Dark Odyssey Summer Camp", gidx: "0"},
+                 %{field: "event_year", value: "2007", gidx: "1"}
+               ],
+               [
+                 %{field: "event_name", value: "Dark Odyssey Summer Camp", gidx: "0"},
+                 %{field: "event_year", value: "2008", gidx: "1"}
+               ],
+               []
+             ]
+    end
+
     test "adds measurement unit to metric labels when presentation metadata is available" do
       assigns = %{
         selecto: %{

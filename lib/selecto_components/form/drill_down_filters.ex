@@ -9,16 +9,20 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   - Determining appropriate comparison operators for different field types
   """
 
+  alias SelectoComponents.Form.ParamsState
+
   @doc """
   Build filter parameters for aggregate drill-down.
 
   Takes the clicked parameters and socket assigns, returns a map ready for view_from_params.
   """
   def build_agg_drill_down_params(params, socket) do
+    view_config_params = view_config_params(socket)
+
     base_params =
       case socket.assigns[:used_params] do
-        map when is_map(map) -> map
-        _ -> %{}
+        map when is_map(map) -> Map.merge(view_config_params, map)
+        _ -> view_config_params
       end
 
     view_params =
@@ -28,6 +32,12 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
     view_params
   end
+
+  defp view_config_params(%{assigns: %{view_config: view_config}}) when is_map(view_config) do
+    ParamsState.view_config_to_params(view_config)
+  end
+
+  defp view_config_params(_socket), do: %{}
 
   @doc """
   Build filters map from indexed drill-down parameters.
@@ -85,8 +95,6 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     find_field_group_config_in_collection(group_by_config, field_name, group_idx) ||
       find_graph_group_config(used_params, field_name, group_idx)
   end
-
-  defp find_field_group_config(_used_params, _field_name, _group_idx), do: nil
 
   defp find_field_group_config_in_collection(config_map, field_name, group_idx)
        when is_map(config_map) do
@@ -557,7 +565,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
       Selecto.Temporal.date_like_type(field_conf) || Map.get(field_conf, :type, :string)
 
     case field_type do
-      x when x in [:utc_datetime, :naive_datetime] ->
+      x when x in [:datetime, :timestamp, :utc_datetime, :naive_datetime] ->
         {v1_parsed, v2_parsed} =
           Selecto.Helpers.Date.val_to_dates(%{"value" => value, "value2" => ""})
 

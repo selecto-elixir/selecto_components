@@ -293,7 +293,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         id
 
       row when is_map(row) ->
-        Map.get(row, :id) || Map.get(row, "id") || Map.get(row, :_id) || Map.get(row, "_id")
+        Map.get(row, "id") || Map.get(row, :_id) || Map.get(row, "_id")
 
       _ ->
         nil

@@ -36,10 +36,21 @@ defmodule SelectoComponents.ExportSnapshots do
   end
 
   @doc """
-  Encode an arbitrary Elixir term for persistence.
+  Encode a safe Elixir term for persistence.
   """
   @spec encode_term(term()) :: binary()
-  def encode_term(term), do: :erlang.term_to_binary(term, compressed: 6)
+  def encode_term(term) do
+    blob = :erlang.term_to_binary(term, compressed: 6)
+
+    case decode_term(blob) do
+      {:ok, _term} ->
+        blob
+
+      {:error, :invalid_blob} ->
+        raise ArgumentError,
+              "cannot persist snapshot terms that require unsafe deserialization"
+    end
+  end
 
   @doc """
   Decode a previously encoded persistence blob.
@@ -48,18 +59,33 @@ defmodule SelectoComponents.ExportSnapshots do
   def decode_term(nil), do: {:error, :missing}
 
   def decode_term(blob) when is_binary(blob) do
-    {:ok, :erlang.binary_to_term(blob, [:safe])}
-  rescue
-    _ -> decode_trusted_compressed_term(blob)
-  end
+    term = :erlang.binary_to_term(blob, [:safe])
 
-  defp decode_trusted_compressed_term(<<131, 80, _::binary>> = blob) do
-    {:ok, :erlang.binary_to_term(blob)}
+    case persistable_term?(term) do
+      true -> {:ok, term}
+      false -> {:error, :invalid_blob}
+    end
   rescue
     _ -> {:error, :invalid_blob}
   end
 
-  defp decode_trusted_compressed_term(_blob), do: {:error, :invalid_blob}
+  defp persistable_term?(term)
+       when is_function(term) or is_pid(term) or is_port(term) or is_reference(term),
+       do: false
+
+  defp persistable_term?(term) when is_list(term), do: Enum.all?(term, &persistable_term?/1)
+
+  defp persistable_term?(term) when is_tuple(term) do
+    term
+    |> Tuple.to_list()
+    |> Enum.all?(&persistable_term?/1)
+  end
+
+  defp persistable_term?(term) when is_map(term) do
+    Enum.all?(term, fn {key, value} -> persistable_term?(key) and persistable_term?(value) end)
+  end
+
+  defp persistable_term?(_term), do: true
 
   @doc false
   def sanitize_connection(opts) when is_list(opts) do

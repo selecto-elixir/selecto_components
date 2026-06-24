@@ -34,7 +34,7 @@ defmodule SelectoComponents.ExportedViews.Snippets do
             else: Phoenix.VerifiedRoutes.unverified_url(endpoint, url)
 
         path ->
-          Phoenix.VerifiedRoutes.unverified_url(endpoint, path)
+          Phoenix.VerifiedRoutes.unverified_url(endpoint, to_string(path))
       end
 
     public_id = ExportedViews.field(view, :public_id)

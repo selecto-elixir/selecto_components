@@ -221,7 +221,7 @@ defmodule SelectoComponents.Dashboard.WidgetRegistry do
   """
   def refresh_widget_data(widget, data_context \\ %{}) do
     case get_data_source(widget) do
-      {:ok, source} when not is_nil(source) ->
+      source when is_map(source) ->
         fetch_data(source, data_context)
 
       _ ->

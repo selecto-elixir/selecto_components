@@ -102,16 +102,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           </.sc_select_with_slot>
         </div>
       </div>
-      Group By
+      <.section_header title="Group By" />
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="group_by"
         theme={@theme}
         fieldname="group_by"
         view={@view}
-        available={
-          Enum.filter(@columns, fn {_f, _n, format} -> format not in [:component, :link] end)
-        }
+        available={aggregate_selectable_columns(@columns)}
         selected_items={Map.get(@aggregate_view, :group_by, Map.get(@aggregate_view, "group_by", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
@@ -177,14 +175,14 @@ defmodule SelectoComponents.Views.Aggregate.Form do
           </label>
         </:between_item>
       </.live_component>
-      Aggregates:
+      <.section_header title="Aggregates" class="mt-5" />
       <.live_component
         module={SelectoComponents.Components.ListPicker}
         id="aggregate"
         theme={@theme}
         fieldname="aggregate"
         view={@view}
-        available={@columns}
+        available={aggregate_selectable_columns(@columns)}
         selected_items={Map.get(@aggregate_view, :aggregate, Map.get(@aggregate_view, "aggregate", []))}
       >
         <:item_summary :let={{_id, item, config, _index}}>
@@ -212,6 +210,39 @@ defmodule SelectoComponents.Views.Aggregate.Form do
     </div>
     """
   end
+
+  attr(:title, :string, required: true)
+  attr(:class, :string, default: nil)
+
+  defp section_header(assigns) do
+    ~H"""
+    <div class={["mb-3 border-b pb-2", @class]} style="border-color: var(--sc-surface-border);">
+      <h3 class="text-sm font-semibold" style="color: var(--sc-text-primary);">
+        {@title}
+      </h3>
+    </div>
+    """
+  end
+
+  defp aggregate_selectable_columns(columns) do
+    Enum.reject(columns, fn {_field, _name, metadata} -> component_or_link_column?(metadata) end)
+  end
+
+  defp component_or_link_column?(metadata) when metadata in [:component, :link], do: true
+
+  defp component_or_link_column?(%{} = metadata) do
+    Enum.any?(
+      [
+        Map.get(metadata, :format, Map.get(metadata, "format")),
+        Map.get(metadata, :type, Map.get(metadata, "type")),
+        Map.get(metadata, :icon, Map.get(metadata, "icon")),
+        Map.get(metadata, :icon_family, Map.get(metadata, "icon_family"))
+      ],
+      &(&1 in [:component, :link, "component", "link"])
+    )
+  end
+
+  defp component_or_link_column?(_metadata), do: false
 
   defp get_aggregate_per_page(view_config) do
     view_config
@@ -311,6 +342,8 @@ defmodule SelectoComponents.Views.Aggregate.Form do
                  :decimal,
                  :float,
                  :integer,
+                 :datetime,
+                 :timestamp,
                  :naive_datetime,
                  :utc_datetime,
                  :date

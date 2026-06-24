@@ -26,6 +26,9 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
         "series" => %{
           "1" => %{"field" => "rating", "index" => "0", "alias" => "Rating"}
         },
+        "color_by" => %{
+          "1" => %{"field" => "category", "index" => "0", "alias" => "Category Color"}
+        },
         "chart_type" => "bar",
         "options" => %{"title" => "Films by Category"}
       }
@@ -37,6 +40,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert length(state.x_axis) == 2
       assert length(state.y_axis) == 1
       assert length(state.series) == 1
+      assert length(state.color_by) == 1
 
       # Check x_axis fields are properly ordered by index
       [first_x, second_x] = state.x_axis
@@ -54,6 +58,7 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert state.x_axis == []
       assert state.y_axis == []
       assert state.series == []
+      assert state.color_by == []
     end
 
     test "defaults chart_type when not provided" do
@@ -180,6 +185,38 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       assert :rating in group_fields
     end
 
+    test "uses color_by as a grouping without duplicating existing x-axis fields", %{
+      columns: columns
+    } do
+      params = %{
+        "x_axis" => %{
+          "1" => %{"field" => "category", "index" => "0", "alias" => "Category"},
+          "2" => %{"field" => "release_year", "index" => "1", "alias" => "Year"}
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        },
+        "color_by" => %{
+          "1" => %{"field" => "category", "index" => "0", "alias" => "Category Color"}
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, columns, [], nil)
+
+      assert length(view_set.x_axis_groups) == 2
+      assert length(view_set.color_by_groups) == 1
+      assert length(view_set.groups) == 2
+      assert length(view_set.selected) == 3
+
+      [{color_col, _selector}] = view_set.color_by_groups
+      assert color_col.colid == :category
+    end
+
     test "preserves linked graph group metadata on x-axis and series fields", %{columns: columns} do
       params = %{
         "x_axis" => %{
@@ -273,6 +310,35 @@ defmodule SelectoComponents.Views.Graph.ProcessTest do
       [{_col, field_selector}] = view_set.x_axis_groups
 
       assert {:field, {:to_char, {:created_at, "YYYY-Q"}}, "Quarter"} = field_selector
+    end
+
+    test "supports postgres datetime atom format tokens in graph grouping", %{columns: columns} do
+      datetime_columns =
+        Map.put(columns, "atnd_created", %{colid: :atnd_created, type: :datetime})
+
+      params = %{
+        "x_axis" => %{
+          "1" => %{
+            "field" => "atnd_created",
+            "index" => "0",
+            "alias" => "Quarter",
+            "format" => "YYYY-Q"
+          }
+        },
+        "y_axis" => %{
+          "1" => %{
+            "field" => "film_count",
+            "index" => "0",
+            "function" => "count",
+            "alias" => "Count"
+          }
+        }
+      }
+
+      {view_set, _} = Process.view(nil, params, datetime_columns, [], nil)
+      [{_col, field_selector}] = view_set.x_axis_groups
+
+      assert {:field, {:to_char, {:atnd_created, "YYYY-Q"}}, "Quarter"} = field_selector
     end
 
     test "uses viewer timezone for instant datetime graph grouping", %{columns: columns} do

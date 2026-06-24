@@ -74,7 +74,7 @@ defmodule SelectoComponents.ExportedViews.IPAllowlist do
     if host_bits == 0 do
       bits
     else
-      <<network::bitstring-size(prefix), _host::bitstring-size(host_bits)>> = bits
+      <<network::bitstring-size(^prefix), _host::bitstring-size(^host_bits)>> = bits
       <<network::bitstring, 0::size(host_bits)>>
     end
   end

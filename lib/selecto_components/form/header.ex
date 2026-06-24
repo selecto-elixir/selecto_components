@@ -20,7 +20,7 @@ defmodule SelectoComponents.Form.Header do
     <div
       id={"selecto-controller-summary-#{@id}"}
       data-selecto-controller-summary
-      class="mb-4 rounded-lg border p-3"
+      class={["rounded-lg border p-3", @show_view_configurator && "mb-4"]}
       style="border-color: var(--sc-surface-border); background: color-mix(in srgb, var(--sc-surface-bg-alt) 55%, var(--sc-surface-bg));"
     >
       <div class="flex items-start gap-3">

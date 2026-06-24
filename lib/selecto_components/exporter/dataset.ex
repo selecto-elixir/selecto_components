@@ -313,8 +313,6 @@ defmodule SelectoComponents.Exporter.Dataset do
     end)
   end
 
-  defp row_column_defs(_opts, _query_results), do: %{}
-
   defp maybe_put_alias_column_def(acc, nil, _column_def), do: acc
 
   defp maybe_put_alias_column_def(acc, alias_name, column_def),

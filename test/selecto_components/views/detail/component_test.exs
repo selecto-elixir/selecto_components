@@ -3,6 +3,7 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias SelectoComponents.Views.Detail.Component
+  alias SelectoComponents.Views.Detail.RowActions
 
   defp selecto do
     domain = %{
@@ -656,6 +657,16 @@ defmodule SelectoComponents.Views.Detail.ComponentTest do
     assert detail_data.component_module == SelectoComponents.Modal.DetailModal
     assert detail_data.component_assigns.workspace_id == 117
     assert detail_data.component_assigns.workspace_name == "Austin Workspace 2-1"
+  end
+
+  test "row action component assigns do not create atoms for unknown string keys" do
+    key = "unsafe_assign_#{System.unique_integer([:positive])}"
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(key) end
+
+    assert RowActions.resolve_component_assigns(%{key => "value"}, %{}) == %{key => "value"}
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(key) end
   end
 
   test "show_row_details can open an action form live component" do

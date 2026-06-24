@@ -139,9 +139,6 @@ defmodule SelectoComponents.Debug.ProductionConfig do
 
   defp truthy_flag?(_), do: false
 
-  defp secure_compare(nil, _), do: false
-  defp secure_compare(_, nil), do: false
-
   defp secure_compare(a, b) when is_binary(a) and is_binary(b) do
     # Convert to charlist for constant-time comparison
     a_charlist = String.to_charlist(a)
