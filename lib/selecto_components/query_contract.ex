@@ -90,6 +90,7 @@ defmodule SelectoComponents.QueryContract do
         contract
         |> Map.put(:query_contract_version, @query_contract_version)
         |> put_contract_envelope(opts)
+        |> maybe_put_actions(input, opts)
         |> maybe_put_form_metadata(opts)
         |> Policy.apply(opts)
         |> json_safe()
@@ -276,9 +277,91 @@ defmodule SelectoComponents.QueryContract do
     Map.merge(@default_params_schema, option_map(Keyword.get(opts, :params_schema, %{})))
   end
 
+  defp maybe_put_actions(contract, input, opts) do
+    actions =
+      opts
+      |> Keyword.get(:actions, actions_from_input(input))
+      |> action_documents()
+
+    if actions == [] do
+      contract
+    else
+      contract
+      |> Map.put(:actions, actions)
+      |> update_in([:context], fn context ->
+        context
+        |> option_map()
+        |> Map.put(:ai_actions_enabled, true)
+      end)
+    end
+  end
+
+  defp actions_from_input(%Selecto{domain: domain}), do: actions_from_input(domain)
+  defp actions_from_input(%{domain: domain}) when is_map(domain), do: actions_from_input(domain)
+
+  defp actions_from_input(%{"domain" => domain}) when is_map(domain),
+    do: actions_from_input(domain)
+
+  defp actions_from_input(%{actions: actions}), do: actions
+  defp actions_from_input(%{"actions" => actions}), do: actions
+  defp actions_from_input(_input), do: %{}
+
+  defp action_documents(actions) when is_map(actions) do
+    actions
+    |> Enum.map(fn {id, action} -> action_document(id, action) end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort_by(&to_string(Map.get(&1, :id)))
+  end
+
+  defp action_documents(actions) when is_list(actions) do
+    actions
+    |> Enum.map(fn action -> action_document(nil, action) end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort_by(&to_string(Map.get(&1, :id)))
+  end
+
+  defp action_documents(_actions), do: []
+
+  defp action_document(id, action) when is_map(action) do
+    id = map_value(action, :id) || id
+
+    if is_nil(id) do
+      nil
+    else
+      %{
+        id: id,
+        name: map_value(action, :name) || map_value(action, :label),
+        description: map_value(action, :description),
+        scope: map_value(action, :scope) || map_value(action, :target_scope),
+        capability: map_value(action, :capability),
+        inputs: map_value(action, :inputs, []),
+        preconditions: map_value(action, :preconditions, []),
+        preview_required: map_value(action, :preview_required, true),
+        ai_executable: map_value(action, :ai_executable, false),
+        allowed_ai_operations:
+          map_value(action, :allowed_ai_operations) ||
+            map_value(action, :ai_operations) ||
+            [:propose, :preview]
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" or value == [] end)
+      |> Map.new()
+    end
+  end
+
+  defp action_document(_id, _action), do: nil
+
   defp option_map(value) when is_map(value), do: value
   defp option_map(value) when is_list(value), do: Map.new(value)
   defp option_map(_value), do: %{}
+
+  defp map_value(map, key, default \\ nil)
+
+  defp map_value(map, key, default) when is_map(map) and is_atom(key) do
+    Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp map_value(map, key, default) when is_map(map), do: Map.get(map, key, default)
+  defp map_value(_map, _key, default), do: default
 
   defp json_encode_opts(opts), do: Keyword.take(opts, [:pretty, :escape])
 

@@ -69,6 +69,11 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     %{
       fields: Map.new(fields, &{string_id(map_get(&1, :id)), &1}),
       filters: Map.new(filters, &{string_id(map_get(&1, :id)), &1}),
+      actions:
+        contract
+        |> map_get(:actions, [])
+        |> list_or_empty()
+        |> Map.new(&{string_id(map_get(&1, :id)), &1}),
       published_views:
         contract
         |> map_get(:published_views, [])
@@ -323,7 +328,8 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     validate_export_intent(intent, indexes) ++
       validate_published_view_intent(intent, indexes) ++
       validate_exported_view_intent(intent, indexes) ++
-      validate_scheduled_export_intent(intent, indexes)
+      validate_scheduled_export_intent(intent, indexes) ++
+      validate_action_intent(intent, indexes)
   end
 
   defp validate_export_intent(intent, indexes) do
@@ -417,6 +423,195 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     else
       []
     end
+  end
+
+  defp validate_action_intent(intent, indexes) do
+    {actions, base_path} = action_intents(intent)
+
+    errors =
+      Enum.flat_map(actions, fn {action_intent, path} ->
+        cond do
+          not truthy?(map_get(indexes.context, :ai_actions_enabled, false)) ->
+            [
+              error(
+                :ai_actions_disabled,
+                path,
+                "AI action proposals are not enabled by this contract"
+              )
+            ]
+
+          not is_map(action_intent) ->
+            [error(:invalid_action_intent, path, "action intent must be a map")]
+
+          is_nil(action_intent_id(action_intent)) ->
+            [
+              error(
+                :invalid_action_reference,
+                "#{path}.id",
+                "action intent must include an action id"
+              )
+            ]
+
+          true ->
+            validate_action_reference(action_intent, path, indexes)
+        end
+      end)
+
+    maybe_invalid_list(errors, intent, base_path, [:actions])
+  end
+
+  defp action_intents(intent) do
+    cond do
+      map_has_key?(intent, :actions) ->
+        value = map_get(intent, :actions)
+        {indexed_items(value, "actions"), "actions"}
+
+      map_has_key?(intent, :action) ->
+        case map_get(intent, :action) do
+          nil ->
+            {[], "action"}
+
+          action when is_binary(action) or is_atom(action) ->
+            {[%{"id" => string_id(action)}, "action"], "action"}
+
+          action ->
+            [{action, "action"}] |> then(&{&1, "action"})
+        end
+
+      true ->
+        {[], "actions"}
+    end
+  end
+
+  defp validate_action_reference(action_intent, path, indexes) do
+    action_id = action_intent_id(action_intent)
+
+    case Map.fetch(indexes.actions, action_id) do
+      {:ok, action} ->
+        validate_action_available(action, action_id, path) ++
+          validate_action_operation(action, action_intent, path) ++
+          validate_action_inputs(action, action_intent, path)
+
+      :error ->
+        [
+          error(
+            :invalid_action,
+            "#{path}.id",
+            "action is not exposed by this contract",
+            value: action_id,
+            allowed: Map.keys(indexes.actions)
+          )
+        ]
+    end
+  end
+
+  defp validate_action_available(action, action_id, path) do
+    if truthy?(map_get(action, :disabled, false)) do
+      decision =
+        action
+        |> map_get(:capability_decision, %{})
+        |> map_or_empty()
+
+      [
+        error(
+          :action_disabled,
+          "#{path}.id",
+          map_get(decision, :reason, "action is disabled by capability policy"),
+          action: action_id,
+          capability: map_get(action, :capability) || map_get(decision, :capability),
+          capability_code: map_get(decision, :code),
+          capability_decision: compact_map(decision)
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp validate_action_operation(action, action_intent, path) do
+    operation = action_operation(action_intent)
+
+    allowed_operations =
+      action
+      |> map_get(:allowed_ai_operations, ["propose", "preview"])
+      |> list_or_empty()
+      |> Enum.map(&string_id/1)
+
+    cond do
+      operation not in allowed_operations ->
+        [
+          error(
+            :action_operation_not_allowed,
+            "#{path}.operation",
+            "action operation is not allowed by this contract",
+            value: operation,
+            allowed: allowed_operations
+          )
+        ]
+
+      operation in ["apply", "execute"] and not truthy?(map_get(action, :ai_executable, false)) ->
+        [
+          error(
+            :action_execution_not_allowed,
+            "#{path}.operation",
+            "AI action execution is not allowed by this contract",
+            value: operation,
+            allowed: allowed_operations
+          )
+        ]
+
+      operation in ["apply", "execute"] and
+        truthy?(map_get(action, :preview_required, true)) and
+          not truthy?(map_get(action_intent, :preview_confirmed, false)) ->
+        [
+          error(
+            :action_preview_required,
+            "#{path}.preview_confirmed",
+            "action execution requires an explicit preview confirmation"
+          )
+        ]
+
+      operation in ["apply", "execute"] and
+          not truthy?(map_get(action_intent, :human_confirmed, false)) ->
+        [
+          error(
+            :action_confirmation_required,
+            "#{path}.human_confirmed",
+            "action execution requires explicit human confirmation"
+          )
+        ]
+
+      true ->
+        []
+    end
+  end
+
+  defp validate_action_inputs(action, action_intent, path) do
+    provided_inputs =
+      action_intent
+      |> map_get(:inputs, %{})
+      |> map_or_empty()
+
+    action
+    |> map_get(:inputs, [])
+    |> list_or_empty()
+    |> Enum.flat_map(fn input ->
+      input_id = input |> map_get(:id) |> string_id()
+      required? = truthy?(map_get(input, :required, false))
+
+      if required? and (is_nil(input_id) or not map_has_key?(provided_inputs, input_id)) do
+        [
+          error(
+            :missing_action_input,
+            "#{path}.inputs.#{input_id || "unknown"}",
+            "required action input is missing",
+            input: input_id
+          )
+        ]
+      else
+        []
+      end
+    end)
   end
 
   defp validate_field_capability(indexes, field_id, capability, capability_error, path) do
@@ -655,6 +850,20 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
     |> string_id()
   end
 
+  defp action_intent_id(action_intent) when is_map(action_intent) do
+    (map_get(action_intent, :id) || map_get(action_intent, :action) ||
+       map_get(action_intent, :action_id))
+    |> string_id()
+  end
+
+  defp action_intent_id(_action_intent), do: nil
+
+  defp action_operation(action_intent) do
+    (map_get(action_intent, :operation) || map_get(action_intent, :mode) || "propose")
+    |> string_id()
+    |> String.downcase()
+  end
+
   defp sort_direction(order) when is_map(order) do
     order
     |> then(fn order ->
@@ -678,6 +887,12 @@ defmodule SelectoComponents.QueryContract.IntentValidator do
 
   defp map_has_key?(map, key) when is_map(map) and is_atom(key) do
     Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
+  end
+
+  defp map_has_key?(map, key) when is_map(map) and is_binary(key) do
+    atom_key = existing_atom(key)
+
+    Map.has_key?(map, key) or (atom_key && Map.has_key?(map, atom_key))
   end
 
   defp map_has_key?(_map, _key), do: false

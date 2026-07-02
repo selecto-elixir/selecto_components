@@ -287,6 +287,92 @@ defmodule SelectoComponents.QueryContractTest do
              ]
     end
 
+    test "projects AI-safe action metadata into JSON contracts" do
+      assert {:ok, document, diagnostics} =
+               QueryContract.json_document(domain(),
+                 generated_at: "2026-05-19T00:00:00Z",
+                 domain_id: "orders",
+                 actions: %{
+                   approve_order: %{
+                     name: "Approve order",
+                     description: "Approve an order after review.",
+                     scope: :row,
+                     capability: "order.approve",
+                     inputs: [
+                       %{id: :order_id, type: :integer, required: true},
+                       %{id: :note, type: :string}
+                     ],
+                     preconditions: [%{id: :open_status, description: "Order must be open."}],
+                     preview_required: true,
+                     ai_executable: false,
+                     allowed_ai_operations: [:propose, :preview]
+                   }
+                 }
+               )
+
+      assert diagnostics.errors == []
+      assert document["context"]["ai_actions_enabled"] == true
+
+      assert [
+               %{
+                 "id" => "approve_order",
+                 "name" => "Approve order",
+                 "description" => "Approve an order after review.",
+                 "scope" => "row",
+                 "capability" => "order.approve",
+                 "preview_required" => true,
+                 "ai_executable" => false,
+                 "allowed_ai_operations" => ["propose", "preview"]
+               } = action
+             ] = document["actions"]
+
+      assert [%{"id" => "order_id", "required" => true}, %{"id" => "note"}] = action["inputs"]
+      assert [%{"id" => "open_status"}] = action["preconditions"]
+      assert_json_safe(document)
+      refute_nil_map_values(document)
+    end
+
+    test "applies host action policy before exposing AI actions" do
+      resolver = fn
+        %Selecto.Capabilities.Request{capability: "order.approve"} ->
+          Selecto.Capabilities.deny(:manager_required,
+            user_message: "Managers must approve orders."
+          )
+
+        _request ->
+          Selecto.Capabilities.allow()
+      end
+
+      assert {:ok, document, diagnostics} =
+               QueryContract.json_document(domain(),
+                 generated_at: "2026-05-19T00:00:00Z",
+                 actions: %{
+                   approve_order: %{
+                     name: "Approve order",
+                     capability: "order.approve",
+                     inputs: [%{id: :order_id, required: true}]
+                   }
+                 },
+                 capability_resolver: resolver
+               )
+
+      assert diagnostics.errors == []
+
+      assert [
+               %{
+                 "id" => "approve_order",
+                 "disabled" => true,
+                 "ai_executable" => false,
+                 "allowed_ai_operations" => [],
+                 "capability_decision" => %{
+                   "status" => "disabled",
+                   "code" => "manager_required",
+                   "reason" => "Managers must approve orders."
+                 }
+               }
+             ] = document["actions"]
+    end
+
     test "can include form-ready choice-source field metadata" do
       assert {:ok, document, diagnostics} =
                QueryContract.json_document(domain(),
@@ -662,6 +748,144 @@ defmodule SelectoComponents.QueryContractTest do
       assert validation[:valid?]
       assert validation.errors == []
     end
+
+    test "accepts AI action proposal and preview intents for exposed actions" do
+      document = action_contract_document()
+
+      proposal =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "action" => %{
+            "id" => "approve_order",
+            "operation" => "propose",
+            "inputs" => %{"order_id" => 123}
+          }
+        })
+
+      preview =
+        QueryContract.validate_intent(document, %{
+          "view_mode" => "detail",
+          "actions" => [
+            %{
+              "id" => "approve_order",
+              "operation" => "preview",
+              "inputs" => %{"order_id" => 123}
+            }
+          ]
+        })
+
+      assert proposal[:valid?]
+      assert proposal.errors == []
+      assert preview[:valid?]
+      assert preview.errors == []
+    end
+
+    test "rejects AI action intents with missing inputs or unexposed actions" do
+      validation =
+        QueryContract.validate_intent(action_contract_document(), %{
+          "view_mode" => "detail",
+          "actions" => [
+            %{"id" => "approve_order", "operation" => "preview", "inputs" => %{}},
+            %{"id" => "refund_order", "operation" => "preview", "inputs" => %{}}
+          ]
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :missing_action_input, path: "actions.0.inputs.order_id"}, &1)
+             )
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :invalid_action, path: "actions.1.id"}, &1)
+             )
+    end
+
+    test "rejects AI action execution unless contract and confirmations allow it" do
+      validation =
+        QueryContract.validate_intent(action_contract_document(), %{
+          "view_mode" => "detail",
+          "action" => %{
+            "id" => "approve_order",
+            "operation" => "apply",
+            "inputs" => %{"order_id" => 123}
+          }
+        })
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :action_operation_not_allowed, path: "action.operation"}, &1)
+             )
+
+      executable_document =
+        action_contract_document()
+        |> put_in(
+          ["actions"],
+          [
+            %{
+              "id" => "approve_order",
+              "inputs" => [%{"id" => "order_id", "required" => true}],
+              "preview_required" => true,
+              "ai_executable" => true,
+              "allowed_ai_operations" => ["propose", "preview", "apply"]
+            }
+          ]
+        )
+
+      without_confirmation =
+        QueryContract.validate_intent(executable_document, %{
+          "view_mode" => "detail",
+          "action" => %{
+            "id" => "approve_order",
+            "operation" => "apply",
+            "inputs" => %{"order_id" => 123}
+          }
+        })
+
+      refute without_confirmation[:valid?]
+
+      assert Enum.find(
+               without_confirmation.errors,
+               &match?(%{code: :action_preview_required, path: "action.preview_confirmed"}, &1)
+             )
+
+      confirmed =
+        QueryContract.validate_intent(executable_document, %{
+          "view_mode" => "detail",
+          "action" => %{
+            "id" => "approve_order",
+            "operation" => "apply",
+            "inputs" => %{"order_id" => 123},
+            "preview_confirmed" => true,
+            "human_confirmed" => true
+          }
+        })
+
+      assert confirmed[:valid?]
+      assert confirmed.errors == []
+    end
+
+    test "rejects AI action intents when the contract disables AI actions" do
+      validation =
+        QueryContract.validate_intent(
+          put_in(action_contract_document(), ["context", "ai_actions_enabled"], false),
+          %{
+            "view_mode" => "detail",
+            "action" => %{"id" => "approve_order", "inputs" => %{"order_id" => 123}}
+          }
+        )
+
+      refute validation[:valid?]
+
+      assert Enum.find(
+               validation.errors,
+               &match?(%{code: :ai_actions_disabled, path: "action"}, &1)
+             )
+    end
   end
 
   defp domain do
@@ -800,6 +1024,28 @@ defmodule SelectoComponents.QueryContractTest do
                generated_at: "2026-04-30T19:50:00Z",
                domain_id: "orders",
                domain_path: "/orders"
+             )
+
+    assert diagnostics.errors == []
+
+    document
+  end
+
+  defp action_contract_document do
+    assert {:ok, document, diagnostics} =
+             QueryContract.json_document(domain(),
+               generated_at: "2026-05-19T00:00:00Z",
+               domain_id: "orders",
+               actions: %{
+                 approve_order: %{
+                   name: "Approve order",
+                   capability: "order.approve",
+                   inputs: [%{id: :order_id, type: :integer, required: true}],
+                   preview_required: true,
+                   ai_executable: false,
+                   allowed_ai_operations: [:propose, :preview]
+                 }
+               }
              )
 
     assert diagnostics.errors == []

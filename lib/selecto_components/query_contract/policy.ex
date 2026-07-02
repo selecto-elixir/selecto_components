@@ -78,6 +78,12 @@ defmodule SelectoComponents.QueryContract.Policy do
         |> list_or_empty()
         |> project_entries(:published_view, opts)
 
+      {actions, action_decisions} =
+        contract
+        |> map_value(:actions, [])
+        |> list_or_empty()
+        |> project_entries(:action, opts)
+
       {context, context_decisions} =
         contract
         |> map_value(:context, %{})
@@ -88,6 +94,7 @@ defmodule SelectoComponents.QueryContract.Policy do
           function_decisions ++
           query_member_decisions ++
           published_view_decisions ++
+          action_decisions ++
           context_decisions
 
       contract
@@ -97,6 +104,7 @@ defmodule SelectoComponents.QueryContract.Policy do
       |> Map.put(:query_members, query_members)
       |> Map.put(:choice_sources, choice_sources)
       |> Map.put(:published_views, published_views)
+      |> Map.put(:actions, actions)
       |> Map.put(:context, context)
       |> prune_field_choice_bindings(hidden_field_ids)
       |> prune_defaults(hidden_field_ids, hidden_filter_ids)
@@ -311,6 +319,7 @@ defmodule SelectoComponents.QueryContract.Policy do
   defp operation_for(:query_member, _entry), do: :query_member
   defp operation_for(:published_view, _entry), do: :published_view
   defp operation_for(:choice_source, _entry), do: :choice_source
+  defp operation_for(:action, entry), do: map_value(entry, :operation, :action)
 
   defp target_for(entry, kind) do
     entry_target =
@@ -486,16 +495,25 @@ defmodule SelectoComponents.QueryContract.Policy do
 
   defp decision_status(%Selecto.Capabilities.Decision{status: :allow}), do: "enabled"
   defp decision_status(%Selecto.Capabilities.Decision{visibility: :hidden}), do: "hidden"
+
+  defp decision_status(%Selecto.Capabilities.Decision{visibility: :preview_only}),
+    do: "preview_only"
+
   defp decision_status(%Selecto.Capabilities.Decision{status: :not_applicable}), do: "hidden"
   defp decision_status(%Selecto.Capabilities.Decision{}), do: "disabled"
 
   defp normalize_status(status) when status in [:enabled, :allow], do: "enabled"
   defp normalize_status(status) when status in [:disabled, :deny], do: "disabled"
   defp normalize_status(status) when status in [:hidden, :not_applicable], do: "hidden"
+  defp normalize_status(status) when status in [:preview_only, :conditional], do: "preview_only"
   defp normalize_status("allow"), do: "enabled"
   defp normalize_status("deny"), do: "disabled"
   defp normalize_status("not_applicable"), do: "hidden"
-  defp normalize_status(status) when status in ["enabled", "disabled", "hidden"], do: status
+  defp normalize_status("conditional"), do: "preview_only"
+
+  defp normalize_status(status) when status in ["enabled", "disabled", "hidden", "preview_only"],
+    do: status
+
   defp normalize_status(_status), do: "enabled"
 
   defp decision_entry(entry, kind, capability, decision) do
@@ -556,6 +574,14 @@ defmodule SelectoComponents.QueryContract.Policy do
     entry
     |> put_decision(decision_entry)
     |> put_entry_value(:disabled, true)
+  end
+
+  defp disable_entry(entry, :action, decision_entry) do
+    entry
+    |> put_decision(decision_entry)
+    |> put_entry_value(:disabled, true)
+    |> put_entry_value(:allowed_ai_operations, [])
+    |> put_entry_value(:ai_executable, false)
   end
 
   defp put_choice_source_decision(field, decision_entry, disabled?) do
