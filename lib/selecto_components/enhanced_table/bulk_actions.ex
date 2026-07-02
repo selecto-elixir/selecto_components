@@ -116,19 +116,19 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
         type="button"
         class={
           "w-full text-left px-4 py-2 text-sm flex items-center space-x-2 " <>
-            if(@action.disabled?,
-              do: "cursor-not-allowed text-gray-400",
-              else: "hover:bg-gray-100"
-            )
+            bulk_action_class(@action)
         }
         disabled={@action.disabled?}
         phx-click={!@action.disabled? && execute_action_click(@menu_id, @action.id, @myself)}
+        data-confirm={if !@action.disabled? && @action.requires_confirmation?, do: @action.confirmation_message}
         data-bulk-action-id={@action.id}
         data-bulk-action-source={Map.get(@action, :source)}
         data-bulk-action-scope={Map.get(@action, :scope)}
         data-bulk-action-status={Map.get(@action, :status)}
+        data-bulk-action-confirmation={@action.requires_confirmation?}
+        data-bulk-action-destructive={@action.destructive?}
       >
-        <span class={if @action.disabled?, do: "text-gray-400", else: "text-gray-700"}>{@action.label}</span>
+        <span class={bulk_action_label_class(@action)}>{@action.label}</span>
       </button>
       <p :if={@action.disabled? && @action.reason} class="px-4 pb-2 text-xs text-amber-700">
         {@action.reason}
@@ -405,7 +405,9 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       scope: "bulk",
       type: :live_component,
       payload: payload,
-      confirmation_message: map_value(action, :confirmation_message)
+      confirmation_message: map_value(action, :confirmation_message),
+      requires_confirmation?: truthy?(map_value(action, :requires_confirmation?)),
+      destructive?: truthy?(map_value(action, :destructive?))
     }
   end
 
@@ -418,6 +420,8 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
       description: map_value(action, :description),
       divider: truthy?(map_value(action, :divider)),
       confirmation_message: map_value(action, :confirmation_message),
+      requires_confirmation?: truthy?(map_value(action, :requires_confirmation?)),
+      destructive?: truthy?(map_value(action, :destructive?)),
       disabled?: truthy?(map_value(action, :disabled?)),
       status: map_value(action, :status),
       reason: map_value(action, :reason),
@@ -448,6 +452,14 @@ defmodule SelectoComponents.EnhancedTable.BulkActions do
     |> Map.get(:selected_rows, MapSet.new())
     |> MapSet.to_list()
   end
+
+  defp bulk_action_class(%{disabled?: true}), do: "cursor-not-allowed text-gray-400"
+  defp bulk_action_class(%{destructive?: true}), do: "hover:bg-rose-50"
+  defp bulk_action_class(_action), do: "hover:bg-gray-100"
+
+  defp bulk_action_label_class(%{disabled?: true}), do: "text-gray-400"
+  defp bulk_action_label_class(%{destructive?: true}), do: "text-rose-700"
+  defp bulk_action_label_class(_action), do: "text-gray-700"
 
   defp toggle_actions_menu(menu_id) do
     JS.toggle(

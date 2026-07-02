@@ -17,6 +17,10 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
     assert html =~ ~s(data-bulk-action-id="domain_bulk_action_form_bulk_archive")
     assert html =~ ~s(data-bulk-action-source="generated_bulk_action_form")
     assert html =~ ~s(data-bulk-action-scope="bulk")
+    assert html =~ ~s(data-bulk-action-confirmation)
+    assert html =~ ~s(data-bulk-action-destructive)
+    assert html =~ ~s(data-confirm="Archive selected rows?")
+    assert html =~ "text-rose-700"
     assert html =~ "Archive selected"
     assert html =~ ~s(id="bulk-actions-menu")
   end
@@ -136,6 +140,7 @@ defmodule SelectoComponents.EnhancedTable.BulkActionsTest do
           description: "Archive every selected row.",
           scope: :bulk,
           capability: "orders.archive",
+          confirmation: %{required: true, message: "Archive selected rows?", destructive: true},
           execution: %{operation: :update},
           links: %{
             preview: "/orders/actions/bulk_archive/preview",

@@ -24,6 +24,9 @@ defmodule SelectoComponents.ActionFormHost do
   - `:after_apply` - callback invoked as `(socket, result)` before modal result assignment.
     It may return the updated socket or `{socket, reload_metadata}` when the
     host refreshed data after the write.
+  - `:apply_message` - message atom sent to the LiveView after successful
+    apply execution, defaulting to `:selecto_action_form_applied`. Set to
+    `false` or `nil` to skip the notification.
   - `:authorize` - callback invoked before preview/apply execution. It may be
     arity 4 `(action_id, request, socket, intent)` or arity 3
     `(action_id, request, socket)`. Return `:ok`, `{:ok, metadata}`, or
@@ -42,6 +45,7 @@ defmodule SelectoComponents.ActionFormHost do
              |> Keyword.fetch!(intent)
              |> call_action(action_id, request, socket, payload) do
         {socket, metadata} = maybe_after_apply(socket, intent, result, opts)
+        maybe_notify_apply(intent, payload, result, metadata, opts)
         {:noreply, assign_result(socket, Atom.to_string(intent), result, metadata)}
       else
         {:error, reason} ->
@@ -178,6 +182,33 @@ defmodule SelectoComponents.ActionFormHost do
   end
 
   defp maybe_after_apply(socket, :preview, _result, _opts), do: {socket, %{}}
+
+  defp maybe_notify_apply(:preview, _payload, _result, _metadata, _opts), do: :ok
+
+  defp maybe_notify_apply(:apply, payload, result, metadata, opts) do
+    case Keyword.get(opts, :apply_message, :selecto_action_form_applied) do
+      message when message in [nil, false] ->
+        :ok
+
+      message when is_atom(message) ->
+        send(self(), {message, apply_message_payload(payload, result, metadata)})
+        :ok
+    end
+  end
+
+  defp apply_message_payload(payload, result, metadata) do
+    reload = Map.get(metadata, :reload) || Map.get(metadata, "reload")
+
+    %{
+      action_id: Map.fetch!(payload, :action_id),
+      request: Map.fetch!(payload, :request),
+      target: Map.get(payload, "target") || Map.get(payload, :target),
+      result: QueryContract.json_safe(result),
+      reload: QueryContract.json_safe(reload)
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == %{} end)
+    |> Map.new()
+  end
 
   defp error_message(reason, opts) do
     case Keyword.get(opts, :format_error) do

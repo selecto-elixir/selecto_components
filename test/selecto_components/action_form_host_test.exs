@@ -50,6 +50,17 @@ defmodule SelectoComponents.ActionFormHostTest do
              "status" => "refreshed",
              "surface" => "selecto_results"
            }
+
+    assert_receive {:selecto_action_form_applied, metadata}
+    assert metadata.action_id == "archive"
+    assert metadata.request == %{"action" => "archive", "target" => %{"id" => 42}}
+    assert metadata.result == %{"action" => "archive"}
+
+    assert metadata.reload == %{
+             "message" => "The host reran the current query.",
+             "status" => "refreshed",
+             "surface" => "selecto_results"
+           }
   end
 
   test "handle_submit still allows after_apply to close the modal before result assignment" do
@@ -69,6 +80,53 @@ defmodule SelectoComponents.ActionFormHostTest do
 
     assert updated_socket.assigns.show_detail_modal == false
     assert updated_socket.assigns.modal_detail_data == nil
+    assert_receive {:selecto_action_form_applied, %{action_id: "archive"}}
+  end
+
+  test "handle_submit emits a standard apply notification for host refresh handlers" do
+    assert {:noreply, _updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
+               apply: fn action_id, request, _socket ->
+                 {:ok, %{action: action_id, target: request["target"]}}
+               end
+             )
+
+    assert_receive {:selecto_action_form_applied, metadata}
+    assert metadata.action_id == "archive"
+    assert metadata.target == %{"id" => 42}
+    assert metadata.result == %{"action" => "archive", "target" => %{"id" => 42}}
+    refute Map.has_key?(metadata, :reload)
+  end
+
+  test "handle_submit supports custom and disabled apply notification messages" do
+    assert {:noreply, _updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{ok: true}} end,
+               apply_message: :custom_action_applied
+             )
+
+    assert_receive {:custom_action_applied, %{action_id: "archive"}}
+
+    assert {:noreply, _updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("apply"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{}} end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{ok: true}} end,
+               apply_message: false
+             )
+
+    refute_receive {:selecto_action_form_applied, _metadata}
+  end
+
+  test "handle_submit does not emit apply notification for previews" do
+    assert {:noreply, _updated_socket} =
+             ActionFormHost.handle_submit(socket(), payload("preview"),
+               preview: fn _action_id, _request, _socket -> {:ok, %{ok: true}} end,
+               apply: fn _action_id, _request, _socket -> {:ok, %{}} end
+             )
+
+    refute_receive {:selecto_action_form_applied, _metadata}
   end
 
   test "handle_submit accepts atom intents for compatibility" do
