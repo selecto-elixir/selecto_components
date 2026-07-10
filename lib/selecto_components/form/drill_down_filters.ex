@@ -10,6 +10,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   """
 
   alias SelectoComponents.Form.ParamsState
+  alias SelectoComponents.Param
 
   @doc """
   Build filter parameters for aggregate drill-down.
@@ -158,12 +159,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
   defp ordered_field_configs(configs) when is_map(configs) do
     configs
     |> Map.values()
-    |> Enum.sort_by(fn config ->
-      config
-      |> Map.get("index", "0")
-      |> to_string()
-      |> String.to_integer()
-    end)
+    |> Enum.sort_by(fn config -> Param.integer(Map.get(config, "index")) end)
   end
 
   defp ordered_field_configs(_configs), do: []
@@ -253,17 +249,16 @@ defmodule SelectoComponents.Form.DrillDownFilters do
         handle_quarter_format(value, field_conf)
 
       format == "MM" and String.match?(value, ~r/^\d{1,2}$/) ->
-        {"MONTH_OF_YEAR", value |> String.trim() |> String.to_integer() |> Integer.to_string(),
-         ""}
+        {"MONTH_OF_YEAR", value |> String.trim() |> Param.integer() |> Integer.to_string(), ""}
 
       format == "DD" and String.match?(value, ~r/^\d{1,2}$/) ->
-        {"DAY_OF_MONTH", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+        {"DAY_OF_MONTH", value |> String.trim() |> Param.integer() |> Integer.to_string(), ""}
 
       format == "D" and String.match?(value, ~r/^\d$/) ->
-        {"WEEKDAY_SUN1", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+        {"WEEKDAY_SUN1", value |> String.trim() |> Param.integer() |> Integer.to_string(), ""}
 
       format == "HH24" and String.match?(value, ~r/^\d{1,2}$/) ->
-        {"HOUR_OF_DAY", value |> String.trim() |> String.to_integer() |> Integer.to_string(), ""}
+        {"HOUR_OF_DAY", value |> String.trim() |> Param.integer() |> Integer.to_string(), ""}
 
       true ->
         nil
@@ -367,14 +362,14 @@ defmodule SelectoComponents.Form.DrillDownFilters do
 
       String.match?(value, ~r/^(\d+)-(\d+)$/) ->
         [min_days_str, max_days_str] = String.split(value, "-")
-        max_days = String.to_integer(max_days_str)
-        min_days = String.to_integer(min_days_str)
+        max_days = Param.integer(max_days_str)
+        min_days = Param.integer(min_days_str)
         start_date = Date.add(today, -max_days)
         end_date = Date.add(today, -(min_days - 1))
         {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
       String.match?(value, ~r/^(\d+)\+$/) ->
-        days = value |> String.replace("+", "") |> String.to_integer()
+        days = value |> String.replace("+", "") |> Param.integer()
         cutoff_date = Date.add(today, -days)
         {"<=", Date.to_iso8601(cutoff_date), ""}
 
@@ -392,14 +387,14 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     cond do
       String.match?(value, ~r/^(\d+)-(\d+)$/) ->
         [min_days_str, max_days_str] = String.split(value, "-")
-        max_days = String.to_integer(max_days_str)
-        min_days = String.to_integer(min_days_str)
+        max_days = Param.integer(max_days_str)
+        min_days = Param.integer(min_days_str)
         start_date = Date.add(today, -max_days)
         end_date = Date.add(today, -(min_days - 1))
         {"DATE_BETWEEN", Date.to_iso8601(start_date), Date.to_iso8601(end_date)}
 
       String.match?(value, ~r/^(\d+)\+$/) ->
-        days = value |> String.replace("+", "") |> String.to_integer()
+        days = value |> String.replace("+", "") |> Param.integer()
         cutoff_date = Date.add(today, -days)
         {"<=", Date.to_iso8601(cutoff_date), ""}
 
@@ -415,7 +410,7 @@ defmodule SelectoComponents.Form.DrillDownFilters do
     cond do
       String.match?(value, ~r/^(\d+)-(\d+)$/) ->
         [min_year, max_year] = String.split(value, "-")
-        {"DATE_BETWEEN", "#{min_year}-01-01", "#{String.to_integer(max_year) + 1}-01-01"}
+        {"DATE_BETWEEN", "#{min_year}-01-01", "#{Param.integer(max_year) + 1}-01-01"}
 
       String.match?(value, ~r/^(\d+)\+$/) ->
         min_year = String.replace(value, "+", "")

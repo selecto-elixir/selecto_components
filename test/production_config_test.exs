@@ -1,8 +1,21 @@
 defmodule SelectoComponents.Debug.ProductionConfigTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias SelectoComponents.Debug.ProductionConfig
   alias SelectoComponents.Session
+
+  setup do
+    original_env = Application.get_env(:selecto_components, :env)
+    original_serve_endpoints = Application.get_env(:phoenix, :serve_endpoints)
+    Application.put_env(:selecto_components, :env, :test)
+
+    on_exit(fn ->
+      restore_app_env(:selecto_components, :env, original_env)
+      restore_app_env(:phoenix, :serve_endpoints, original_serve_endpoints)
+    end)
+
+    :ok
+  end
 
   test "debug is disabled by default without request flag" do
     refute ProductionConfig.debug_enabled?(%{}, %{})
@@ -37,4 +50,14 @@ defmodule SelectoComponents.Debug.ProductionConfigTest do
              filters: []
            })
   end
+
+  test "disabled Phoenix endpoints do not bypass production token checks" do
+    Application.put_env(:selecto_components, :env, :prod)
+    Application.put_env(:phoenix, :serve_endpoints, false)
+
+    refute ProductionConfig.debug_enabled?(%{"selecto_debug" => "true"}, %{})
+  end
+
+  defp restore_app_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_app_env(app, key, value), do: Application.put_env(app, key, value)
 end

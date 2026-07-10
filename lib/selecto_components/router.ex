@@ -26,10 +26,7 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_event("view-apply", params, %{active_tab: "save"} = state) do
-    # Handle save view logic
-    case handle_save_view(params, state) do
-      {:ok, updated_state} -> {:ok, updated_state}
-    end
+    handle_save_view(params, state)
   end
 
   def handle_event("view-apply", params, state) do
@@ -65,8 +62,6 @@ defmodule SelectoComponents.Router do
   end
 
   def handle_event("filter_remove", params, state) do
-    IO.puts("Handling filter_remove event")
-
     case handle_filter_remove(params, state) do
       {:ok, updated_state} -> {:ok, updated_state}
     end
@@ -159,6 +154,18 @@ defmodule SelectoComponents.Router do
              State.set_execution_error(
                state,
                ErrorBuilder.build("Failed to save view: #{inspect(reason)}",
+                 stage: :persistence,
+                 category: :persistence,
+                 code: :save_view_failed,
+                 operation: "save_view"
+               )
+             )}
+
+          result ->
+            {:ok,
+             State.set_execution_error(
+               state,
+               ErrorBuilder.build("Unexpected save view result: #{inspect(result)}",
                  stage: :persistence,
                  category: :persistence,
                  code: :save_view_failed,

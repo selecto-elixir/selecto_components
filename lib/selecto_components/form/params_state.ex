@@ -14,6 +14,7 @@ defmodule SelectoComponents.Form.ParamsState do
   alias SelectoComponents.Execution.Executor
   alias SelectoComponents.Execution.Plan
   alias SelectoComponents.Execution.ResultState
+  alias SelectoComponents.Param
   alias SelectoComponents.Views.Aggregate.Options, as: AggregateOptions
   alias SelectoComponents.Views.Detail.Options, as: DetailOptions
   alias SelectoComponents.Presentation
@@ -180,9 +181,7 @@ defmodule SelectoComponents.Form.ParamsState do
 
       {param_key, f}
     end)
-    |> Enum.sort(fn {_, f1}, {_, f2} ->
-      String.to_integer(Map.get(f1, "index", "0")) <= String.to_integer(Map.get(f2, "index", "0"))
-    end)
+    |> Enum.sort_by(fn {_, filter} -> Param.integer(Map.get(filter, "index")) end)
     |> Enum.reduce([], fn
       {param_key, %{"conjunction" => conj} = f}, acc ->
         uuid = get_map_value(f, :uuid, param_key)

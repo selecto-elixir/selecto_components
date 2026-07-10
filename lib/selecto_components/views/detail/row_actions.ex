@@ -89,7 +89,7 @@ defmodule SelectoComponents.Views.Detail.RowActions do
             "strict-origin-when-cross-origin",
         iframe_sandbox:
           normalize_optional_string(map_get(payload, :sandbox)) ||
-            "allow-scripts allow-same-origin"
+            "allow-scripts"
       }
     else
       nil

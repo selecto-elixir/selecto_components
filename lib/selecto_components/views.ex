@@ -1,4 +1,6 @@
 defmodule SelectoComponents.Views do
+  alias SelectoComponents.Param
+
   @moduledoc """
   View tuple helpers and shared parameter-shaping helpers.
 
@@ -93,8 +95,8 @@ defmodule SelectoComponents.Views do
 
       acc ++ [{stable_id, f[section], Map.put_new(f, "uuid", stable_id)}]
     end)
-    |> Enum.sort(fn {_u, _s, %{"index" => index}}, {_u2, _s2, %{"index" => index2}} ->
-      String.to_integer(index) <= String.to_integer(index2)
+    |> Enum.sort_by(fn {_uuid, _section, config} ->
+      Param.integer(Map.get(config, "index"))
     end)
   end
 end

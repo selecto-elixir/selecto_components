@@ -239,8 +239,7 @@ defmodule SelectoComponents.Form.ViewLifecycleTest do
     assert updated_socket.assigns.active_tab == "view"
 
     assert updated_socket.assigns.view_config.views.graph.x_axis == [
-             {"g1", "category",
-              %{"field" => "category", "index" => "0", "uuid" => "g1"}}
+             {"g1", "category", %{"field" => "category", "index" => "0", "uuid" => "g1"}}
            ]
 
     assert updated_socket.assigns.view_config.views.graph.y_axis == [

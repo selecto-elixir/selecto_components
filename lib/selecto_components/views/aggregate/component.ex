@@ -3,8 +3,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     display results of aggregate view
   """
   use Phoenix.LiveComponent
-  alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Param
   alias SelectoComponents.Presentation
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
@@ -54,10 +54,6 @@ defmodule SelectoComponents.Views.Aggregate.Component do
           Map.get(assigns, :theme, Map.get(socket.assigns, :theme, Theme.default_theme(:light))),
         last_update: System.system_time(:microsecond)
       )
-
-    if Env.dev?() do
-      IO.puts("[theme-debug][Aggregate.Component] update theme=#{socket.assigns.theme.id}")
-    end
 
     {:ok, socket}
   end
@@ -793,15 +789,8 @@ defmodule SelectoComponents.Views.Aggregate.Component do
     group_by_param_configs =
       group_by_config
       |> Map.values()
-      |> Enum.sort(fn a, b ->
-        to_index = fn cfg ->
-          cfg
-          |> Map.get("index", Map.get(cfg, :index, "0"))
-          |> to_string()
-          |> String.to_integer()
-        end
-
-        to_index.(a) <= to_index.(b)
+      |> Enum.sort_by(fn config ->
+        Param.integer(Map.get(config, "index", Map.get(config, :index)))
       end)
 
     group_by_param_fields =

@@ -211,6 +211,29 @@ defmodule SelectoComponents.Theme do
     .sc-checkbox-label {
       color: var(--sc-text-primary);
     }
+
+    .sc-bulk-action {
+      color: var(--sc-text-secondary);
+    }
+
+    .sc-bulk-action:hover {
+      background: var(--sc-surface-bg-alt);
+      color: var(--sc-text-primary);
+    }
+
+    .sc-bulk-action-destructive {
+      color: var(--sc-danger);
+    }
+
+    .sc-bulk-action-destructive:hover {
+      background: var(--sc-danger-soft);
+      color: var(--sc-danger);
+    }
+
+    .sc-bulk-action-disabled {
+      color: var(--sc-text-muted);
+      opacity: 0.65;
+    }
     """
   end
 

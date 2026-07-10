@@ -1,5 +1,6 @@
 defmodule SelectoComponents.Views.Detail.Process do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.Param
   alias SelectoComponents.Views.Detail.Options
   alias SelectoComponents.Views.Detail.RowActions
 
@@ -118,7 +119,7 @@ defmodule SelectoComponents.Views.Detail.Process do
        denormalizing_columns: if(prevent_denorm, do: detail_columns -- visible_columns, else: [])
      },
      %{
-       page: String.to_integer(Map.get(params, "detail_page", "0")),
+       page: Param.integer(Map.get(params, "detail_page")),
        per_page: per_page,
        max_rows: max_rows,
        count_mode: count_mode,
@@ -318,7 +319,7 @@ defmodule SelectoComponents.Views.Detail.Process do
   defp order_by(order_by, _columns) do
     order_by
     |> Map.values()
-    |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
+    |> Enum.sort_by(&Param.integer(Map.get(&1, "index")))
     |> Enum.map(fn e ->
       case e["dir"] do
         "desc" -> {:desc, e["field"]}

@@ -5,6 +5,7 @@ defmodule SelectoComponents.Views.Graph.Component do
   use Phoenix.LiveComponent
   alias SelectoComponents.Env
   alias SelectoComponents.ErrorHandling.ErrorBuilder
+  alias SelectoComponents.Param
   alias SelectoComponents.Presentation
   alias SelectoComponents.QueryResults
   alias SelectoComponents.Theme
@@ -15,10 +16,6 @@ defmodule SelectoComponents.Views.Graph.Component do
       socket
       |> assign(assigns)
       |> assign(:theme, Map.get(assigns, :theme, Theme.default_theme(:light)))
-
-    if Env.dev?() do
-      IO.puts("[theme-debug][Graph.Component] update theme=#{socket.assigns.theme.id}")
-    end
 
     # Add a timestamp to force re-rendering if data changed
     socket = assign(socket, :last_update, System.system_time(:microsecond))
@@ -674,7 +671,7 @@ defmodule SelectoComponents.Views.Graph.Component do
 
   defp values_for_defs(row, group_defs) do
     Enum.map(group_defs, fn group_def ->
-      row |> Enum.at(group_def.group_index |> String.to_integer())
+      Enum.at(row, Param.integer(group_def.group_index))
     end)
   end
 

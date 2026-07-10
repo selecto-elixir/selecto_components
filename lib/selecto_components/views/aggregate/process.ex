@@ -1,7 +1,9 @@
 defmodule SelectoComponents.Views.Aggregate.Process do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.Param
   alias SelectoComponents.SchemaUtils
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.SqlSafety
   alias SelectoComponents.Views.Aggregate.Options
 
   def param_to_state(params, _v) do
@@ -142,9 +144,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   def group_by(group_by, columns, selecto, presentation_context \\ %{}) do
     group_by
     |> Map.values()
-    |> Enum.sort(fn a, b ->
-      String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
-    end)
+    |> Enum.sort_by(&Param.integer(Map.get(&1, "index")))
     |> Enum.map(fn e ->
       field_name = Map.get(e, "field")
 
@@ -521,7 +521,7 @@ defmodule SelectoComponents.Views.Aggregate.Process do
         maybe_timezone_aware_datetime_selector(
           col,
           field_with_alias,
-          format,
+          SqlSafety.datetime_grouping_format(format),
           presentation_context
         )
 
@@ -583,10 +583,9 @@ defmodule SelectoComponents.Views.Aggregate.Process do
   end
 
   defp runtime_timezone(presentation_context) when is_map(presentation_context) do
-    case Map.get(presentation_context, :timezone, Map.get(presentation_context, "timezone")) do
-      timezone when is_binary(timezone) and timezone != "" -> timezone
-      _ -> nil
-    end
+    presentation_context
+    |> Map.get(:timezone, Map.get(presentation_context, "timezone"))
+    |> SqlSafety.timezone(nil)
   end
 
   defp runtime_timezone(_presentation_context), do: nil
@@ -595,15 +594,14 @@ defmodule SelectoComponents.Views.Aggregate.Process do
     col
     |> Selecto.Presentation.presentation()
     |> Map.get(:storage_timezone, "Etc/UTC")
+    |> SqlSafety.timezone()
   end
 
   def aggregates(aggregates, columns) do
     result =
       aggregates
       |> Map.values()
-      |> Enum.sort(fn a, b ->
-        String.to_integer(Map.get(a, "index", "0")) <= String.to_integer(Map.get(b, "index", "0"))
-      end)
+      |> Enum.sort_by(&Param.integer(Map.get(&1, "index")))
       |> Enum.flat_map(fn e ->
         # ????
         # Handle special formats like buckets and age_buckets

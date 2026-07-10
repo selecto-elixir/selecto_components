@@ -2,6 +2,7 @@ defmodule SelectoComponents.Presentation do
   @moduledoc false
 
   alias Decimal, as: D
+  alias SelectoComponents.SqlSafety
 
   @unit_system_defaults %{
     metric: %{
@@ -256,16 +257,7 @@ defmodule SelectoComponents.Presentation do
   defp normalize_locale_adapter_options(options) when is_map(options), do: options
   defp normalize_locale_adapter_options(_options), do: %{}
 
-  defp normalize_timezone(nil), do: "Etc/UTC"
-
-  defp normalize_timezone(timezone) when is_binary(timezone) do
-    case String.trim(timezone) do
-      "" -> "Etc/UTC"
-      trimmed -> trimmed
-    end
-  end
-
-  defp normalize_timezone(_timezone), do: "Etc/UTC"
+  defp normalize_timezone(timezone), do: SqlSafety.timezone(timezone)
 
   defp normalize_unit_system(value) when value in [:metric, :us_customary], do: value
   defp normalize_unit_system("us"), do: :us_customary

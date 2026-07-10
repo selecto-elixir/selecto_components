@@ -4,6 +4,8 @@ defmodule SelectoComponents.Views.Graph.FormTest do
   alias SelectoComponents.Components.ListPicker
   alias SelectoComponents.Views.Graph.Form
 
+  defp render_form(assigns), do: Form.render(Map.put(assigns, :__changed__, nil))
+
   defp dynamic_chunks(%Phoenix.LiveView.Rendered{dynamic: dynamic}) when is_function(dynamic, 1),
     do: dynamic.(false)
 
@@ -117,7 +119,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       text = rendered_text(rendered)
 
       assert text =~ "Chart Type"
@@ -165,7 +167,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       text = rendered_text(rendered)
 
       assert text =~ "Chart Type"
@@ -197,7 +199,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       text = rendered_text(rendered)
 
       assert text =~ "Chart Type"
@@ -221,7 +223,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       text = rendered_text(rendered)
 
       assert text =~ "Legend Position"
@@ -250,7 +252,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       assert marker_count(rendered, "checked") == 2
     end
 
@@ -283,7 +285,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         }
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       x_axis_picker = list_picker(rendered, "x_axis")
       y_axis_picker = list_picker(rendered, "y_axis")
       series_picker = list_picker(rendered, "series")
@@ -336,7 +338,7 @@ defmodule SelectoComponents.Views.Graph.FormTest do
         selecto: %{field: fn _field -> %{colid: :unknown, type: :string} end}
       }
 
-      rendered = Form.render(assigns)
+      rendered = render_form(assigns)
       x_axis_picker = list_picker(rendered, "x_axis")
       series_picker = list_picker(rendered, "series")
       color_by_picker = list_picker(rendered, "color_by")

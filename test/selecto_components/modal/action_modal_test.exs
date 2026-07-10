@@ -83,7 +83,7 @@ defmodule SelectoComponents.Modal.ActionModalTest do
 
     assert %{
              iframe_referrer_policy: "strict-origin-when-cross-origin",
-             iframe_sandbox: "allow-scripts allow-same-origin"
+             iframe_sandbox: "allow-scripts"
            } =
              SelectoComponents.Views.Detail.RowActions.resolve_iframe_modal(
                %{type: :iframe_modal, payload: %{url_template: "/safe/path"}},

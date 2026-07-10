@@ -57,4 +57,22 @@ defmodule SelectoComponents.Views.Detail.ProcessTest do
     assert length(view_set.selected) == 3
     assert view_meta.row_click_action == "workspace_snapshot"
   end
+
+  test "malformed paging and sort indexes fall back without raising" do
+    params = %{
+      "view_mode" => "detail",
+      "detail_page" => "not-a-page",
+      "selected" => %{
+        "k0" => %{"field" => "id", "index" => "bad", "uuid" => "id-col", "alias" => ""}
+      },
+      "order_by" => %{
+        "k0" => %{"field" => "id", "index" => "bad", "uuid" => "order-id", "dir" => "desc"}
+      }
+    }
+
+    {view_set, view_meta} = Process.view(%{}, params, Selecto.columns(selecto()), [], selecto())
+
+    assert view_meta.page == 0
+    assert view_set.order_by == [{:desc, "id"}]
+  end
 end

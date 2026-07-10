@@ -1,6 +1,8 @@
 defmodule SelectoComponents.Views.Graph.Process do
   alias SelectoComponents.Helpers.BucketParser
+  alias SelectoComponents.Param
   alias SelectoComponents.SafeAtom
+  alias SelectoComponents.SqlSafety
 
   @doc """
   Converts form parameters to view state for form rendering
@@ -103,7 +105,7 @@ defmodule SelectoComponents.Views.Graph.Process do
   def group_by_fields(field_params, columns, presentation_context \\ %{}) do
     field_params
     |> Map.values()
-    |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
+    |> Enum.sort_by(&Param.integer(Map.get(&1, "index")))
     |> Enum.map(fn field_config ->
       col = columns[field_config["field"]]
 
@@ -203,7 +205,7 @@ defmodule SelectoComponents.Views.Graph.Process do
   def aggregate_defs(aggregate_params, columns) do
     aggregate_params
     |> Map.values()
-    |> Enum.sort(fn a, b -> String.to_integer(a["index"]) <= String.to_integer(b["index"]) end)
+    |> Enum.sort_by(&Param.integer(Map.get(&1, "index")))
     |> Enum.map(fn field_config ->
       column_def = Map.get(columns, field_config["field"])
 
@@ -308,7 +310,7 @@ defmodule SelectoComponents.Views.Graph.Process do
         maybe_timezone_aware_datetime_selector(
           col,
           field_with_alias,
-          format,
+          SqlSafety.datetime_grouping_format(format),
           presentation_context
         )
 
@@ -364,10 +366,9 @@ defmodule SelectoComponents.Views.Graph.Process do
   end
 
   defp runtime_timezone(presentation_context) when is_map(presentation_context) do
-    case Map.get(presentation_context, :timezone, Map.get(presentation_context, "timezone")) do
-      timezone when is_binary(timezone) and timezone != "" -> timezone
-      _ -> nil
-    end
+    presentation_context
+    |> Map.get(:timezone, Map.get(presentation_context, "timezone"))
+    |> SqlSafety.timezone(nil)
   end
 
   defp runtime_timezone(_presentation_context), do: nil
@@ -376,5 +377,6 @@ defmodule SelectoComponents.Views.Graph.Process do
     col
     |> Selecto.Presentation.presentation()
     |> Map.get(:storage_timezone, "Etc/UTC")
+    |> SqlSafety.timezone()
   end
 end

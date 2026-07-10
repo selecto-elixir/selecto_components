@@ -1,6 +1,4 @@
 defmodule SelectoComponents.Debug.ProductionConfig do
-  import Bitwise
-
   alias SelectoComponents.Env
 
   @moduledoc """
@@ -70,14 +68,6 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   # Private functions
 
   defp dev_or_test_env? do
-    # Check various indicators that we're in dev/test
-    Application.get_env(:selecto_components, :env) in [:dev, :test] ||
-      Application.get_env(:phoenix, :serve_endpoints) == false ||
-      System.get_env("MIX_ENV") in ["dev", "test"] ||
-      check_mix_env_if_available()
-  end
-
-  defp check_mix_env_if_available do
     Env.dev_or_test?()
   end
 
@@ -140,22 +130,7 @@ defmodule SelectoComponents.Debug.ProductionConfig do
   defp truthy_flag?(_), do: false
 
   defp secure_compare(a, b) when is_binary(a) and is_binary(b) do
-    # Convert to charlist for constant-time comparison
-    a_charlist = String.to_charlist(a)
-    b_charlist = String.to_charlist(b)
-
-    # Both must be same length
-    if length(a_charlist) == length(b_charlist) do
-      # XOR each byte and accumulate differences
-      # This ensures constant-time comparison
-      diff =
-        Enum.zip(a_charlist, b_charlist)
-        |> Enum.reduce(0, fn {x, y}, acc -> bor(acc, bxor(x, y)) end)
-
-      diff == 0
-    else
-      false
-    end
+    Plug.Crypto.secure_compare(a, b)
   end
 
   defp secure_compare(_, _), do: false
